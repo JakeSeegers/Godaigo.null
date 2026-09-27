@@ -178,9 +178,12 @@ reach/beat it from here.
   fixes/all-consolidated; a Retry of a failed build reuses its old commit, a new push is needed.
   Live 2026-09-26: https://playgodaigo.com/ and https://godaigo.aikijake.workers.dev/. Both added
   to account-recovery DEFAULT_SITES (playgodaigo.com first = fallback), edge function v3 deployed,
-  so the SITE_URLS secret is not needed. Owner still to do: Supabase Auth URL Configuration
-  (Site URL + Redirect URLs), test sign-in + reset email on the new domain, then the old-address
-  "moved" notice and (later) private repo.
+  so the SITE_URLS secret is not needed. Supabase Auth URL Configuration done by the owner
+  (2026-09-27). Moved notice done (js/moved-notice.js). Private repo plan (2026-09-27): a private
+  repo turns Pages off on the free plan, so rename the game repo + make it private, then a new
+  public repo named Godaigo.Elements holds only tools/old-address-redirect/ (index.html + 404.html
+  redirect to playgodaigo.com, query + hash kept). After the rename: check a Cloudflare build and
+  add the renamed repo to the Claude environment.
   Reset fix: "Forgot password?" silently sent nothing when the recovery EMAIL was typed (the
   username check rejects '@'). request_reset now accepts username or email (new service-only RPC
   recovery_lookup_by_email in sql/account-recovery.sql, applied; one link per account, max 3),

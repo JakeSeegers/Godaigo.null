@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Godaigo has moved</title>
+<link rel="canonical" href="https://playgodaigo.com/">
+<script>
+// Godaigo moved to playgodaigo.com. Send the player to the same place on the
+// new site, keeping the query and #hash (old password reset and recovery
+// email links carry their data there).
+(function () {
+    var path = location.pathname.replace(/^\/Godaigo\.Elements/i, '');
+    if (path.charAt(0) !== '/') path = '/' + path;
+    location.replace('https://playgodaigo.com' + path + location.search + location.hash);
+})();
+</script>
+<noscript><meta http-equiv="refresh" content="0; url=https://playgodaigo.com/"></noscript>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: #0d0b16; color: #e8e2f4; font: 18px/1.5 Georgia, serif; text-align: center; padding: 16px; }
+  a { color: #c9a0ff; }
+</style>
+</head>
+<body>
+  <p>Godaigo has moved to <a href="https://playgodaigo.com/">playgodaigo.com</a>.<br>Taking you there now...</p>
+</body>
+</html>
