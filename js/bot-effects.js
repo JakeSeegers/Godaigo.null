@@ -529,8 +529,12 @@
             .map((p, i) => ({ i, p }))
             .filter(({ i, p }) => i !== meIdx && p && (!filterFn || filterFn(p)))
             .sort((a, b) => {
-                const score = x => x.p.activated.length * 1000 +
-                    Object.values(x.p.pool || {}).reduce((sum, n) => sum + n, 0);
+                // Alliances Phase 2: weighted by how hard this bot pushes
+                // against each player (the clear leader first; less for
+                // players who helped it). 1 everywhere when the system is off.
+                const press = window.BotDiplomacy?.pressures?.(meIdx) || null;
+                const score = x => (x.p.activated.length * 1000 +
+                    Object.values(x.p.pool || {}).reduce((sum, n) => sum + n, 0)) * (press ? press[x.i] : 1);
                 return score(b) - score(a);
             })
             .map(({ i }) => i);

@@ -607,8 +607,10 @@
         // all 5 are activated (mirrors opponentProgress()'s model).
         const oppPathCount = new Map();
         const oppShrineTargets = new Map(); // shrine centre hexKey -> opponents heading there
+        const press = window.BotDiplomacy?.pressures?.(ai) || null; // alliances Phase 2
         for (const opp of snap.players) {
             if (!opp || opp.index === ai) continue;
+            const w = press ? press[opp.index] : 1; // block the leader's way harder
             let target = null;
             if (ELEMENTS.every(el => opp.activated.includes(el))) {
                 target = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === opp.index) || null;
@@ -628,7 +630,7 @@
             if (!target) continue;
             if (!target.isPlayerTile) {
                 const tk = hexKey(target.x, target.y);
-                oppShrineTargets.set(tk, (oppShrineTargets.get(tk) || 0) + 1);
+                oppShrineTargets.set(tk, (oppShrineTargets.get(tk) || 0) + w);
             }
             const path = pathToOrNear(opp.x, opp.y, target.x, target.y);
             if (!path) continue;
@@ -637,7 +639,7 @@
                 const k = hexKey(step.x, step.y);
                 if (seenHexes.has(k)) continue;
                 seenHexes.add(k);
-                oppPathCount.set(k, (oppPathCount.get(k) || 0) + 1);
+                oppPathCount.set(k, (oppPathCount.get(k) || 0) + w);
             }
         }
 
@@ -2157,10 +2159,14 @@
         // Opponent threat — zero-sum: their progress toward winning is danger
         // to us. MAX across opponents (not sum) so this reacts to whoever is
         // most advanced without being diluted by player count in 3-5p games.
+        // Alliances Phase 2 (js/bot-diplomacy.js): each opponent's progress is
+        // weighted by how hard this bot pushes against them (1 = normal; the
+        // clear leader up to 4 when they could win next turn).
+        const press = window.BotDiplomacy?.pressures?.(forIndex) || null;
         let maxOppProgress = 0;
         for (let i = 0; i < snap.players.length; i++) {
             if (i === forIndex || !snap.players[i]) continue;
-            maxOppProgress = Math.max(maxOppProgress, opponentProgress(snap, i));
+            maxOppProgress = Math.max(maxOppProgress, opponentProgress(snap, i) * (press ? press[i] : 1));
         }
         v -= maxOppProgress * WEIGHTS.evalOpponentThreat;
         v -= commonAreaThreat(snap, forIndex);
@@ -2198,12 +2204,39 @@
     // the top `searchBreadth`. Root actions come from the REAL legalActions()
     // (game-validated); deeper plies use BotSim.legalActions (pure mirror).
     // Returns {action, score} or null when search can't run here.
+    // Alliances safeguard (docs/bot-alliances.md): never take an action that
+    // lets another player win on their next turn (they have all 5 elements
+    // and could walk home) unless the same action wins for this bot. Only
+    // runs while some opponent has all five, so it costs nothing earlier.
+    // If every action would do it, keep them all (never leave the bot stuck).
+    function kingmakerFilter(snap, acts) {
+        const D = window.BotDiplomacy, sim = window.BotSim;
+        if (!D?.enabled?.() || !sim || !acts.length || acts[0].type === 'placeTile') return acts;
+        const self = snap.turn.activePlayerIndex;
+        const danger = snap.players.map((p, j) => (j !== self && p && p.activated.length >= 5) ? j : -1).filter(j => j >= 0);
+        if (!danger.length) return acts;
+        const can = (s, j) => { try { return homeCost(s, j) <= 5; } catch (e) { return false; } };
+        const before = new Set(danger.filter(j => can(snap, j)));
+        const risky = danger.filter(j => !before.has(j));
+        if (!risky.length) return acts;
+        const keep = acts.filter(a => {
+            if (!['placeStone', 'breakStone', 'cast', 'move'].includes(a.type)) return true;
+            let after;
+            try { after = sim.simulate(snap, a); } catch (e) { return true; }
+            if (sim.winner(after) === self) return true;
+            return !risky.some(j => can(after, j));
+        });
+        if (keep.length < acts.length) { kingmakerStats.checks++; kingmakerStats.blocked += acts.length - keep.length; }
+        return keep.length ? keep : acts;
+    }
+    const kingmakerStats = { checks: 0, blocked: 0 };
+
     function searchPick() {
         const sim = window.BotSim;
         if (!sim) return null;
         const snap0 = window.BotState.snapshot();
         const meIdx = snap0.turn.activePlayerIndex;
-        const legal = window.BotState.legalActions();
+        const legal = kingmakerFilter(snap0, window.BotState.legalActions());
         if (!legal.length || legal[0].type === 'placeTile') return null;
 
         const castable = legal.some(a => a.type === 'cast');
@@ -2542,7 +2575,7 @@
     function rankActions(fixationTarget, opts) {
         const withTrace = !!(opts && opts.withTrace);
         const snap = window.BotState.snapshot();
-        const legal = window.BotState.legalActions();
+        const legal = kingmakerFilter(snap, window.BotState.legalActions());
         const scoreWithOptionalTrace = (a, ctx) => {
             const trace = withTrace ? {} : null;
             const score = scoreAction(a, snap, trace ? { ...ctx, trace } : ctx);
@@ -3389,6 +3422,8 @@
         rolloutStep,          // exposed for testing — mctsPick()'s per-step rollout policy
         evaluateSnapshot,     // Stage 2 state evaluator (search leaves)
         homeCost,             // real walking cost home (formula input, bot-terms.js)
+        kingmakerStats,       // alliances safeguard: {checks, blocked} actions vetoed
+        _kingmakerFilter: kingmakerFilter, // tests
         scrollNeed,           // per-element 0..1: needs a scroll of this element (bot-effects.js choices)
         handValue,            // value of a player's held scrolls + per-element cover
         scrollPickScore,      // value of gaining one scroll now (bot-effects.js picks)

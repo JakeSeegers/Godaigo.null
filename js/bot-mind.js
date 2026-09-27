@@ -228,10 +228,12 @@
             const threatWord = t => t >= 1 ? 'can win!' : t >= 0.65 ? 'high' : t >= 0.45 ? 'even' : 'low';
             html += `<div class="bm-sub">How it sees the others</div>
                 <table style="width:100%;border-collapse:collapse;font-size:12px;">
-                <tr style="color:#aaa;text-align:left;"><th>Player</th><th title="Helped (+) or hurt (-) my progress">Favor</th><th title="How dangerous it is to help them now">Threat</th><th title="Favor + trust - threat: who I would rather work with">Ally</th></tr>`
+                <tr style="color:#aaa;text-align:left;"><th>Player</th><th title="Helped (+) or hurt (-) my progress">Favor</th><th title="How dangerous it is to help them now">Threat</th><th title="Favor + trust - threat: who I would rather work with">Ally</th><th title="How hard I push against them (1 = normal play)">Push</th></tr>`
                 + rel.map(x => `<tr><td><span class="bm-dot" style="background:${seatColor(x.player)};display:inline-block;"></span> ${esc(x.name)}${x.human ? ' <span style="color:#999;">(human)</span>' : ''} <span style="color:#888;">${x.tracker}/5</span></td>`
-                    + `<td style="color:${tone(x.favor)}">${sign(x.favor)}</td><td>${threatWord(x.threat)}</td><td style="color:${tone(x.ally)}">${sign(x.ally)}</td></tr>`).join('')
+                    + `<td style="color:${tone(x.favor)}">${sign(x.favor)}</td><td>${threatWord(x.threat)}</td><td style="color:${tone(x.ally)}">${sign(x.ally)}</td><td style="color:${x.push > 1.2 ? '#ff9a8a' : x.push < 0.9 ? '#8fe08f' : '#bbb'}">×${x.push.toFixed(1)}</td></tr>`).join('')
                 + `</table>`;
+            const tgt = window.BotDiplomacy.coalitionTarget?.(r.playerIndex);
+            if (tgt != null) html += `<div class="bm-help" style="color:#ff9a8a;margin-top:3px;">Ganging up on ${esc(seatName(tgt))}: clearly in the lead.</div>`;
             const ev = window.BotDiplomacy.events(r.playerIndex).slice(0, 3);
             if (ev.length) html += `<div class="bm-help" style="margin-top:3px;">${ev.map(e => `<div><span style="color:${tone(e.df)}">${sign(e.df)}</span> ${esc(e.text)}${e.turn != null ? ` <span style="color:#777;">(turn ${e.turn})</span>` : ''}</div>`).join('')}</div>`;
         }

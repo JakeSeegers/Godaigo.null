@@ -38,7 +38,7 @@
 
     let S = fresh();
     function fresh() {
-        return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0 };
+        return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {} };
     }
     function reset() { S = fresh(); }
 
@@ -202,6 +202,7 @@
             }
         }
         S.prev = now;
+        S.looks++;
     }
 
     // A new turn: close the old one, decay once per full round.
@@ -270,6 +271,52 @@
         S.lastTurn = turn;
     }, 200);
 
+    // ---------------------------------------------------------------- phase 2: pressure
+    // How hard bot `o` should push against each player (1 = normal play).
+    // Leader response (docs/bot-alliances.md): only when someone is clearly
+    // ahead of me AND of everyone else does the table gang up on them:
+    //   clear leader 1.5, leader at 4 elements 2, at 5 elements 2.5, can win
+    //   next turn 4. When the leader is pulled back into the pack, or I am
+    //   level with them, it drops back to 1 (the coalition ends by itself).
+    // Favor shifts it: players who helped me get pushed a bit less, players
+    // who hurt me a bit more. Humans count half an element further ahead.
+    // Cached per look at the board; returns null when the system is off.
+    const STAGE = { clear: 1.5, four: 2, five: 2.5, canWin: 4 };
+    function pressures(o) {
+        if (!enabled()) return null;
+        const key = `${S.turns}|${S.looks}`;
+        const c = S.press[o];
+        if (c && c.key === key) return c.arr;
+        let snap;
+        try { snap = window.BotState.snapshot(); } catch (e) { return null; }
+        if (!snap.players[o]) return null;
+        const n = snap.players.length;
+        const arr = new Array(n).fill(1);
+        const t = snap.players.map((p, j) => p ? tracker(snap, j) + (j !== o && !isBotSeat(j) ? HUMAN_BIAS : 0) : -1);
+        let leader = -1;
+        for (let j = 0; j < n; j++) if (j !== o && snap.players[j] && (leader < 0 || t[j] > t[leader])) leader = j;
+        if (leader >= 0) {
+            const others = t.filter((v, j) => j !== leader && snap.players[j]);
+            const clear = t[leader] >= Math.max(...others) + 1;
+            if (clear) {
+                const acts = snap.players[leader].activated.length;
+                arr[leader] = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four : STAGE.clear;
+            }
+        }
+        for (let j = 0; j < n; j++) {
+            if (j === o || !snap.players[j]) continue;
+            const f = S.rel[o]?.[j]?.favor || 0;
+            arr[j] *= Math.max(0.6, Math.min(1.4, 1 - 0.4 * f));
+        }
+        arr[o] = 1;
+        S.press[o] = { key, arr, leader: arr[leader] > 1.2 ? leader : null };
+        return arr;
+    }
+    function coalitionTarget(o) {
+        pressures(o);
+        return S.press[o]?.leader ?? null;
+    }
+
     // ---------------------------------------------------------------- api
     // How bot `o` sees every other player right now.
     function view(o) {
@@ -284,13 +331,14 @@
                 player: j, name: nameOf(j), human: !isBotSeat(j), tracker: tracker(snap, j),
                 favor: +r.favor.toFixed(2), trust: +r.trust.toFixed(2), threat: +threat.toFixed(2),
                 ally: +(W.favor * r.favor + W.trust * r.trust - W.threat * threat).toFixed(2),
+                push: +((pressures(o) || [])[j] ?? 1).toFixed(2),
             };
         }).filter(Boolean);
     }
 
     window.BotDiplomacy = {
         view, events: o => (S.events[o] || []).slice(), relation: relOf, reset, observe,
-        enabled, threatOf, _state: () => S,
+        enabled, threatOf, _state: () => S, pressures, coalitionTarget,
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },
     };
 })();

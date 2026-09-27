@@ -294,7 +294,10 @@ Order matters — later scripts depend on earlier ones.
                              end-turn entries: the change in each bot's own progress() since the last look is blamed
                              on the active player (half if it mostly served the actor, extra for hostile scrolls).
                              Runs in the arena and on the online host, not in replays; resets per game. Bot Mind
-                             shows "How it sees the others". Loads right after action-log.js.
+                             shows "How it sees the others" (+ Push, coalition target). Loads right after action-log.js.
+                             Phase 2: pressures(o) (clear leader 1.5 / 4 el 2 / 5 el 2.5 / can win 4, x favor) weight
+                             opponentProgress in evaluateSnapshot, tacticalContext blocking, Arson/Plunder targets;
+                             bot.js kingmakerFilter never lets an opponent with 5 elements get within 5 AP of home.
 27b. bot-imitation.js      ← window.BotImitation — HERMIT-ONLY, opt-in "learn from my play" imitation
                              learning (docs/void-knight.md). Watches ActionLog.onRecord() during the
                              hermit's own turns in a real online game that has a bot in it; compares

@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (10): Bot alliances Phase 2** (owner). Pressure per opponent (docs/bot-alliances.md "Phases") weights
+  opponent progress in search, blocking, and Arson/Plunder targets; kingmakerFilter safeguard. Phase 1 blame fixes
+  (own elements / stone gains never credited to others, camping only on scarce shrines). Next: Phase 3 (pacts, emote
+  sentences, Game Log lines), Phase 4 (personalities).
 - **2026-09-27 (9): Bot alliances Phase 1 (memory only)** (owner; docs/bot-alliances.md has the design, decisions and
   the emote vocabulary). js/bot-diplomacy.js: favor / trust per bot seat per player, threat + ally computed live, fed by
   ActionLog entries and turn ends (progress change blamed on the active player). Bot Mind shows "How it sees the others"

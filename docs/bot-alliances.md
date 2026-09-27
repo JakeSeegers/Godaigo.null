@@ -2,7 +2,7 @@
 
 Owner's design (2026-09-27), mapped onto the code. Only bots use this system.
 Bots can target human players and are slightly biased against them. Bots talk
-through the emote system. Status: **plan, not built yet.**
+through the emote system. Status: **Phases 1 and 2 built (2026-09-27); 3 and 4 planned.**
 
 ## The idea in one rule
 
@@ -124,6 +124,18 @@ kept, withdrew, could not act, or broke it. Declining is fine, withdrawing costs
 a little, accepting then acting against it costs a lot of Trust.
 
 ## Phases
+
+Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
+- Phase 1: favor per bot per player (trust waits for pacts), threat, ally.
+- Phase 2: `pressures(o)` per opponent: 1 normally; the clear leader (ahead of
+  me and everyone else by 1+ element, humans +0.5) 1.5, at 4 elements 2, at 5
+  elements 2.5, can win next turn 4; times 1 - 0.4 * favor (0.6 to 1.4). Used
+  in evaluateSnapshot (opponent progress), tacticalContext (blocking paths and
+  shrines) and Arson / Plunder victim choice. Safeguard `kingmakerFilter` (bot.js)
+  drops actions that bring an opponent with all five within 5 AP of home.
+  Tested: coalitions form on the clear leader and end when tied; the safeguard
+  blocked a paving move (6 -> 3.5 steps); 3-player games change (one of three
+  seeded games had a different winner), about 6% slower.
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every
