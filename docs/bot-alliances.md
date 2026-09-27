@@ -111,8 +111,8 @@ No other messages for now (owner: only if needed).
 - Flower, Square: "Thank you, green."
 - Rage Spikes, Cross: "Blue, you hurt me."
 
-A sentence plays one emote after another over the speaking bot (about 1 s
-apart). Every message also gets a short Game Log line, for example "Tidewarden
+A sentence shows its emotes side by side over the speaking bot, popping in
+one after another (0.45 s apart); sentences follow about 2 s apart. Every message also gets a short Game Log line, for example "Tidewarden
 offers Galewalker a pact against Purple".
 
 Emotes are rate-limited (at most one per bot per turn, pacts only at the start
@@ -138,8 +138,8 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   seeded games had a different winner), about 6% slower.
 - Phase 3: talk and pacts. `say(o, emotes, text)` writes the Game Log line at
   once (ActionLog 'botTalk', text with {pN} player tokens, rendered by
-  game-log-ui.js without a turn header) and plays the emotes ~0.9 s apart over
-  the bot (queue of 3, oldest dropped); online the first emote's broadcast
+  game-log-ui.js without a turn header) and shows the emotes side by side over
+  the bot as one float (sprite array, queue of 3, oldest dropped); online the broadcast
   carries `talk` so every client logs it (lobby.js), replays too. Silent in
   muted training (pacts still run). Pacts: at a bot's turn start, if it has a
   coalition target with push >= 2 and no pact for 2 rounds: warn (once per

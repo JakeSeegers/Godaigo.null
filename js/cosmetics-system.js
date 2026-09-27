@@ -203,14 +203,15 @@
 
     // Equipped pawn items for a seat: { rim, base, trail } (ids or null).
     // Online: from the seat's account. Local games: your own style on
-    // seat 0 (the human seat).
+    // seat 0 (the human seat). Bot training and bot matches have no human
+    // seat, so no style there.
     function pawnStyleForSeat(playerIndex) {
         let uid = null;
         try {
             if (typeof isMultiplayer !== 'undefined' && isMultiplayer) {
                 const row = (typeof allPlayersData !== 'undefined' ? allPlayersData : []).find(p => p.player_index === playerIndex);
                 uid = row?.user_id || null;
-            } else if (playerIndex === 0 && !window.isTutorialMode) {
+            } else if (playerIndex === 0 && !window.isTutorialMode && !window.BotArena?.isRunning?.()) {
                 uid = getUserId();
             }
         } catch (e) {}

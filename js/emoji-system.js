@@ -425,7 +425,12 @@
         const cy = rect.top  + rect.height / 2;
 
         const el = document.createElement('div');
-        const px = sprite != null ? spriteHtml(sprite, 2) : '';
+        // An array of sprites is a bot "sentence" (js/bot-diplomacy.js):
+        // the emotes sit side by side and pop in one after another.
+        const list = Array.isArray(sprite) ? sprite.slice(0, 4) : null;
+        const px = list
+            ? list.map((s, k) => `<span class="emoji-word" style="animation-delay:${k * 0.45}s">${spriteHtml(s, list.length > 2 ? 1.5 : 2)}</span>`).join('')
+            : (sprite != null ? spriteHtml(sprite, 2) : '');
         if (px) {
             el.className = 'emoji-float emoji-float-px';
             el.innerHTML = px;
@@ -437,7 +442,7 @@
         el.style.left = cx + 'px';
         // Pixel emotes (64 px tall): bottom edge just above the pawn, like a
         // speech bubble. Text emojis keep their old anchor at the pawn centre.
-        el.style.top  = (px ? rect.top - 64 - 4 : cy) + 'px';
+        el.style.top  = (px ? rect.top - (list && list.length > 2 ? 48 : 64) - 4 : cy) + 'px';
 
         document.body.appendChild(el);
 

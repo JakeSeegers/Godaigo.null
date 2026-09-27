@@ -360,9 +360,10 @@
     const queue = [];
     let speaking = false;
     // text uses {pN} for player N; js/game-log-ui.js renders it with names.
-    // The Game Log line is written at once; the emotes play one after
-    // another (about 1 s each). A long backlog drops the oldest sentences'
-    // emotes so the table never lags behind the game.
+    // The Game Log line is written at once; the sentence's emotes show
+    // side by side over the bot, and sentences follow each other about 2 s
+    // apart. A long backlog drops the oldest sentences so the table never
+    // lags behind the game.
     function say(o, sprites, text) {
         if (!visible() || !window.emojiSystem?.showEmojiOverPawn) return;
         if (text) window.ActionLog?.record?.('botTalk', { text }, o);
@@ -374,16 +375,18 @@
         const item = queue.shift();
         if (!item) { speaking = false; return; }
         speaking = true;
-        item.sprites.forEach((sprite, k) => setTimeout(() => {
-            if (!gameActive()) return;
+        // One float with the whole sentence side by side (emoji-system.js
+        // takes an array of sprites and pops them in one after another).
+        const sprite = item.sprites.length === 1 ? item.sprites[0] : item.sprites;
+        if (gameActive()) {
             window.emojiSystem.showEmojiOverPawn(item.o, '', false, sprite);
             const payload = { playerIndex: item.o, display: '', isText: false, sprite };
-            if (k === 0 && item.text) payload.talk = item.text; // other players' Game Log
+            if (item.text) payload.talk = item.text; // other players' Game Log
             if (hostOnline() && typeof broadcastGameAction === 'function') {
                 try { broadcastGameAction('emoji', payload); } catch (e) {}
             }
-        }, k * 900));
-        setTimeout(speakNext, item.sprites.length * 900 + 600);
+        }
+        setTimeout(speakNext, 1500 + item.sprites.length * 450);
     }
 
     // ---------------------------------------------------------------- phase 3: pacts

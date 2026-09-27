@@ -3203,6 +3203,13 @@ svg {
 .emoji-btn.px-emoji, .emoji-btn-inactive.px-emoji { padding: 2px; }
 .shop-emoji-btn.px-emoji { padding: 0; line-height: 0; }
 .emoji-float-px { text-shadow: none; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.55)); }
+.emoji-float-px { white-space: nowrap; line-height: 0; }
+/* Bot sentences: each emote pops in after the one before it. */
+.emoji-word { display: inline-block; animation: emojiWordIn 0.25s ease-out both; }
+@keyframes emojiWordIn {
+    0%   { opacity: 0; transform: scale(0.4); }
+    100% { opacity: 1; transform: scale(1); }
+}
 
 @keyframes emojiFloat {
     0%   { opacity: 1;   transform: translateX(-50%) translateY(0px);  }
