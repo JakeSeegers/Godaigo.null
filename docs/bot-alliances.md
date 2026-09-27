@@ -1,0 +1,110 @@
+# Bot alliances: temporary coalitions and reciprocity
+
+Owner's design (2026-09-27), mapped onto the code. Only bots use this system.
+Bots can target human players and are slightly biased against them. Bots talk
+through the emote system. Status: **plan, not built yet.**
+
+## The idea in one rule
+
+Bots reward meaningful help, remember meaningful harm, gang up for a short time
+on a player who is close to winning, and stop helping as soon as that help would
+mostly make someone else win.
+
+## What each bot remembers (per game)
+
+For every other player, each bot keeps:
+
+| Value | Meaning | Update |
+|---|---|---|
+| Favor | Has this player helped or hurt MY progress? | `F = 0.9 F + dF`, once per full round |
+| Trust | Do they keep pacts? (bots only; humans cannot make pacts) | `T = clamp(0.95 T + dT, -1, 1)` |
+| Threat | How dangerous is it to help them now? | Worked out fresh from the board each time |
+
+Threat comes from the progress tracker (elements activated, 1-5, and 6 = all five
+and home, the win): 2+ behind low, 1 behind low-moderate, tied moderate, 1 ahead
+high, 2+ ahead very high, and critical when `oppCanWinNextTurn` (bot-terms.js)
+says they could win on their next turn.
+
+**Human bias:** a human counts as a bit more threatening than a bot at the same
+tracker value (a personality weight, start around +0.5 of a step).
+
+## How help and harm are measured
+
+Measured by **effect**, not by what the move looks like. The bot already has a
+"how good is this position for player X" score (`BotSystem.evaluateSnapshot`).
+After every action (`ActionLog.onRecord`, which sees human and bot actions, in
+local and online games), each bot compares every player's score before and after:
+
+- The actor's move changed my score: that is `dF` toward the actor.
+- Scaled down when the actor mainly helped itself (incidental help or harm).
+- Scaled up when it hit something scarce, or happened just before I could finish
+  a pattern or activate a shrine.
+
+Named hostile scrolls also count as intent even when the measured effect is
+small: Arson, Plunder, and Shifting Sands / Telekinesis / Take Flight used on a
+player. Starting sizes come from the owner's event table (for example: pattern
+broken -0.30 to -0.60, needed shape built +0.20 to +0.40, pact broken -0.45 Trust).
+
+**Personal versus global:** when B burns A's pattern while A is at 5, A records B
+as very harmful. C records that B hurt A, but also that B helped stop a shared
+loss (a small plus toward B).
+
+## What bots do with it
+
+1. **Pick a target.** For each opponent: `AllyPreference = wF*F + wT*T - wH*Threat`.
+   The leader (by tracker, with the human bias) becomes the preferred target of
+   blocking, burning, stealing and pushing. Low-preference players are targets
+   before high-preference ones.
+2. **Leader response.** No clear leader: play normally. Clear leader: prefer
+   actions that slow the leader. Leader at 5: urgent, form a short pact. Leader
+   can win next turn: spend big (best scrolls) if the bot still has a real chance.
+   The leader pulled back into the pack: the coalition ends.
+3. **Hard safeguard.** A bot never takes an action that lets another player win
+   on their next turn, unless the same action wins the game for the bot.
+
+In code: bot.js already scores "opponent threat" with the single most advanced
+opponent, and blocks the opponent paths it can see. Both become weighted per
+opponent by the target preference, and scroll target choices (Arson, Plunder,
+tile moves) pick by it.
+
+## Pacts and talk (bots only)
+
+All bots in a game run in one browser (the host online, or the arena), so the
+pact itself is agreed inside the code. The emotes are the visible story, for
+players and replays:
+
+| Message | Emote |
+|---|---|
+| WARNING (someone is close to winning) | Exclamation over the bot, Bullseye over the leader |
+| PACT offer (1-2 turns, against the leader) | Peace Sign |
+| ACCEPT | Circle |
+| DECLINE | Cross |
+| COMMIT (going to act on it) | Fist |
+| WITHDRAW | Ellipsis |
+| Pact broken by someone | Angry Vein over the betrayed bot |
+| Thanks for real help | Heart |
+| Grudge (big harm) | Rage Spikes |
+
+Emotes are rate-limited (at most one per bot per turn, pacts only at the start
+of a turn), so a game does not turn into emote spam.
+
+Pact rules: short and concrete ("this turn and next, we do not harm each other;
+both of us oppose the leader"). After it ends the game records for each member:
+kept, withdrew, could not act, or broke it. Declining is fine, withdrawing costs
+a little, accepting then acting against it costs a lot of Trust.
+
+## Phases
+
+1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
+   behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every
+   player, so we can check it reads the game correctly.
+2. **Target choice + leader response + safeguard.** Bots start ganging up on the
+   leader and preferring players who helped them. Human bias.
+3. **Pacts + emotes.** Offers, accepts, commits, betrayals, thanks and grudges.
+4. **Personalities and tuning.** Per elemental bot (for example a loyal Terran
+   Sentinel and a vindictive Emberkin), weights tunable by training in 3-5 player
+   games.
+
+## Open questions for the owner
+
+See the conversation of 2026-09-27; answers get written here.
