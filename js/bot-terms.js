@@ -26,6 +26,7 @@
     const MAX_TEXT = 200;
     const CLAMP = 10000;
     const STEP_PX = 35; // one hex step in board pixels (same as bot.js)
+    const AP_PER_TURN = 5;  // game-core.js: currentAP = 5 at the start of each turn
     const ELEMENTS = ['earth', 'water', 'fire', 'wind', 'void'];
 
     const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by) / STEP_PX;
@@ -80,6 +81,22 @@
         freeNearHome:    { label: 'free-to-walk stones within 3 steps of my home',
             fn: (s, i) => { const h = s.tiles.find(t => t.isPlayerTile && t.playerIndex === i); if (!h) return 0;
                 return s.stones.filter(st => dist(st.x, st.y, h.x, h.y) <= 3.2 && window.BotSim?.isFreeStone?.(s, st)).length; } },
+        // Triggers (2026-09-27): yes/no facts for if-then rules. 1 = true.
+        oppCanWinNextTurn: { label: '1 if an opponent has all 5 elements and can walk home on their next turn',
+            fn: (s, i) => s.players.some((p, j) => j !== i && p && p.activated.length >= 5 &&
+                (window.BotSystem?.homeCost ? window.BotSystem.homeCost(s, j) : 99) <= AP_PER_TURN) ? 1 : 0 },
+        iCanWinThisTurn: { label: '1 if I have all 5 elements and can walk home with the AP I have left',
+            fn: (s, i) => { const p = s.players[i]; if (p.activated.length < 5 || s.turn.activePlayerIndex !== i || s.sim?.turnsEnded > 0) return 0;
+                return (window.BotSystem?.homeCost ? window.BotSystem.homeCost(s, i) : 99) <= (s.turn.ap || 0) ? 1 : 0; } },
+        neededShrineBlocked: { label: 'revealed shrines of elements I still need that have a stone on their centre',
+            fn: (s, i) => { const need = ELEMENTS.slice(0, 4).filter(el => !s.players[i].activated.includes(el));
+                return s.tiles.filter(t => t.revealed && !t.isPlayerTile && need.includes(t.shrineType) &&
+                    (s.stones || []).some(st => Math.hypot(st.x - t.x, st.y - t.y) < 5)).length; } },
+        oppRespondReady: { label: 'opponents who could answer a cast right now: a response scroll in their active area or the common area whose stone pattern they can make',
+            fn: (s, i) => { const isResp = n => { const d = window.SCROLL_DEFINITIONS?.[n]; return !!d && (d.isResponse || d.level === 1); };
+                const common = (s.commonArea || []).filter(isResp);
+                return s.players.filter((p, j) => j !== i && p && [...common, ...(p.active || []).filter(isResp)]
+                    .some(n => { try { return !!window.BotSim?.checkPattern?.(s, n, j); } catch (e) { return false; } })).length; } },
     };
     const INPUT_NAMES = Object.keys(INPUTS);
 
@@ -99,6 +116,7 @@
     };
     const PARAM_NAMES = Object.keys(PARAM_INPUTS);
 
+    // Arithmetic and function-style operators (random formulas use these).
     const BINARY = {
         '+':  (a, b) => a + b,
         '-':  (a, b) => a - b,
@@ -109,19 +127,39 @@
         gt:   (a, b) => (a > b ? 1 : 0),
         lt:   (a, b) => (a < b ? 1 : 0),
     };
-    const UNARY = { abs: a => Math.abs(a), neg: a => -a };
+    // Comparisons and logic give 1 (true) or 0 (false); any non-zero value
+    // counts as true (2026-09-27: if-then rules).
+    const CMP = {
+        '>':  (a, b) => (a > b ? 1 : 0),
+        '<':  (a, b) => (a < b ? 1 : 0),
+        '>=': (a, b) => (a >= b ? 1 : 0),
+        '<=': (a, b) => (a <= b ? 1 : 0),
+        '==': (a, b) => (a === b ? 1 : 0),
+    };
+    const LOGIC = {
+        and: (a, b) => (a && b ? 1 : 0),
+        or:  (a, b) => (a || b ? 1 : 0),
+    };
+    const OPS = { ...BINARY, ...CMP, ...LOGIC };
+    const UNARY = { abs: a => Math.abs(a), neg: a => -a, not: a => (a ? 0 : 1) };
 
     // ---------------------------------------------------------------
-    // Parser: text -> tree. Grammar:
-    //   expr   = term (('+'|'-') term)*
-    //   term   = factor (('*'|'/') factor)*
-    //   factor = number | input | fn '(' expr (',' expr)? ')' | '(' expr ')' | '-' factor
-    // Trees: ['n', 3] | ['in', 'myAP'] | [op, a, b] | ['abs'|'neg', a]
+    // Parser: text -> tree. Grammar (loosest first):
+    //   expr    = andExpr ('or' andExpr)*
+    //   andExpr = notExpr ('and' notExpr)*
+    //   notExpr = 'not' notExpr | cmp
+    //   cmp     = sum (('>'|'<'|'>='|'<='|'==') sum)?
+    //   sum     = term (('+'|'-') term)*
+    //   term    = factor (('*'|'/') factor)*
+    //   factor  = number | input | input(el[, el]) | fn(a, b) | abs(a)
+    //           | if(cond, then, else) | between(x, lo, hi) | '(' expr ')' | '-' factor
+    // Trees: ['n', 3] | ['in', 'myAP'] | ['pin', name, el...] | [op, a, b]
+    //        | ['abs'|'neg'|'not', a] | ['if', c, a, b] | ['between', x, lo, hi]
     // ---------------------------------------------------------------
     function parse(text) {
         if (typeof text !== 'string') throw new Error('formula must be text');
         if (text.length > MAX_TEXT) throw new Error(`formula too long (max ${MAX_TEXT} characters)`);
-        const toks = text.match(/\d+(?:\.\d+)?|[A-Za-z_]\w*|[()+\-*/,]|\S/g) || [];
+        const toks = text.match(/\d+(?:\.\d+)?|[A-Za-z_]\w*|>=|<=|==|[<>()+\-*/,]|\S/g) || [];
         let pos = 0;
         const peek = () => toks[pos];
         const take = (want) => {
@@ -130,6 +168,25 @@
             return t;
         };
         function expr() {
+            let n = andExpr();
+            while (peek() === 'or') { take(); n = ['or', n, andExpr()]; }
+            return n;
+        }
+        function andExpr() {
+            let n = notExpr();
+            while (peek() === 'and') { take(); n = ['and', n, notExpr()]; }
+            return n;
+        }
+        function notExpr() {
+            if (peek() === 'not') { take(); return ['not', notExpr()]; }
+            return cmp();
+        }
+        function cmp() {
+            const n = sum();
+            if (CMP[peek()]) { const op = take(); return [op, n, sum()]; }
+            return n;
+        }
+        function sum() {
             let n = term();
             while (peek() === '+' || peek() === '-') { const op = take(); n = [op, n, term()]; }
             return n;
@@ -138,6 +195,13 @@
             let n = factor();
             while (peek() === '*' || peek() === '/') { const op = take(); n = [op, n, factor()]; }
             return n;
+        }
+        function args(k) {
+            take('(');
+            const out = [];
+            for (let i = 0; i < k; i++) { if (i) take(','); out.push(expr()); }
+            take(')');
+            return out;
         }
         function factor() {
             const t = peek();
@@ -160,8 +224,10 @@
                     take(')');
                     return ['pin', t, ...els];
                 }
-                if (BINARY[t] && /^[a-z]/.test(t)) { take('('); const a = expr(); take(','); const b = expr(); take(')'); return [t, a, b]; }
-                if (t === 'abs') { take('('); const a = expr(); take(')'); return ['abs', a]; }
+                if (t === 'if') return ['if', ...args(3)];
+                if (t === 'between') return ['between', ...args(3)];
+                if (BINARY[t] && /^[a-z]/.test(t)) return [t, ...args(2)];
+                if (t === 'abs') return ['abs', ...args(1)];
                 throw new Error(`unknown name "${t}"`);
             }
             throw new Error(`unexpected "${t}"`);
@@ -186,21 +252,26 @@
     }
 
     // Tree -> canonical text (so evolved formulas read like hand-written ones).
+    // Binding strength, loosest first: or, and, not, comparisons, + -, * /.
+    const PREC = { or: 1, and: 2, '>': 4, '<': 4, '>=': 4, '<=': 4, '==': 4, '+': 5, '-': 5, '*': 6, '/': 6 };
     function toText(n, parentPrec = 0) {
-        const PREC = { '+': 1, '-': 1, '*': 2, '/': 2 };
         switch (n[0]) {
             case 'n':  return String(+n[1].toFixed(3));
             case 'in': return n[1];
             case 'pin': return `${n[1]}(${n.slice(2).join(', ')})`;
-            case 'neg': return '-' + toText(n[1], 3);
+            case 'neg': return '-' + toText(n[1], 7);
+            case 'not': { const s = 'not ' + toText(n[1], 3); return 3 < parentPrec ? `(${s})` : s; }
             case 'abs': return `abs(${toText(n[1])})`;
-            default:
-                if (PREC[n[0]]) {
-                    const p = PREC[n[0]];
-                    const s = `${toText(n[1], p)} ${n[0]} ${toText(n[2], p + (n[0] === '-' || n[0] === '/' ? 1 : 0))}`;
-                    return p < parentPrec ? `(${s})` : s;
-                }
-                return `${n[0]}(${toText(n[1])}, ${toText(n[2])})`;
+            case 'if': return `if(${toText(n[1])}, ${toText(n[2])}, ${toText(n[3])})`;
+            case 'between': return `between(${toText(n[1])}, ${toText(n[2])}, ${toText(n[3])})`;
+            default: {
+                const p = PREC[n[0]];
+                if (!p) return `${n[0]}(${toText(n[1])}, ${toText(n[2])})`;
+                // Comparisons do not chain, and - / are not associative: bind the right side tighter.
+                const right = (n[0] === '-' || n[0] === '/' || CMP[n[0]]) ? p + 1 : p;
+                const s = `${toText(n[1], CMP[n[0]] ? p + 1 : p)} ${n[0]} ${toText(n[2], right)}`;
+                return p < parentPrec ? `(${s})` : s;
+            }
         }
     }
 
@@ -214,25 +285,39 @@
         oppDistHome: "a rival's steps home", boardStones: 'stones on the board', sourceLeft: 'stones left in supply',
         players: 'players', homeCost: 'cost of my road home', freeStones: 'free-walk stones',
         freeWater: 'water copying wind', freeNearHome: 'free-walk stones near home',
+        oppCanWinNextTurn: 'a rival can win next turn', iCanWinThisTurn: 'I can win this turn',
+        neededShrineBlocked: 'blocked shrines I need', oppRespondReady: 'rivals ready to respond',
     };
     const PARAM_WORDS = {
         adjacent: (a, b) => `${a} touching ${b}`, stonesOf: a => `${a} stones on the board`,
         myPool: a => `my ${a} stones`, oppNeeds: a => `rivals needing ${a}`, commonFor: a => `common ${a} scrolls`,
     };
+    const CMP_WORDS = { '>': 'more than', '<': 'less than', '>=': 'at least', '<=': 'at most', '==': 'exactly' };
     function toWords(n, parentPrec = 0) {
-        const PREC = { '+': 1, '-': 1, '*': 2, '/': 2 };
         const SYM = { '+': 'plus', '-': 'minus', '*': '×', '/': '÷' };
         switch (n[0]) {
             case 'n':  return String(+n[1].toFixed(2));
             case 'in': return WORDS[n[1]] || n[1];
             case 'pin': return (PARAM_WORDS[n[1]] || ((...a) => `${n[1]}(${a.join(', ')})`))(...n.slice(2));
-            case 'neg': return 'minus ' + toWords(n[1], 3);
+            case 'neg': return 'minus ' + toWords(n[1], 7);
+            case 'not': { const inner = toWords(n[1], 3); return ['n', 'in', 'pin'].includes(n[1][0]) || CMP[n[1][0]] ? `not ${inner}` : `not (${inner})`; }
             case 'abs': return `size of (${toWords(n[1])})`;
             case 'min': return `lower of (${toWords(n[1])}, ${toWords(n[2])})`;
             case 'max': return `higher of (${toWords(n[1])}, ${toWords(n[2])})`;
             case 'gt':  return `[${toWords(n[1])} more than ${toWords(n[2])}]`;
             case 'lt':  return `[${toWords(n[1])} less than ${toWords(n[2])}]`;
+            case 'if':  return `(if ${toWords(n[1])} then ${toWords(n[2])}, otherwise ${toWords(n[3])})`;
+            case 'between': return `[${toWords(n[1])} from ${toWords(n[2])} to ${toWords(n[3])}]`;
+            case 'and': case 'or': {
+                const p = PREC[n[0]];
+                const s = `${toWords(n[1], p)} ${n[0]} ${toWords(n[2], p)}`;
+                return p < parentPrec ? `(${s})` : s;
+            }
             default: {
+                if (CMP[n[0]]) {
+                    const s = `${toWords(n[1], 5)} ${CMP_WORDS[n[0]]} ${toWords(n[2], 5)}`;
+                    return parentPrec >= 5 ? `[${s}]` : s;
+                }
                 const p = PREC[n[0]];
                 const out = `${toWords(n[1], p)} ${SYM[n[0]]} ${toWords(n[2], p + 1)}`;
                 return p < parentPrec ? `(${out})` : out;
@@ -252,8 +337,17 @@
             case 'pin': { const name = n[1], args = n.slice(2), k = `${name}(${args.join(',')})`; return ctx => ctx.getP(k, name, args); }
             case 'neg': { const a = compileTree(n[1]); return ctx => -a(ctx); }
             case 'abs': { const a = compileTree(n[1]); return ctx => Math.abs(a(ctx)); }
+            case 'not': { const a = compileTree(n[1]); return ctx => (a(ctx) ? 0 : 1); }
+            case 'if': {
+                const c = compileTree(n[1]), a = compileTree(n[2]), b = compileTree(n[3]);
+                return ctx => (c(ctx) ? a(ctx) : b(ctx));
+            }
+            case 'between': {
+                const x = compileTree(n[1]), lo = compileTree(n[2]), hi = compileTree(n[3]);
+                return ctx => { const v = x(ctx); return v >= lo(ctx) && v <= hi(ctx) ? 1 : 0; };
+            }
             default: {
-                const f = BINARY[n[0]], a = compileTree(n[1]), b = compileTree(n[2]);
+                const f = OPS[n[0]], a = compileTree(n[1]), b = compileTree(n[2]);
                 return ctx => f(a(ctx), b(ctx));
             }
         }
@@ -369,6 +463,12 @@
         if (n[0] !== 'n' && n[0] !== 'in' && n[0] !== 'pin') n.slice(1).forEach(c => allNodes(c, out));
         return out;
     }
+    // A random condition: compare an input with a small number or another input.
+    function randomCondition(rng) {
+        return [pick(Object.keys(CMP), rng), randomLeaf(rng), rng() < 0.6 ? ['n', Math.floor(rng() * 6)] : randomLeaf(rng)];
+    }
+    // Swap an operator only within its family, so a formula keeps its shape.
+    const FAMILIES = [Object.keys(BINARY), Object.keys(CMP), Object.keys(LOGIC)];
     function tweakTree(tree, rng) {
         const t = JSON.parse(JSON.stringify(tree));
         const nodes = allNodes(t);
@@ -376,8 +476,14 @@
         if (n[0] === 'in') n[1] = INPUT_NAMES[Math.floor(rng() * INPUT_NAMES.length)];
         else if (n[0] === 'pin') n[2 + Math.floor(rng() * (n.length - 2))] = pick(ELEMENTS, rng);
         else if (n[0] === 'n') n[1] = Math.max(0, +(n[1] + (rng() - 0.5) * Math.max(2, n[1])).toFixed(2));
-        else if (BINARY[n[0]]) { const ops = Object.keys(BINARY); n[0] = ops[Math.floor(rng() * ops.length)]; }
         else if (n[0] === 'neg' || n[0] === 'abs') n[0] = n[0] === 'neg' ? 'abs' : 'neg';
+        else if (n[0] === 'if') { const tmp = n[2]; n[2] = n[3]; n[3] = tmp; }   // swap then / otherwise
+        else { const fam = FAMILIES.find(f => f.includes(n[0])); if (fam) n[0] = pick(fam, rng); }
+        return countNodes(t) <= MAX_NODES ? t : tree;
+    }
+    // "Only in some situations": wrap a formula in if(condition, formula, 0).
+    function wrapInIf(tree, rng) {
+        const t = ['if', randomCondition(rng), tree, ['n', 0]];
         return countNodes(t) <= MAX_NODES ? t : tree;
     }
 
@@ -405,6 +511,10 @@
                 const k = Math.floor(rng() * out.length);
                 const c = compile(out[k].text);
                 if (c.tree) out[k] = { ...out[k], text: toText(tweakTree(c.tree, rng)), src: 'evolved' };
+            } else if (r < addChance + 0.4 && out.length) {
+                const k = Math.floor(rng() * out.length);
+                const c = compile(out[k].text);
+                if (c.tree && c.tree[0] !== 'if') out[k] = { ...out[k], text: toText(wrapInIf(c.tree, rng)), src: 'evolved' };
             }
         }
         out = out.filter(t => { if (!t || typeof t.text !== 'string') return false; const c = compile(t.text); return !c.error && hasInput(c.tree); });

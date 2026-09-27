@@ -14,6 +14,8 @@
 
     // Classic unicode / text emojis were retired 2026-09-27: the Pipoya pixel
     // emotes replace them.
+    const RETIRED_EMOJIS = new Set(['P10', 'P11', 'P84', 'P94', 'P95']);
+
     const EMOJI_TIERS = [
         { id: 'px', name: 'Pixel Emotes (art by Pipoya)', cost: 50, color: '#26C6DA', badge: 'PX' },
     ];
@@ -123,7 +125,11 @@
             'Cross',
             'Triangle',
             'Square'
-        ].map((name, i) => ({ id: 'P' + String(i).padStart(2, '0'), tier: 'px', cost: 50, sprite: i, name })),
+        ].map((name, i) => ({ id: 'P' + String(i).padStart(2, '0'), tier: 'px', cost: 50, sprite: i, name }))
+            // Retired by the owner (2026-09-27): Blush, Kiss, Poop, Male Sign,
+            // Female Sign. Ids stay tied to the sheet cell, so they are only
+            // filtered out (sql/emoji-server.sql stops selling them too).
+            .filter(e => !RETIRED_EMOJIS.has(e.id)),
     ];
 
     // ----------------------------------------------------------------

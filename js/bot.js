@@ -2074,8 +2074,19 @@
         if (!home) return 0;
         let field = leafField(snap, 'home', i);
         if (field === undefined) field = buildHomeField(snap, i);
-        const c = field?.dist?.get(`${Math.round(p.x)},${Math.round(p.y)}`);
+        const pk = `${Math.round(p.x)},${Math.round(p.y)}`;
+        const c = field?.dist?.get(pk);
         if (c !== undefined) return c;
+        // Not the player whose turn it is: the path search counts their own
+        // pawn's hex as occupied, so start from the hexes around it (+1 step).
+        if (field?.dist) {
+            let best = Infinity;
+            for (const nb of gridInfo(snap).adj.get(pk) || []) {
+                const d = field.dist.get(nb.key);
+                if (d !== undefined && d < best) best = d;
+            }
+            if (best < Infinity) return best + 1;
+        }
         return Math.hypot(home.x - p.x, home.y - p.y) / 35 + (WEIGHTS.evalUnreachableSteps || 0);
     }
 

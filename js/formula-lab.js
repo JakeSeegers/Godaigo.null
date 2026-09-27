@@ -18,11 +18,11 @@
     const KEY = 'godaigo_formula_lab';
     const STARTER = [
         '# Ideas suggested by Claude. One per line:  weight: formula   # note',
-        '-3: gt(myActivated, 2) * homeCost   # from 3 elements on, prepare a cheap road home early',
+        '-3: if(myActivated >= 3, homeCost, 0)   # from 3 elements on, prepare a cheap road home early',
         '5: freeNearHome   # free-to-walk stones (wind, chained water) near my home',
         '3: adjacent(water, wind)   # water chained to wind is a cheap free road',
-        '8: neededStones * lt(sourceLeft, 10)   # stones I need are worth more when the supply runs low',
-        '30: gt(leaderActivated, 3) * myActivated   # an opponent is close to winning: my own elements count more',
+        '1: if(sourceLeft < 10, 8 * neededStones, 2 * neededStones)   # stones I need are worth more when the supply runs low',
+        '-60: oppCanWinNextTurn   # emergency: an opponent can win next turn',
     ].join('\n');
 
     function load() {
@@ -87,7 +87,8 @@
               <button data-act="close" style="${btn}">Close</button>
             </div>
             <div style="color:#aaa;margin-bottom:8px;">New bot senses as safe formulas. One per line: <code>weight: formula   # note</code>. A positive weight means "the bot likes more of this".
-              Operators: <code>+ - * /</code>, <code>min(a, b)</code>, <code>max(a, b)</code>, <code>gt(a, b)</code> (1 if a &gt; b), <code>lt(a, b)</code>, <code>abs(a)</code>.</div>
+              Maths: <code>+ - * /</code>, <code>min(a, b)</code>, <code>max(a, b)</code>, <code>abs(a)</code>.
+              Rules: <code>if(condition, then, otherwise)</code>, <code>between(x, low, high)</code>, compare with <code>&gt; &lt; &gt;= &lt;= ==</code>, combine with <code>and</code> / <code>or</code> / <code>not</code>. A true condition counts as 1, false as 0.</div>
             <details style="margin-bottom:8px;"><summary style="cursor:pointer;color:#9cc4ff;">Inputs the formulas can use</summary>
               <div style="columns:2;column-gap:18px;margin-top:6px;">${T.inputList().map(x => `<div><code>${x.name}</code>: ${esc(x.label)}</div>`).join('')}</div>
             </details>

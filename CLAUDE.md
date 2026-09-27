@@ -201,8 +201,9 @@ Order matters — later scripts depend on earlier ones.
                              avg score on up to 6 training puzzles; BotArena.hillClimb opts.puzzleCheck gates a
                              would-be promotion on it (hermit Train Bot passes it).
 18. tutorial-mode.js       ← LAZY-LOADED (no <script> tag — see #30 asset-preloader.js / window.LazyScripts). Interactive tutorial (depends on lobby.js + game-core.js). The old 7-step modal tutorial this superseded (formerly js/tutorial.js) has since been fully removed — no dead script tag remains.
-19. emoji-system.js        ← Emoji reactions (depends on gamification.js). Only the 100 animated Pipoya pixel emotes
-                             (P00-P99, images/emotes/pipoya-emotes.png; classic emojis retired 2026-09-27). Owned on
+19. emoji-system.js        ← Emoji reactions (depends on gamification.js). Only the 95 animated Pipoya pixel emotes
+                             (P00-P99 minus RETIRED_EMOJIS P10/P11/P84/P94/P95, images/emotes/pipoya-emotes.png;
+                             classic emojis retired 2026-09-27). Owned on
                              the server: 'emoji_<id>' in user_profiles.cosmetics_owned via buy_cosmetic
                              (sql/emoji-server.sql). Bought in the lobby Shop (gamification-ui.js gami_openShop) or
                              the in-game E panel.
@@ -237,6 +238,9 @@ Order matters — later scripts depend on earlier ones.
                              Road inputs: homeCost (BotSystem.homeCost, real path cost), freeStones, freeWater,
                              freeNearHome. Element inputs: adjacent(a, b), stonesOf(el), myPool(el), oppNeeds(el),
                              commonFor(el). Formulas that read no input are dropped by evolution.
+                             Rules (2026-09-27): if(c, a, b), between(x, lo, hi), > < >= <= ==, and / or / not
+                             (true = 1); evolution can wrap a formula in if(). Triggers: oppCanWinNextTurn,
+                             iCanWinThisTurn, neededShrineBlocked, oppRespondReady. describe() = plain words.
 23. bot-effects.js         ← window.BotEffects — Stage 2.5 scroll-effect usage: driveSelection() (tile-flip,
                              scorched-earth, tile-swap, Create, Scholar's Insight, Quick Reflexes, Sacrificial
                              Pyre, Inspiring Draught), driveTransmute() (open-ended discard-for-AP modal),

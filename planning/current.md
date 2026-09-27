@@ -121,6 +121,14 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (8): If-then formulas, trigger inputs, 5 emotes retired** (owner). bot-terms.js grammar: if/between,
+  comparisons, and/or/not; toText/describe/compile updated; mutation can wrap in if() and swaps operators by family.
+  Triggers: oppCanWinNextTurn, iCanWinThisTurn, neededShrineBlocked, oppRespondReady. bot.js homeCost: for a player who
+  is not active, the path field counts their own pawn hex as occupied, so it now starts from the neighbouring hexes
+  (+1). Tested: 11 parse/round-trip/value cases; 2 games: iCanWinThisTurn 20, oppCanWinNextTurn 3, shrine blocked
+  common (a stone sat on the earth shrine all game), oppRespondReady 0 (responses need their pattern formed: rare).
+  Emotes P10/P11/P84/P94/P95 retired (owner): filtered in emoji-system.js, unpriced on the server (migration
+  emoji_retire_five; nobody owned one). Next: the bot alliance system (docs/bot-alliances.md).
 - **2026-09-27 (7): Formulas gold + readable training window** (owner). runHillClimbTraining: with termMutations and a
   finished run, claim_training_reward FORMULA_BONUS_GOLD (10), +FORMULA_DISCOVERY_GOLD (20) when the submitted champion
   keeps a formula not in the anchor (formulaGold / formulaKept in the result and the end message). Panel label

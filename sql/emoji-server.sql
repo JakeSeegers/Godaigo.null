@@ -48,6 +48,9 @@ as $$
     when p_id = 'pawn_trail_leaves' then 150
     when p_id = 'pawn_trail_void'   then 150
     -- Emojis
-    when p_id ~ '^emoji_P[0-9]{2}$' then 50
+    -- P10 Blush, P11 Kiss, P84 Poop, P94 Male Sign, P95 Female Sign retired
+    -- by the owner (migration emoji_retire_five, 2026-09-27; nobody owned one).
+    when p_id ~ '^emoji_P[0-9]{2}$'
+         and p_id not in ('emoji_P10', 'emoji_P11', 'emoji_P84', 'emoji_P94', 'emoji_P95') then 50
   end;
 $$;
