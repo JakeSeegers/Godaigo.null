@@ -287,6 +287,14 @@ Order matters — later scripts depend on earlier ones.
 27. action-log.js          ← window.ActionLog — in-memory record of every meaningful action this session
                              (human AND bot); record()/onRecord() feed both the hidden dev cheat-panel's
                              "Download Action Log" button and game-log-ui.js's player-facing panel
+27a. bot-diplomacy.js     ← window.BotDiplomacy: bot alliances Phase 1 (docs/bot-alliances.md), memory only. Each bot
+                             seat keeps favor (help/harm to ITS progress, decays 0.9/round) and trust (pacts, phase 3)
+                             toward every player; threat (tracker diff + mild human bias 0.5, 1 = can win next turn)
+                             and ally = favor + 0.5 trust - threat are computed live. Fed by ActionLog.onRecord +
+                             end-turn entries: the change in each bot's own progress() since the last look is blamed
+                             on the active player (half if it mostly served the actor, extra for hostile scrolls).
+                             Runs in the arena and on the online host, not in replays; resets per game. Bot Mind
+                             shows "How it sees the others". Loads right after action-log.js.
 27b. bot-imitation.js      ← window.BotImitation — HERMIT-ONLY, opt-in "learn from my play" imitation
                              learning (docs/void-knight.md). Watches ActionLog.onRecord() during the
                              hermit's own turns in a real online game that has a bot in it; compares

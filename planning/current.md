@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (9): Bot alliances Phase 1 (memory only)** (owner; docs/bot-alliances.md has the design, decisions and
+  the emote vocabulary). js/bot-diplomacy.js: favor / trust per bot seat per player, threat + ally computed live, fed by
+  ActionLog entries and turn ends (progress change blamed on the active player). Bot Mind shows "How it sees the others"
+  + the last 3 notable events. No behaviour change yet. Next: Phase 2 (target choice, leader response, no-kingmaker
+  safeguard, mild human bias), then Phase 3 (pacts + emote sentences + Game Log lines), Phase 4 (personalities).
 - **2026-09-27 (8): If-then formulas, trigger inputs, 5 emotes retired** (owner). bot-terms.js grammar: if/between,
   comparisons, and/or/not; toText/describe/compile updated; mutation can wrap in if() and swaps operators by family.
   Triggers: oppCanWinNextTurn, iCanWinThisTurn, neededShrineBlocked, oppRespondReady. bot.js homeCost: for a player who

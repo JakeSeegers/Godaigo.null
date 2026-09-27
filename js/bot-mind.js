@@ -220,6 +220,21 @@
         if (r.stuck && (r.stuck.unproductive >= 2 || r.stuck.repeat)) {
             html += `<div class="bm-row"><span class="bm-k">Stuck</span><span class="bm-v">${r.stuck.unproductive} turns without progress${r.stuck.repeat ? ', repeating moves' : ''}</span></div>`;
         }
+        // Alliances Phase 1 (js/bot-diplomacy.js): how this bot sees the others.
+        const rel = window.BotDiplomacy?.view?.(r.playerIndex) || [];
+        if (rel.length) {
+            const sign = v => `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
+            const tone = v => v > 0.05 ? '#8fe08f' : v < -0.05 ? '#ff9a8a' : '#bbb';
+            const threatWord = t => t >= 1 ? 'can win!' : t >= 0.65 ? 'high' : t >= 0.45 ? 'even' : 'low';
+            html += `<div class="bm-sub">How it sees the others</div>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <tr style="color:#aaa;text-align:left;"><th>Player</th><th title="Helped (+) or hurt (-) my progress">Favor</th><th title="How dangerous it is to help them now">Threat</th><th title="Favor + trust - threat: who I would rather work with">Ally</th></tr>`
+                + rel.map(x => `<tr><td><span class="bm-dot" style="background:${seatColor(x.player)};display:inline-block;"></span> ${esc(x.name)}${x.human ? ' <span style="color:#999;">(human)</span>' : ''} <span style="color:#888;">${x.tracker}/5</span></td>`
+                    + `<td style="color:${tone(x.favor)}">${sign(x.favor)}</td><td>${threatWord(x.threat)}</td><td style="color:${tone(x.ally)}">${sign(x.ally)}</td></tr>`).join('')
+                + `</table>`;
+            const ev = window.BotDiplomacy.events(r.playerIndex).slice(0, 3);
+            if (ev.length) html += `<div class="bm-help" style="margin-top:3px;">${ev.map(e => `<div><span style="color:${tone(e.df)}">${sign(e.df)}</span> ${esc(e.text)}${e.turn != null ? ` <span style="color:#777;">(turn ${e.turn})</span>` : ''}</div>`).join('')}</div>`;
+        }
         if (opts.length) {
             html += `<div class="bm-sub">Top options (score)</div><ol class="bm-opts">`;
             for (const o of opts) {
