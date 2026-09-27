@@ -25,7 +25,21 @@ try {
     // Not a git checkout: skip the base, still print the rules.
 }
 
+// The game repo is JakeSeegers/Godaigo.null (private). The old name
+// Godaigo.Elements is now the tiny PUBLIC redirect repo, but sessions set up
+// before the rename may still clone and push to it. Warn loudly.
+let remoteWarning = '';
+try {
+    const url = git('remote get-url origin');
+    if (/\/godaigo\.elements(\.git)?\/?$/i.test(url)) {
+        remoteWarning = 'WARNING: git origin is ' + url + ', the PUBLIC redirect repo. The game lives in '
+            + 'JakeSeegers/Godaigo.null. Do NOT push there. Ask the owner before switching origin to '
+            + 'https://github.com/JakeSeegers/Godaigo.null (they approved this on 2026-09-27).';
+    }
+} catch (e) {}
+
 console.log([
+    ...(remoteWarning ? [remoteWarning, ''] : []),
     'GODAIGO HOUSE RULES (full list: "HOUSE RULES" in CLAUDE.md). Short version:',
     '- Never use em dashes in anything you write (code, comments, docs, commit messages, game text).',
     '- Release notes (changelog.json): at most ONE entry per day, max 5 lines. Same day = rewrite that day\'s summary, never add a second entry. Only changes players notice; small fixes go in one "Small fixes and polish" line.',
