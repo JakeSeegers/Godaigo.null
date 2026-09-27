@@ -38,7 +38,7 @@
 
     let S = fresh();
     function fresh() {
-        return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0 };
+        return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0 };
     }
     function reset() { S = fresh(); }
 
@@ -51,8 +51,9 @@
     function hostOnline() {
         return typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof isHost !== 'undefined' && isHost;
     }
+    let switchedOn = true; // setEnabled(false): tests and timing
     function enabled() {
-        if (!gameActive() || window.Replay?.state) return false;
+        if (!switchedOn || !gameActive() || window.Replay?.state) return false;
         return arenaRunning() || hostOnline();
     }
     function isBotSeat(j) {
@@ -88,7 +89,8 @@
         for (const t of snap.tiles) {
             if (!t.revealed || t.isPlayerTile || !need.includes(t.shrineType)) continue;
             if ((snap.stones || []).some(st => Math.hypot(st.x - t.x, st.y - t.y) < 5)) out.shrines -= 25;
-            else if (snap.players.some((q, j) => q && j !== o && Math.hypot(q.x - t.x, q.y - t.y) < 5)) out.shrines -= 15;
+            else if ((snap.sourcePool?.[t.shrineType] || 0) <= 3 &&
+                snap.players.some((q, j) => q && j !== o && Math.hypot(q.x - t.x, q.y - t.y) < 5)) out.shrines -= 15; // camping a scarce shrine
         }
         // Stones left in the supply for elements I need (running out hurts).
         for (const el of need) out.supply += 2 * Math.min(snap.sourcePool?.[el] || 0, 5);
@@ -99,6 +101,29 @@
         return out;
     }
     const total = pt => pt ? Object.values(pt).reduce((a, b) => a + b, 0) : 0;
+    // The part of a change another player can cause: nobody can activate my
+    // elements or hand me stones (those are always my own doing, even when
+    // they land on someone else's turn), but they can take stones away.
+    function blameable(now, prev) {
+        const out = {};
+        for (const k of Object.keys(now)) {
+            let c = now[k] - (prev?.[k] || 0);
+            if (k === 'elements') c = 0;
+            if (k === 'stones' && c > 0) c = 0;
+            out[k] = c;
+        }
+        return out;
+    }
+    const sumParts = o => Object.values(o).reduce((a, b) => a + b, 0);
+    // Which of my parts each hostile scroll can plausibly have hit.
+    const HOSTILE_HITS = {
+        FIRE_SCROLL_5: ['stones'],                              // Arson
+        CATACOMB_SCROLL_8: ['ready'],                           // Plunder
+        EARTH_SCROLL_2: ['ready', 'road', 'shrines'],           // Shifting Sands
+        VOID_SCROLL_2: ['ready', 'road', 'shrines'],            // Telekinesis
+        WIND_SCROLL_4: ['ready', 'road', 'shrines'],            // Take Flight
+        CATACOMB_SCROLL_10: ['ready', 'road', 'shrines'],       // Combust
+    };
     const PART_WORDS = {
         elements: 'my elements', stones: 'stones I need', ready: 'a scroll pattern I had ready',
         shrines: 'a shrine I need', supply: 'the stone supply I need', road: 'my road home',
@@ -124,7 +149,7 @@
     }
     function note(o, text, df) {
         const list = (S.events[o] ||= []);
-        list.unshift({ turn: (typeof currentTurnNumber !== 'undefined') ? currentTurnNumber : null, text, df: +df.toFixed(2) });
+        list.unshift({ turn: S.turns + 1, text, df: +df.toFixed(2) });
         if (list.length > MAX_EVENTS) list.length = MAX_EVENTS;
     }
     function nameOf(j) {
@@ -144,8 +169,9 @@
         const now = snap.players.map((p, j) => (p ? parts(snap, j) : null));
         const actor = S.lastActive;
         if (S.prev && actor != null && S.prev.length === n) {
-            const delta = now.map((pt, j) => (pt && S.prev[j]) ? total(pt) - total(S.prev[j]) : 0);
-            const actorGain = delta[actor] || 0;
+            const changes = now.map((pt, j) => (pt && S.prev[j]) ? blameable(pt, S.prev[j]) : null);
+            const delta = changes.map(c => (c ? sumParts(c) : 0));
+            const actorGain = (now[actor] && S.prev[actor]) ? total(now[actor]) - total(S.prev[actor]) : 0;
             for (let o = 0; o < n; o++) {
                 if (o === actor || !now[o] || !isBotSeat(o)) continue;
                 const d = delta[o];
@@ -153,7 +179,9 @@
                 if (Math.abs(d) >= MIN_DELTA) {
                     df = Math.max(-0.6, Math.min(0.4, d / SCALE));
                     if (actorGain > Math.abs(d)) df *= 0.5;                       // mostly served itself
-                    if (d < 0 && S.hostile?.actor === actor) df = df * 1.5 - 0.05; // hostile scroll: intent
+                    const hitParts = HOSTILE_HITS[S.hostile?.id] || [];
+                    const hostileHit = d < 0 && S.hostile?.actor === actor && hitParts.some(k => changes[o][k] < 0);
+                    if (hostileHit) df = df * 1.5 - 0.05;                          // hostile scroll: intent
                 }
                 // Global view: they hurt someone who is ahead of me.
                 for (let v = 0; v < n; v++) {
@@ -166,12 +194,10 @@
                 if (Math.abs(df) >= 0.05) {
                     // Say what changed most.
                     let key = null, best = 0;
-                    for (const k of Object.keys(now[o])) {
-                        const c = now[o][k] - (S.prev[o]?.[k] || 0);
-                        if (Math.abs(c) > Math.abs(best)) { best = c; key = k; }
-                    }
+                    for (const [k, c] of Object.entries(changes[o])) if (Math.abs(c) > Math.abs(best)) { best = c; key = k; }
                     const what = key && Math.abs(d) >= MIN_DELTA ? `${best > 0 ? 'helped' : 'hurt'} ${PART_WORDS[key]}` : 'slowed a player ahead of me';
-                    note(o, `${nameOf(actor)} ${what}${S.hostile?.actor === actor && d < 0 ? ` (${S.hostile.name})` : ''}`, df);
+                    const tag = S.hostile?.actor === actor && best < 0 && (HOSTILE_HITS[S.hostile.id] || []).includes(key) ? ` (${S.hostile.name})` : '';
+                    note(o, `${nameOf(actor)} ${what}${tag}`, df);
                 }
             }
         }
@@ -188,6 +214,7 @@
         }
         S.lastActive = newActive;
         S.hostile = null;
+        S.turns++;
     }
 
     // ---------------------------------------------------------------- hooks
@@ -197,10 +224,16 @@
         if (S.lastActive == null) S.lastActive = active;
         // A new turn began before the watcher noticed (fast arena games): the
         // old turn was already closed by its end-turn entry, so switch first.
-        else if (active != null && active !== S.lastActive && e.type !== 'endTurn') turnChanged(active);
+        // The old turn is closed first (end-of-turn stone collection lands
+        // after its end-turn entry), except for entries logged AFTER their
+        // effect (placeStone), which already belong to the new turn.
+        else if (active != null && active !== S.lastActive && e.type !== 'endTurn') {
+            if (e.type !== 'placeStone') observe();
+            turnChanged(active);
+        }
         if (e.type === 'cast_execute' && HOSTILE.has(e.scrollName)) {
             const def = window.SCROLL_DEFINITIONS?.[e.scrollName];
-            S.hostile = { actor: e.playerIndex ?? e.player, name: def?.name || e.scrollName };
+            S.hostile = { actor: e.playerIndex ?? e.player, id: e.scrollName, name: def?.name || e.scrollName };
         }
         observe();
     }
@@ -258,5 +291,6 @@
     window.BotDiplomacy = {
         view, events: o => (S.events[o] || []).slice(), relation: relOf, reset, observe,
         enabled, threatOf, _state: () => S,
+        setEnabled: on => { switchedOn = !!on; if (!on) reset(); },
     };
 })();
