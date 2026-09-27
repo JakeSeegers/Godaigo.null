@@ -4265,7 +4265,35 @@ document.getElementById('undo-move').onclick = function() {
         // applied/submitted/rewarded if it's a better GENERALIST, not just a
         // better duelist. Keeps the reliable 2-player trainer while making
         // sure what ships to the shared champion holds up at big tables too.
+        // ─── Saved training runs (owner request 2026-09-27) ───────────────
+        // A Hill Climb run saves itself after every challenger series and
+        // every Explore generation (localStorage, this browser only), so it
+        // can be finished later: "Save & quit" in the popup, or a closed tab.
+        // Train Bot then offers "Continue saved run". Cleared when a run ends
+        // (finished, stopped, ended early). The final 2-5 player test is not
+        // saved: it runs again in full after a continue.
+        const TRAIN_SAVE_KEY = 'godaigo_train_save';
+        function readTrainSave() {
+            try { const v = JSON.parse(localStorage.getItem(TRAIN_SAVE_KEY) || 'null'); return v && v.v === 1 ? v : null; } catch (e) { return null; }
+        }
+        function writeTrainSave(o) { try { localStorage.setItem(TRAIN_SAVE_KEY, JSON.stringify(o)); } catch (e) { console.warn('training save failed:', e); } }
+        function clearTrainSave() { try { localStorage.removeItem(TRAIN_SAVE_KEY); } catch (e) {} }
+        function describeTrainSave(sv) {
+            if (!sv) return '';
+            const when = new Date(sv.savedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const where = sv.phase === 'explore'
+                ? `Explore ${sv.explore?.gensDone || 0}/${EXPLORE_GENERATIONS} done`
+                : `round ${Math.min((sv.climb?.round || 0) + 1, sv.preset.rounds)} of ${sv.preset.rounds}`;
+            return `${where}, ${sv.gamesDone || 0} games played, saved ${when}`;
+        }
+        window._trainSaveWanted = false;
+        let trainPhase = null; // 'exploring' | 'training' | 'confirming' (Save & quit only before confirming)
+
         async function runHillClimbTraining(preset, onProgress, opts = {}) {
+            const resume = opts.resume || null;
+            if (resume) { preset = resume.preset; opts = { ...opts, ...resume.runOpts }; }
+            else clearTrainSave(); // a new run replaces any older saved one
+            window._trainSaveWanted = false;
             const { rounds, lambda, gamesPerChallenge } = preset;
             const confirmSizes = (preset.confirmSizes && preset.confirmSizes.length) ? preset.confirmSizes : [2, 3, 4, 5];
             const gamesPerSize = preset.gamesPerSize ?? 5;
@@ -4295,7 +4323,8 @@ document.getElementById('undo-move').onclick = function() {
             // TRUE anchor) for the confirmation run below — a win must still be
             // a win against the real thing. Falls back to the exact anchor when
             // BotArena.perturbWeights is somehow unavailable.
-            const climbAnchor = (opts.noisyAnchor && typeof window.BotArena.perturbWeights === 'function')
+            const climbAnchor = resume ? resume.climbAnchor
+                : (opts.noisyAnchor && typeof window.BotArena.perturbWeights === 'function')
                 ? window.BotArena.perturbWeights(baseline)
                 : baseline;
 
@@ -4305,14 +4334,33 @@ document.getElementById('undo-move').onclick = function() {
             await leaveOnlineGameIfAny();
 
             let totalGames = rounds * lambda * gamesPerChallenge + confirmSizes.length * gamesPerSize;
-            const startedAt = Date.now();
-            let gamesDone = 0, lastRound = 0, lastInfo = null, lastGen = 0, lastFitness = null;
+            const startedAt = Date.now() - (resume?.elapsedMs || 0);
+            let gamesDone = resume?.gamesDone || 0, lastRound = 0, lastInfo = null, lastGen = 0, lastFitness = null;
             let lastChallenger = 0, totalChallengers = lambda;
             let lastGameNum = 0, lastGameTotal = gamesPerChallenge;
             // "How rounds have gone" summary the popup renders as a compact
             // chip strip — one entry per completed round, oldest first.
-            const roundHistory = [];
+            const roundHistory = Array.isArray(resume?.roundHistory) ? resume.roundHistory.slice() : [];
             const stats = makeTrainingStats();
+            if (resume) stats.event(`Continuing a saved run (${describeTrainSave(resume)})`);
+            // One save object for the whole run; each checkpoint updates it.
+            const hcSeed = resume?.hcSeed || (1 + Math.floor(Math.random() * 1e6));
+            const save = resume ? { ...resume } : {
+                v: 1, preset, runOpts: { visual: !!opts.visual, noisyAnchor: !!opts.noisyAnchor, explore: !!opts.explore, formulas: !!opts.formulas, public: !!opts.public },
+                climbAnchor, hcSeed, phase: opts.explore ? 'explore' : 'climb', explore: null, climb: null,
+            };
+            const persist = (patch) => {
+                Object.assign(save, patch, { savedAt: Date.now(), gamesDone, roundHistory, elapsedMs: Date.now() - startedAt });
+                writeTrainSave(save);
+            };
+            const savedResult = () => {
+                window.BotArena.applyWeights(baselineWeights);
+                try {
+                    if (baselineStored === null) localStorage.removeItem('godaigo_bot_weights');
+                    else localStorage.setItem('godaigo_bot_weights', baselineStored);
+                } catch (e) {}
+                return { improved: false, record: 'saved', promotions: 0, saveInfo: describeTrainSave(readTrainSave()) };
+            };
             let lastExploredChallenger = false; // current challenger = the explored bot
             let lastChallengerTerms = [];       // [{text, w, isNew}] of the current challenger (formulas box)
             let termMutations = !!opts.formulas; // challengers may invent formulas (panel option or Formula Lab)
@@ -4331,6 +4379,7 @@ document.getElementById('undo-move').onclick = function() {
                     : { aName: 'Yellow', bName: 'Purple', aHex: '#ffce00', bHex: '#9458f4' };
             }
             const report = (phase) => {
+                trainPhase = phase;
                 const { aName, bName, aHex, bHex } = sideColors();
                 onProgress({
                     phase, gamesDone, totalGames, startedAt, mode: 'hillclimb',
@@ -4347,18 +4396,23 @@ document.getElementById('undo-move').onclick = function() {
             // Explore phase (opts.explore): short Evolve search across 2-5
             // player games seeded from the anchor; its champion becomes the
             // first round-1 challenger (must still beat the real champion).
-            let seedChallengers, explored = false, exploreEndedEarly = false;
-            if (opts.explore) {
+            let seedChallengers = resume?.seedChallengers, explored = !!resume?.explored, exploreEndedEarly = false;
+            if (opts.explore && !(resume && resume.phase === 'climb')) {
                 totalGames += EXPLORE_GAMES;
-                stats.event('Explore: searching across 2-5 player games first');
-                lastGen = 0;
-                const found = await window.BotArena.evolve(EXPLORE_GENERATIONS, {
+                const gensBefore = resume?.explore?.gensDone || 0;
+                const exploreSeeds = resume?.explore?.seeds || [climbAnchor];
+                stats.event(gensBefore ? `Explore: carrying on from generation ${gensBefore}` : 'Explore: searching across 2-5 player games first');
+                lastGen = gensBefore;
+                let found = gensBefore >= EXPLORE_GENERATIONS ? exploreSeeds[0] : null;
+                if (!found) found = await window.BotArena.evolve(EXPLORE_GENERATIONS - gensBefore, {
                     popSize: EXPLORE_POP, nPlayers: 'all', gamesPerGen: EXPLORE_GAMES_PER_GEN,
-                    visual, seedWeights: [climbAnchor], seed: Date.now() % 100000,
-                    onGeneration: (gen, total, fitness) => {
-                        lastGen = gen; lastFitness = fitness;
+                    visual, seedWeights: exploreSeeds, seed: Date.now() % 100000,
+                    onGeneration: (gen, total, fitness, roster) => {
+                        lastGen = gensBefore + gen; lastFitness = fitness;
                         const best = Array.isArray(fitness) && fitness.length ? Math.max(...fitness) : null;
-                        stats.event(`Explore generation ${gen}/${total} done${best !== null ? `, best fitness ${best.toFixed(1)}` : ''}`);
+                        stats.event(`Explore generation ${lastGen}/${EXPLORE_GENERATIONS} done${best !== null ? `, best fitness ${best.toFixed(1)}` : ''}`);
+                        // The two best carry the search on after a continue.
+                        if (Array.isArray(roster) && roster.length) persist({ phase: 'explore', explore: { gensDone: lastGen, seeds: roster.slice(0, 2).map(r => r.w) } });
                         report('exploring');
                     },
                     onGame: (n, t, g) => {
@@ -4367,7 +4421,12 @@ document.getElementById('undo-move').onclick = function() {
                         report('exploring');
                     },
                 });
+                if (window._trainSaveWanted) {
+                    if (!readTrainSave()) persist({ phase: 'explore', explore: { gensDone: gensBefore, seeds: exploreSeeds } });
+                    return savedResult();
+                }
                 if (window.BotArena.stopRequested()) {
+                    clearTrainSave();
                     window.BotArena.applyWeights(baselineWeights);
                     try {
                         if (baselineStored === null) localStorage.removeItem('godaigo_bot_weights');
@@ -4378,6 +4437,7 @@ document.getElementById('undo-move').onclick = function() {
                 if (exploreEndedEarly) {
                     // End Early while exploring: nothing has been tested against
                     // the champion yet, so there is nothing to confirm.
+                    clearTrainSave();
                     window.BotArena.applyWeights(baselineWeights);
                     return { improved: false, record: 'ended early', promotions: 0, endedEarly: true, attemptGold: 0, totalGold: 0 };
                 }
@@ -4393,7 +4453,8 @@ document.getElementById('undo-move').onclick = function() {
             // "Formulas: Invent" option (opts.formulas) turns inventing on for
             // anyone.
             if (termMutations) stats.event('New senses: challengers may invent formulas this run');
-            const lab = (window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
+            if (resume?.termMutations) termMutations = true;
+            const lab = (!resume && window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
             if (lab) {
                 if (lab.count) {
                     seedChallengers = [...(seedChallengers || []), ...lab.challengers].slice(0, lambda);
@@ -4405,13 +4466,16 @@ document.getElementById('undo-move').onclick = function() {
                 }
             }
 
+            if (!(resume && resume.phase === 'climb')) persist({ phase: 'climb', climb: null, seedChallengers: seedChallengers || null, explored, termMutations });
             const result = await window.BotArena.hillClimb({
                 seedChallengers, termMutations,
-                champion: climbAnchor, rounds, lambda, gamesPerChallenge, visual,
+                champion: resume?.climb?.champion || climbAnchor, rounds, lambda, gamesPerChallenge, visual,
+                resume: resume?.phase === 'climb' ? resume.climb : null,
+                onCheckpoint: (cp) => persist({ phase: 'climb', climb: cp }),
                 // A fresh seed per run: with the default (1) every run from the
                 // same champion tried the SAME challengers on the same decks,
                 // so repeated Train Bot runs mostly redid each other's work.
-                seed: 1 + Math.floor(Math.random() * 1e6),
+                seed: hcSeed,
                 // Hermit only (puzzles are hermit-only data): a would-be new
                 // champion must also do at least as well on the puzzles
                 // (combos from players' games, Replays > Puzzles).
@@ -4450,6 +4514,9 @@ document.getElementById('undo-move').onclick = function() {
                 },
             });
 
+            if (result.saved) return savedResult();
+            // Past this point the run always ends: no save to continue.
+            clearTrainSave();
             if (window.BotArena.stopRequested()) {
                 window.BotArena.applyWeights(baselineWeights);
                 try {
@@ -4474,10 +4541,17 @@ document.getElementById('undo-move').onclick = function() {
             // generalist). Also require that hillClimb() actually promoted
             // something in the 2-player climb — otherwise result.champion IS
             // the baseline and any "improvement" here is pure noise.
-            const confirm = await window.BotArena.confirmAcrossSizes(
-                result.champion, baseline,
-                { sizes: confirmSizes, gamesPerSize, visual, seed: Date.now() % 100000,
-                  onGame: (gameNum, gameTotal, g) => { gamesDone++; lastGameNum = gameNum; lastGameTotal = gameTotal; stats.addGame(g); report('confirming'); } });
+            // No promotion = the climbed bot IS the champion: nothing to test,
+            // so skip the (long, 2-5 player) final test. This is also what
+            // made "End Early -> Test Now" look dead (owner, 2026-09-27): it
+            // still played every final-test game with nothing to test.
+            const confirm = result.promotions > 0
+                ? await window.BotArena.confirmAcrossSizes(
+                    result.champion, baseline,
+                    { sizes: confirmSizes, gamesPerSize, visual, seed: Date.now() % 100000,
+                      onGame: (gameNum, gameTotal, g) => { gamesDone++; lastGameNum = gameNum; lastGameTotal = gameTotal; stats.addGame(g); report('confirming'); } })
+                : { improved: false, record: 'no new champion to test', champWins: 0, baseWins: 0 };
+            if (!result.promotions) stats.event('No new champion this run, so the final test was skipped');
             // Stop pressed DURING the confirmation: incomplete check, so no
             // apply, no submit and no gold. Revert like a stop mid-climb.
             if (window.BotArena.stopRequested()) {
@@ -4721,6 +4795,7 @@ document.getElementById('undo-move').onclick = function() {
 
                     <div style="display:flex;gap:6px;">
                         <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:12px;">End Early → Test Now</button>
+                        <button id="bt-popup-save" title="Stop after the current challenger and keep this run. Continue it later from Train Bot." style="padding:4px 8px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:4px;cursor:pointer;font-size:12px;">Save &amp; Quit</button>
                         <button id="bt-popup-stop" style="padding:4px 8px;background:#442d2d;color:#eee;border:1px solid #755;border-radius:4px;cursor:pointer;font-size:12px;">Stop</button>
                     </div>
                 </div>
@@ -4729,11 +4804,23 @@ document.getElementById('undo-move').onclick = function() {
             el.querySelector('#bt-popup-expand').onclick = () => {
                 if (typeof window._openBotTrainingPanel === 'function') window._openBotTrainingPanel();
             };
-            el.querySelector('#bt-popup-end-early').onclick = () => {
+            el.querySelector('#bt-popup-end-early').onclick = (ev) => {
                 if (window.BotArena?.isRunning()) {
                     window.BotArena.endEarly();
+                    // Visible feedback: the status line below is not shown on
+                    // the main page. The run stops after the current game.
+                    ev.currentTarget.textContent = 'Ending after this game…';
+                    ev.currentTarget.disabled = true;
                     updateStatus('Ending training early - running the confirmation match against the starting weights with the best result so far…');
                 }
+            };
+            el.querySelector('#bt-popup-save').onclick = () => {
+                if (!window.BotArena?.isRunning()) return;
+                if (trainPhase === 'confirming') { updateStatus('The final test cannot be saved. It finishes on its own soon.'); return; }
+                if (!window.BotArena.saveAndStop || !window.BotArena.isClimbing?.() && !window.BotArena.isEvolving?.()) { updateStatus('Only Train Bot runs can be saved.'); return; }
+                window._trainSaveWanted = true;
+                window.BotArena.saveAndStop();
+                updateStatus('Saving: the run stops after the current challenger (or Explore generation) and can be continued later.');
             };
             el.querySelector('#bt-popup-stop').onclick = () => {
                 if (window.BotArena?.isRunning()) {
@@ -4878,7 +4965,15 @@ document.getElementById('undo-move').onclick = function() {
             // and download the current best now" (still meaningful, keep
             // the button, only the confirming-phase case hides it).
             const endEarlyBtn = el.querySelector('#bt-popup-end-early');
-            if (endEarlyBtn) endEarlyBtn.style.display = p.phase === 'confirming' ? 'none' : 'block';
+            if (endEarlyBtn) {
+                endEarlyBtn.style.display = p.phase === 'confirming' ? 'none' : 'block';
+                if (!window.BotArena?.endEarlyRequested?.() && endEarlyBtn.disabled) {
+                    endEarlyBtn.disabled = false; endEarlyBtn.textContent = 'End Early → Test Now';
+                }
+            }
+            // Only Hill Climb runs (Train Bot) save, and not in the final test.
+            const saveBtn = el.querySelector('#bt-popup-save');
+            if (saveBtn) saveBtn.style.display = (p.mode === 'hillclimb' && p.phase !== 'confirming') ? '' : 'none';
         }
 
         function renderTrainingStats(el, p) {
@@ -6275,12 +6370,36 @@ document.getElementById('undo-move').onclick = function() {
                 startBtnSep.style.cssText = 'border-top:1px solid #333;margin:2px 0;';
                 body.appendChild(startBtnSep);
 
+                // Continue a saved Train Bot run (see TRAIN_SAVE_KEY).
+                const continueBtn = document.createElement('button');
+                continueBtn.style.cssText = 'padding:6px 10px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:5px;cursor:pointer;font-size:12px;';
+                const continueNote = document.createElement('div');
+                continueNote.style.cssText = 'font-size:11px;color:#9ab;margin-top:4px;';
+                function refreshContinue() {
+                    const sv = readTrainSave();
+                    continueBtn.style.display = sv ? '' : 'none';
+                    continueNote.style.display = sv ? '' : 'none';
+                    continueBtn.textContent = 'Continue Saved Run';
+                    continueNote.textContent = sv ? `Saved run: ${describeTrainSave(sv)}. Starting a new run replaces it.` : '';
+                }
+                refreshContinue();
+                actionRow.insertBefore(continueBtn, startBtn);
+                actionRow.insertAdjacentElement('afterend', continueNote);
+                let resumeNext = null;
+                continueBtn.onclick = () => {
+                    resumeNext = readTrainSave();
+                    if (!resumeNext) { refreshContinue(); return; }
+                    startBtn.onclick();
+                };
+
                 startBtn.onclick = async () => {
+                    const resumeSave = resumeNext; resumeNext = null;
                     if (window.BotArena.isRunning()) { updateStatus('A bot job is already running - use Stop first'); return; }
                     if (!await stopAnyRunningBotJob()) return;
                     hideLeaveTrainingButton();
                     startBtnRef.disabled = true;
                     startBtn.disabled = true;
+                    continueBtn.disabled = true;
                     startBtn.textContent = 'Training…';
                     resetInsights();
                     renderRoster();
@@ -6291,12 +6410,12 @@ document.getElementById('undo-move').onclick = function() {
                     // mode (cleared again in finally).
                     if (state._public) {
                         window._botTrainingPublic = true;
-                        showTrainingPopup({ mode: 'hillclimb', phase: 'starting', explore: state.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
+                        showTrainingPopup({ mode: 'hillclimb', phase: 'starting', explore: resumeSave ? !!resumeSave.runOpts?.explore : state.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
                         overlay.remove();
                     }
                     try {
                         // Public "Train Bot" is hill-climb-only by definition.
-                        if (state._public) state.method = 'hillclimb';
+                        if (state._public || resumeSave) state.method = 'hillclimb';
                         if (state.method === 'hillclimb') {
                             // Public Depth presets scale the whole run so the
                             // times in the tooltips are honest; the hermit panel
@@ -6310,8 +6429,9 @@ document.getElementById('undo-move').onclick = function() {
                                 ? (PUBLIC[state.generations] || PUBLIC[5])
                                 : { rounds: state.generations, lambda: 6, gamesPerChallenge: 30, gamesPerSize: 5 };
                             const preset = { ...p, confirmSizes: [2, 3, 4, 5] };
-                            const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, formulaGold, formulaKept, totalGold, endedEarly } = await runHillClimbTraining(preset, renderProgress, {
+                            const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, formulaGold, formulaKept, totalGold, endedEarly, saveInfo } = await runHillClimbTraining(preset, renderProgress, {
                                 visual: state.watchable, noisyAnchor: state.noisyAnchor, explore: state.explore, formulas: state.formulas,
+                                public: !!state._public, resume: resumeSave,
                             });
                             progressText.style.display = 'none';
                             const formulaTail = formulaGold
@@ -6319,7 +6439,9 @@ document.getElementById('undo-move').onclick = function() {
                                 : '';
                             const bonusTail = (attemptGold ? ` (+${attemptGold} for the games run)` : '') + formulaTail;
                             let msg;
-                            if (record === 'stopped') {
+                            if (record === 'saved') {
+                                msg = `Training saved (${saveInfo || 'saved'}). Continue it any time from Train Bot on this browser.`;
+                            } else if (record === 'stopped') {
                                 msg = 'Training stopped - the result was discarded, the champion is unchanged.';
                             } else if (record === 'ended early') {
                                 msg = 'Training ended during Explore, before anything was tested against the champion - nothing changed, no gold.';
@@ -6357,6 +6479,8 @@ document.getElementById('undo-move').onclick = function() {
                     } finally {
                         startBtnRef.disabled = false;
                         startBtn.disabled = false;
+                        continueBtn.disabled = false;
+                        refreshContinue();
                         startBtn.textContent = 'Start Training';
                         hideTrainingPopup();
                         showLeaveTrainingButton();

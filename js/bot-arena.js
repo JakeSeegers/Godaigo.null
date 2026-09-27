@@ -344,6 +344,13 @@
     let _endEarlyRequested = false;
     function endEarly() { _endEarlyRequested = true; }
     function endEarlyRequested() { return _endEarlyRequested; }
+    // Save and quit (hillClimb only): finish the current challenger's series,
+    // hand the caller a checkpoint (opts.onCheckpoint already has it) and
+    // return { saved: true }. The caller keeps the checkpoint and can pass it
+    // back as opts.resume to carry on later (owner request 2026-09-27).
+    let _saveRequested = false;
+    function saveAndStop() { _saveRequested = true; }
+    function saveRequested() { return _saveRequested; }
 
     // ----------------------------------------------------------------
     // Challenger marker: in Hill Climb series the challenger's pawn, and in
@@ -875,6 +882,7 @@
         _evolving = true;
         _stopRequested = false; // same stop() flag spectate() uses — shared "cancel a local bot job" signal
         _endEarlyRequested = false; // soft-stop for THIS run only — see its own comment above
+        _saveRequested = false;
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
@@ -924,12 +932,12 @@
             // this mostly matters if end-early is clicked mid-generation
             // rather than between them; not worth the extra complexity of
             // discarding a partial generation outright for a v1.
-            for (let gen = 0; gen < generations && !_stopRequested && !_endEarlyRequested; gen++) {
+            for (let gen = 0; gen < generations && !_stopRequested && !_endEarlyRequested && !_saveRequested; gen++) {
                 const fitness = new Array(population.length).fill(0);
 
                 if (!allSizes && nPlayers === 2) {
-                    for (let i = 0; i < population.length && !_stopRequested && !_endEarlyRequested; i++) {
-                        for (let j = i + 1; j < population.length && !_stopRequested && !_endEarlyRequested; j++) {
+                    for (let i = 0; i < population.length && !_stopRequested && !_endEarlyRequested && !_saveRequested; i++) {
+                        for (let j = i + 1; j < population.length && !_stopRequested && !_endEarlyRequested && !_saveRequested; j++) {
                             if (visual && typeof updateStatus === 'function') {
                                 updateStatus(`🧬 Evolve gen ${gen + 1}/${generations}: pop#${i} vs pop#${j}`);
                             }
@@ -941,7 +949,7 @@
                 } else {
                     const gamesPerGen = opts.gamesPerGen ?? popSize * 3;
                     const maxN = Math.min(5, population.length);
-                    for (let g = 0; g < gamesPerGen && !_stopRequested && !_endEarlyRequested; g++) {
+                    for (let g = 0; g < gamesPerGen && !_stopRequested && !_endEarlyRequested && !_saveRequested; g++) {
                         // Generalist mode picks a fresh player count per game so
                         // one generation spans arenas of every size; a fixed
                         // mode always uses the same nPlayers.
@@ -962,6 +970,9 @@
                     }
                 }
 
+                // Save and quit (the caller keeps the last finished
+                // generation): a half-played generation is not ranked.
+                if (_saveRequested) break;
                 const ranked = population
                     .map((p, i) => ({ id: p.id, w: p.w, parentIds: p.parentIds, f: fitness[i] }))
                     .sort((a, b) => b.f - a.f);
@@ -1005,6 +1016,7 @@
             // Clear so the caller's confirmation run() (shared _playSeries)
             // isn't itself cut short by a still-set endEarly request.
             _endEarlyRequested = false;
+            _saveRequested = false;
         }
         return champion;
     }
@@ -1065,6 +1077,11 @@
     //   opts.termMutations?      challengers may also gain / lose / change
     //                            formula terms (js/bot-terms.js), not just
     //                            nudge numbers (Formula Lab, hermit)
+    //   opts.onCheckpoint?(state) after every challenger series and every
+    //                            round: plain JSON {round, sigma, promotions,
+    //                            gamesPlayed, roundLog, champion, inRound}
+    //   opts.resume?             such a state: carry on from it (pass its
+    //                            champion as opts.champion too)
     //   opts.puzzleCheck? async (weights) => score | null (Phase 4b, e.g.
     //                            Replay.puzzleScore): a challenger that wins
     //                            enough games is promoted only if its puzzle
@@ -1093,31 +1110,46 @@
         const sigmaCap = opts.sigmaCap ?? 0.8;
         const seed = opts.seed ?? 1;
         const visual = !!opts.visual;
-        const rng = mulberry32(seed);
+        const resume = opts.resume || null;
+        const startRound = resume ? Math.max(0, resume.round | 0) : 0;
+        // A resumed run draws fresh random numbers (same seed would redo
+        // round 0's challengers).
+        const rng = mulberry32(resume ? ((seed + startRound * 7919) >>> 0) : seed);
 
         _climbing = true;
         _stopRequested = false;
         _endEarlyRequested = false;
+        _saveRequested = false;
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
 
         let champion = opts.champion ? { ...opts.champion } : { ...window.BotSystem.WEIGHTS };
         let championPuzzle; // puzzle score of the current champion (opts.puzzleCheck), computed on first use
-        let sigma = sigma0;
-        let promotions = 0, gamesPlayed = 0;
-        const roundLog = [];
+        let sigma = resume?.sigma ?? sigma0;
+        let promotions = resume?.promotions || 0, gamesPlayed = resume?.gamesPlayed || 0;
+        const roundLog = Array.isArray(resume?.roundLog) ? resume.roundLog.slice() : [];
+        let saved = false;
+        const checkpoint = (round, inRound) => {
+            if (typeof opts.onCheckpoint !== 'function') return;
+            try {
+                opts.onCheckpoint(JSON.parse(JSON.stringify({ round, sigma, promotions, gamesPlayed, roundLog, champion, inRound })));
+            } catch (e) { /* a failed save never aborts a run */ }
+        };
 
         try {
-            for (let round = 0; round < rounds && !_stopRequested && !_endEarlyRequested; round++) {
+            for (let round = startRound; round < rounds && !_stopRequested && !_endEarlyRequested && !_saveRequested; round++) {
+                const ir = (resume && round === startRound) ? resume.inRound : null;
                 // Spawn λ mutant challengers of the (fixed) champion.
                 const challengers = [];
-                for (let c = 0; c < lambda; c++) challengers.push(mutate(champion, rng, sigma, { structural: !!opts.termMutations }));
-                // opts.seedChallengers: bots found elsewhere (e.g. an Evolve
-                // "explore" phase) take the first round-1 slots instead of
-                // mutants. Same rules: they must beat the champion to count.
-                if (round === 0 && Array.isArray(opts.seedChallengers)) {
-                    opts.seedChallengers.slice(0, lambda).forEach((w, i) => { if (w) challengers[i] = { ...w }; });
+                if (!ir) {
+                    for (let c = 0; c < lambda; c++) challengers.push(mutate(champion, rng, sigma, { structural: !!opts.termMutations }));
+                    // opts.seedChallengers: bots found elsewhere (e.g. an Evolve
+                    // "explore" phase) take the first round-1 slots instead of
+                    // mutants. Same rules: they must beat the champion to count.
+                    if (round === 0 && Array.isArray(opts.seedChallengers)) {
+                        opts.seedChallengers.slice(0, lambda).forEach((w, i) => { if (w) challengers[i] = { ...w }; });
+                    }
                 }
 
                 // COMMON RANDOM NUMBERS: every challenger in this round faces
@@ -1125,7 +1157,7 @@
                 // seed term, unlike before) — combined with _playSeries'
                 // mirror-pairing, ranking differences between challengers come
                 // from their weights, not from who drew the luckier decks.
-                const trialSeed = (seed * 1000003 + round * 1009) >>> 0;
+                const trialSeed = ir ? ir.trialSeed : (seed * 1000003 + round * 1009) >>> 0;
 
                 // SUCCESSIVE HALVING (opts.halving !== false): every
                 // challenger gets a short paired audition on the same decks,
@@ -1151,8 +1183,9 @@
 
                 // Cumulative per-challenger records across stages; rank by net
                 // wins, then the sideFitness margin — same ordering as before.
-                let survivors = challengers.map((w, c) => ({
+                let survivors = ir ? ir.survivors : challengers.map((w, c) => ({
                     w, c, played: 0, aWins: 0, bWins: 0, draws: 0, aFitness: 0, bFitness: 0 }));
+                const sStart = ir ? ir.s : 0, kStart = ir ? ir.k : 0;
                 // endEarly() must cut the round short at a challenger boundary,
                 // not only between whole rounds — a full round is ~100 games
                 // (successive halving), so without this check "End Early → Test
@@ -1164,9 +1197,9 @@
                 // button's promise. NOT added to _playSeries itself: that is
                 // shared with the confirmation run(), which must always play in
                 // full even after endEarly.
-                for (let s = 0; s < stages.length && !_stopRequested && !_endEarlyRequested; s++) {
+                for (let s = sStart; s < stages.length && !_stopRequested && !_endEarlyRequested && !_saveRequested; s++) {
                     const st = stages[s];
-                    for (let k = 0; k < survivors.length && !_stopRequested && !_endEarlyRequested; k++) {
+                    for (let k = (s === sStart ? kStart : 0); k < survivors.length && !_stopRequested && !_endEarlyRequested && !_saveRequested; k++) {
                         const cand = survivors[k];
                         // Fired per challenger before its series — lets the UI
                         // say which challenger (of the current stage's
@@ -1180,6 +1213,7 @@
                         // across survivors), never replays of stage 1.
                         const r = await _playSeries(cand.w, champion, st.games, trialSeed,
                             { ...opts, visual, gameIndexOffset: cand.played, markChallenger: true });
+                        if (_stopRequested) break; // a stopped series is not a result
                         cand.played += st.games;
                         cand.aWins += r.aWins; cand.bWins += r.bWins; cand.draws += r.draws;
                         cand.aFitness += r.aFitness; cand.bFitness += r.bFitness;
@@ -1187,7 +1221,9 @@
                         log(`round ${round + 1} stage ${s + 1}/${stages.length} challenger #${cand.c + 1}` +
                             ` (trial seed ${trialSeed}): ${cand.aWins}-${cand.bWins}` +
                             `${cand.draws ? ' (' + cand.draws + 'd)' : ''} over ${cand.played} games`);
+                        checkpoint(round, { trialSeed, survivors, s, k: k + 1 });
                     }
+                    if (_saveRequested) break;
                     survivors.sort((x, y) => ((y.aWins - y.bWins) - (x.aWins - x.bWins)) ||
                         ((y.aFitness - y.bFitness) - (x.aFitness - x.bFitness)));
                     if (survivors.length > st.keep) {
@@ -1196,6 +1232,9 @@
                         survivors = survivors.slice(0, st.keep);
                     }
                 }
+                // Save and quit: the checkpoint after the last series holds
+                // this round's progress; do not judge a half-played round.
+                if (_saveRequested) { saved = true; break; }
                 const finalist = survivors[0] || null;
                 const decidedF = finalist ? finalist.aWins + finalist.bWins : 0;
                 const best = finalist ? {
@@ -1253,6 +1292,7 @@
                 if (typeof opts.onRound === 'function') {
                     try { opts.onRound(round + 1, rounds, info); } catch (e) { /* UI callback errors never abort a run */ }
                 }
+                checkpoint(round + 1, null);
                 await sleep(0);
             }
         } finally {
@@ -1262,9 +1302,10 @@
             // Clear so the caller's confirmation run() (shared _playSeries)
             // isn't itself cut short by a still-set endEarly request.
             _endEarlyRequested = false;
+            _saveRequested = false;
         }
-        log(`hillClimb complete: ${promotions} promotion(s) over ${roundLog.length} round(s), ${gamesPlayed} games.`);
-        return { champion, promotions, rounds: roundLog, gamesPlayed };
+        log(`hillClimb ${saved ? 'saved' : 'complete'}: ${promotions} promotion(s) over ${roundLog.length} round(s), ${gamesPlayed} games.`);
+        return { champion, promotions, rounds: roundLog, gamesPlayed, saved };
     }
 
     // ----------------------------------------------------------------
@@ -1437,6 +1478,7 @@
         run, evolve, playGame, playMatch, spectate, stop,
         hillClimb, // champion-anchored monotonic climber (the reliable trainer)
         confirmAcrossSizes, // N-player champion-vs-field confirmation gate
+        saveAndStop, saveRequested, // hillClimb: stop after this challenger, keep a checkpoint
         endEarly, // soft-stop: cuts evolve()'s / hillClimb()'s loop short but keeps its result usable
         perturbWeights, // gaussian-perturbed copy of a weight table (Noisy anchor toggle)
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
