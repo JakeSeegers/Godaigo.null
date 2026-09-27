@@ -518,7 +518,9 @@
             // best champion SO FAR. evolve()/hillClimb() clear the flag before
             // their confirmation run(), and spectate() resets it on entry, so no
             // other playMatch caller is cut short by a stale request.
-            for (let turn = 0; turn < turnCap && !_stopRequested && !_endEarlyRequested; turn++) {
+            // _saveRequested: Save & Quit stops the game at once; the caller
+            // drops this unfinished game and replays it after a continue.
+            for (let turn = 0; turn < turnCap && !_stopRequested && !_endEarlyRequested && !_saveRequested; turn++) {
                 if (visual) { try { currentTurnNumber = turn + 1; } catch (e) {} }
                 const idx = activePlayerIndex;
                 if (weightsPerPlayer[idx] !== undefined) setWeights(weightsPerPlayer[idx]);
@@ -721,7 +723,7 @@
         // (~100). Safe because evolve()/hillClimb() clear _endEarlyRequested in
         // their finally blocks before the confirmation run() is issued — so the
         // confirm series, which also flows through here, always plays in full.
-        for (let i = 0; i < nGames && !_stopRequested && !_endEarlyRequested; i++) {
+        for (let i = 0; i < nGames && !_stopRequested && !_endEarlyRequested && !_saveRequested; i++) {
             const gi = offset + i;
             const aIsPlayer0 = gi % 2 === 0;
             if (opts.markChallenger) setMarkedSeat(aIsPlayer0 ? 0 : 1);
@@ -732,6 +734,7 @@
                 opts
             );
             if (opts.markChallenger) setMarkedSeat(null);
+            if (_saveRequested) break; // cut short by Save & Quit: not a result
             const aWon = g.winner !== null && ((g.winner === 0) === aIsPlayer0);
             if (g.winner === null) result.draws++;
             else if (aWon) result.aWins++;
@@ -961,6 +964,7 @@
                             updateStatus(`🧬 Evolve gen ${gen + 1}/${generations}, game ${g + 1}/${gamesPerGen}: ${nP}p pop ${idxs.join(',')}`);
                         }
                         const result = await playMatch(weightsPerPlayer, { ...opts, seed: gameSeed, visual });
+                        if (_saveRequested) break; // cut short by Save & Quit
                         if (result.winner !== null) fitness[idxs[result.winner]]++;
                         log(`gen ${gen + 1} game ${g + 1}/${gamesPerGen} (${nP}p pop ${idxs.join(',')}): ${result.winner === null ? 'draw' : 'pop#' + idxs[result.winner] + ' wins'} in ${result.turns} turns`);
                         if (typeof opts.onGame === 'function') {
@@ -1211,16 +1215,27 @@
                         // gameIndexOffset continues this challenger's seed
                         // sequence — later stages play NEW decks (identical
                         // across survivors), never replays of stage 1.
-                        const r = await _playSeries(cand.w, champion, st.games, trialSeed,
+                        // stageDone: games of this stage already played before
+                        // a Save & Quit (a continued run plays only the rest).
+                        const r = await _playSeries(cand.w, champion, st.games - (cand.stageDone || 0), trialSeed,
                             { ...opts, visual, gameIndexOffset: cand.played, markChallenger: true });
                         if (_stopRequested) break; // a stopped series is not a result
-                        cand.played += st.games;
+                        const n = r.aWins + r.bWins + r.draws;
+                        cand.played += n;
                         cand.aWins += r.aWins; cand.bWins += r.bWins; cand.draws += r.draws;
                         cand.aFitness += r.aFitness; cand.bFitness += r.bFitness;
                         gamesPlayed += r.aWins + r.bWins + r.draws;
                         log(`round ${round + 1} stage ${s + 1}/${stages.length} challenger #${cand.c + 1}` +
                             ` (trial seed ${trialSeed}): ${cand.aWins}-${cand.bWins}` +
                             `${cand.draws ? ' (' + cand.draws + 'd)' : ''} over ${cand.played} games`);
+                        if (_saveRequested) {
+                            // Saved in the middle of this challenger's games:
+                            // come back to the same challenger.
+                            cand.stageDone = (cand.stageDone || 0) + n;
+                            checkpoint(round, { trialSeed, survivors, s, k });
+                            break;
+                        }
+                        cand.stageDone = 0;
                         checkpoint(round, { trialSeed, survivors, s, k: k + 1 });
                     }
                     if (_saveRequested) break;

@@ -4795,7 +4795,7 @@ document.getElementById('undo-move').onclick = function() {
 
                     <div style="display:flex;gap:6px;">
                         <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:12px;">End Early → Test Now</button>
-                        <button id="bt-popup-save" title="Stop after the current challenger and keep this run. Continue it later from Train Bot." style="padding:4px 8px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:4px;cursor:pointer;font-size:12px;">Save &amp; Quit</button>
+                        <button id="bt-popup-save" title="Stop now and keep this run. Continue it later from Train Bot (the game in progress is played again)." style="padding:4px 8px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:4px;cursor:pointer;font-size:12px;">Save &amp; Quit</button>
                         <button id="bt-popup-stop" style="padding:4px 8px;background:#442d2d;color:#eee;border:1px solid #755;border-radius:4px;cursor:pointer;font-size:12px;">Stop</button>
                     </div>
                 </div>
@@ -4814,13 +4814,17 @@ document.getElementById('undo-move').onclick = function() {
                     updateStatus('Ending training early - running the confirmation match against the starting weights with the best result so far…');
                 }
             };
-            el.querySelector('#bt-popup-save').onclick = () => {
+            el.querySelector('#bt-popup-save').onclick = (ev) => {
                 if (!window.BotArena?.isRunning()) return;
                 if (trainPhase === 'confirming') { updateStatus('The final test cannot be saved. It finishes on its own soon.'); return; }
                 if (!window.BotArena.saveAndStop || !window.BotArena.isClimbing?.() && !window.BotArena.isEvolving?.()) { updateStatus('Only Train Bot runs can be saved.'); return; }
                 window._trainSaveWanted = true;
                 window.BotArena.saveAndStop();
-                updateStatus('Saving: the run stops after the current challenger (or Explore generation) and can be continued later.');
+                // Visible feedback (the status line is not on the main page).
+                // The game in progress stops now and is replayed on continue.
+                ev.currentTarget.textContent = 'Saving…';
+                ev.currentTarget.disabled = true;
+                updateStatus('Saving: the run stops now and can be continued later from Train Bot.');
             };
             el.querySelector('#bt-popup-stop').onclick = () => {
                 if (window.BotArena?.isRunning()) {
@@ -4973,7 +4977,10 @@ document.getElementById('undo-move').onclick = function() {
             }
             // Only Hill Climb runs (Train Bot) save, and not in the final test.
             const saveBtn = el.querySelector('#bt-popup-save');
-            if (saveBtn) saveBtn.style.display = (p.mode === 'hillclimb' && p.phase !== 'confirming') ? '' : 'none';
+            if (saveBtn) {
+                saveBtn.style.display = (p.mode === 'hillclimb' && p.phase !== 'confirming') ? '' : 'none';
+                if (!window._trainSaveWanted && saveBtn.disabled) { saveBtn.disabled = false; saveBtn.textContent = 'Save & Quit'; }
+            }
         }
 
         function renderTrainingStats(el, p) {
