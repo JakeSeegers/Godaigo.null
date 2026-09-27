@@ -298,6 +298,9 @@ Order matters — later scripts depend on earlier ones.
                              Phase 2: pressures(o) (clear leader 1.5 / 4 el 2 / 5 el 2.5 / can win 4, x favor) weight
                              opponentProgress in evaluateSnapshot, tacticalContext blocking, Arson/Plunder targets;
                              bot.js kingmakerFilter never lets an opponent with 5 elements get within 5 AP of home.
+                             Phase 3: emote sentences (say(): Game Log 'botTalk' line at once, emotes queued; online
+                             the emoji broadcast carries `talk`), one-round pacts against the leader, trust from
+                             kept / withdrawn / broken pacts, thanks and grudges. Silent in muted training.
 27b. bot-imitation.js      ← window.BotImitation — HERMIT-ONLY, opt-in "learn from my play" imitation
                              learning (docs/void-knight.md). Watches ActionLog.onRecord() during the
                              hermit's own turns in a real online game that has a bot in it; compares

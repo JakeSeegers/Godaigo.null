@@ -3946,9 +3946,14 @@
             // Show it floating above their pawn on every client except the sender
             // (sender already called showEmojiOverPawn locally before broadcasting).
             gameChannel.on('broadcast', { event: 'emoji' }, ({ payload }) => {
-                const { playerIndex, display, isText, sprite } = payload;
+                const { playerIndex, display, isText, sprite, talk } = payload;
                 if (typeof window.emojiSystem !== 'undefined') {
                     window.emojiSystem.showEmojiOverPawn(playerIndex, display, !!isText, sprite);
+                }
+                // Bot alliance talk (js/bot-diplomacy.js): the first emote of a
+                // sentence carries its Game Log line.
+                if (typeof talk === 'string' && talk.length < 200) {
+                    window.ActionLog?.record?.('botTalk', { text: talk }, playerIndex);
                 }
             });
 

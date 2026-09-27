@@ -6,10 +6,10 @@
       "date": "2026-09-27",
       "title": "Pixel emotes and credits",
       "changes": [
-        "New Shop button in the lobby: name styles, pawn items and emojis are all in one place now.",
+        "New Shop and Credits buttons in the lobby: name styles, pawn items and emojis in one place, and the artists behind the game.",
         "Emojis are now 95 animated pixel emotes (50 gold each, art by Pipoya), saved to your account on any device. The old emojis are gone.",
-        "New Credits button in the lobby lists the artists and font makers behind the game.",
-        "Smarter bots: newest Train Bot brain, water chains for cheap roads and walls, and they now remember who helped or hurt them and gang up on whoever is clearly winning (you included).",
+        "Smarter bots: newest Train Bot brain, and water chains for cheap roads and walls.",
+        "Bots remember who helped or hurt them, gang up on whoever is clearly winning (you included), and make pacts they announce with emotes.",
         "Train Bot: new Formulas option lets bots invent new senses (+10 gold, +20 more if a new one wins), a clearer training window, and fresh challengers every run."
       ]
     },

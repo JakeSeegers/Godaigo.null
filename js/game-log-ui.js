@@ -349,6 +349,14 @@
     }
 
     function handle(entry) {
+        // Bot alliance talk (js/bot-diplomacy.js): may come from a bot whose
+        // turn it is not, so it never opens a turn header. {pN} = player N.
+        if (entry.type === 'botTalk') {
+            flushPendingMove();
+            const html = esc(String(entry.text || '')).replace(/\{p(\d)\}/g, (m, n) => playerSpan(+n));
+            appendLine(`<i>${html}</i>`, 'gl-talk');
+            return;
+        }
         ensureTurnHeader(entry);
         if (entry.type === 'move') {
             if (!pendingMove || pendingMove.turn !== entry.turn || pendingMove.player !== entry.player) {

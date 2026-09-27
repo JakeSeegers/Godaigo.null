@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (11): Bot alliances Phase 3: talk + pacts** (owner). See docs/bot-alliances.md "Phases". Tested in
+  3-player games: warnings, offers, accepts, withdrawals, pact ends, thanks; player symbols (hex colours mapped);
+  Game Log lines on time; screenshot shows emotes over pawns. Not yet seen in a test: Commit (strike), betrayal,
+  decline, grudge (all rarer). Next: Phase 4 personalities.
 - **2026-09-27 (10): Bot alliances Phase 2** (owner). Pressure per opponent (docs/bot-alliances.md "Phases") weights
   opponent progress in search, blocking, and Arson/Plunder targets; kingmakerFilter safeguard. Phase 1 blame fixes
   (own elements / stone gains never credited to others, camping only on scarce shrines). Next: Phase 3 (pacts, emote

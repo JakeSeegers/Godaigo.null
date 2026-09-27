@@ -38,7 +38,8 @@
 
     let S = fresh();
     function fresh() {
-        return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {} };
+        return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
+                 pact: null, lastPactTurn: -99, warned: {}, spoke: {}, thanked: {} };
     }
     function reset() { S = fresh(); }
 
@@ -172,6 +173,7 @@
             const changes = now.map((pt, j) => (pt && S.prev[j]) ? blameable(pt, S.prev[j]) : null);
             const delta = changes.map(c => (c ? sumParts(c) : 0));
             const actorGain = (now[actor] && S.prev[actor]) ? total(now[actor]) - total(S.prev[actor]) : 0;
+            const dfs = [];
             for (let o = 0; o < n; o++) {
                 if (o === actor || !now[o] || !isBotSeat(o)) continue;
                 const d = delta[o];
@@ -189,6 +191,7 @@
                     if (threatOf(snap, o, v) >= 0.65) df += 0.05 * Math.min(1, -delta[v] / 200);
                 }
                 if (!df) continue;
+                dfs.push([o, df]);
                 const r = relOf(o, actor);
                 r.favor = Math.max(-3, Math.min(3, r.favor + df));
                 if (Math.abs(df) >= 0.05) {
@@ -199,7 +202,9 @@
                     const tag = S.hostile?.actor === actor && best < 0 && (HOSTILE_HITS[S.hostile.id] || []).includes(key) ? ` (${S.hostile.name})` : '';
                     note(o, `${nameOf(actor)} ${what}${tag}`, df);
                 }
+                if (Math.abs(df) >= 0.1) feel(o, actor, df);
             }
+            pactObserve(actor, changes, dfs);
         }
         S.prev = now;
         S.looks++;
@@ -216,11 +221,12 @@
         S.lastActive = newActive;
         S.hostile = null;
         S.turns++;
+        try { pactStep(newActive); } catch (e) { console.warn('[BotDiplomacy] pact step failed', e); }
     }
 
     // ---------------------------------------------------------------- hooks
     function onEntry(e) {
-        if (!enabled()) return;
+        if (!enabled() || e.type === 'botTalk') return;
         const active = (typeof activePlayerIndex !== 'undefined') ? activePlayerIndex : null;
         if (S.lastActive == null) S.lastActive = active;
         // A new turn began before the watcher noticed (fast arena games): the
@@ -308,6 +314,13 @@
             const f = S.rel[o]?.[j]?.favor || 0;
             arr[j] *= Math.max(0.6, Math.min(1.4, 1 - 0.4 * f));
         }
+        // A pact: push harder on its target, ease off fellow members.
+        if (S.pact && S.pact.members.has(o)) {
+            for (let j = 0; j < n; j++) {
+                if (j === S.pact.target) arr[j] *= 1.3;
+                else if (S.pact.members.has(j)) arr[j] *= 0.7;
+            }
+        }
         arr[o] = 1;
         S.press[o] = { key, arr, leader: arr[leader] > 1.2 ? leader : null };
         return arr;
@@ -315,6 +328,161 @@
     function coalitionTarget(o) {
         pressures(o);
         return S.press[o]?.leader ?? null;
+    }
+
+    // ---------------------------------------------------------------- phase 3: talk
+    // Emote sentences (owner's vocabulary, docs/bot-alliances.md): what, then
+    // who. Cells of images/emotes/pipoya-emotes.png (js/emoji-system.js).
+    const E = {
+        warning: 0, question: 1, bread: 59, accept: 85, decline: 32, withdraw: 86, thanks: 12,
+        commit: [37, 47, 70],          // Twinkle, Chomp, Hammer (at random)
+        grudge: [28, 9, 21],           // Rage Spikes, Broken Heart, Angry Vein (at random)
+        leader: 79,                    // Crown
+        colour: { green: 99, blue: 97, red: 96, yellow: 98, purple: 19 },
+    };
+    const pickOne = a => (Array.isArray(a) ? a[Math.floor(Math.random() * a.length)] : a);
+    // Pawn colours are stored as hex codes (game-core.js PLAYER_COLORS).
+    const HEX_TO_COLOUR = { '#69d83a': 'green', '#5894f4': 'blue', '#ed1b43': 'red', '#ffce00': 'yellow', '#9458f4': 'purple' };
+    function symbolOf(j, leader) {
+        if (leader != null && j === leader) return E.leader;
+        let c = (typeof playerPositions !== 'undefined') ? playerPositions[j]?.color : null;
+        if (typeof c === 'string' && c.startsWith('#')) c = HEX_TO_COLOUR[c.toLowerCase()];
+        if (!c && typeof getPlayerColorName === 'function') { try { c = String(getPlayerColorName(j)).toLowerCase(); } catch (e) {} }
+        return E.colour[c] ?? E.question;
+    }
+    // Emotes only show where someone watches: online, spectated or visual
+    // arena games. Muted training keeps the pacts but skips the talking.
+    let talkAlways = false; // tests
+    function visible() {
+        if (talkAlways || !arenaRunning()) return true;
+        return !!(window.BotArena?.isSpectating?.() || (window.BotSystem?.speedScale ?? 0) >= 1);
+    }
+    const queue = [];
+    let speaking = false;
+    // text uses {pN} for player N; js/game-log-ui.js renders it with names.
+    // The Game Log line is written at once; the emotes play one after
+    // another (about 1 s each). A long backlog drops the oldest sentences'
+    // emotes so the table never lags behind the game.
+    function say(o, sprites, text) {
+        if (!visible() || !window.emojiSystem?.showEmojiOverPawn) return;
+        if (text) window.ActionLog?.record?.('botTalk', { text }, o);
+        queue.push({ o, sprites: sprites.map(pickOne), text });
+        while (queue.length > 3) queue.shift();
+        if (!speaking) speakNext();
+    }
+    function speakNext() {
+        const item = queue.shift();
+        if (!item) { speaking = false; return; }
+        speaking = true;
+        item.sprites.forEach((sprite, k) => setTimeout(() => {
+            if (!gameActive()) return;
+            window.emojiSystem.showEmojiOverPawn(item.o, '', false, sprite);
+            const payload = { playerIndex: item.o, display: '', isText: false, sprite };
+            if (k === 0 && item.text) payload.talk = item.text; // other players' Game Log
+            if (hostOnline() && typeof broadcastGameAction === 'function') {
+                try { broadcastGameAction('emoji', payload); } catch (e) {}
+            }
+        }, k * 900));
+        setTimeout(speakNext, item.sprites.length * 900 + 600);
+    }
+
+    // ---------------------------------------------------------------- phase 3: pacts
+    // One pact at a time, bots only, against the clear leader, for one round.
+    // Members push harder on the target and ease off each other. Kept: trust
+    // up. Withdrawn: a little trust down. Broken (hurting a member): a lot.
+    const PACT = { minPush: 2, gapTurns: 2, keptTrust: 0.15, committedTrust: 0.1, withdrawTrust: -0.05, brokenTrust: -0.45, brokenFavor: -0.15 };
+    function inPact(o) { return !!S.pact && S.pact.members.has(o); }
+    function pactStep(active) {
+        const P = S.pact;
+        if (P) {
+            // Members who no longer see the target as the leader step out.
+            for (const m of [...P.members]) {
+                if (coalitionTarget(m) === P.target) continue;
+                P.members.delete(m);
+                for (const k of P.members) relOf(k, m).trust = clampT(relOf(k, m).trust + PACT.withdrawTrust);
+                say(m, [E.withdraw], `{p${m}} leaves the pact against {p${P.target}}`);
+            }
+            if (--P.turnsLeft <= 0 || P.members.size < 2) endPact();
+        }
+        if (!S.pact && isBotSeat(active) && S.turns - S.lastPactTurn >= PACT.gapTurns * (S.seats || 1)) propose(active);
+    }
+    function clampT(v) { return Math.max(-1, Math.min(1, v)); }
+    function propose(o) {
+        const L = coalitionTarget(o);
+        if (L == null) return;
+        const push = (pressures(o) || [])[L] || 1;
+        const n = S.seats || seatCount();
+        // Warn once per stage (the number of elements the leader has).
+        let snap; try { snap = window.BotState.snapshot(); } catch (e) { return; }
+        const stage = snap.players[L]?.activated?.length || 0;
+        if (S.warned[L] !== stage) {
+            S.warned[L] = stage;
+            say(o, [E.warning, symbolOf(L, L)], `{p${o}} warns: {p${L}} is close to winning`);
+        }
+        if (push < PACT.minPush) return;
+        const others = [];
+        for (let b = 0; b < n; b++) if (b !== o && b !== L && snap.players[b] && isBotSeat(b)) others.push(b);
+        if (!others.length) return;
+        S.lastPactTurn = S.turns;
+        say(o, [E.bread, E.question, symbolOf(L, L)], `{p${o}} offers a pact against {p${L}}`);
+        const members = new Set([o]);
+        for (const b of others) {
+            const r = relOf(b, o);
+            const ok = coalitionTarget(b) === L && (W.favor * r.favor + W.trust * r.trust) > -0.5;
+            if (ok) members.add(b);
+            say(b, [ok ? E.accept : E.decline], `{p${b}} ${ok ? 'accepts' : 'declines'}`);
+        }
+        if (members.size < 2) return;
+        S.pact = { target: L, members, committed: new Set(), turnsLeft: n + 1 };
+        S.press = {}; // pact changes pressures
+    }
+    function endPact() {
+        const P = S.pact;
+        if (!P) return;
+        const kept = [...P.members];
+        for (const m of kept) for (const k of kept) {
+            if (m === k) continue;
+            const r = relOf(k, m);
+            r.trust = clampT(r.trust + PACT.keptTrust + (P.committed.has(m) ? PACT.committedTrust : 0));
+            r.favor += 0.05;
+        }
+        if (kept.length >= 2 && visible()) window.ActionLog?.record?.('botTalk', { text: `The pact against {p${P.target}} ends` }, kept[0]);
+        S.pact = null;
+        S.lastPactTurn = S.turns; // the next offer waits two rounds from here
+        S.press = {};
+    }
+    // Called from observe() with each bot's blameable change this look.
+    function pactObserve(actor, changes, dfs) {
+        const P = S.pact;
+        if (!P || !P.members.has(actor)) return;
+        const t = changes[P.target];
+        if (t && Object.values(t).reduce((a, b) => a + b, 0) <= -20 && !P.committed.has(actor)) {
+            P.committed.add(actor);
+            say(actor, [E.commit, symbolOf(P.target, P.target)], `{p${actor}} strikes at {p${P.target}}`);
+        }
+        for (const [v, df] of dfs) {
+            if (v === actor || !P.members.has(v) || df > -0.1) continue;
+            const r = relOf(v, actor);
+            r.trust = clampT(r.trust + PACT.brokenTrust);
+            r.favor += PACT.brokenFavor;
+            P.members.delete(actor);
+            say(v, [E.grudge, symbolOf(actor, null)], `{p${v}} was betrayed by {p${actor}}`);
+            break;
+        }
+    }
+    // Thanks and grudges outside pacts: at most one sentence per bot per turn,
+    // and the same thanks or grudge toward a player at most once per round.
+    function feel(o, actor, df) {
+        if (S.spoke[o] === S.turns) return;
+        const key = `${o}>${actor}`, n = S.seats || 1;
+        if ((S.thanked[key] ?? -99) > S.turns - n) return;
+        if (df >= 0.1) {
+            say(o, [E.thanks, symbolOf(actor, null)], `{p${o}} thanks {p${actor}}`);
+        } else if (df <= -0.25 && !(inPact(o) && inPact(actor))) {
+            say(o, [E.grudge, symbolOf(actor, null)], `{p${o}} holds a grudge against {p${actor}}`);
+        } else return;
+        S.spoke[o] = S.turns;
+        S.thanked[key] = S.turns;
     }
 
     // ---------------------------------------------------------------- api
@@ -339,6 +507,8 @@
     window.BotDiplomacy = {
         view, events: o => (S.events[o] || []).slice(), relation: relOf, reset, observe,
         enabled, threatOf, _state: () => S, pressures, coalitionTarget,
+        setTalkAlways: on => { talkAlways = !!on; },
+        pact: () => S.pact ? { target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft } : null,
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },
     };
 })();

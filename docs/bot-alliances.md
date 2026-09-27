@@ -2,7 +2,7 @@
 
 Owner's design (2026-09-27), mapped onto the code. Only bots use this system.
 Bots can target human players and are slightly biased against them. Bots talk
-through the emote system. Status: **Phases 1 and 2 built (2026-09-27); 3 and 4 planned.**
+through the emote system. Status: **Phases 1-3 built (2026-09-27); 4 (personalities) planned.**
 
 ## The idea in one rule
 
@@ -136,6 +136,21 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   Tested: coalitions form on the clear leader and end when tied; the safeguard
   blocked a paving move (6 -> 3.5 steps); 3-player games change (one of three
   seeded games had a different winner), about 6% slower.
+- Phase 3: talk and pacts. `say(o, emotes, text)` writes the Game Log line at
+  once (ActionLog 'botTalk', text with {pN} player tokens, rendered by
+  game-log-ui.js without a turn header) and plays the emotes ~0.9 s apart over
+  the bot (queue of 3, oldest dropped); online the first emote's broadcast
+  carries `talk` so every client logs it (lobby.js), replays too. Silent in
+  muted training (pacts still run). Pacts: at a bot's turn start, if it has a
+  coalition target with push >= 2 and no pact for 2 rounds: warn (once per
+  leader stage), offer; each other bot accepts when it also targets the leader
+  and its favor + 0.5 trust toward the proposer > -0.5. Pact: one round;
+  members push the target x1.3 and each other x0.7. Strike (target loses 20+
+  progress on a member's turn) = Commit emote; a member that no longer targets
+  the leader withdraws (-0.05 trust); hurting a fellow member breaks it (-0.45
+  trust, -0.15 favor, betrayal emote). Kept: +0.15 trust (+0.1 more if it
+  struck). Thanks (favor change >= +0.1) and grudges (<= -0.25) outside pacts:
+  one sentence per bot per turn, same pair once per round.
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every
