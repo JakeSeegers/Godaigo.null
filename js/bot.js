@@ -389,7 +389,7 @@
     // Best-known community champion (Supabase `bot_champion_weights`):
     // async and non-blocking — bots can act immediately with whatever
     // loaded synchronously above; if/when this resolves, it overwrites
-    // WEIGHTS in place with the highest win-rate submitted champion and
+    // WEIGHTS in place with the current champion (newest promoted row) and
     // caches it to localStorage, so a later offline load still has it.
     // Deliberately "always prefer community" (explicit design choice, see
     // planning/current.md) — this can supersede a LOCAL Start Training
@@ -415,7 +415,10 @@
             const { data, error } = await supabase
                 .from('bot_champion_weights')
                 .select('weights')
-                .order('win_rate', { ascending: false })
+                // Current champion = newest promoted row (sql/champion-promoted.sql);
+                // win_rate is only comparable within one row's own confirm.
+                .order('promoted', { ascending: false })
+                .order('created_at', { ascending: false })
                 .limit(1);
             if (error || !data?.length || !data[0].weights || typeof data[0].weights !== 'object') return;
             Object.assign(WEIGHTS, data[0].weights);

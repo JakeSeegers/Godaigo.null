@@ -55,7 +55,7 @@
 //                       wrong opponent (a champion that beats defaults but loses
 //                       online). A fresh (non-file, non-resumed) session always
 //                       anchors its baseline + gauntlet to the current online
-//                       champion (highest win_rate in bot_champion_weights).
+//                       champion (newest promoted row in bot_champion_weights).
 //   --hc-session NAME   RESUMABLE session: run the SAME command in 20-40 min chunks
 //                       and each one continues from where the last left off
 //                       (champion, hall of fame, sigma, round history all persist to
@@ -567,7 +567,7 @@ async function runHillClimb(browser, url) {
             console.log(`[runner] hillclimb: seeding champion from ${seedPath}`);
         } else {
             // Anchor to the ACTUAL online opponent: explicitly query Supabase
-            // for the current community champion (highest win_rate), so the
+            // for the current community champion (newest promoted row), so the
             // local gauntlet fights the bot people really face. The old path
             // just waited 1.5s for bot.js's background fetch and read WEIGHTS —
             // if that was slow/blocked it SILENTLY fell back to defaults, which
@@ -579,7 +579,7 @@ async function runHillClimb(browser, url) {
                     if (typeof supabase === 'undefined' || !supabase?.from)
                         return { source: 'defaults', reason: 'no Supabase client on the page', weights: defaults };
                     const { data, error } = await supabase.from('bot_champion_weights')
-                        .select('weights, win_rate').order('win_rate', { ascending: false }).limit(1);
+                        .select('weights, win_rate').order('promoted', { ascending: false }).order('created_at', { ascending: false }).limit(1); // current champion (newest promoted row)
                     if (error) return { source: 'defaults', reason: 'Supabase error: ' + error.message, weights: defaults };
                     if (!data || !data.length || !data[0].weights || typeof data[0].weights !== 'object')
                         return { source: 'defaults', reason: 'no champion rows in bot_champion_weights', weights: defaults };

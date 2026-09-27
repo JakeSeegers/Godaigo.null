@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (3): Champion = newest promoted row** (owner). The owner's Explore + Hill Climb run beat the champion
+  (row 14, confirm 5-4-3), but every reader took the highest win_rate, and row 12 (0.40) outranked row 14 (0.08):
+  win_rate is only comparable inside one row's own confirm. sql/champion-promoted.sql (applied): column `promoted`,
+  rows 12 + 14 set. Readers (bot.js loadCommunityChampion, game-ui.js runHillClimbTraining anchor, lobby.js elemental
+  base, tools/arena-headless.mjs) now order by promoted desc, created_at desc; a winning climb inserts promoted: true.
 - **2026-09-27 (2): Classic emojis retired, lobby Shop** (owner). Only the Pipoya pixel emotes are sold now (emoji-system.js;
   migration emoji_classic_retired drops the emoji_E prices; nobody owned one). Profile > Emojis showed "undefined" (it
   printed item.display); now uses emojiSystem.displayHtml(). gamification-ui.js: Profile window = Stats / Badges /

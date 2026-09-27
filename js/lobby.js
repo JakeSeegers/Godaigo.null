@@ -1813,7 +1813,7 @@
                 if (window.BotElements) {
                     try {
                         const champRes = await supabase.from('bot_champion_weights')
-                            .select('weights').order('win_rate', { ascending: false, nullsFirst: false }).limit(1);
+                            .select('weights').order('promoted', { ascending: false }).order('created_at', { ascending: false }).limit(1); // current champion, sql/champion-promoted.sql
                         elementalBase = champRes?.data?.[0]?.weights || null;
                     } catch (e) { elementalBase = null; }
                     if (!elementalBase) {

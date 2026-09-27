@@ -4281,7 +4281,7 @@ document.getElementById('undo-move').onclick = function() {
             try {
                 if (typeof supabase === 'undefined' || !supabase?.from) throw new Error('no Supabase client on this page');
                 const { data, error } = await supabase.from('bot_champion_weights')
-                    .select('weights, win_rate').order('win_rate', { ascending: false }).limit(1);
+                    .select('weights, win_rate').order('promoted', { ascending: false }).order('created_at', { ascending: false }).limit(1); // current champion, sql/champion-promoted.sql
                 if (error) throw new Error(error.message);
                 if (!data?.length || !data[0].weights || typeof data[0].weights !== 'object') throw new Error('no champion rows in bot_champion_weights');
                 baseline = data[0].weights;
@@ -4491,6 +4491,7 @@ document.getElementById('undo-move').onclick = function() {
                             confirm_wins: confirm.aWins,
                             confirm_losses: confirm.bWins,
                             confirm_draws: confirm.draws,
+                            promoted: true, // beat the current champion: it is the new one
                             created_by: uid,
                         });
                         if (error) { submitFailed = true; console.warn('Could not submit champion:', error); }
