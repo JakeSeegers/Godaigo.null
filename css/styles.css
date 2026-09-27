@@ -2326,6 +2326,7 @@ svg {
 /* Tabs */
 .gami-tabs {
     display: flex;
+    flex-shrink: 0; /* overflow-x lets a flex child shrink; a tall tab (Shop emojis) squashed the row */
     border-bottom: 2px solid #333;
     padding: 0 6px;
     overflow-x: auto;

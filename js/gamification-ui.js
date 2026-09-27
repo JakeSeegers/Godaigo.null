@@ -1,35 +1,41 @@
 // ============================================================
 // GAMIFICATION UI  (js/gamification-ui.js)
-// Vanilla JS modal panel: Profile · Cosmetics · Emojis · Badges · Leaderboard
+// Vanilla JS modal panels: Profile (Stats, Badges, Leaderboard, Settings) and
+// Shop (Names and Pawns, Emojis)
 //
 // Entry point: gami_openPanel()
 //   Called from the "👤 Profile" button in the auth bar (index.html).
 // ============================================================
 
+// Two windows share this modal: Profile (stats, badges, board, settings)
+// and Shop (everything you can buy). A tab id picks its window.
+const GAMI_PROFILE_TABS = [['profile', 'Stats'], ['badges', 'Badges'], ['leaderboard', 'Board'], ['settings', 'Settings']];
+const GAMI_SHOP_TABS    = [['cosmetics', 'Names and Pawns'], ['emojis', 'Emojis']];
+function _gami_isShopTab(tab) { return GAMI_SHOP_TABS.some(([id]) => id === tab); }
+
 /** Toggle the profile panel open / closed, optionally landing on a given tab
- *  (defaults to 'profile'). Only ever renders once per open — no double
- *  fetch from opening on 'profile' and immediately re-switching. */
+ *  (defaults to 'profile'). A shop tab ('cosmetics' / 'emojis') opens the
+ *  Shop window instead. Only ever renders once per open. */
 function gami_openPanel(tab = 'profile') {
     const existing = document.getElementById('gami-panel');
     if (existing) { existing.remove(); return; }
     if (!window.gami?.userId) return;
 
+    const shop  = _gami_isShopTab(tab);
+    const tabs  = shop ? GAMI_SHOP_TABS : GAMI_PROFILE_TABS;
+    const title = shop ? 'Shop' : 'Profile';
     const overlay = document.createElement('div');
     overlay.id        = 'gami-panel';
     overlay.className = 'gami-overlay';
+    overlay.dataset.window = shop ? 'shop' : 'profile';
     overlay.innerHTML = `
-        <div class="gami-modal" role="dialog" aria-label="Profile panel">
+        <div class="gami-modal" role="dialog" aria-label="${title} panel">
             <div class="gami-header">
-                <h2 class="gami-title">Profile</h2>
+                <h2 class="gami-title">${title}</h2>
                 <button class="gami-close" aria-label="Close" onclick="document.getElementById('gami-panel').remove()">×</button>
             </div>
             <div class="gami-tabs" role="tablist">
-                <button class="gami-tab" role="tab" onclick="gami_switchTab('profile')">Stats</button>
-                <button class="gami-tab" role="tab" onclick="gami_switchTab('cosmetics')">Cosmetics</button>
-                <button class="gami-tab" role="tab" onclick="gami_switchTab('emojis')">Emojis</button>
-                <button class="gami-tab" role="tab" onclick="gami_switchTab('badges')">Badges</button>
-                <button class="gami-tab" role="tab" onclick="gami_switchTab('leaderboard')">Board</button>
-                <button class="gami-tab" role="tab" onclick="gami_switchTab('settings')">Settings</button>
+                ${tabs.map(([id, label]) => `<button class="gami-tab" role="tab" data-tab="${id}" onclick="gami_switchTab('${id}')">${label}</button>`).join('')}
             </div>
             <div id="gami-content" class="gami-content pp-fresh-open">
                 <div class="gami-loading">Loading…</div>
@@ -45,26 +51,26 @@ function gami_openPanel(tab = 'profile') {
     gami_switchTab(tab);
 }
 
+/** Lobby "Shop" button: name styles, pawn items and emojis. */
+function gami_openShop(tab = 'cosmetics') {
+    gami_openPanelOnTab(tab);
+}
+
 /** Open the panel directly on the Settings tab (usable from in-game HUD) */
 function gami_openSettings() {
     gami_openPanelOnTab('settings');
 }
 
-/** Open the panel directly on a given tab (auth-bar Shop/Stable buttons,
- *  gami_openSettings). Toggles closed if already open on that same tab,
- *  otherwise switches to it — mirrors gami_openPanel()'s own toggle. */
+/** Open the right window directly on a given tab. Toggles closed if already
+ *  open on that same tab; switches window if the other one is open. */
 function gami_openPanelOnTab(tab) {
     const existing = document.getElementById('gami-panel');
     if (existing) {
-        const activeTab = existing.querySelector('.gami-tab.active');
-        const label = { profile: 'Stats', cosmetics: 'Colours', emojis: 'Emojis', badges: 'Badges',
-                         leaderboard: 'Board', settings: 'Settings' }[tab];
-        if (activeTab && activeTab.textContent.trim() === label) {
-            existing.remove();
-        } else {
-            gami_switchTab(tab);
-        }
-        return;
+        const active = existing.querySelector('.gami-tab.active')?.dataset.tab;
+        const sameWindow = existing.dataset.window === (_gami_isShopTab(tab) ? 'shop' : 'profile');
+        if (active === tab) { existing.remove(); return; }
+        if (sameWindow) { gami_switchTab(tab); return; }
+        existing.remove();
     }
     gami_openPanel(tab);
 }
@@ -74,9 +80,7 @@ async function gami_switchTab(tab) {
     const panel = document.getElementById('gami-panel');
     if (!panel) return;
 
-    const tabs   = panel.querySelectorAll('.gami-tab');
-    const tabIdx = ['profile', 'cosmetics', 'emojis', 'badges', 'leaderboard', 'settings'].indexOf(tab);
-    tabs.forEach((btn, i) => btn.classList.toggle('active', i === tabIdx));
+    panel.querySelectorAll('.gami-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
 
     const content = document.getElementById('gami-content');
     content.innerHTML = '<div class="gami-loading">Loading…</div>';
@@ -233,9 +237,9 @@ function _renderEmojis(content) {
         for (const item of owned) {
             const cls = 'gami-emoji-btn' + (item.isText ? ' text-emoji' : '');
             if (inGame) {
-                html += `<button class="${cls}" onclick="_gami_emojisUse('${item.id}')" title="${_esc(item.name)}">${_esc(item.display)}</button>`;
+                html += `<button class="${cls}" onclick="_gami_emojisUse('${item.id}')" title="${_esc(item.name)}">${es.displayHtml(item)}</button>`;
             } else {
-                html += `<div class="${cls} inactive" title="${_esc(item.name)} (join a game to use)">${_esc(item.display)}</div>`;
+                html += `<div class="${cls} inactive" title="${_esc(item.name)} (join a game to use)">${es.displayHtml(item)}</div>`;
             }
         }
         html += `</div>`;
@@ -260,14 +264,14 @@ function _renderEmojis(content) {
             if (isOwned) {
                 html += `
                     <div class="gami-shop-item owned" title="${_esc(item.name)}">
-                        <span class="${cls}">${_esc(item.display)}</span>
+                        <span class="${cls}">${es.displayHtml(item)}</span>
                         <div class="gami-shop-name">${_esc(item.name)}</div>
                         <div class="gami-shop-owned">✓</div>
                     </div>`;
             } else {
                 html += `
                     <div class="gami-shop-item" title="${_esc(item.name)} - ${item.cost}g">
-                        <button class="${cls}" onclick="_gami_emojisBuy('${item.id}')">${_esc(item.display)}</button>
+                        <button class="${cls}" onclick="_gami_emojisBuy('${item.id}')">${es.displayHtml(item)}</button>
                         <div class="gami-shop-name">${_esc(item.name)}</div>
                         <button class="gami-shop-buy-btn" style="border-color:${tier.color};color:${tier.color};"
                                 onclick="_gami_emojisBuy('${item.id}')">${item.cost}g</button>

@@ -201,9 +201,11 @@ Order matters — later scripts depend on earlier ones.
                              avg score on up to 6 training puzzles; BotArena.hillClimb opts.puzzleCheck gates a
                              would-be promotion on it (hermit Train Bot passes it).
 18. tutorial-mode.js       ← LAZY-LOADED (no <script> tag — see #30 asset-preloader.js / window.LazyScripts). Interactive tutorial (depends on lobby.js + game-core.js). The old 7-step modal tutorial this superseded (formerly js/tutorial.js) has since been fully removed — no dead script tag remains.
-19. emoji-system.js        ← Emoji reactions (depends on gamification.js). Owned emojis on the server: 'emoji_<id>' in
-                             user_profiles.cosmetics_owned via buy_cosmetic (sql/emoji-server.sql). 100 animated Pipoya
-                             pixel emotes (P00-P99, images/emotes/pipoya-emotes.png).
+19. emoji-system.js        ← Emoji reactions (depends on gamification.js). Only the 100 animated Pipoya pixel emotes
+                             (P00-P99, images/emotes/pipoya-emotes.png; classic emojis retired 2026-09-27). Owned on
+                             the server: 'emoji_<id>' in user_profiles.cosmetics_owned via buy_cosmetic
+                             (sql/emoji-server.sql). Bought in the lobby Shop (gamification-ui.js gami_openShop) or
+                             the in-game E panel.
 20. cosmetics-system.js    ← Name colour cosmetics (depends on gamification.js). Server-backed (sql/cosmetics.sql).
                              loadNameColors/styleForUser/seatNameHtml colour every player's name in the waiting
                              room, opponent panel, HUD turn display, Game Log and leaderboard.

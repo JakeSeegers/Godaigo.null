@@ -12,17 +12,12 @@
     // EMOJI DEFINITIONS
     // ----------------------------------------------------------------
 
+    // Classic unicode / text emojis were retired 2026-09-27: the Pipoya pixel
+    // emotes replace them.
     const EMOJI_TIERS = [
-        { id: 'px', name: 'Pixel Pops (art by Pipoya)', cost: 50, color: '#26C6DA', badge: 'PX' },
-        { id: 5,   name: 'Common Reactions',        cost: 30,  color: '#9e9e9e', badge: 'T5' },
-        { id: 4,   name: 'Competitive Spirit',       cost: 60,  color: '#4CAF50', badge: 'T4' },
-        { id: 3,   name: 'Scroll & Magic Reactions',  cost: 120, color: '#2196F3', badge: 'T3' },
-        { id: 3.5, name: 'Colored Hearts',           cost: 150, color: '#E91E63', badge: 'T3.5' },
-        { id: 2,   name: 'Competitive & Victory',    cost: 200, color: '#FF9800', badge: 'T2' },
-        { id: 1,   name: 'Elemental & Legendary',    cost: 400, color: '#9C27B0', badge: 'T1' },
+        { id: 'px', name: 'Pixel Emotes (art by Pipoya)', cost: 50, color: '#26C6DA', badge: 'PX' },
     ];
 
-    // isText=true means it renders as a styled text bubble instead of a giant emoji
     const EMOJI_ITEMS = [
         // ── Pixel Pops - 50g each (Pipoya Popup Emotes Pack) ─────
         // sprite = cell in images/emotes/pipoya-emotes.png (10 per row,
@@ -129,101 +124,6 @@
             'Triangle',
             'Square'
         ].map((name, i) => ({ id: 'P' + String(i).padStart(2, '0'), tier: 'px', cost: 50, sprite: i, name })),
-
-        // ── Tier 5 — 30g ─────────────────────────────────────────
-        { id: 'E01', tier: 5, cost: 30, display: '😁', name: 'Beaming Face' },
-        { id: 'E02', tier: 5, cost: 30, display: '😅', name: 'Nervous Sweat' },
-        { id: 'E03', tier: 5, cost: 30, display: '😑', name: 'Expressionless Face' },
-        { id: 'E04', tier: 5, cost: 30, display: '😬', name: 'Grimacing Face' },
-        { id: 'E05', tier: 5, cost: 30, display: '😲', name: 'Astonished Face' },
-        { id: 'E06', tier: 5, cost: 30, display: '😳', name: 'Flushed Face' },
-        { id: 'E07', tier: 5, cost: 30, display: '🙃', name: 'Upside-Down Face' },
-        { id: 'E08', tier: 5, cost: 30, display: '😏', name: 'Smirking Face' },
-        { id: 'E09', tier: 5, cost: 30, display: '🫠', name: 'Melting Face' },
-        { id: 'E10', tier: 5, cost: 30, display: '😶', name: 'Face Without Mouth' },
-        { id: 'E11', tier: 5, cost: 30, display: 'GN',  name: 'Good Night',       isText: true },
-        { id: 'E12', tier: 5, cost: 30, display: 'HF',  name: 'Have Fun',         isText: true },
-        { id: 'E13', tier: 5, cost: 30, display: 'LOL', name: 'Laugh Out Loud',   isText: true },
-
-        // ── Tier 4 — 60g ─────────────────────────────────────────
-        { id: 'E14', tier: 4, cost: 60, display: '🤭', name: 'Hand Over Mouth' },
-        { id: 'E15', tier: 4, cost: 60, display: '🤦', name: 'Facepalm' },
-        { id: 'E16', tier: 4, cost: 60, display: '👎', name: 'Thumbs Down' },
-        { id: 'E17', tier: 4, cost: 60, display: '👏', name: 'Clapping Hands' },
-        { id: 'E18', tier: 4, cost: 60, display: '💀', name: 'Skull' },
-        { id: 'E19', tier: 4, cost: 60, display: '🫡', name: 'Saluting Face' },
-        { id: 'E20', tier: 4, cost: 60, display: '🙄', name: 'Eye Roll' },
-        { id: 'E21', tier: 4, cost: 60, display: '😒', name: 'Unamused Face' },
-        { id: 'E22', tier: 4, cost: 60, display: '🤡', name: 'Clown Face' },
-        { id: 'E23', tier: 4, cost: 60, display: '😓', name: 'Downcast with Sweat' },
-        { id: 'E24', tier: 4, cost: 60, display: 'RIP', name: 'Rest in Peace',   isText: true },
-        { id: 'E25', tier: 4, cost: 60, display: 'F',   name: 'Pay Respects',    isText: true },
-        { id: 'E26', tier: 4, cost: 60, display: 'NGL', name: 'Not Gonna Lie',   isText: true },
-
-        // ── Tier 3 — 120g ────────────────────────────────────────
-        { id: 'E27', tier: 3, cost: 120, display: '💥', name: 'Explosion' },
-        { id: 'E28', tier: 3, cost: 120, display: '✅', name: 'Check Mark' },
-        { id: 'E29', tier: 3, cost: 120, display: '✨', name: 'Sparkles' },
-        { id: 'E30', tier: 3, cost: 120, display: '🧙', name: 'Mage' },
-        { id: 'E31', tier: 3, cost: 120, display: '😈', name: 'Smiling Devil' },
-        { id: 'E32', tier: 3, cost: 120, display: '💫', name: 'Dizzy' },
-        { id: 'E33', tier: 3, cost: 120, display: '🎰', name: 'Slot Machine' },
-        { id: 'E34', tier: 3, cost: 120, display: '🎉', name: 'Party Popper' },
-        { id: 'E35', tier: 3, cost: 120, display: '🖤', name: 'Black Heart' },
-        { id: 'E36', tier: 3, cost: 120, display: '🤎', name: 'Brown Heart' },
-        { id: 'E37', tier: 3, cost: 120, display: '🤍', name: 'White Heart' },
-        { id: 'E38', tier: 3, cost: 120, display: 'RNG',    name: 'Random Number Generator',       isText: true },
-        { id: 'E39', tier: 3, cost: 120, display: 'META',   name: 'Most Effective Tactic',         isText: true },
-        { id: 'E40', tier: 3, cost: 120, display: 'HOPIUM', name: 'Unrealistic Hope',              isText: true },
-
-        // ── Tier 3.5 — 150g (Colored Hearts) ─────────────────────
-        { id: 'E41', tier: 3.5, cost: 150, display: '🩶', name: 'Grey Heart' },
-        { id: 'E42', tier: 3.5, cost: 150, display: '💚', name: 'Green Heart' },
-        { id: 'E43', tier: 3.5, cost: 150, display: '💛', name: 'Yellow Heart' },
-        { id: 'E44', tier: 3.5, cost: 150, display: '🧡', name: 'Orange Heart' },
-        { id: 'E45', tier: 3.5, cost: 150, display: '💜', name: 'Purple Heart' },
-        { id: 'E46', tier: 3.5, cost: 150, display: '💙', name: 'Blue Heart' },
-        { id: 'E47', tier: 3.5, cost: 150, display: '🩵', name: 'Light Blue Heart' },
-        { id: 'E48', tier: 3.5, cost: 150, display: '🩷', name: 'Pink Heart' },
-
-        // ── Tier 2 — 200g ────────────────────────────────────────
-        { id: 'E49', tier: 2, cost: 200, display: '🤐', name: 'Zipper-Mouth' },
-        { id: 'E50', tier: 2, cost: 200, display: '👑', name: 'Crown' },
-        { id: 'E51', tier: 2, cost: 200, display: '🏆', name: 'Trophy' },
-        { id: 'E52', tier: 2, cost: 200, display: '😎', name: 'Sunglasses Face' },
-        { id: 'E53', tier: 2, cost: 200, display: '💪', name: 'Flexed Biceps' },
-        { id: 'E54', tier: 2, cost: 200, display: '🚀', name: 'Rocket' },
-        { id: 'E55', tier: 2, cost: 200, display: '⚔️', name: 'Crossed Swords' },
-        { id: 'E56', tier: 2, cost: 200, display: '😤', name: 'Face With Steam' },
-        { id: 'E57', tier: 2, cost: 200, display: '🥺', name: 'Pleading Eyes' },
-        { id: 'E58', tier: 2, cost: 200, display: '💕', name: 'Two Hearts' },
-        { id: 'E59', tier: 2, cost: 200, display: '❤️‍🔥', name: 'Heart on Fire' },
-        { id: 'E60', tier: 2, cost: 200, display: 'W',     name: 'Win / Good Move',         isText: true },
-        { id: 'E61', tier: 2, cost: 200, display: 'OTK',   name: 'One Turn Kill',           isText: true },
-        { id: 'E62', tier: 2, cost: 200, display: 'IYKYK', name: 'If You Know You Know',    isText: true },
-
-        // ── Tier 1 — 400g ─────────────────────────────────────────
-        { id: 'E63', tier: 1, cost: 400, display: '🪨', name: 'Rock' },
-        { id: 'E64', tier: 1, cost: 400, display: '⚡', name: 'Lightning' },
-        { id: 'E65', tier: 1, cost: 400, display: '🤔', name: 'Thinking Face' },
-        { id: 'E66', tier: 1, cost: 400, display: '👀', name: 'Eyes' },
-        { id: 'E67', tier: 1, cost: 400, display: '🎯', name: 'Bullseye' },
-        { id: 'E68', tier: 1, cost: 400, display: '🏔️', name: 'Mountain' },
-        { id: 'E69', tier: 1, cost: 400, display: '☁️', name: 'Cloud' },
-        { id: 'E70', tier: 1, cost: 400, display: '💧', name: 'Water Drop' },
-        { id: 'E71', tier: 1, cost: 400, display: '🌪️', name: 'Tornado' },
-        { id: 'E72', tier: 1, cost: 400, display: '🔥', name: 'Fire' },
-        { id: 'E73', tier: 1, cost: 400, display: '😂', name: 'Tears of Joy' },
-        { id: 'E74', tier: 1, cost: 400, display: '😭', name: 'Loudly Crying' },
-        { id: 'E75', tier: 1, cost: 400, display: '❤️', name: 'Red Heart' },
-        { id: 'E76', tier: 1, cost: 400, display: 'GG',    name: 'Good Game',              isText: true },
-        { id: 'E77', tier: 1, cost: 400, display: 'GG WP', name: 'Good Game, Well Played', isText: true },
-        { id: 'E78', tier: 1, cost: 400, display: 'GL HF', name: 'Good Luck, Have Fun',    isText: true },
-        { id: 'E79', tier: 1, cost: 400, display: 'POG',   name: 'Play of the Game',       isText: true },
-        { id: 'E80', tier: 1, cost: 400, display: 'GOAT',  name: 'Greatest of All Time',   isText: true },
-        { id: 'E81', tier: 1, cost: 400, display: 'LFG',   name: "Let's Freaking Go",      isText: true },
-        { id: 'E82', tier: 1, cost: 400, display: 'PB',    name: 'Personal Best',          isText: true },
-        { id: 'E83', tier: 1, cost: 400, display: 'OP',    name: 'Overpowered',            isText: true },
     ];
 
     // ----------------------------------------------------------------
@@ -614,6 +514,7 @@
         purchaseEmoji,
         useEmoji,
         showEmojiOverPawn,
+        displayHtml,
         reloadInventory: loadInventory,
         getItems()     { return EMOJI_ITEMS; },
         getTiers()     { return EMOJI_TIERS; },

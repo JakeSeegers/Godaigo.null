@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (2): Classic emojis retired, lobby Shop** (owner). Only the Pipoya pixel emotes are sold now (emoji-system.js;
+  migration emoji_classic_retired drops the emoji_E prices; nobody owned one). Profile > Emojis showed "undefined" (it
+  printed item.display); now uses emojiSystem.displayHtml(). gamification-ui.js: Profile window = Stats / Badges /
+  Board / Settings; new lobby Shop button (#shop-btn, gami_openShop) = Names and Pawns / Emojis, tabs by data-tab.
+  css .gami-tabs flex-shrink 0 (a tall tab squashed the row). Tested headless: both windows, switching, no "undefined".
 - **2026-09-27: Emojis on the server, Pipoya pixel emotes, Credits button** (owner). sql/emoji-server.sql (applied,
   migration emoji_server): cosmetic_price() also prices 'emoji_E01'..'E83' (old tier prices) and 'emoji_P00'..'P99'
   (50g); emoji-system.js buys with buy_cosmetic('emoji_<id>') and reads cosmetics_owned (localStorage store removed;
