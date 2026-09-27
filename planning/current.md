@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (7): Formulas gold + readable training window** (owner). runHillClimbTraining: with termMutations and a
+  finished run, claim_training_reward FORMULA_BONUS_GOLD (10), +FORMULA_DISCOVERY_GOLD (20) when the submitted champion
+  keeps a formula not in the anchor (formulaGold / formulaKept in the result and the end message). Panel label
+  "Invent (+10 gold)". Training popup: base 13px, all text 12-14px and brighter; formulas box reworded; formulas shown
+  in plain words (bot-terms.js describe(), raw formula in the hover title), Likes green / Avoids red, NEW badge.
 - **2026-09-27 (6): Train Bot "Formulas: Invent" option + fresh seeds** (owner). Panel row Formulas Off / Invent (Hill
   Climb only) -> termMutations; popup box explains formulas and lists the current challenger's (new ones marked);
   "What happened" says whether the climbed bot carries new formulas. Found: runHillClimbTraining never passed a seed, so

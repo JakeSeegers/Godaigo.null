@@ -204,6 +204,46 @@
         }
     }
 
+    // Tree -> plain words for players (training window). The code form
+    // (toText) stays the source of truth; this is only for reading.
+    const WORDS = {
+        myActivated: 'my elements', leaderActivated: "the leader's elements", allActivated: 'I have all 5',
+        myStones: 'my stones', neededStones: 'stones I need', voidHeld: 'my void stones', myAP: 'my AP',
+        handCount: 'scrolls in my hand', activeCount: 'my active scrolls', commonCount: 'common scrolls',
+        hiddenTiles: 'hidden tiles', distHome: 'steps home', distHidden: 'steps to a hidden tile',
+        oppDistHome: "a rival's steps home", boardStones: 'stones on the board', sourceLeft: 'stones left in supply',
+        players: 'players', homeCost: 'cost of my road home', freeStones: 'free-walk stones',
+        freeWater: 'water copying wind', freeNearHome: 'free-walk stones near home',
+    };
+    const PARAM_WORDS = {
+        adjacent: (a, b) => `${a} touching ${b}`, stonesOf: a => `${a} stones on the board`,
+        myPool: a => `my ${a} stones`, oppNeeds: a => `rivals needing ${a}`, commonFor: a => `common ${a} scrolls`,
+    };
+    function toWords(n, parentPrec = 0) {
+        const PREC = { '+': 1, '-': 1, '*': 2, '/': 2 };
+        const SYM = { '+': 'plus', '-': 'minus', '*': '×', '/': '÷' };
+        switch (n[0]) {
+            case 'n':  return String(+n[1].toFixed(2));
+            case 'in': return WORDS[n[1]] || n[1];
+            case 'pin': return (PARAM_WORDS[n[1]] || ((...a) => `${n[1]}(${a.join(', ')})`))(...n.slice(2));
+            case 'neg': return 'minus ' + toWords(n[1], 3);
+            case 'abs': return `size of (${toWords(n[1])})`;
+            case 'min': return `lower of (${toWords(n[1])}, ${toWords(n[2])})`;
+            case 'max': return `higher of (${toWords(n[1])}, ${toWords(n[2])})`;
+            case 'gt':  return `[${toWords(n[1])} more than ${toWords(n[2])}]`;
+            case 'lt':  return `[${toWords(n[1])} less than ${toWords(n[2])}]`;
+            default: {
+                const p = PREC[n[0]];
+                const out = `${toWords(n[1], p)} ${SYM[n[0]]} ${toWords(n[2], p + 1)}`;
+                return p < parentPrec ? `(${out})` : out;
+            }
+        }
+    }
+    function describe(text) {
+        const c = compile(text);
+        return c.tree ? toWords(c.tree) : text;
+    }
+
     // Tree -> fast closure over a lazy input context.
     function compileTree(n) {
         switch (n[0]) {
@@ -389,7 +429,7 @@
         INPUTS, MAX_TERMS, MAX_NODES,
         inputList: () => [...INPUT_NAMES.map(k => ({ name: k, label: INPUTS[k].label })),
             ...PARAM_NAMES.map(k => ({ name: PARAM_INPUTS[k].sig, label: PARAM_INPUTS[k].label }))],
-        parse, toText, compile, score, explain,
+        parse, toText, describe, compile, score, explain,
         parseLines, toLines,
         mutateTerms, crossTerms,
     };

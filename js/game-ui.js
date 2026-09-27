@@ -4392,7 +4392,7 @@ document.getElementById('undo-move').onclick = function() {
             // challengers gain / lose / change formulas. Used once. The panel's
             // "Formulas: Invent" option (opts.formulas) turns inventing on for
             // anyone.
-            if (termMutations) stats.event('Formulas: challengers may invent new senses this run');
+            if (termMutations) stats.event('New senses: challengers may invent formulas this run');
             const lab = (window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
             if (lab) {
                 if (lab.count) {
@@ -4464,8 +4464,8 @@ document.getElementById('undo-move').onclick = function() {
                 const had = new Set((climbAnchor.terms || []).map(t => t.text));
                 const fresh = (result.champion.terms || []).filter(t => !had.has(t.text));
                 stats.event(fresh.length
-                    ? `The climbed bot carries ${fresh.length} new formula(s): ${fresh.slice(0, 2).map(t => t.text).join('; ')}${fresh.length > 2 ? '; ...' : ''}`
-                    : 'The climbed bot won with numbers only, no new formulas');
+                    ? `The climbed bot has ${fresh.length} new sense${fresh.length === 1 ? '' : 's'}: ${fresh.slice(0, 2).map(t => `${t.w < 0 ? 'avoids' : 'likes'} ${window.BotTerms?.describe ? window.BotTerms.describe(t.text) : t.text}`).join('; ')}${fresh.length > 2 ? '; ...' : ''}`
+                    : 'The climbed bot won without new senses (it only changed numbers)');
             }
             report('confirming');
             // Multi-size gate: pit the climbed champion against a FIELD of the
@@ -4577,8 +4577,24 @@ document.getElementById('undo-move').onclick = function() {
                 } catch (e) { console.warn('explore bonus failed (continuing):', e); }
             }
 
-            const totalGold = attemptGold + (rewarded ? tierGold : 0);
-            return { improved, record, tier, tierGold, promotions: result.promotions, rewarded, submitFailed, attemptGold, totalGold, endedEarly };
+            // Formulas bonus (panel option "Formulas: Invent"): trying new
+            // senses, paid only for a finished run; more when the new
+            // champion keeps a formula it invented (a real discovery).
+            let formulaGold = 0, formulaKept = false;
+            if (uid && termMutations && !endedEarly) {
+                const had = new Set((climbAnchor.terms || []).map(t => t.text));
+                formulaKept = rewarded && (result.champion.terms || []).some(t => !had.has(t.text));
+                const amount = FORMULA_BONUS_GOLD + (formulaKept ? FORMULA_DISCOVERY_GOLD : 0);
+                try {
+                    const { data: granted, error } = await supabase.rpc('claim_training_reward', {
+                        p_amount: amount, p_description: formulaKept ? 'Bot training - new formula kept' : 'Bot training - formulas bonus' });
+                    if (error) throw error;
+                    formulaGold = granted || 0;
+                } catch (e) { console.warn('formulas bonus failed (continuing):', e); }
+            }
+
+            const totalGold = attemptGold + formulaGold + (rewarded ? tierGold : 0);
+            return { improved, record, tier, tierGold, promotions: result.promotions, rewarded, submitFailed, attemptGold, formulaGold, formulaKept, totalGold, endedEarly };
         }
 
         // ─── Training run stats (shown in the popup) ───────────────────────
@@ -4590,6 +4606,9 @@ document.getElementById('undo-move').onclick = function() {
         const EXPLORE_GENERATIONS = 2, EXPLORE_POP = 6, EXPLORE_GAMES_PER_GEN = 12;
         const EXPLORE_GAMES = EXPLORE_GENERATIONS * EXPLORE_GAMES_PER_GEN;
         const EXPLORE_BONUS_GOLD = 10;
+        // Formulas (Hill Climb option "Invent"): per finished run, plus more
+        // when the new champion keeps a formula it invented.
+        const FORMULA_BONUS_GOLD = 10, FORMULA_DISCOVERY_GOLD = 20;
         function makeTrainingStats() {
             return {
                 games: 0, turnsSum: 0, chWins: 0, champWins: 0, draws: 0,
@@ -4664,45 +4683,45 @@ document.getElementById('undo-move').onclick = function() {
             el.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:9998;'
                 + 'background:#1a1a2e;border:1px solid #5a5;border-radius:8px;'
                 + 'box-shadow:0 4px 16px rgba(0,0,0,0.6);overflow:hidden;'
-                + 'min-width:280px;max-width:360px;font-size:11px;color:#ccc;display:none;';
+                + 'min-width:300px;max-width:390px;font-size:13px;line-height:1.4;color:#ddd;display:none;';
             el.innerHTML = `
                 <div class="panel-header" style="border-radius:7px 7px 0 0;">
                     <span class="panel-title">Bot Training</span>
                     <button id="bt-popup-expand" class="hud-toggle-btn" title="Open full panel">⤢</button>
                 </div>
                 <div style="padding:12px 14px;">
-                    <div id="bt-popup-scenario" style="font-size:12px;font-weight:600;color:#eee;margin-bottom:2px;"></div>
-                    <div id="bt-popup-phase" style="font-size:11px;color:#999;margin-bottom:10px;"></div>
+                    <div id="bt-popup-scenario" style="font-size:14px;font-weight:600;color:#fff;margin-bottom:2px;"></div>
+                    <div id="bt-popup-phase" style="font-size:12px;color:#bbb;margin-bottom:10px;"></div>
 
-                    <div id="bt-popup-matchup" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:#ddd;margin-bottom:8px;min-height:16px;"></div>
+                    <div id="bt-popup-matchup" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:#eee;margin-bottom:8px;min-height:16px;"></div>
 
                     <div style="background:#0d0d18;border:1px solid #333;border-radius:5px;height:10px;overflow:hidden;margin-bottom:4px;">
                         <div id="bt-popup-bar" style="height:100%;background:linear-gradient(90deg,#8a6a3f,#d9b08c);width:0%;transition:width .25s ease-out;"></div>
                     </div>
-                    <div id="bt-popup-progress-text" style="font-size:10px;color:#888;margin-bottom:10px;"></div>
+                    <div id="bt-popup-progress-text" style="font-size:12px;color:#aaa;margin-bottom:10px;"></div>
 
-                    <div id="bt-popup-stats" style="display:none;font-size:11px;color:#bbb;line-height:1.5;margin-bottom:10px;padding:6px 8px;background:#12121f;border:1px solid #2a2a40;border-radius:5px;">
+                    <div id="bt-popup-stats" style="display:none;font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:6px 8px;background:#12121f;border:1px solid #2a2a40;border-radius:5px;">
                         <div id="bt-popup-current"></div>
                         <div id="bt-popup-last" style="color:#ddd;"></div>
                         <div id="bt-popup-totals"></div>
                         <div id="bt-popup-stalls" style="color:#c9a36a;"></div>
                     </div>
-                    <div id="bt-popup-formulas" style="display:none;font-size:11px;color:#bbb;line-height:1.45;margin-bottom:10px;padding:6px 8px;background:#10181f;border:1px solid #2a4050;border-radius:5px;">
-                        <div style="color:#9cc4ff;font-weight:600;">Formulas: new senses</div>
-                        <div style="color:#8a9aa8;margin-bottom:3px;">Challengers may invent new senses: small formulas built from board facts, like the cost of the road home or water touching wind. A formula only stays if its bot beats the champion.</div>
+                    <div id="bt-popup-formulas" style="display:none;font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:8px 10px;background:#10181f;border:1px solid #2a4050;border-radius:5px;">
+                        <div style="color:#9cc4ff;font-weight:600;font-size:13px;">New senses (formulas)</div>
+                        <div style="color:#b8c6d2;margin-bottom:6px;">Bots can invent new things to notice about the board. One is kept only if its bot beats the champion. <span style="color:#8a9aa8;">[ ] = only when true.</span></div>
                         <div id="bt-popup-formulas-list"></div>
                     </div>
-                    <div id="bt-popup-events-label" style="font-size:10px;color:#888;margin-bottom:3px;display:none;">What happened</div>
-                    <div id="bt-popup-events" style="font-size:10px;color:#aaa;line-height:1.45;margin-bottom:10px;"></div>
+                    <div id="bt-popup-events-label" style="font-size:12px;font-weight:600;color:#bbb;margin-bottom:3px;display:none;">What happened</div>
+                    <div id="bt-popup-events" style="font-size:12px;color:#ccc;line-height:1.5;margin-bottom:10px;"></div>
 
-                    <div id="bt-popup-history-label" style="font-size:10px;color:#888;margin-bottom:4px;display:none;">Round history - filled = promoted</div>
+                    <div id="bt-popup-history-label" style="font-size:12px;color:#bbb;margin-bottom:4px;display:none;">Rounds (gold = new champion)</div>
                     <div id="bt-popup-history" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px;"></div>
 
-                    <div id="bt-popup-summary" style="font-size:11px;color:#aaa;margin-bottom:10px;"></div>
+                    <div id="bt-popup-summary" style="font-size:12px;color:#ccc;margin-bottom:10px;"></div>
 
                     <div style="display:flex;gap:6px;">
-                        <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:11px;">End Early → Test Now</button>
-                        <button id="bt-popup-stop" style="padding:4px 8px;background:#442d2d;color:#eee;border:1px solid #755;border-radius:4px;cursor:pointer;font-size:11px;">Stop</button>
+                        <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:12px;">End Early → Test Now</button>
+                        <button id="bt-popup-stop" style="padding:4px 8px;background:#442d2d;color:#eee;border:1px solid #755;border-radius:4px;cursor:pointer;font-size:12px;">Stop</button>
                     </div>
                 </div>
             `;
@@ -4768,12 +4787,13 @@ document.getElementById('undo-move').onclick = function() {
                 const terms = p.challengerTerms || [];
                 const escF = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
                 el.querySelector('#bt-popup-formulas-list').innerHTML = p.phase === 'exploring' || !p.challenger
-                    ? '<span style="color:#777;">Formulas show here once the climb starts.</span>'
+                    ? '<span style="color:#aaa;">Shown here once the climb starts.</span>'
                     : terms.length
-                        ? `<div style="color:#888;">${p.explored ? 'The explored bot' : `Challenger ${p.challenger}`} is trying:</div>` + terms.slice(0, 4).map(t =>
-                            `<div>${t.isNew ? '<span style="color:#7fd67f;">new</span> ' : ''}${t.w < 0 ? 'avoids' : 'likes'} <code style="color:#ddd;">${escF(t.text)}</code> <span style="color:#666;">(${t.w > 0 ? '+' : ''}${t.w})</span></div>`).join('')
-                            + (terms.length > 4 ? `<div style="color:#666;">and ${terms.length - 4} more</div>` : '')
-                        : `<span style="color:#777;">${p.explored ? 'The explored bot' : `Challenger ${p.challenger}`} has no formulas (this one only changes numbers).</span>`;
+                        ? `<div style="color:#bbb;margin-bottom:2px;">${p.explored ? 'The explored bot' : `Challenger ${p.challenger}`} is trying:</div>` + terms.slice(0, 4).map(t =>
+                            `<div style="margin:3px 0;" title="${escF(`${t.w} × ${t.text}`)}">${t.isNew ? '<span style="background:#1f4a2a;color:#9fe79f;border-radius:3px;padding:0 4px;font-size:11px;">NEW</span> ' : ''}`
+                            + `<b style="color:${t.w < 0 ? '#ff9a8a' : '#8fe08f'};">${t.w < 0 ? 'Avoids' : 'Likes'}</b> ${escF(window.BotTerms?.describe ? window.BotTerms.describe(t.text) : t.text)}</div>`).join('')
+                            + (terms.length > 4 ? `<div style="color:#999;">and ${terms.length - 4} more</div>` : '')
+                        : `<span style="color:#aaa;">${p.explored ? 'The explored bot' : `Challenger ${p.challenger}`} has no new senses. It only changes how much it cares about things.</span>`;
             }
             const historyEl = el.querySelector('#bt-popup-history');
             const historyLabelEl = el.querySelector('#bt-popup-history-label');
@@ -4798,12 +4818,12 @@ document.getElementById('undo-move').onclick = function() {
                     matchupHtml = 'A group of bots based on the champion play each other; the best one joins the climb';
                 } else if (p.gameNum && p.phase === 'confirming') {
                     matchupHtml = `${swatch('#888', true)} Climbed champion (marked X) vs. a field of the current champion`
-                        + `<span style="color:#777;margin-left:auto;">game ${p.gameNum}/${p.gameTotal}</span>`;
+                        + `<span style="color:#aaa;margin-left:auto;">game ${p.gameNum}/${p.gameTotal}</span>`;
                 } else if (p.gameNum) {
-                    matchupHtml = `${swatch(p.sideAHex, true)} ${p.explored ? 'The explored bot' : `Challenger ${p.challenger}/${p.totalChallengers}`} <span style="color:#666;">vs</span> ${swatch(p.sideBHex)} Champion`
-                        + `<span style="color:#777;margin-left:auto;">game ${p.gameNum}/${p.gameTotal}</span>`;
+                    matchupHtml = `${swatch(p.sideAHex, true)} ${p.explored ? 'The explored bot' : `Challenger ${p.challenger}/${p.totalChallengers}`} <span style="color:#aaa;">vs</span> ${swatch(p.sideBHex)} Champion`
+                        + `<span style="color:#aaa;margin-left:auto;">game ${p.gameNum}/${p.gameTotal}</span>`;
                 } else if (p.challenger) {
-                    matchupHtml = `Challenger ${p.challenger}/${p.totalChallengers} vs. Champion <span style="color:#777;">- starting…</span>`;
+                    matchupHtml = `Challenger ${p.challenger}/${p.totalChallengers} vs. Champion <span style="color:#aaa;">- starting…</span>`;
                 }
                 const bestFit = Array.isArray(p.fitness) && p.fitness.length ? Math.max(...p.fitness) : null;
                 summaryLine = p.phase === 'exploring'
@@ -6007,7 +6027,7 @@ document.getElementById('undo-move').onclick = function() {
                 // not just nudge the brain's numbers (hillClimb opts.termMutations).
                 makeChoiceRow('Formulas:', [
                     { value: false, text: 'Off', title: 'Challengers only change the brain\'s numbers (how much it cares about each thing it already notices).' },
-                    { value: true, text: 'Invent', title: 'Challengers may also invent new senses: small formulas built from board facts, like "the cost of my road home" or "water touching wind". Most will not help; the few that do win their way in.' },
+                    { value: true, text: `Invent (+${FORMULA_BONUS_GOLD} gold)`, title: `Challengers may also invent new senses: small formulas built from board facts, like "the cost of my road home" or "water touching wind". Most will not help; the few that do win their way in. +${FORMULA_BONUS_GOLD} gold when the whole run finishes, and +${FORMULA_DISCOVERY_GOLD} more if the new champion keeps a formula it invented.` },
                 ], () => state.formulas, (v) => { state.formulas = v; },
                     'The bot judges a position with a list of things it notices, each with a weight. Normal training only changes the weights. With Invent, a challenger can also add, drop or change a formula, a new thing to notice. It still has to beat the champion to count. Hill Climb only.');
 
@@ -6288,18 +6308,21 @@ document.getElementById('undo-move').onclick = function() {
                                 ? (PUBLIC[state.generations] || PUBLIC[5])
                                 : { rounds: state.generations, lambda: 6, gamesPerChallenge: 30, gamesPerSize: 5 };
                             const preset = { ...p, confirmSizes: [2, 3, 4, 5] };
-                            const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, totalGold, endedEarly } = await runHillClimbTraining(preset, renderProgress, {
+                            const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, formulaGold, formulaKept, totalGold, endedEarly } = await runHillClimbTraining(preset, renderProgress, {
                                 visual: state.watchable, noisyAnchor: state.noisyAnchor, explore: state.explore, formulas: state.formulas,
                             });
                             progressText.style.display = 'none';
-                            const bonusTail = attemptGold ? ` (+${attemptGold} for the games run)` : '';
+                            const formulaTail = formulaGold
+                                ? (formulaKept ? ` +${formulaGold} for formulas, including a new one the champion kept!` : ` +${formulaGold} for trying formulas.`)
+                                : '';
+                            const bonusTail = (attemptGold ? ` (+${attemptGold} for the games run)` : '') + formulaTail;
                             let msg;
                             if (record === 'stopped') {
                                 msg = 'Training stopped - the result was discarded, the champion is unchanged.';
                             } else if (record === 'ended early') {
                                 msg = 'Training ended during Explore, before anything was tested against the champion - nothing changed, no gold.';
                             } else if (improved && rewarded) {
-                                msg = `Your bot beat the champion - ${tier} win, ${record} across 2–5 player tables. Submitted for everyone. +${totalGold} gold${attemptGold ? ` (${tierGold} win + ${attemptGold} for the games run)` : ''}.`;
+                                msg = `Your bot beat the champion - ${tier} win, ${record} across 2-5 player tables. Submitted for everyone. +${totalGold} gold${(attemptGold || formulaGold) ? ` (${tierGold} win${attemptGold ? ` + ${attemptGold} for the games run` : ''}${formulaGold ? ` + ${formulaGold} for formulas${formulaKept ? ', a new one was kept' : ''}` : ''})` : ''}.`;
                             } else if (improved && submitFailed) {
                                 msg = `Your bot beat the champion ${record}, but the submission failed - champion unchanged, no win reward.${bonusTail}`;
                             } else if (improved) {
@@ -6307,7 +6330,7 @@ document.getElementById('undo-move').onclick = function() {
                             } else {
                                 msg = endedEarly
                                     ? `Training ended early - didn't beat the champion (${record}), so nothing changed. Runs that end early earn no gold; let a run finish to earn the bonus.`
-                                    : `Training done - didn't beat the champion by enough (${record}), so nothing changed.${attemptGold ? ` +${attemptGold} gold for the games run - thanks for helping. Try again or go deeper.` : ' Try again or go deeper.'}`;
+                                    : `Training done - didn't beat the champion by enough (${record}), so nothing changed.${attemptGold ? ` +${attemptGold} gold for the games run - thanks for helping.` : ''}${formulaTail} Try again or go deeper.`;
                             }
                             updateStatus(msg);
                             // Main page has no #status HUD — the toast is the
