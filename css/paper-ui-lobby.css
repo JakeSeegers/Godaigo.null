@@ -298,7 +298,8 @@
   background: var(--pp-rust);
   box-shadow: 0 0 4px var(--pp-rust);
 }
-#changelog-overlay {
+#changelog-overlay,
+#credits-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
@@ -346,6 +347,11 @@
 .changelog-entry li { margin-bottom: 4px; line-height: 1.35; }
 .changelog-empty { text-align: center; color: var(--pp-ink-soft); padding: 12px; }
 .changelog-close { align-self: center; margin-top: 10px; padding: 6px 18px; font-size: 17px; }
+/* Credits (js/credits-ui.js) reuses the Change Log modal */
+.credits-what { font-weight: bold; }
+.credits-note { font-size: 13px; color: var(--pp-ink-soft); }
+#credits-overlay a { color: var(--pp-maroon); }
+.credits-thanks { text-align: center; color: var(--pp-ink-soft); margin: 6px 0 2px; }
 
 /* ── Account recovery (js/account-recovery.js) ──────────────────────────── */
 .auth-forgot-link {

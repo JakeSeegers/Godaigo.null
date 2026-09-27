@@ -13,6 +13,7 @@
     // ----------------------------------------------------------------
 
     const EMOJI_TIERS = [
+        { id: 'px', name: 'Pixel Pops (art by Pipoya)', cost: 50, color: '#26C6DA', badge: 'PX' },
         { id: 5,   name: 'Common Reactions',        cost: 30,  color: '#9e9e9e', badge: 'T5' },
         { id: 4,   name: 'Competitive Spirit',       cost: 60,  color: '#4CAF50', badge: 'T4' },
         { id: 3,   name: 'Scroll & Magic Reactions',  cost: 120, color: '#2196F3', badge: 'T3' },
@@ -23,6 +24,112 @@
 
     // isText=true means it renders as a styled text bubble instead of a giant emoji
     const EMOJI_ITEMS = [
+        // ── Pixel Pops - 50g each (Pipoya Popup Emotes Pack) ─────
+        // sprite = cell in images/emotes/pipoya-emotes.png (10 per row,
+        // each cell a 3-frame 32x32 animation); see spriteHtml().
+        ...[
+            'Exclamation',
+            'Question',
+            'Surprise',
+            'Excited',
+            'Music Note',
+            'Sparkle Burst',
+            'Star',
+            'Shooting Star',
+            'Heart',
+            'Broken Heart',
+            'Blush',
+            'Kiss',
+            'Flower',
+            'Red Swirl',
+            'Confetti',
+            'Bullseye',
+            'Idea',
+            'Ellipsis',
+            'Tangled',
+            'Dizzy Swirl',
+            'Sleepy',
+            'Angry Vein',
+            'Worried Drops',
+            'Gloom',
+            'Shock Lines',
+            'Sweat Drop',
+            'Nervous Sweat',
+            'Skull',
+            'Rage Spikes',
+            'Rubble',
+            'Teary Eyes',
+            'Blink',
+            'Squint',
+            'Laughing',
+            'Smirk',
+            'Scream',
+            'Evil Grin',
+            'Twinkle',
+            'Flame',
+            'Ice Crystal',
+            'Crack',
+            'Splat',
+            'Flash',
+            'Clash',
+            'Sunburst',
+            'Hexagram',
+            'Shine',
+            'Chomp',
+            'Gibberish',
+            'Singing',
+            'Counting',
+            'Calculating',
+            'Sunny',
+            'Cloudy',
+            'Thunderstorm',
+            'Rain',
+            'Snowman',
+            'Rainbow',
+            'Night',
+            'Bread',
+            'Meat',
+            'Fish',
+            'Mushroom',
+            'Apple',
+            'Cake',
+            'Tea',
+            'Mug',
+            'Letter',
+            'Book',
+            'Bomb',
+            'Hammer',
+            'Red Button',
+            'Clock',
+            'Gold Coin',
+            'Diamond',
+            'Treasure Chest',
+            'Gift',
+            'Trophy',
+            'Medal',
+            'Crown',
+            'Chick',
+            'Angel',
+            'Bat',
+            'Happy Ghost',
+            'Poop',
+            'Fist',
+            'Peace Sign',
+            'Open Hand',
+            'Going Up',
+            'Going Down',
+            'Spade',
+            'Heart Suit',
+            'Club',
+            'Diamond Suit',
+            'Male Sign',
+            'Female Sign',
+            'Circle',
+            'Cross',
+            'Triangle',
+            'Square'
+        ].map((name, i) => ({ id: 'P' + String(i).padStart(2, '0'), tier: 'px', cost: 50, sprite: i, name })),
+
         // ── Tier 5 — 30g ─────────────────────────────────────────
         { id: 'E01', tier: 5, cost: 30, display: '😁', name: 'Beaming Face' },
         { id: 'E02', tier: 5, cost: 30, display: '😅', name: 'Nervous Sweat' },
@@ -130,27 +237,33 @@
     let emojiCooldownTimer = null;
 
     // ----------------------------------------------------------------
-    // STORAGE — localStorage keyed by user ID so purchases persist
+    // STORAGE - on the server (2026-09-27, sql/emoji-server.sql)
+    // Owned emojis are ids 'emoji_<id>' in user_profiles.cosmetics_owned,
+    // bought with buy_cosmetic() like name colours, so they follow the
+    // account to any browser or device. window.gami.profile holds the copy
+    // loaded at sign-in.
     // ----------------------------------------------------------------
 
-    function storageKey() {
-        const uid = window.gami?.userId || 'local';
-        return 'godaigo_emojis_' + uid;
-    }
+    const OWN_PREFIX = 'emoji_';
 
     function loadInventory() {
-        try {
-            const saved = localStorage.getItem(storageKey());
-            emojiInventoryIds = saved ? new Set(JSON.parse(saved)) : new Set();
-        } catch (e) {
-            emojiInventoryIds = new Set();
-        }
+        const owned = window.gami?.profile?.cosmetics_owned;
+        emojiInventoryIds = new Set(Array.isArray(owned)
+            ? owned.filter(id => typeof id === 'string' && id.startsWith(OWN_PREFIX)).map(id => id.slice(OWN_PREFIX.length))
+            : []);
     }
 
-    function saveInventory() {
-        try {
-            localStorage.setItem(storageKey(), JSON.stringify([...emojiInventoryIds]));
-        } catch (e) {}
+    // Pixel emote sprite: a 3-frame animation cut from the Pipoya sheet
+    // (css .px-emote). `scale` is the size multiple of the 32 px frame.
+    function spriteHtml(index, scale) {
+        const n = Number(index);
+        if (!Number.isInteger(n) || n < 0 || n > 99) return '';
+        return `<span class="px-emote" style="--x:${(n % 10) * 96}px;--y:${Math.floor(n / 10) * 32}px;--s:${scale || 1.5}"></span>`;
+    }
+
+    // The emoji itself as HTML: sprite for pixel emotes, text otherwise.
+    function displayHtml(item, scale) {
+        return item.sprite != null ? spriteHtml(item.sprite, scale) : _esc(item.display);
     }
 
     // ----------------------------------------------------------------
@@ -215,11 +328,11 @@
         let html = '<div class="emoji-grid">';
         for (const item of owned) {
             const isText = item.isText;
-            const cls = 'emoji-btn' + (isText ? ' text-emoji' : '');
+            const cls = 'emoji-btn' + (isText ? ' text-emoji' : '') + (item.sprite != null ? ' px-emoji' : '');
             if (inGame) {
-                html += `<button class="${cls}" onclick="window.emojiSystem.useEmoji('${item.id}')" title="${_esc(item.name)}">${_esc(item.display)}</button>`;
+                html += `<button class="${cls}" onclick="window.emojiSystem.useEmoji('${item.id}')" title="${_esc(item.name)}">${displayHtml(item)}</button>`;
             } else {
-                html += `<div class="${cls} emoji-btn-inactive" title="${_esc(item.name)} (join a game to use)">${_esc(item.display)}</div>`;
+                html += `<div class="${cls} emoji-btn-inactive" title="${_esc(item.name)} (join a game to use)">${displayHtml(item)}</div>`;
             }
         }
         html += '</div>';
@@ -254,19 +367,19 @@
 
             for (const item of items) {
                 const owned = emojiInventoryIds.has(item.id);
-                const btnCls = 'shop-emoji-btn' + (item.isText ? ' text-emoji' : '');
+                const btnCls = 'shop-emoji-btn' + (item.isText ? ' text-emoji' : '') + (item.sprite != null ? ' px-emoji' : '');
 
                 if (owned) {
                     html += `
                       <div class="shop-item owned" title="${_esc(item.name)} (owned)">
-                        <span class="${btnCls}">${_esc(item.display)}</span>
+                        <span class="${btnCls}">${displayHtml(item)}</span>
                         <div class="shop-item-name">${_esc(item.name)}</div>
                         <div class="owned-badge">✓ Owned</div>
                       </div>`;
                 } else {
                     html += `
                       <div class="shop-item" title="${_esc(item.name)} - ${item.cost}g">
-                        <button class="${btnCls}" onclick="window.emojiSystem.purchaseEmoji('${item.id}')">${_esc(item.display)}</button>
+                        <button class="${btnCls}" onclick="window.emojiSystem.purchaseEmoji('${item.id}')">${displayHtml(item)}</button>
                         <div class="shop-item-name">${_esc(item.name)}</div>
                         <button class="shop-buy-btn" style="border-color:${tier.color};color:${tier.color}" onclick="window.emojiSystem.purchaseEmoji('${item.id}')">${item.cost}g</button>
                       </div>`;
@@ -313,7 +426,7 @@
               <div class="retro-dlg-box">
                 <div class="retro-dlg-title">Confirm Purchase</div>
                 <div class="retro-dlg-body">
-                  <div class="retro-dlg-line">${item.display}  ${item.name}</div>
+                  <div class="retro-dlg-line">${displayHtml(item)}  ${_esc(item.name)}</div>
                   <div class="retro-dlg-line">Cost: ${item.cost}g</div>
                 </div>
                 <div class="retro-dlg-btns">
@@ -328,26 +441,22 @@
         if (!confirmed) return;
 
         try {
-            // Deduct gold on the server (fails if there isn't enough)
-            const { error } = await supabase.rpc('spend_gold', {
-                p_amount:      item.cost,
-                p_description: 'Emoji purchase: ' + item.name
-            });
+            // Pays the server price and records ownership on the account
+            // (fails if there isn't enough gold or it is already owned)
+            const { data: newGold, error } = await supabase.rpc('buy_cosmetic', { p_id: OWN_PREFIX + emojiId });
 
             if (error) throw error;
 
-            // Optimistically update local cache
             if (window.gami.profile) {
-                window.gami.profile.gold = Math.max(0, (window.gami.profile.gold || 0) - item.cost);
+                const prof = window.gami.profile;
+                prof.gold = typeof newGold === 'number' ? newGold : Math.max(0, (prof.gold || 0) - item.cost);
+                prof.cosmetics_owned = [...(Array.isArray(prof.cosmetics_owned) ? prof.cosmetics_owned : []), OWN_PREFIX + emojiId];
             }
-
-            // Persist to inventory
             emojiInventoryIds.add(emojiId);
-            saveInventory();
 
             // Toast notification
             if (window.gami.notify) {
-                window.gami.notify(`${item.display}  ${item.name} unlocked!`, item.cost, 'gold');
+                window.gami.notify(`${item.sprite != null ? '' : item.display + '  '}${item.name} unlocked!`, item.cost, 'gold');
             }
 
             // Re-render to reflect new state
@@ -355,7 +464,8 @@
 
         } catch (err) {
             console.error('Emoji purchase failed:', err);
-            alert('Purchase failed: ' + (err.message || 'Unknown error'));
+            const msg = /enough gold/.test(err?.message || '') ? 'Not enough gold' : (err?.message || 'Unknown error');
+            alert('Purchase failed: ' + msg);
         }
     }
 
@@ -378,16 +488,14 @@
         const myIdx = (typeof myPlayerIndex !== 'undefined') ? myPlayerIndex : 0;
 
         // Show over my own pawn
-        showEmojiOverPawn(myIdx, item.display, item.isText);
+        showEmojiOverPawn(myIdx, item.display || '', item.isText, item.sprite);
 
-        // Broadcast to all other players
+        // Broadcast to all other players (sprite = pixel emote cell)
         if (typeof isMultiplayer !== 'undefined' && isMultiplayer &&
             typeof broadcastGameAction === 'function') {
-            broadcastGameAction('emoji', {
-                playerIndex: myIdx,
-                display: item.display,
-                isText: !!item.isText
-            });
+            const payload = { playerIndex: myIdx, display: item.display || '', isText: !!item.isText };
+            if (item.sprite != null) payload.sprite = item.sprite;
+            broadcastGameAction('emoji', payload);
         }
 
         // Close panel for clean UX
@@ -398,7 +506,7 @@
     // SHOW EMOJI OVER PAWN  (called locally + by broadcast receiver)
     // ----------------------------------------------------------------
 
-    function showEmojiOverPawn(playerIndex, display, isText) {
+    function showEmojiOverPawn(playerIndex, display, isText, sprite) {
         if (typeof playerPositions === 'undefined') return;
         const player = playerPositions[playerIndex];
         if (!player?.element) return;
@@ -411,8 +519,15 @@
         const cy = rect.top  + rect.height / 2;
 
         const el = document.createElement('div');
-        el.className = 'emoji-float' + (isText ? ' emoji-float-text' : '');
-        el.textContent = display;
+        const px = sprite != null ? spriteHtml(sprite, 2) : '';
+        if (px) {
+            el.className = 'emoji-float emoji-float-px';
+            el.innerHTML = px;
+        } else {
+            if (!display) return;
+            el.className = 'emoji-float' + (isText ? ' emoji-float-text' : '');
+            el.textContent = display;
+        }
         el.style.left = cx + 'px';
         el.style.top  = cy + 'px';
 

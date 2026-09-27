@@ -78,7 +78,7 @@ High-level task list for the Godaigo game project. Update this as you complete o
 - [ ] **Mobile / responsive** – Touch, viewport, and layout on small screens.
 
 ### Economy / purchases
-- [ ] **Emoji/cosmetics purchases live in `localStorage`, not the database** –
+- [x] **Emoji/cosmetics purchases live in `localStorage`, not the database** - DONE 2026-09-27 (name colours 2026-09-24, emojis via sql/emoji-server.sql).
   found while building Bot Tycoon capture stones (`docs/bot-tycoon-proposal.md`).
   `js/emoji-system.js`'s `purchaseEmoji()` deducts gold via the real
   `award_gold` RPC but then persists WHICH emojis you own to

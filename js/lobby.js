@@ -3946,9 +3946,9 @@
             // Show it floating above their pawn on every client except the sender
             // (sender already called showEmojiOverPawn locally before broadcasting).
             gameChannel.on('broadcast', { event: 'emoji' }, ({ payload }) => {
-                const { playerIndex, display, isText } = payload;
+                const { playerIndex, display, isText, sprite } = payload;
                 if (typeof window.emojiSystem !== 'undefined') {
-                    window.emojiSystem.showEmojiOverPawn(playerIndex, display, !!isText);
+                    window.emojiSystem.showEmojiOverPawn(playerIndex, display, !!isText, sprite);
                 }
             });
 

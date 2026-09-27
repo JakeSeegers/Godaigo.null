@@ -3177,6 +3177,32 @@ svg {
     text-shadow: none;
     white-space: nowrap;
 }
+/* Pixel emotes (Pipoya Popup Emotes Pack, js/emoji-system.js spriteHtml):
+   each cell of the sheet is 3 frames of 32x32 side by side, played
+   0-1-2-1. --x/--y = cell offset in the sheet, --s = size multiple. */
+.px-emote {
+    display: inline-block;
+    vertical-align: middle;
+    width: calc(32px * var(--s, 1.5));
+    height: calc(32px * var(--s, 1.5));
+    background-image: url('../images/emotes/pipoya-emotes.png');
+    background-repeat: no-repeat;
+    background-size: calc(960px * var(--s, 1.5)) calc(320px * var(--s, 1.5));
+    background-position: calc(var(--x) * var(--s, 1.5) * -1) calc(var(--y) * var(--s, 1.5) * -1);
+    image-rendering: pixelated;
+    animation: pxEmote 0.8s step-end infinite;
+}
+@keyframes pxEmote {
+    0%   { background-position-x: calc(var(--x) * var(--s, 1.5) * -1); }
+    25%  { background-position-x: calc((var(--x) + 32px) * var(--s, 1.5) * -1); }
+    50%  { background-position-x: calc((var(--x) + 64px) * var(--s, 1.5) * -1); }
+    75%  { background-position-x: calc((var(--x) + 32px) * var(--s, 1.5) * -1); }
+    100% { background-position-x: calc(var(--x) * var(--s, 1.5) * -1); }
+}
+.emoji-btn.px-emoji, .emoji-btn-inactive.px-emoji { padding: 2px; }
+.shop-emoji-btn.px-emoji { padding: 0; line-height: 0; }
+.emoji-float-px { text-shadow: none; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.55)); }
+
 @keyframes emojiFloat {
     0%   { opacity: 1;   transform: translateX(-50%) translateY(0px);  }
     15%  { opacity: 1;   transform: translateX(-50%) translateY(-15px); }

@@ -121,6 +121,15 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27: Emojis on the server, Pipoya pixel emotes, Credits button** (owner). sql/emoji-server.sql (applied,
+  migration emoji_server): cosmetic_price() also prices 'emoji_E01'..'E83' (old tier prices) and 'emoji_P00'..'P99'
+  (50g); emoji-system.js buys with buy_cosmetic('emoji_<id>') and reads cosmetics_owned (localStorage store removed;
+  the server had no emoji purchase on record, so nothing to carry over). Pixel emotes: 100 speech-bubble emotes cut
+  from the Pipoya Popup Emotes Pack sheet (zip on the repo's main branch) into images/emotes/pipoya-emotes.png
+  (rows 0-9, 960x320); css .px-emote animates the 3 frames. Broadcast payload gains `sprite`. js/credits-ui.js:
+  lobby Credits button; entries known so far: Pipoya, Humble Pixel (Paper UI, License.pdf), Google fonts. Still
+  to fill in (owner): Paper UI Menus pack, Immortal + BlowBrush fonts, sound effects, login music, soundfont,
+  intro/lore videos. Tested headless: shop + buy (buy_cosmetic emoji_P00), inventory, pawn float, credits modal.
 - **2026-09-26 (13): Leave training area button** (owner). game-ui.js showLeaveTrainingButton(): when a Train Bot /
   training-panel run ends (the run's finally) and the training board (#game-layout.active) is still on screen, a
   fixed "Leave training area" button appears under the status line; click = stop any job, sessionStorage
