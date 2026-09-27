@@ -174,6 +174,13 @@
         // other legal move but plenty of AP should take this over stalling
         // on endTurn every turn.
         breakStoneBase:      3,
+        // Alliances (docs/bot-alliances.md, owner's harm list): against the
+        // coalition target (push 2+), all × push.
+        breakLeaderPattern: 25,  // break a stone the leader placed last round (element it still needs)
+        moveToBreak:        25,  // ÷ (1 + path cost) toward such a stone, 3 AP away at most
+        moveCamp:           60,  // ÷ (1 + path cost) toward a scarce shrine the leader needs
+        campLeave:         -40,  // stepping off that shrine while camping it
+        endTurnCamp:        20,  // ending the turn on it
         breakStoneApPenalty: -1,  // × AP cost — cheap breaks (void, wind) preferred over earth
         breakUnblock:        1.0, // × gain in best-goal value (shrine / hidden tile / home,
                                   // move-score scale) when the break opens or shortens the
@@ -1112,9 +1119,16 @@
                         fixation = contrib('moveFixation', 1 / (1 + remaining));
                     }
                 }
+                let harm = 0;
+                if (ctx.harm) {
+                    const push = ctx.harm.push;
+                    if (firstHop(ctx.campPath, a)) harm += contrib('moveCamp', push / (1 + pathCost(ctx.campPath)));
+                    if (firstHop(ctx.breakPath, a)) harm += contrib('moveToBreak', push / (1 + pathCost(ctx.breakPath)));
+                    if (ctx.harm.campHere) harm += contrib('campLeave', push);
+                }
                 const revisit = contrib('moveRevisitPenalty', revisitPenalty(ctx.recentPositions || [], a, 1));
                 return contrib('moveBase', 1) + contrib('moveShrineValue', best)
-                     + contrib('moveApPenalty', a.cost) + explore + revisit + home + fixation;
+                     + contrib('moveApPenalty', a.cost) + explore + revisit + home + fixation + harm;
             }
 
             case 'teleport': {
@@ -1125,12 +1139,14 @@
                 // Same anti-oscillation memory movement uses — without it,
                 // free hops between two shrines ping-pong forever.
                 s += revisitPenalty(ctx.recentPositions || [], a, WEIGHTS.teleportRevisitPenalty);
+                if (ctx.harm?.campHere) s += WEIGHTS.campLeave * ctx.harm.push;
                 return s;
             }
 
             case 'breakStone': {
                 return WEIGHTS.breakStoneBase + WEIGHTS.breakStoneApPenalty * a.cost
-                     + unblockBonus(a, snap, ctx.unblock);
+                     + unblockBonus(a, snap, ctx.unblock)
+                     + (ctx.harm?.stones.has(hexKey(a.x, a.y)) ? WEIGHTS.breakLeaderPattern * ctx.harm.push : 0);
             }
 
             case 'moveStone': {
@@ -1148,6 +1164,7 @@
                        + shrineValue(snap, ctx.onShrine.shrineType);
                 }
                 if (snap.turn.ap <= 1) s += contrib('endTurnLowAp', 1);
+                if (ctx.harm?.campHere) s += contrib('endTurnCamp', ctx.harm.push);
                 return s;
             }
 
@@ -2307,13 +2324,25 @@
         // Root: beam over the real legal actions, but move the bot's
         // anti-oscillation penalty into the root scores so search ties
         // break the same way greedy's do.
-        const rootChildren = keepCasts(creditFilter(snap0, legal)
+        const scored = creditFilter(snap0, legal)
             .map(a => { const s1 = sim.simulate(snap0, a); return { a, s1, v1: evaluateSnapshot(s1, meIdx) }; })
-            .sort((x, y) => y.v1 - x.v1), Math.max(breadth, 8)); // keep the root a little wider
+            .sort((x, y) => y.v1 - x.v1);
+        const rootChildren = keepCasts(scored, Math.max(breadth, 8)); // keep the root a little wider
+        // Alliances: harming the leader is root-only too (the leaf eval does
+        // not see it), and a break of its fresh stone always gets a look.
+        const harm = me(snap0) ? harmContext(snap0, me(snap0)) : null;
+        const harmRoot = (a) => {
+            if (!harm) return 0;
+            if (a.type === 'breakStone' && harm.stones.has(hexKey(a.x, a.y))) return WEIGHTS.breakLeaderPattern * harm.push;
+            if (harm.campHere && (a.type === 'move' || a.type === 'teleport')) return WEIGHTS.campLeave * harm.push;
+            if (harm.campHere && a.type === 'endTurn') return WEIGHTS.endTurnCamp * harm.push;
+            return 0;
+        };
+        if (harm) for (const c of scored) if (harmRoot(c.a) > 0 && !rootChildren.includes(c)) rootChildren.push(c);
         let best = null;
         for (const c of rootChildren) {
             const line = [];
-            let v = value(c.s1, depth - 1, line);
+            let v = value(c.s1, depth - 1, line) + harmRoot(c.a);
             if (c.a.type === 'move') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.moveRevisitPenalty);
             if (c.a.type === 'teleport') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.teleportRevisitPenalty);
             if (c.a.type === 'breakStone' || c.a.type === 'placeStone') v += unblockBonus(c.a, snap0, uctx);
@@ -2581,6 +2610,43 @@
         return { action: winner.action, score: winner.avgValue, votes: bestVotes, samples: K };
     }
 
+    // Alliances: harm the coalition target (js/bot-diplomacy.js) the way the
+    // owner listed (2026-09-27). Only while it is a real danger (push 2+).
+    //  - stones: its stones from the last round, of elements it still needs
+    //    (public: who placed what), still on the board -> worth breaking.
+    //  - camps: revealed shrines of an element it still needs, with the
+    //    supply nearly gone (3 or less) and it short of that stone -> stand on
+    //    it so the leader cannot collect there.
+    function harmContext(snap, self) {
+        const D = window.BotDiplomacy;
+        if (!D?.enabled?.() || !D.coalitionTarget || !D.recentStones) return null;
+        const ai = snap.turn.activePlayerIndex;
+        const L = D.coalitionTarget(ai);
+        const lp = L != null ? snap.players[L] : null;
+        if (!lp) return null;
+        const push = (D.pressures(ai) || [])[L] || 1;
+        if (push < 2) return null;
+        const need = ELEMENTS.filter(el => !lp.activated.includes(el));
+        const seats = snap.players.filter(Boolean).length;
+        const stones = new Set();
+        for (const r of D.recentStones(L, seats)) {
+            if (!need.includes(r.type)) continue;
+            const st = snap.stones.find(q => q.type === r.type && Math.hypot(q.x - r.x, q.y - r.y) < 5);
+            if (st) stones.add(hexKey(st.x, st.y));
+        }
+        const camps = [];
+        let campHere = null;
+        for (const t of snap.tiles) {
+            if (!t.revealed || t.isPlayerTile || !need.includes(t.shrineType)) continue;
+            if ((snap.sourcePool[t.shrineType] || 0) > 3 || (lp.pool[t.shrineType] || 0) >= 3) continue;
+            if (snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5)) continue; // already blocked
+            if (Math.hypot(self.x - t.x, self.y - t.y) < 5) { campHere = t; continue; }
+            if (snap.players.some((q, j) => q && j !== ai && Math.hypot(q.x - t.x, q.y - t.y) < 5)) continue;
+            camps.push(t);
+        }
+        return { L, push, stones, camps, campHere };
+    }
+
     // Rank all legal actions for the current position (debug + decision core)
     // fixationTarget: optional {x,y} from findFixationTarget(), passed by
     // botAct()'s turn-repeat circuit breaker (see turnRepeatStreak below) —
@@ -2651,6 +2717,33 @@
                 const path = window.BotState.findPath(self.x, self.y, homeTile.x, homeTile.y);
                 if (path && path.length) ctx.homePath = path;
             }
+        }
+        // Alliances: harm the leader (breaking its fresh stones, camping).
+        ctx.harm = harmContext(snap, self);
+        ctx.campPath = null; ctx.breakPath = null;
+        if (ctx.harm && !ctx.harm.campHere) {
+            let best = null;
+            for (const t of ctx.harm.camps) {
+                const path = window.BotState.findPath(self.x, self.y, t.x, t.y);
+                if (!path || !path.length) continue;
+                const cost = pathCost(path);
+                if (cost <= 8 && (!best || cost < best.cost)) best = { path, cost };
+            }
+            if (best) ctx.campPath = best.path;
+        }
+        if (ctx.harm && ctx.harm.stones.size && !legal.some(a => a.type === 'breakStone' && ctx.harm.stones.has(hexKey(a.x, a.y)))) {
+            let best = null;
+            const targets = [...ctx.harm.stones].map(k => { const [x, y] = k.split(',').map(Number); return { x, y }; })
+                .filter(t => Math.hypot(t.x - self.x, t.y - self.y) < 35 * 5);
+            for (const h of window.BotState.hexGrid()) {
+                if (!targets.some(t => { const d = Math.hypot(t.x - h.x, t.y - h.y); return d > 5 && d < 40; })) continue;
+                if (snap.stones.some(q => Math.hypot(q.x - h.x, q.y - h.y) < 5)) continue;
+                const path = window.BotState.findPath(self.x, self.y, h.x, h.y);
+                if (!path || !path.length) continue;
+                const cost = pathCost(path);
+                if (cost <= 3 && (!best || cost < best.cost)) best = { path, cost };
+            }
+            if (best) ctx.breakPath = best.path;
         }
         ctx.fixationPath = null;
         if (fixationTarget) {
@@ -2736,11 +2829,15 @@
             }
             case 'breakStone': {
                 const opens = ctx?.unblock && unblockBonus(a, snap, ctx.unblock) > 0;
+                if (ctx?.harm?.stones.has(hexKey(a.x, a.y))) return `Break ${a.stoneType} (${a.cost} AP): the leader's new pattern stone`;
                 return `Break ${a.stoneType} (${a.cost} AP)${opens ? ': opens the way' : ''}`;
             }
             case 'move': {
                 if (ctx) {
                     if (firstHop(ctx.homePath, a)) return `Toward home to win (${pathCost(ctx.homePath)} AP)`;
+                    if (firstHop(ctx.campPath, a)) return `Toward a scarce shrine the leader needs (${pathCost(ctx.campPath)} AP)`;
+                    if (firstHop(ctx.breakPath, a)) return `Toward the leader's new stones to break them (${pathCost(ctx.breakPath)} AP)`;
+                    if (ctx.harm?.campHere) return `Step (leaves the shrine the leader needs)`;
                     if (firstHop(ctx.fixationPath, a)) return `Toward a new build site (${pathCost(ctx.fixationPath)} AP)`;
                     for (const t of ctx.shrines || []) {
                         const path = ctx.paths?.get(t.id);
@@ -2756,6 +2853,7 @@
             case 'discardScroll': return `Discard ${scrollName(a.scroll)}`;
             case 'endTurn': {
                 const on = ctx?.onShrine;
+                if (ctx?.harm?.campHere) return `End turn: keep the ${ctx.harm.campHere.shrineType} shrine from the leader`;
                 return on ? `End turn: collect ${on.shrineType} stones` : 'End turn';
             }
         }
@@ -3457,6 +3555,7 @@
         waitForQuiescence,    // settle response windows / selection modes / cascades
         WEIGHTS,              // live tuning surface (Stage 3a evolves this)
         DEFAULT_WEIGHTS,
+        _harmContext: harmContext, // tests
     };
 
     log('Loaded - Shift+R = one bot step, Shift+B = full bot turn');

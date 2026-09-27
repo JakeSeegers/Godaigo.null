@@ -5807,6 +5807,7 @@ document.getElementById('undo-move').onclick = function() {
                 { name: 'Breaking a stone', keys: ['breakStoneBase', 'breakStoneApPenalty', 'breakUnblock'] },
                 { name: 'Clearing a path with fire or void', keys: ['placeUnblock', 'placeFireOwnPlanLoss'] },
                 { name: 'Returning home', keys: ['moveReturnHome'] },
+                { name: 'Harming the leader (alliances)', keys: ['breakLeaderPattern', 'moveToBreak', 'moveCamp', 'campLeave', 'endTurnCamp'] },
                 { name: 'Ending the turn', keys: ['endTurnBase', 'endTurnOnShrine', 'endTurnLowAp'] },
                 { name: 'Discarding', keys: ['discardBase', 'discardActivated', 'discardDeadElement', 'discardLevel', 'discardVoluntary', 'discardResponseOnly'] },
                 { name: 'Transmute', keys: ['transmuteTargetAP'] },

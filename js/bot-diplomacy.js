@@ -39,7 +39,7 @@
     let S = fresh();
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
-                 pact: null, lastPactTurn: -99, warned: {}, spoke: {}, thanked: {} };
+                 pact: null, lastPactTurn: -99, warned: {}, spoke: {}, thanked: {}, placed: {} };
     }
     function reset() { S = fresh(); }
 
@@ -237,6 +237,13 @@
         else if (active != null && active !== S.lastActive && e.type !== 'endTurn') {
             if (e.type !== 'placeStone') observe();
             turnChanged(active);
+        }
+        // Who placed which stone (public): bot.js breaks a leader's fresh
+        // pattern stones (owner's harm list, 2026-09-27).
+        if (e.type === 'placeStone' && e.player != null && e.stoneType) {
+            const list = (S.placed[e.player] ||= []);
+            list.push({ x: e.x, y: e.y, type: e.stoneType, turn: S.turns });
+            if (list.length > 30) list.shift();
         }
         if (e.type === 'cast_execute' && HOSTILE.has(e.scrollName)) {
             const def = window.SCROLL_DEFINITIONS?.[e.scrollName];
@@ -530,6 +537,8 @@
     window.BotDiplomacy = {
         view, events: o => (S.events[o] || []).slice(), relation: relOf, reset, observe,
         enabled, threatOf, _state: () => S, pressures, coalitionTarget,
+        // Stones player j placed in the last `turns` turns: [{x, y, type, turn}].
+        recentStones: (j, turns) => (S.placed[j] || []).filter(r => S.turns - r.turn <= turns),
         setTalkAlways: on => { talkAlways = !!on; },
         pact: () => S.pact ? { target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft } : null,
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },

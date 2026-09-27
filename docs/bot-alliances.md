@@ -160,6 +160,19 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   The search now counts the real path cost of an opponent's way home (not
   straight-line distance), so walls in the way count as slowing them. (A
   "walk into the runner's way" goal was tried and dropped: owner, weak.)
+- Harming the leader (owner's list, 2026-09-27; bot.js `harmContext`), only
+  against the coalition target at push 2+, all scores x push:
+  - Break its fresh pattern stones: stones it placed in the last round
+    (public; BotDiplomacy `recentStones`) of elements it still needs.
+    breakLeaderPattern 25; a bot up to 3 AP away walks over (moveToBreak 25).
+  - Camp a scarce shrine: a revealed shrine of an element the leader still
+    needs, supply 3 or less, the leader holding under 3 of that stone. Walk
+    there (moveCamp 60, up to 8 AP), stay (campLeave -40), end the turn on
+    it (endTurnCamp 20). Also added at the search root.
+  Owner's list, still to do: helping pact partners (a needed scroll to the
+  common area, wind near their home, building a shape they need), Shifting
+  Sands / Telekinesis / Take Flight to move the leader somewhere bad, and
+  pushing a scroll to the common area on purpose to deny.
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every

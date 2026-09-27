@@ -301,7 +301,8 @@ Order matters — later scripts depend on earlier ones.
                              Phase 3: emote sentences (say(): Game Log 'botTalk' line at once, emotes queued; online
                              the emoji broadcast carries `talk`), one-round pacts against the leader, trust from
                              kept / withdrawn / broken pacts, thanks and grudges. Silent in muted training.
-                             Pacts hold while the leader stays a danger.
+                             Pacts hold while the leader stays a danger. Harm (bot.js harmContext): break the
+                             leader's fresh pattern stones (recentStones), camp scarce shrines it needs.
 27b. bot-imitation.js      ← window.BotImitation — HERMIT-ONLY, opt-in "learn from my play" imitation
                              learning (docs/void-knight.md). Watches ActionLog.onRecord() during the
                              hermit's own turns in a real online game that has a bot in it; compares
