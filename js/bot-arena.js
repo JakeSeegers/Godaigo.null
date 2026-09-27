@@ -1054,7 +1054,7 @@
     //   opts.sigma0/sigmaGrowth/sigmaCap (0.2 / 1.5 / 0.8) adaptive mutation step
     //   opts.seed (1), opts.visual (false), opts.speed
     //   opts.onRound?(roundNumber, totalRounds, info) progress callback
-    //   opts.onChallenger?(challengerNumber, lambda, roundNumber, totalRounds, originalChallengerNumber)
+    //   opts.onChallenger?(challengerNumber, lambda, roundNumber, totalRounds, originalChallengerNumber, challengerWeights)
     //                            fired once per challenger, before its trial
     //                            series starts (distinguishes "which challenger"
     //                            from onGame's per-series game count, which
@@ -1173,7 +1173,7 @@
                         // survivors) is playing; onGame's own count resets per
                         // series so it can't distinguish them alone.
                         if (typeof opts.onChallenger === 'function') {
-                            try { opts.onChallenger(k + 1, survivors.length, round + 1, rounds, cand.c + 1); } catch (e) { /* UI callback errors never abort a run */ }
+                            try { opts.onChallenger(k + 1, survivors.length, round + 1, rounds, cand.c + 1, cand.w); } catch (e) { /* UI callback errors never abort a run */ }
                         }
                         // gameIndexOffset continues this challenger's seed
                         // sequence — later stages play NEW decks (identical

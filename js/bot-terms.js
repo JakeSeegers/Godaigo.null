@@ -353,12 +353,15 @@
         }
         if (opts.structural) {
             const r = rng();
-            if (r < 0.25 && out.length < MAX_TERMS) {
+            // A brain with no formulas yet invents one more often, so a short
+            // run with inventing on actually tries some.
+            const addChance = out.length ? 0.25 : 0.6;
+            if (r < addChance && out.length < MAX_TERMS) {
                 const tree = randomTree(rng, 2);
                 out.push({ text: toText(tree), w: +((rng() < 0.5 ? -1 : 1) * (0.2 + rng())).toFixed(3), src: 'evolved' });
-            } else if (r < 0.35 && out.length) {
+            } else if (r < addChance + 0.1 && out.length) {
                 out.splice(Math.floor(rng() * out.length), 1);
-            } else if (r < 0.55 && out.length) {
+            } else if (r < addChance + 0.3 && out.length) {
                 const k = Math.floor(rng() * out.length);
                 const c = compile(out[k].text);
                 if (c.tree) out[k] = { ...out[k], text: toText(tweakTree(c.tree, rng)), src: 'evolved' };

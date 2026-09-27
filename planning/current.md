@@ -121,6 +121,12 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (6): Train Bot "Formulas: Invent" option + fresh seeds** (owner). Panel row Formulas Off / Invent (Hill
+  Climb only) -> termMutations; popup box explains formulas and lists the current challenger's (new ones marked);
+  "What happened" says whether the climbed bot carries new formulas. Found: runHillClimbTraining never passed a seed, so
+  hillClimb used seed 1 and every run from the same champion tried the SAME challengers on the same decks (repeat runs
+  redid each other's work); same for runWeightTraining's evolve. Both now get a fresh random seed. Empty brains invent a
+  formula more often (0.6). Tested headless: panel row, popup box + challenger formula shown, no errors.
 - **2026-09-27 (5): Water chains (owner's strategy)** Water touching wind (or water chained to it) copies free
   movement and is much cheaper than wind; touching earth it becomes a wall; void cancels. bot-sim.js already modeled
   this (chainedAbility / canMoveTo); new: waterChainResult / waterChainsToWind / isFreeStone. Gaps fixed: (1) bot-state.js

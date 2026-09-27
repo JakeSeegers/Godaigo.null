@@ -4162,6 +4162,7 @@ document.getElementById('undo-move').onclick = function() {
 
             const champion = await window.BotArena.evolve(generations, {
                 gamesPerPair, popSize, nPlayers, visual, seedWeights,
+                seed: 1 + Math.floor(Math.random() * 1e6), // fresh per run (default 1 repeated every run)
                 gamesPerGen: (allSizes || nPlayers > 2) ? sampledPerGen : undefined,
                 onGeneration: (gen, total, fitness) => {
                     lastGen = gen; lastFitness = fitness;
@@ -4313,6 +4314,8 @@ document.getElementById('undo-move').onclick = function() {
             const roundHistory = [];
             const stats = makeTrainingStats();
             let lastExploredChallenger = false; // current challenger = the explored bot
+            let lastChallengerTerms = [];       // [{text, w, isNew}] of the current challenger (formulas box)
+            let termMutations = !!opts.formulas; // challengers may invent formulas (panel option or Formula Lab)
             const needPct = Math.round((window.BotArena.HILLCLIMB_PROMOTE_RATE ?? 0.58) * 100);
             // Local-game color assignment (game-core.js's colorRankOrder):
             // player index 0 = Purple, 1 = Yellow (only the first two matter —
@@ -4336,6 +4339,7 @@ document.getElementById('undo-move').onclick = function() {
                     gameNum: lastGameNum, gameTotal: lastGameTotal,
                     sideAColor: aName, sideBColor: bName, sideAHex: aHex, sideBHex: bHex,
                     stats, explore: !!opts.explore, explored: lastExploredChallenger,
+                    formulas: !!termMutations, challengerTerms: lastChallengerTerms,
                     gen: lastGen, generations: EXPLORE_GENERATIONS, fitness: lastFitness,
                 });
             };
@@ -4385,21 +4389,29 @@ document.getElementById('undo-move').onclick = function() {
 
             // Formula Lab (hermit): queued formula ideas join round 1, each as
             // the champion plus that one term; "invent" also lets this run's
-            // challengers gain / lose / change formulas. Used once.
-            let termMutations = false;
+            // challengers gain / lose / change formulas. Used once. The panel's
+            // "Formulas: Invent" option (opts.formulas) turns inventing on for
+            // anyone.
+            if (termMutations) stats.event('Formulas: challengers may invent new senses this run');
             const lab = (window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
             if (lab) {
                 if (lab.count) {
                     seedChallengers = [...(seedChallengers || []), ...lab.challengers].slice(0, lambda);
                     stats.event(`Formula Lab: ${Math.min(lab.count, lambda - (explored ? 1 : 0))} idea(s) join round 1`);
                 }
-                termMutations = lab.invent;
-                if (termMutations) stats.event('Formula Lab: training may invent new formulas this run');
+                if (lab.invent && !termMutations) {
+                    termMutations = true;
+                    stats.event('Formula Lab: training may invent new formulas this run');
+                }
             }
 
             const result = await window.BotArena.hillClimb({
                 seedChallengers, termMutations,
                 champion: climbAnchor, rounds, lambda, gamesPerChallenge, visual,
+                // A fresh seed per run: with the default (1) every run from the
+                // same champion tried the SAME challengers on the same decks,
+                // so repeated Train Bot runs mostly redid each other's work.
+                seed: 1 + Math.floor(Math.random() * 1e6),
                 // Hermit only (puzzles are hermit-only data): a would-be new
                 // champion must also do at least as well on the puzzles
                 // (combos from players' games, Replays > Puzzles).
@@ -4412,8 +4424,10 @@ document.getElementById('undo-move').onclick = function() {
                 // slow, AND never say which of the lambda challengers is
                 // currently up (onGame's own game count resets to 1/N for
                 // every challenger, so it alone can't distinguish them).
-                onChallenger: (c, totalC, r, totalR, orig) => {
+                onChallenger: (c, totalC, r, totalR, orig, w) => {
                     lastChallenger = orig || c; totalChallengers = totalC; lastRound = r; lastGameNum = 0;
+                    const had = new Set((climbAnchor.terms || []).map(t => t.text));
+                    lastChallengerTerms = (w?.terms || []).map(t => ({ text: t.text, w: t.w, isNew: !had.has(t.text) }));
                     lastExploredChallenger = explored && r === 1 && (orig || c) === 1;
                     stats.cur = { w: 0, l: 0, d: 0 }; report('training');
                 },
@@ -4446,6 +4460,13 @@ document.getElementById('undo-move').onclick = function() {
             }
 
             lastGameNum = 0; lastGameTotal = confirmSizes.length * gamesPerSize;
+            if (termMutations && result.promotions > 0) {
+                const had = new Set((climbAnchor.terms || []).map(t => t.text));
+                const fresh = (result.champion.terms || []).filter(t => !had.has(t.text));
+                stats.event(fresh.length
+                    ? `The climbed bot carries ${fresh.length} new formula(s): ${fresh.slice(0, 2).map(t => t.text).join('; ')}${fresh.length > 2 ? '; ...' : ''}`
+                    : 'The climbed bot won with numbers only, no new formulas');
+            }
             report('confirming');
             // Multi-size gate: pit the climbed champion against a FIELD of the
             // current champion at 2/3/4/5 players, rotating seats. "Improved"
@@ -4666,6 +4687,11 @@ document.getElementById('undo-move').onclick = function() {
                         <div id="bt-popup-totals"></div>
                         <div id="bt-popup-stalls" style="color:#c9a36a;"></div>
                     </div>
+                    <div id="bt-popup-formulas" style="display:none;font-size:11px;color:#bbb;line-height:1.45;margin-bottom:10px;padding:6px 8px;background:#10181f;border:1px solid #2a4050;border-radius:5px;">
+                        <div style="color:#9cc4ff;font-weight:600;">Formulas: new senses</div>
+                        <div style="color:#8a9aa8;margin-bottom:3px;">Challengers may invent new senses: small formulas built from board facts, like the cost of the road home or water touching wind. A formula only stays if its bot beats the champion.</div>
+                        <div id="bt-popup-formulas-list"></div>
+                    </div>
                     <div id="bt-popup-events-label" style="font-size:10px;color:#888;margin-bottom:3px;display:none;">What happened</div>
                     <div id="bt-popup-events" style="font-size:10px;color:#aaa;line-height:1.45;margin-bottom:10px;"></div>
 
@@ -4734,13 +4760,28 @@ document.getElementById('undo-move').onclick = function() {
             const pct = p.totalGames ? Math.min(100, (p.gamesDone / p.totalGames) * 100) : 0;
             const elapsedS = (Date.now() - p.startedAt) / 1000;
             let scenarioLine, phaseLine, summaryLine, matchupHtml = '';
+            // Formulas box: what the current challenger is trying (new ones
+            // marked), only when the run lets training invent formulas.
+            const fBox = el.querySelector('#bt-popup-formulas');
+            fBox.style.display = (p.mode === 'hillclimb' && p.formulas) ? 'block' : 'none';
+            if (p.mode === 'hillclimb' && p.formulas) {
+                const terms = p.challengerTerms || [];
+                const escF = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+                el.querySelector('#bt-popup-formulas-list').innerHTML = p.phase === 'exploring' || !p.challenger
+                    ? '<span style="color:#777;">Formulas show here once the climb starts.</span>'
+                    : terms.length
+                        ? `<div style="color:#888;">${p.explored ? 'The explored bot' : `Challenger ${p.challenger}`} is trying:</div>` + terms.slice(0, 4).map(t =>
+                            `<div>${t.isNew ? '<span style="color:#7fd67f;">new</span> ' : ''}${t.w < 0 ? 'avoids' : 'likes'} <code style="color:#ddd;">${escF(t.text)}</code> <span style="color:#666;">(${t.w > 0 ? '+' : ''}${t.w})</span></div>`).join('')
+                            + (terms.length > 4 ? `<div style="color:#666;">and ${terms.length - 4} more</div>` : '')
+                        : `<span style="color:#777;">${p.explored ? 'The explored bot' : `Challenger ${p.challenger}`} has no formulas (this one only changes numbers).</span>`;
+            }
             const historyEl = el.querySelector('#bt-popup-history');
             const historyLabelEl = el.querySelector('#bt-popup-history-label');
             historyEl.innerHTML = '';
             historyLabelEl.style.display = 'none';
 
             if (p.mode === 'hillclimb') {
-                scenarioLine = p.explore ? 'Hill Climb with Explore - champion-anchored' : 'Hill Climb - champion-anchored';
+                scenarioLine = 'Hill Climb' + (p.explore ? ' with Explore' : '') + (p.formulas ? ' + Formulas' : '') + ' - champion-anchored';
                 phaseLine = p.phase === 'confirming'
                     ? 'Confirming across 2–5 player tables'
                     : p.phase === 'starting' ? 'Starting…'
@@ -5733,7 +5774,7 @@ document.getElementById('undo-move').onclick = function() {
         (function initBotTrainingPanel() {
             let clickCount = 0;
             let clickTimer = null;
-            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, _public: false };
+            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, _public: false };
 
             // Weight groupings mirror the section comments in bot.js's
             // DEFAULT_WEIGHTS — used purely for the drill-down diagram, so
@@ -5960,6 +6001,15 @@ document.getElementById('undo-move').onclick = function() {
                     { value: true, text: `First (+${EXPLORE_BONUS_GOLD} gold)`, title: `First run a short Evolve search across 2-5 player games (about ${EXPLORE_GAMES} extra games). Its best bot joins the climb as a challenger and must still beat the champion. +${EXPLORE_BONUS_GOLD} bonus gold when the whole run finishes.` },
                 ], () => state.explore, (v) => { state.explore = v; },
                     'Explore searches more widely (and across 2-5 player games) before the climb. It never lowers the bar: the explored bot has to beat the real champion like every other challenger. Hill Climb only.');
+
+                // Formulas (Hill Climb only): challengers may also invent new
+                // "senses", small formulas over board facts (js/bot-terms.js),
+                // not just nudge the brain's numbers (hillClimb opts.termMutations).
+                makeChoiceRow('Formulas:', [
+                    { value: false, text: 'Off', title: 'Challengers only change the brain\'s numbers (how much it cares about each thing it already notices).' },
+                    { value: true, text: 'Invent', title: 'Challengers may also invent new senses: small formulas built from board facts, like "the cost of my road home" or "water touching wind". Most will not help; the few that do win their way in.' },
+                ], () => state.formulas, (v) => { state.formulas = v; },
+                    'The bot judges a position with a list of things it notices, each with a weight. Normal training only changes the weights. With Invent, a challenger can also add, drop or change a formula, a new thing to notice. It still has to beat the champion to count. Hill Climb only.');
 
                 const progressText = document.createElement('div');
                 progressText.style.cssText = 'font-size:11px;color:#aaa;white-space:pre-line;display:none;';
@@ -6239,7 +6289,7 @@ document.getElementById('undo-move').onclick = function() {
                                 : { rounds: state.generations, lambda: 6, gamesPerChallenge: 30, gamesPerSize: 5 };
                             const preset = { ...p, confirmSizes: [2, 3, 4, 5] };
                             const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, totalGold, endedEarly } = await runHillClimbTraining(preset, renderProgress, {
-                                visual: state.watchable, noisyAnchor: state.noisyAnchor, explore: state.explore,
+                                visual: state.watchable, noisyAnchor: state.noisyAnchor, explore: state.explore, formulas: state.formulas,
                             });
                             progressText.style.display = 'none';
                             const bonusTail = attemptGold ? ` (+${attemptGold} for the games run)` : '';
