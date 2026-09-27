@@ -73,17 +73,47 @@ All bots in a game run in one browser (the host online, or the arena), so the
 pact itself is agreed inside the code. The emotes are the visible story, for
 players and replays:
 
+Bots speak in short **emote sentences**: what they mean, then who it is about.
+Chosen by the owner (2026-09-27):
+
+**Who (player symbols)**
+
+| Player | Emote |
+|---|---|
+| The leader (whoever it is) | Crown |
+| Green | Square |
+| Blue | Cross |
+| Red | Circle |
+| Yellow | Triangle |
+| Purple | Dizzy Swirl |
+
+**What (messages)**
+
 | Message | Emote |
 |---|---|
-| WARNING (someone is close to winning) | Exclamation over the bot, Bullseye over the leader |
-| PACT offer (1-2 turns, against the leader) | Peace Sign |
-| ACCEPT | Circle |
-| DECLINE | Cross |
-| COMMIT (going to act on it) | Fist |
-| WITHDRAW | Ellipsis |
-| Pact broken by someone | Angry Vein over the betrayed bot |
-| Thanks for real help | Heart |
-| Grudge (big harm) | Rage Spikes |
+| WARNING (someone is close to winning) | Exclamation |
+| PACT offer (short pact against someone) | Bread, then Question ("those who control the bread govern") |
+| ACCEPT | Fist |
+| DECLINE | Squint |
+| COMMIT (acting on the pact now) | one of Twinkle, Chomp or Hammer, at random |
+| WITHDRAW (leaving the pact) | Peace Sign |
+| THANKS (real help) | Flower |
+| GRUDGE (real harm) and BETRAYAL (pact broken) | one of Rage Spikes, Broken Heart or Angry Vein, at random |
+
+No other messages for now (owner: only if needed).
+
+**Examples**
+
+- Exclamation, Dizzy Swirl: "Warning, purple is close to winning."
+- Bread, Question, Crown: "Pact against the leader?"
+- Fist: "I'm in." Squint: "No."
+- Hammer, Circle: "Acting on the pact: going after red."
+- Flower, Square: "Thank you, green."
+- Rage Spikes, Cross: "Blue, you hurt me."
+
+A sentence plays one emote after another over the speaking bot (about 1 s
+apart). Every message also gets a short Game Log line, for example "Tidewarden
+offers Galewalker a pact against Purple".
 
 Emotes are rate-limited (at most one per bot per turn, pacts only at the start
 of a turn), so a game does not turn into emote spam.
@@ -105,6 +135,10 @@ a little, accepting then acting against it costs a lot of Trust.
    Sentinel and a vindictive Emberkin), weights tunable by training in 3-5 player
    games.
 
-## Open questions for the owner
+## Owner decisions (2026-09-27)
 
-See the conversation of 2026-09-27; answers get written here.
+- Bot talk: emotes plus a short Game Log line.
+- Memory: this game only (no grudges carried between games).
+- Personalities: yes, one per elemental bot (phase 4).
+- Human bias: mild (about half a tracker step).
+- Emote vocabulary: see "Pacts and talk" above.
