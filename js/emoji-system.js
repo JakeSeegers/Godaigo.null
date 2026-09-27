@@ -429,7 +429,9 @@
             el.textContent = display;
         }
         el.style.left = cx + 'px';
-        el.style.top  = cy + 'px';
+        // Pixel emotes (64 px tall): bottom edge just above the pawn, like a
+        // speech bubble. Text emojis keep their old anchor at the pawn centre.
+        el.style.top  = (px ? rect.top - 64 - 4 : cy) + 'px';
 
         document.body.appendChild(el);
 
