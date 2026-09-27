@@ -6,6 +6,9 @@
 ---
 
 ## Active Branch
+**Update 2026-09-27:** the game repo is now `JakeSeegers/Godaigo.null` (private). The name
+`JakeSeegers/Godaigo.Elements` now belongs to the tiny public redirect repo (tools/old-address-redirect/).
+Push game work only to Godaigo.null, branch `fixes/all-consolidated`.
 **Update 2026-09-24:** the live branch is now `fixes/all-consolidated` (confirmed by
 the owner). The notes below about `claude/missing-video-filename-sc1ajm` are history.
 
@@ -183,7 +186,8 @@ reach/beat it from here.
   repo turns Pages off on the free plan, so rename the game repo + make it private, then a new
   public repo named Godaigo.Elements holds only tools/old-address-redirect/ (index.html + 404.html
   redirect to playgodaigo.com, query + hash kept). After the rename: check a Cloudflare build and
-  add the renamed repo to the Claude environment.
+  add the renamed repo to the Claude environment. DONE 2026-09-27: repo renamed to Godaigo.null
+  and made private; redirect repo live (owner checked it).
   Reset fix: "Forgot password?" silently sent nothing when the recovery EMAIL was typed (the
   username check rejects '@'). request_reset now accepts username or email (new service-only RPC
   recovery_lookup_by_email in sql/account-recovery.sql, applied; one link per account, max 3),
