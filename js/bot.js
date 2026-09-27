@@ -181,6 +181,9 @@
         moveCamp:           60,  // ÷ (1 + path cost) toward a scarce shrine the leader needs
         campLeave:         -40,  // stepping off that shrine while camping it
         endTurnCamp:        20,  // ending the turn on it
+        // Helping pact partners (bots in the same pact only):
+        discardForAlly:     30,  // a scroll a partner needs to the common area (the leader already has that element, I do too)
+        placeAllyRoad:      15,  // × push: wind on a partner's way home once it has all five
         breakStoneApPenalty: -1,  // × AP cost — cheap breaks (void, wind) preferred over earth
         breakUnblock:        1.0, // × gain in best-goal value (shrine / hidden tile / home,
                                   // move-score scale) when the break opens or shortens the
@@ -1059,6 +1062,7 @@
                 }
                 if (a.stoneType === 'void') s += WEIGHTS.placeVoidSpendPenalty;
                 s += tacticalPlaceBonus(a, snap, ctx.tac);
+                if (ctx.help?.road.has(hexKey(a.x, a.y)) && a.stoneType === 'wind') s += WEIGHTS.placeAllyRoad * ctx.help.push;
                 s += unblockBonus(a, snap, ctx.unblock);
                 return s;
             }
@@ -1172,6 +1176,7 @@
                 const el = scrollElement(a.scroll);
                 const def = window.SCROLL_DEFINITIONS?.[a.scroll];
                 let s = contrib('discardBase', 1) + contrib('discardLevel', def?.level || 0);
+                if (ctx.help?.gift.has(el) && def?.level > 1) s += contrib('discardForAlly', 1);
                 if (a.voluntary) s += contrib('discardVoluntary', 1);
                 if (def?.level === 1) s += contrib('discardResponseOnly', 1);
                 if (el && ELEMENTS.includes(el)) {
@@ -2338,11 +2343,18 @@
             if (harm.campHere && a.type === 'endTurn') return WEIGHTS.endTurnCamp * harm.push;
             return 0;
         };
+        const help = me(snap0) ? helpContext(snap0, me(snap0)) : null;
+        const helpRoot = (a) => {
+            if (!help) return 0;
+            if (a.type === 'discardScroll' && help.gift.has(scrollElement(a.scroll)) && window.SCROLL_DEFINITIONS?.[a.scroll]?.level > 1) return WEIGHTS.discardForAlly;
+            if (a.type === 'placeStone' && a.stoneType === 'wind' && help.road.has(hexKey(a.x, a.y))) return WEIGHTS.placeAllyRoad * help.push;
+            return 0;
+        };
         if (harm) for (const c of scored) if (harmRoot(c.a) > 0 && !rootChildren.includes(c)) rootChildren.push(c);
         let best = null;
         for (const c of rootChildren) {
             const line = [];
-            let v = value(c.s1, depth - 1, line) + harmRoot(c.a);
+            let v = value(c.s1, depth - 1, line) + harmRoot(c.a) + helpRoot(c.a);
             if (c.a.type === 'move') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.moveRevisitPenalty);
             if (c.a.type === 'teleport') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.teleportRevisitPenalty);
             if (c.a.type === 'breakStone' || c.a.type === 'placeStone') v += unblockBonus(c.a, snap0, uctx);
@@ -2647,6 +2659,40 @@
         return { L, push, stones, camps, campHere };
     }
 
+    // Alliances: help fellow pact members (owner's list, 2026-09-27).
+    //  - gift: elements some partner still needs, that the pact's target
+    //    already has (so it gains no win from the scroll) and I already have
+    //    too -> discarding such a scroll to the common area helps.
+    //  - road: hexes on the way home of a partner with all five -> wind
+    //    there helps. kingmakerFilter still stops any action that brings
+    //    them within 5 AP of home, so the help stays small.
+    function helpContext(snap, self) {
+        const D = window.BotDiplomacy;
+        const P = D?.enabled?.() ? D.pact?.() : null;
+        const ai = snap.turn.activePlayerIndex;
+        if (!P || !P.members.includes(ai)) return null;
+        const lp = snap.players[P.target];
+        if (!lp) return null;
+        const partners = P.members.filter(m => m !== ai && snap.players[m]);
+        const gift = new Set();
+        for (const el of ELEMENTS) {
+            if (!lp.activated.includes(el) || !self.activated.includes(el)) continue;
+            if ((snap.sourcePool[el] || 0) <= 0) continue;
+            if (partners.some(m => !snap.players[m].activated.includes(el))) gift.add(el);
+        }
+        const road = new Set();
+        for (const m of partners) {
+            const q = snap.players[m];
+            if (!ELEMENTS.every(el => q.activated.includes(el))) continue;
+            const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === m);
+            const path = home && pathToOrNear(q.x, q.y, home.x, home.y);
+            for (const st of path || []) road.add(hexKey(st.x, st.y));
+        }
+        if (!gift.size && !road.size) return null;
+        const push = (D.pressures(ai) || [])[P.target] || 1;
+        return { gift, road, push };
+    }
+
     // Rank all legal actions for the current position (debug + decision core)
     // fixationTarget: optional {x,y} from findFixationTarget(), passed by
     // botAct()'s turn-repeat circuit breaker (see turnRepeatStreak below) —
@@ -2720,6 +2766,7 @@
         }
         // Alliances: harm the leader (breaking its fresh stones, camping).
         ctx.harm = harmContext(snap, self);
+        ctx.help = helpContext(snap, self);
         ctx.campPath = null; ctx.breakPath = null;
         if (ctx.harm && !ctx.harm.campHere) {
             let best = null;
@@ -2850,7 +2897,10 @@
             }
             case 'teleport': return `Teleport to ${a.shrineType} shrine`;
             case 'moveStone': return `Move a ${a.stoneType} stone`;
-            case 'discardScroll': return `Discard ${scrollName(a.scroll)}`;
+            case 'discardScroll': {
+                if (ctx?.help?.gift.has(scrollElement(a.scroll))) return `Discard ${scrollName(a.scroll)}: a gift for a pact partner`;
+                return `Discard ${scrollName(a.scroll)}`;
+            }
             case 'endTurn': {
                 const on = ctx?.onShrine;
                 if (ctx?.harm?.campHere) return `End turn: keep the ${ctx.harm.campHere.shrineType} shrine from the leader`;
@@ -3556,6 +3606,7 @@
         WEIGHTS,              // live tuning surface (Stage 3a evolves this)
         DEFAULT_WEIGHTS,
         _harmContext: harmContext, // tests
+        _helpContext: helpContext, // tests
     };
 
     log('Loaded - Shift+R = one bot step, Shift+B = full bot turn');

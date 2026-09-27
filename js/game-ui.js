@@ -5808,6 +5808,7 @@ document.getElementById('undo-move').onclick = function() {
                 { name: 'Clearing a path with fire or void', keys: ['placeUnblock', 'placeFireOwnPlanLoss'] },
                 { name: 'Returning home', keys: ['moveReturnHome'] },
                 { name: 'Harming the leader (alliances)', keys: ['breakLeaderPattern', 'moveToBreak', 'moveCamp', 'campLeave', 'endTurnCamp'] },
+                { name: 'Helping pact partners (alliances)', keys: ['discardForAlly', 'placeAllyRoad'] },
                 { name: 'Ending the turn', keys: ['endTurnBase', 'endTurnOnShrine', 'endTurnLowAp'] },
                 { name: 'Discarding', keys: ['discardBase', 'discardActivated', 'discardDeadElement', 'discardLevel', 'discardVoluntary', 'discardResponseOnly'] },
                 { name: 'Transmute', keys: ['transmuteTargetAP'] },

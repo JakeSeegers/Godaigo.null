@@ -303,6 +303,7 @@ Order matters — later scripts depend on earlier ones.
                              kept / withdrawn / broken pacts, thanks and grudges. Silent in muted training.
                              Pacts hold while the leader stays a danger. Harm (bot.js harmContext): break the
                              leader's fresh pattern stones (recentStones), camp scarce shrines it needs.
+                             Help (helpContext): scroll gifts to the common area, wind on a partner's road home.
 27b. bot-imitation.js      ← window.BotImitation — HERMIT-ONLY, opt-in "learn from my play" imitation
                              learning (docs/void-knight.md). Watches ActionLog.onRecord() during the
                              hermit's own turns in a real online game that has a bot in it; compares

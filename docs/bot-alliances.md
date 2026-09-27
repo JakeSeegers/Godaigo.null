@@ -169,10 +169,17 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
     needs, supply 3 or less, the leader holding under 3 of that stone. Walk
     there (moveCamp 60, up to 8 AP), stay (campLeave -40), end the turn on
     it (endTurnCamp 20). Also added at the search root.
-  Owner's list, still to do: helping pact partners (a needed scroll to the
-  common area, wind near their home, building a shape they need), Shifting
-  Sands / Telekinesis / Take Flight to move the leader somewhere bad, and
-  pushing a scroll to the common area on purpose to deny.
+- Helping pact partners (bot.js `helpContext`, bots in the same pact only):
+  - Gift: discard a scroll (level 2+) to the common area when a partner still
+    needs its element, the pact's target already has it (no win for them) and
+    I have it too (discardForAlly 30). Tested: 2 gifts in three 4-bot games.
+  - Road: wind on the way home of a partner with all five (placeAllyRoad 15
+    x push). kingmakerFilter still blocks bringing anyone within 5 AP of
+    home, so this help stays small. Rare in tests (partners seldom have five).
+  Owner's list, still to do: building a shape a partner needs (their hand is
+  hidden, patterns sit around their own pawn), Shifting Sands / Telekinesis /
+  Take Flight to move the leader somewhere bad, and pushing a scroll to the
+  common area on purpose to deny.
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every
