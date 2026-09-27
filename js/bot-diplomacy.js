@@ -282,7 +282,9 @@
     // Leader response (docs/bot-alliances.md): only when someone is clearly
     // ahead of me AND of everyone else does the table gang up on them:
     //   clear leader 1.5, leader at 4 elements 2, at 5 elements 2.5, can win
-    //   next turn 4. When the leader is pulled back into the pack, or I am
+    //   next turn 4. A big lead counts too (2026-09-27, owner's test game: a
+    //   human 3 elements ahead met no pact until 4): 2+ ahead of everyone
+    //   else 2, 3+ ahead 2.5. When the leader is pulled back into the pack, or I am
     //   level with them, it drops back to 1 (the coalition ends by itself).
     // Favor shifts it: players who helped me get pushed a bit less, players
     // who hurt me a bit more. Humans count half an element further ahead.
@@ -306,7 +308,10 @@
             const clear = t[leader] >= Math.max(...others) + 1;
             if (clear) {
                 const acts = snap.players[leader].activated.length;
-                arr[leader] = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four : STAGE.clear;
+                const lead = t[leader] - Math.max(...others);
+                const byCount = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four : STAGE.clear;
+                const byLead = lead >= 3 ? STAGE.five : lead >= 2 ? STAGE.four : STAGE.clear;
+                arr[leader] = Math.max(byCount, byLead);
             }
         }
         for (let j = 0; j < n; j++) {
@@ -405,9 +410,23 @@
                 for (const k of P.members) relOf(k, m).trust = clampT(relOf(k, m).trust + PACT.withdrawTrust);
                 say(m, [E.withdraw], `{p${m}} leaves the pact against {p${P.target}}`);
             }
-            if (--P.turnsLeft <= 0 || P.members.size < 2) endPact();
+            if (P.members.size < 2) endPact();
+            else if (--P.turnsLeft <= 0) {
+                // Still a real threat to every member: the pact holds for
+                // another round instead of lapsing just as the leader runs
+                // home (owner's test game, 2026-09-27).
+                const holds = [...P.members].every(m => ((pressures(m) || [])[P.target] || 1) >= PACT.minPush);
+                if (holds) P.turnsLeft = S.seats || seatCount();
+                else endPact();
+            }
         }
-        if (!S.pact && isBotSeat(active) && S.turns - S.lastPactTurn >= PACT.gapTurns * (S.seats || 1)) propose(active);
+        if (!S.pact && isBotSeat(active)) {
+            // Urgent (the leader has all five): no waiting between pacts.
+            const L = coalitionTarget(active);
+            let urgent = false;
+            if (L != null) { try { urgent = window.BotState.snapshot().players[L]?.activated?.length >= 5; } catch (e) {} }
+            if (urgent || S.turns - S.lastPactTurn >= PACT.gapTurns * (S.seats || 1)) propose(active);
+        }
     }
     function clampT(v) { return Math.max(-1, Math.min(1, v)); }
     function propose(o) {
@@ -415,14 +434,15 @@
         if (L == null) return;
         const push = (pressures(o) || [])[L] || 1;
         const n = S.seats || seatCount();
-        // Warn once per stage (the number of elements the leader has).
+        // Warn once per stage (the number of elements the leader has), and
+        // only once the leader is a real danger (the same bar as a pact).
+        if (push < PACT.minPush) return;
         let snap; try { snap = window.BotState.snapshot(); } catch (e) { return; }
         const stage = snap.players[L]?.activated?.length || 0;
         if (S.warned[L] !== stage) {
             S.warned[L] = stage;
             say(o, [E.warning, symbolOf(L, L)], `{p${o}} warns: {p${L}} is close to winning`);
         }
-        if (push < PACT.minPush) return;
         const others = [];
         for (let b = 0; b < n; b++) if (b !== o && b !== L && snap.players[b] && isBotSeat(b)) others.push(b);
         if (!others.length) return;

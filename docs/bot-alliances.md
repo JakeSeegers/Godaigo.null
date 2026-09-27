@@ -151,6 +151,15 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   trust, -0.15 favor, betrayal emote). Kept: +0.15 trust (+0.1 more if it
   struck). Thanks (favor change >= +0.1) and grudges (<= -0.25) outside pacts:
   one sentence per bot per turn, same pair once per round.
+- Faster response (2026-09-27, after the owner's test game where a human
+  went from 1 to 5 elements and home while the bots only warned): a big lead
+  counts as danger too (2+ elements ahead of everyone else = push 2, 3+ =
+  2.5), so warnings and pacts start earlier and warnings only come at push 2+.
+  A pact now holds for another round while the target is still a danger to
+  every member, and when the leader has all five a new pact needs no wait.
+  The search now counts the real path cost of an opponent's way home (not
+  straight-line distance), so walls in the way count as slowing them. (A
+  "walk into the runner's way" goal was tried and dropped: owner, weak.)
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every

@@ -1904,7 +1904,27 @@
         let v = opp.activated.length * WEIGHTS.evalActivated;
         if (ELEMENTS.every(el => opp.activated.includes(el))) {
             const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === oppIndex);
-            if (home) v += WEIGHTS.evalHomeDist * Math.hypot(home.x - opp.x, home.y - opp.y);
+            if (home) {
+                let d = Math.hypot(home.x - opp.x, home.y - opp.y);
+                // Inside a search: the real path cost home (35 px a step), so
+                // a wall or a pawn in their way counts as slowing them down
+                // (2026-09-27: bots never tried to stop a runner going home).
+                const field = leafField(snap, 'home', oppIndex);
+                if (field && field.dist) {
+                    const pk = `${Math.round(opp.x)},${Math.round(opp.y)}`;
+                    let c = field.dist.get(pk);
+                    if (c === undefined) {
+                        let best = Infinity;
+                        for (const nb of gridInfo(snap).adj.get(pk) || []) {
+                            const dn = field.dist.get(nb.key);
+                            if (dn !== undefined && dn < best) best = dn;
+                        }
+                        if (best < Infinity) c = best + 1;
+                    }
+                    d = c !== undefined ? c * 35 : d + (WEIGHTS.evalUnreachableSteps || 0) * 35;
+                }
+                v += WEIGHTS.evalHomeDist * d;
+            }
         }
         return v;
     }
