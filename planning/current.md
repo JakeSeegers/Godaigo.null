@@ -121,6 +121,13 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (4): Formula terms + Formula Lab (Option C)** (owner). js/bot-terms.js: bots can carry extra "senses" as
+  safe formulas (WEIGHTS.terms), scored at the end of evaluateSnapshot (search). bot-arena.js mutate/crossover carry and
+  nudge terms; opts.termMutations (hillClimb, evolve) also adds / removes / changes formulas. js/formula-lab.js: hermit
+  menu Formula Lab with 5 starter ideas written by Claude, Check, Quick test, queue for the next Train Bot run. Champion
+  loading drops stale terms (bot.js). Tested headless: 2 games with 5 terms (240k term scores, no errors, no leftover
+  terms after), Lab check + 2-game quick test, queue used once, 1-round hill climb with termMutations. Not yet: Bot Mind
+  display of terms, an in-game "Ask Claude" button (would need an API key in a Supabase edge function).
 - **2026-09-27 (3): Champion = newest promoted row** (owner). The owner's Explore + Hill Climb run beat the champion
   (row 14, confirm 5-4-3), but every reader took the highest win_rate, and row 12 (0.40) outranked row 14 (0.08):
   win_rate is only comparable inside one row's own confirm. sql/champion-promoted.sql (applied): column `promoted`,

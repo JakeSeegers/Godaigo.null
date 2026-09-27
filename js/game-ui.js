@@ -4383,8 +4383,22 @@ document.getElementById('undo-move').onclick = function() {
                 }
             }
 
+            // Formula Lab (hermit): queued formula ideas join round 1, each as
+            // the champion plus that one term; "invent" also lets this run's
+            // challengers gain / lose / change formulas. Used once.
+            let termMutations = false;
+            const lab = (window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
+            if (lab) {
+                if (lab.count) {
+                    seedChallengers = [...(seedChallengers || []), ...lab.challengers].slice(0, lambda);
+                    stats.event(`Formula Lab: ${Math.min(lab.count, lambda - (explored ? 1 : 0))} idea(s) join round 1`);
+                }
+                termMutations = lab.invent;
+                if (termMutations) stats.event('Formula Lab: training may invent new formulas this run');
+            }
+
             const result = await window.BotArena.hillClimb({
-                seedChallengers,
+                seedChallengers, termMutations,
                 champion: climbAnchor, rounds, lambda, gamesPerChallenge, visual,
                 // Hermit only (puzzles are hermit-only data): a would-be new
                 // champion must also do at least as well on the puzzles
@@ -7509,6 +7523,9 @@ document.getElementById('undo-move').onclick = function() {
                     mindItem.textContent = mindLabel();
                 });
                 menu.appendChild(mindItem);
+                menu.appendChild(makeItem('Formula Lab (new bot senses)', () => {
+                    if (window.FormulaLab) window.FormulaLab.open();
+                }));
                 menu.appendChild(makeItem('Manage Profiles', openProfileAdmin));
                 menu.appendChild(makeItem('Game Logs', openGameLogsPanel));
                 menu.appendChild(makeItem('Board Rotation', openBoardRotationPanel));

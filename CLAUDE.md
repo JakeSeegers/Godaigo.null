@@ -228,6 +228,12 @@ Order matters — later scripts depend on earlier ones.
                              screen (Join -> reload -> joinPublicGame). sql/friends.sql + sql/recent-players.sql.
 21. bot-state.js           ← window.BotState — game-state snapshot / legal actions / apply (no strategy)
 22. bot-sim.js             ← window.BotSim — pure forward model (simulate / legalActions / isTerminal) + validate() harness
+22b. bot-terms.js         ← window.BotTerms: formula terms = extra bot senses as plain data (WEIGHTS.terms:
+                             [{text, w, note, src}]). Safe mini language: public-info INPUTS (myActivated,
+                             leaderActivated, distHome, myAP, ...) and + - * / min max gt lt abs; parse/compile
+                             (cached), score() added at the end of bot.js evaluateSnapshot, mutateTerms/crossTerms
+                             used by bot-arena.js mutate/crossover (structural add/remove/change only with
+                             opts.termMutations). Limits: 8 terms, 25 nodes, 200 chars, value clamped +-10000.
 23. bot-effects.js         ← window.BotEffects — Stage 2.5 scroll-effect usage: driveSelection() (tile-flip,
                              scorched-earth, tile-swap, Create, Scholar's Insight, Quick Reflexes, Sacrificial
                              Pyre, Inspiring Draught), driveTransmute() (open-ended discard-for-AP modal),
@@ -259,6 +265,11 @@ Order matters — later scripts depend on earlier ones.
                              scores + reasons, goal path, build plan cells, searchPick's planned line). Draws
                              .bot-mind-layer in #viewport (ghost plan stones, goal path, look-ahead line, break/place
                              mark) and #bot-mind-panel. Off during muted arena training.
+24d. formula-lab.js       ← window.FormulaLab: hermit menu "Formula Lab". Ideas as lines `weight: formula # note`
+                             (starter set suggested by Claude), Check (values on the live board), Quick test (champion
+                             + one term vs champion, BotArena.run), queue for the next Train Bot run (takeQueued() in
+                             game-ui.js runHillClimbTraining: each idea = a round-1 challenger; "invent" = hillClimb
+                             opts.termMutations). localStorage godaigo_formula_lab.
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
 26. bot-arena.js           ← LAZY-LOADED (no <script> tag — see #30 asset-preloader.js / window.LazyScripts). window.BotArena — self-play arena (bot-vs-bot local games, weight evolution).

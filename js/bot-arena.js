@@ -809,7 +809,9 @@
     // hours in-browser even muted, and MUCH longer visualized — gamesPerPair
     // /gamesPerGen are configurable; server-side execution is Stage R5's job.
     // ----------------------------------------------------------------
-    function mutate(table, rng, sigma = 0.2) {
+    // opts.structural: also let formula terms be added / removed / changed
+    // (js/bot-terms.js). Term weights are always nudged like any weight.
+    function mutate(table, rng, sigma = 0.2, opts = {}) {
         const out = { ...table };
         for (const k of Object.keys(out)) {
             if (typeof out[k] !== 'number') continue;
@@ -820,6 +822,10 @@
             const u1 = Math.max(rng(), 1e-9), u2 = rng();
             const gauss = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
             out[k] = +(out[k] + gauss * sigma * Math.max(1, Math.abs(out[k]))).toFixed(3);
+        }
+        if (window.BotTerms && (out.terms || opts.structural)) {
+            const terms = window.BotTerms.mutateTerms(out.terms, rng, sigma, { structural: !!opts.structural });
+            if (terms.length) out.terms = terms; else delete out.terms;
         }
         return out;
     }
@@ -837,6 +843,10 @@
             if (k === 'searchDepth' || k === 'searchBreadth' || k === 'searchHybrid' || k === 'searchKeepCasts' || k === 'searchCastExtraDepth') continue; // brain shape, not tuning
             if (k === 'mctsSamples' || k === 'mctsIterations' || k === 'mctsHorizon' || k === 'mctsExploration' || k === 'mctsRootBreadth' || k === 'mctsRolloutDepth' || k === 'mctsRolloutBreadth') continue; // brain shape, not tuning
             out[k] = rng() < 0.5 ? a[k] : b[k];
+        }
+        if (window.BotTerms && (a.terms || b.terms)) {
+            const terms = window.BotTerms.crossTerms(a.terms, b.terms, rng);
+            if (terms.length) out.terms = terms; else delete out.terms;
         }
         return out;
     }
@@ -859,6 +869,8 @@
         const nPlayers = allSizes ? null : Math.max(2, Math.min(5, opts.nPlayers ?? 2));
         const visual = !!opts.visual;
         const rng = mulberry32(seed);
+        // opts.termMutations: children may also gain / lose / change formula terms
+        const termOpts = { structural: !!opts.termMutations };
 
         _evolving = true;
         _stopRequested = false; // same stop() flag spectate() uses — shared "cancel a local bot job" signal
@@ -892,9 +904,9 @@
             if (seeds.length >= 2) {
                 const pa = seeds[Math.floor(rng() * seeds.length)];
                 const pb = seeds[Math.floor(rng() * seeds.length)];
-                population.push(newMember(mutate(pa === pb ? pa : crossover(pa, pb, rng), rng)));
+                population.push(newMember(mutate(pa === pb ? pa : crossover(pa, pb, rng), rng, 0.2, termOpts)));
             } else {
-                population.push(newMember(mutate(seeds[0], rng)));
+                population.push(newMember(mutate(seeds[0], rng, 0.2, termOpts)));
             }
         }
         let champion = population[0].w;
@@ -983,7 +995,7 @@
                     const pa = breedingPool[Math.floor(rng() * breedingPool.length)];
                     const pb = breedingPool[Math.floor(rng() * breedingPool.length)];
                     const child = pa.id === pb.id ? pa.w : crossover(pa.w, pb.w, rng);
-                    population.push(newMember(mutate(child, rng), pa.id === pb.id ? [pa.id] : [pa.id, pb.id]));
+                    population.push(newMember(mutate(child, rng, 0.2, termOpts), pa.id === pb.id ? [pa.id] : [pa.id, pb.id]));
                 }
             }
         } finally {
@@ -1050,6 +1062,9 @@
     //   opts.onGame? forwarded to every trial series (per-game progress)
     //   opts.seedChallengers? [weights] - fill the first round-1 challenger
     //                            slots (e.g. an Evolve explore phase's champion)
+    //   opts.termMutations?      challengers may also gain / lose / change
+    //                            formula terms (js/bot-terms.js), not just
+    //                            nudge numbers (Formula Lab, hermit)
     //   opts.puzzleCheck? async (weights) => score | null (Phase 4b, e.g.
     //                            Replay.puzzleScore): a challenger that wins
     //                            enough games is promoted only if its puzzle
@@ -1097,7 +1112,7 @@
             for (let round = 0; round < rounds && !_stopRequested && !_endEarlyRequested; round++) {
                 // Spawn λ mutant challengers of the (fixed) champion.
                 const challengers = [];
-                for (let c = 0; c < lambda; c++) challengers.push(mutate(champion, rng, sigma));
+                for (let c = 0; c < lambda; c++) challengers.push(mutate(champion, rng, sigma, { structural: !!opts.termMutations }));
                 // opts.seedChallengers: bots found elsewhere (e.g. an Evolve
                 // "explore" phase) take the first round-1 slots instead of
                 // mutants. Same rules: they must beat the champion to count.

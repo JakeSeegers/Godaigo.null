@@ -422,6 +422,9 @@
                 .limit(1);
             if (error || !data?.length || !data[0].weights || typeof data[0].weights !== 'object') return;
             Object.assign(WEIGHTS, data[0].weights);
+            // A champion without formula terms must not keep stale ones
+            // from an older cached table.
+            if (!('terms' in data[0].weights)) delete WEIGHTS.terms;
             applyBrainPreference();
             try { localStorage.setItem('godaigo_bot_weights', JSON.stringify(WEIGHTS)); } catch (e) {}
             log('Loaded best community champion from Supabase');
@@ -2113,6 +2116,13 @@
         }
         v -= maxOppProgress * WEIGHTS.evalOpponentThreat;
         v -= commonAreaThreat(snap, forIndex);
+
+        // Formula terms (js/bot-terms.js): extra measurements the brain can
+        // carry as plain data (WEIGHTS.terms), added by training or the
+        // hermit's Formula Lab. None on a table = no change at all.
+        if (WEIGHTS.terms && WEIGHTS.terms.length && window.BotTerms) {
+            v += window.BotTerms.score(WEIGHTS.terms, snap, forIndex);
+        }
 
         return v;
     }
