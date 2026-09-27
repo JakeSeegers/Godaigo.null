@@ -8,7 +8,7 @@
       "changes": [
         "New Shop and Credits buttons in the lobby: name styles, pawn items and emojis in one place, and the artists behind the game.",
         "Emojis are now 95 animated pixel emotes (50 gold each, art by Pipoya), saved to your account on any device. The old emojis are gone.",
-        "Smarter bots: newest Train Bot brain, and water chains for cheap roads and walls.",
+        "Smarter bots: newest Train Bot brain, water chains, and fewer stuck games (they use level 1 scrolls as responses and break stones blocking shrines they need).",
         "Bots remember who helped or hurt them, gang up earlier on whoever is clearly winning (you included), make pacts they announce with emotes, break your fresh pattern stones, guard shrines you need, and help their partners.",
         "Train Bot: new Formulas option lets bots invent new senses (+10 gold, +20 more if a new one wins), a clearer training window, Save & Quit to finish a run later, and End Early now ends right away when there is nothing new to test."
       ]

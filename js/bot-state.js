@@ -16,6 +16,7 @@
 // ============================================================
 
 (function () {
+    const ELEMENT_TYPES_L1 = ['earth', 'water', 'fire', 'wind', 'void'];
     'use strict';
 
     const ELEMENTS = ['earth', 'water', 'fire', 'wind', 'void'];
@@ -441,9 +442,20 @@
             const pHex = pixelToHex(player.x, player.y, TILE_SIZE);
             const grid = hexGrid();
             const seen = new Set(); // dedupe identical placements across scrolls
-            for (const name of scrolls.hand) {
+            // Level 1 scrolls are cast only as a response to someone else's
+            // cast, and a response DOES activate its element (multiplayer-
+            // state.js scroll-resolved). Their 2-stone pattern is built too
+            // when the bot still needs that element (owner 2026-09-27: bots
+            // stalled holding only a level 1 for a missing element).
+            const myActivated = [...(scrolls.activated || [])];
+            const neededL1 = (def) => def.level === 1 && ELEMENT_TYPES_L1.includes(def.element)
+                && !myActivated.includes(def.element) && ((window.stonePools?.[def.element] ?? 0) > 0);
+            const handNames = [...scrolls.hand];
+            for (const name of [...handNames, ...scrolls.active]) {
                 const def = window.SCROLL_DEFINITIONS?.[name];
-                if (!def || def.level === 1 || !Array.isArray(def.patterns)) continue;
+                if (!def || !Array.isArray(def.patterns)) continue;
+                if (def.level === 1 && !neededL1(def)) continue;
+                if (def.level !== 1 && !handNames.includes(name)) continue; // unchanged: hand only for the rest
                 for (const variant of def.patterns) {
                     const cells = variant.map(req => {
                         const px = hexToPixel(pHex.q + req.q, pHex.r + req.r, TILE_SIZE);

@@ -727,7 +727,20 @@
         const responses = check.validScrolls.filter(s => !s.isCounter && s.isResponse);
 
         let choice = null;
-        if (counters.length > 0 && wouldGrantUnactivatedElement(rw, casterIndex)) {
+        // A response or counter of an element this bot still needs activates
+        // it (multiplayer-state.js scroll-resolved): take that first.
+        let needed = [];
+        try {
+            const ps = window.spellSystem?.playerScrolls?.[responderIndex];
+            const won = ps?.activated ? [...ps.activated] : [];
+            needed = check.validScrolls.filter(sc => {
+                const el = window.SCROLL_DEFINITIONS?.[sc.name]?.element;
+                return el && !won.includes(el) && ((window.stonePools?.[el] ?? 0) > 0);
+            });
+        } catch (e) { needed = []; }
+        if (needed.length > 0) {
+            choice = needed.reduce((a, b) => (a.cost <= b.cost ? a : b));
+        } else if (counters.length > 0 && wouldGrantUnactivatedElement(rw, casterIndex)) {
             choice = counters.reduce((a, b) => (a.cost <= b.cost ? a : b));
         } else if (responses.length > 0) {
             choice = responses.reduce((a, b) => (a.cost <= b.cost ? a : b));

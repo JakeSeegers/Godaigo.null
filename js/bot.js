@@ -220,9 +220,13 @@
                                  // clearly dead scroll (already-won/dead-source) is worth
                                  // giving up a slot for; note the discard lands in the
                                  // COMMON area where opponents can cast it too
-        discardResponseOnly: 25, // level-1 scrolls are response-only and the bot can't
-                                 // play responses yet (Stage 2.5) — dead weight in a
-                                 // 2-slot hand, cycle it out
+        discardResponseOnly: 25, // level-1 scrolls are response-only: dead weight once
+                                 // their element is won or dead (a needed one is kept:
+                                 // a response activates its element)
+        leaveResponseReady: -40, // moving off a spot where a needed level 1's pattern
+                                 // is complete (ready to respond to the next cast)
+        moveBlockedShrine:  1,   // × the shrine walk value, toward a needed shrine whose
+                                 // centre holds a stone (walk up, break it, collect)
 
         // Stage 2.5: Transmute (Fire IV) target — discard stones for AP
         // until currentTotalAP reaches this (capped at the real max, 5 +
@@ -475,12 +479,17 @@
     // stone (transit is legal) and then retries the banned endTurn forever
     // — observed wedging arena games once Stage-4 wind paving made
     // stones-on-centres common.
+    // Also not a centre another pawn stands on: nobody can end a turn there
+    // until it leaves. Chasing one made bots circle an occupied shrine for
+    // turns, the most common arena stall (camping, measured 2026-09-27).
     function collectibleShrines(snap) {
+        const ai = snap.turn.activePlayerIndex;
         return snap.tiles.filter(t =>
             t.revealed && !t.isPlayerTile &&
             ELEMENTS.includes(t.shrineType) &&
             shrineValue(snap, t.shrineType) > 0 &&
-            !snap.stones.some(s => Math.hypot(s.x - t.x, s.y - t.y) < 5));
+            !snap.stones.some(s => Math.hypot(s.x - t.x, s.y - t.y) < 5) &&
+            !snap.players.some((q, j) => q && j !== ai && Math.hypot(q.x - t.x, q.y - t.y) < 5));
     }
 
     function shrineUnderfoot(snap) {
@@ -1124,6 +1133,10 @@
                     }
                 }
                 let harm = 0;
+                if (ctx.responseReady) harm += contrib('leaveResponseReady', 1);
+                if (firstHop(ctx.blockedShrinePath, a)) {
+                    harm += contrib('moveBlockedShrine', WEIGHTS.moveShrineValue * ctx.blockedShrineValue);
+                }
                 if (ctx.harm) {
                     const push = ctx.harm.push;
                     if (firstHop(ctx.campPath, a)) harm += contrib('moveCamp', push / (1 + pathCost(ctx.campPath)));
@@ -1164,8 +1177,14 @@
             case 'endTurn': {
                 let s = contrib('endTurnBase', 1);
                 if (ctx.onShrine) {
-                    s += contrib('endTurnOnShrine', 1)
-                       + shrineValue(snap, ctx.onShrine.shrineType);
+                    // Each further turn in a row collecting at the same
+                    // shrine is worth half as much: the other half of the
+                    // camping stalls was a bot re-collecting one shrine
+                    // forever (often void, for its AP) with nothing to build.
+                    const stay = mem(snap.turn.activePlayerIndex).shrineStay;
+                    const again = stay && stay.key === hexKey(ctx.onShrine.x, ctx.onShrine.y) ? stay.n : 0;
+                    s += (contrib('endTurnOnShrine', 1)
+                       + shrineValue(snap, ctx.onShrine.shrineType)) * Math.pow(0.5, again);
                 }
                 if (snap.turn.ap <= 1) s += contrib('endTurnLowAp', 1);
                 if (ctx.harm?.campHere) s += contrib('endTurnCamp', ctx.harm.push);
@@ -1178,7 +1197,12 @@
                 let s = contrib('discardBase', 1) + contrib('discardLevel', def?.level || 0);
                 if (ctx.help?.gift.has(el) && def?.level > 1) s += contrib('discardForAlly', 1);
                 if (a.voluntary) s += contrib('discardVoluntary', 1);
-                if (def?.level === 1) s += contrib('discardResponseOnly', 1);
+                // A level 1 for an element still needed is a real way to
+                // activate it (as a response), so it is only dead weight
+                // once that element is won or its source is empty.
+                if (def?.level === 1 && !(el && ELEMENTS.includes(el) && !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0)) {
+                    s += contrib('discardResponseOnly', 1);
+                }
                 if (el && ELEMENTS.includes(el)) {
                     if (self.activated.includes(el)) s += contrib('discardActivated', 1);
                     if ((snap.sourcePool[el] || 0) <= 0) s += contrib('discardDeadElement', 1);
@@ -2764,6 +2788,44 @@
                 if (path && path.length) ctx.homePath = path;
             }
         }
+        // Ready to respond: a needed level 1 whose pattern is complete here.
+        ctx.responseReady = false;
+        try {
+            const ai = snap.turn.activePlayerIndex;
+            for (const name of [...(self.hand || []), ...(self.active || [])]) {
+                const def = window.SCROLL_DEFINITIONS?.[name];
+                if (!def || def.level !== 1 || !ELEMENTS.includes(def.element)) continue;
+                if (self.activated.includes(def.element) || (snap.sourcePool[def.element] || 0) <= 0) continue;
+                if (window.BotSim?.checkPattern(snap, name, ai)) { ctx.responseReady = true; break; }
+            }
+        } catch (e) {}
+        // A needed shrine whose centre holds a stone is not "collectible",
+        // so nothing used to lead the bot there to break it (owner report
+        // 2026-09-27: bots stalled instead of breaking stones in their way).
+        // Walk to a hex next to it; the break's unblock bonus does the rest.
+        ctx.blockedShrinePath = null; ctx.blockedShrineValue = 0;
+        {
+            const breakCost = { void: 1, wind: 2, fire: 3, water: 4, earth: 5 };
+            const haveType = new Set(ctx.shrines.filter(t => ctx.paths.get(t.id)?.length).map(t => t.shrineType));
+            let best = null;
+            for (const t of snap.tiles) {
+                if (!t.revealed || t.isPlayerTile || !ELEMENTS.includes(t.shrineType) || haveType.has(t.shrineType)) continue;
+                const st = snap.stones.find(q => Math.hypot(q.x - t.x, q.y - t.y) < 5);
+                if (!st) continue;
+                const val = shrineValue(snap, t.shrineType);
+                if (val <= 0) continue;
+                if (Math.hypot(self.x - t.x, self.y - t.y) < 40) continue; // already next to it
+                for (const h of window.BotState.hexGrid()) {
+                    const d = Math.hypot(h.x - t.x, h.y - t.y);
+                    if (d < 5 || d > 40 || snap.stones.some(q => Math.hypot(q.x - h.x, q.y - h.y) < 5)) continue;
+                    const path = window.BotState.findPath(self.x, self.y, h.x, h.y);
+                    if (!path || !path.length) continue;
+                    const v = val / (1 + pathCost(path) + (breakCost[st.type] || 3));
+                    if (!best || v > best.v) best = { v, path };
+                }
+            }
+            if (best) { ctx.blockedShrinePath = best.path; ctx.blockedShrineValue = best.v; }
+        }
         // Alliances: harm the leader (breaking its fresh stones, camping).
         ctx.harm = harmContext(snap, self);
         ctx.help = helpContext(snap, self);
@@ -2882,6 +2944,8 @@
             case 'move': {
                 if (ctx) {
                     if (firstHop(ctx.homePath, a)) return `Toward home to win (${pathCost(ctx.homePath)} AP)`;
+                    if (firstHop(ctx.blockedShrinePath, a)) return `Toward a blocked shrine I need, to break its stone (${pathCost(ctx.blockedShrinePath)} AP)`;
+                    if (ctx.responseReady) return `Step (leaves a spot where a level 1 response is ready)`;
                     if (firstHop(ctx.campPath, a)) return `Toward a scarce shrine the leader needs (${pathCost(ctx.campPath)} AP)`;
                     if (firstHop(ctx.breakPath, a)) return `Toward the leader's new stones to break them (${pathCost(ctx.breakPath)} AP)`;
                     if (ctx.harm?.campHere) return `Step (leaves the shrine the leader needs)`;
@@ -3421,6 +3485,16 @@
         const startingPlayer = activePlayerIndex;
         const m = mem(startingPlayer);
         m.ownTurns = (m.ownTurns || 0) + 1; // combo timing (Phase 4)
+        // Where the last turn ended: on a shrine centre = it collected there.
+        // Counts turns in a row at the same shrine (endTurn scoring halves
+        // each repeat).
+        try {
+            const snapS = window.BotState.snapshot();
+            const selfS = snapS.players[startingPlayer];
+            const t = selfS && snapS.tiles.find(t2 => t2.revealed && !t2.isPlayerTile && ELEMENTS.includes(t2.shrineType) && Math.hypot(t2.x - selfS.x, t2.y - selfS.y) < 5);
+            const key = t ? hexKey(t.x, t.y) : null;
+            m.shrineStay = key ? { key, n: m.shrineStay && m.shrineStay.key === key ? m.shrineStay.n + 1 : 1 } : null;
+        } catch (e) { /* snapshot not ready: keep the old count */ }
         const wasForced = m.turnRepeatStreak >= 1; // circuit breaker armed for this turn
         const turnMoves = [];
         // A cast is unambiguous progress. A placeStone is only progress if the

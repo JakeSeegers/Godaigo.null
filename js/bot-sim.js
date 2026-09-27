@@ -2027,9 +2027,15 @@
         // Stone placements toward viable pattern variants (adjacent-only range).
         const g = grid(snap);
         const seen = new Set();
-        for (const name of pawnOnStone ? [] : hand) {
+        // Level 1 (response) scrolls too, for an element still needed and
+        // alive: a response activates its element (mirrors bot-state.js).
+        const activeArea = p.active || [];
+        for (const name of pawnOnStone ? [] : [...hand, ...activeArea]) {
             const def = window.SCROLL_DEFINITIONS?.[name];
-            if (!def || def.level === 1 || !Array.isArray(def.patterns)) continue;
+            if (!def || !Array.isArray(def.patterns)) continue;
+            if (def.level === 1) {
+                if (!ELEMENTS.includes(def.element) || p.activated.includes(def.element) || (snap.sourcePool[def.element] || 0) <= 0) continue;
+            } else if (!hand.includes(name)) continue;
             for (const variant of def.patterns) {
                 const cells = variant.map(req => {
                     const off = hexToPixel(req.q, req.r, TILE);
