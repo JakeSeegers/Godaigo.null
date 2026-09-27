@@ -234,6 +234,9 @@ Order matters — later scripts depend on earlier ones.
                              (cached), score() added at the end of bot.js evaluateSnapshot, mutateTerms/crossTerms
                              used by bot-arena.js mutate/crossover (structural add/remove/change only with
                              opts.termMutations). Limits: 8 terms, 25 nodes, 200 chars, value clamped +-10000.
+                             Road inputs: homeCost (BotSystem.homeCost, real path cost), freeStones, freeWater,
+                             freeNearHome. Element inputs: adjacent(a, b), stonesOf(el), myPool(el), oppNeeds(el),
+                             commonFor(el). Formulas that read no input are dropped by evolution.
 23. bot-effects.js         ← window.BotEffects — Stage 2.5 scroll-effect usage: driveSelection() (tile-flip,
                              scorched-earth, tile-swap, Create, Scholar's Insight, Quick Reflexes, Sacrificial
                              Pyre, Inspiring Draught), driveTransmute() (open-ended discard-for-AP modal),

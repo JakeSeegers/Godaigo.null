@@ -507,12 +507,19 @@
             // While Burning Motivation is active every placed stone pays AP,
             // so every held type (water too) is offered anywhere adjacent.
             const burning = (activeTurnBuffs(activePlayerIndex)?.burningMotivationStacks || 0) > 0;
-            const tacticalTypes = burning ? ['earth', 'wind', 'fire', 'void', 'water'] : ['earth', 'wind', 'fire', 'void'];
+            // Water joins too, but (outside Burning Motivation) only where it
+            // would chain: next to wind it copies free movement (a cheap road),
+            // next to earth it becomes a wall (a cheap block). Much cheaper
+            // than wind or earth (owner, 2026-09-27). bot.js scores it.
+            const tacticalTypes = ['earth', 'wind', 'fire', 'void', 'water'];
+            const chainSnap = { stones: placedStones.map(s => ({ x: s.x, y: s.y, type: s.type })) };
             for (const stoneType of tacticalTypes) {
                 if ((pool[stoneType] || 0) <= 0) continue;
                 for (const h of grid) {
                     const d = Math.hypot(h.x - player.x, h.y - player.y);
                     if (d <= HEX_NEAR || d >= HEX_STEP) continue;
+                    if (stoneType === 'water' && !burning &&
+                        !window.BotSim?.waterChainResult?.(chainSnap, h.x, h.y)) continue;
                     if (stoneType === 'void' && !burning && !placedStones.some(s =>
                         (s.type === 'earth' || s.type === 'water') &&
                         Math.hypot(s.x - h.x, s.y - h.y) > HEX_NEAR &&

@@ -454,6 +454,37 @@
         return null;
     }
 
+    // What would a water stone placed at (x, y) become? 'wind' (free to walk
+    // on) if it touches a wind stone (not voided) or water already chained to
+    // wind; else 'earth' (a wall) if it touches earth (not voided) or water
+    // chained to earth; else null (plain water, cost 2). An adjacent void
+    // cancels it all. Wind outranks earth, as in game-core.js. Water is much
+    // cheaper than wind or earth, so chains are cheap roads and cheap walls.
+    function waterChainResult(snap, x, y) {
+        if (hasAdjacentVoid(snap, x, y)) return null;
+        let earth = false;
+        for (const nb of neighborStones(snap, x, y)) {
+            if (hasAdjacentVoid(snap, nb.x, nb.y)) continue;
+            if (nb.type === 'wind') return 'wind';
+            if (nb.type === 'earth') earth = true;
+            else if (nb.type === 'water') {
+                const c = chainedAbility(snap, nb.x, nb.y);
+                if (c === 'wind') return 'wind';
+                if (c === 'earth') earth = true;
+            }
+        }
+        return earth ? 'earth' : null;
+    }
+    function waterChainsToWind(snap, x, y) { return waterChainResult(snap, x, y) === 'wind'; }
+
+    // Stones on the board that walk for free right now: wind with no
+    // adjacent void, and water chained to wind.
+    function isFreeStone(snap, s) {
+        if (s.type === 'wind') return !hasAdjacentVoid(snap, s.x, s.y);
+        if (s.type === 'water') return chainedAbility(snap, s.x, s.y) === 'wind';
+        return false;
+    }
+
     function canMoveTo(snap, x, y) {
         const ai = snap.turn.activePlayerIndex;
         const occupied = snap.players.some((p, i) =>
@@ -2383,7 +2414,7 @@
     window.BotSim = {
         simulate, legalActions, isTerminal, winner,
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
-        stoneWouldSurvive,
+        stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
         SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, isUnknownScroll, unknownScrollElement,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');

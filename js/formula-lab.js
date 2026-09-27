@@ -18,11 +18,11 @@
     const KEY = 'godaigo_formula_lab';
     const STARTER = [
         '# Ideas suggested by Claude. One per line:  weight: formula   # note',
-        '-3: allActivated * distHome   # all 5 active: every step away from home costs more',
-        '-2: gt(leaderActivated, myActivated) * distHidden   # behind: explore faster to find elements',
-        '40: gt(leaderActivated, 3) * myActivated   # an opponent is close to winning: each own element counts more',
-        '-4: max(0, myStones - 6)   # do not hoard stones',
-        '6: min(voidHeld, 2) * lt(myActivated, 3)   # void stones are worth more early',
+        '-3: gt(myActivated, 2) * homeCost   # from 3 elements on, prepare a cheap road home early',
+        '5: freeNearHome   # free-to-walk stones (wind, chained water) near my home',
+        '3: adjacent(water, wind)   # water chained to wind is a cheap free road',
+        '8: neededStones * lt(sourceLeft, 10)   # stones I need are worth more when the supply runs low',
+        '30: gt(leaderActivated, 3) * myActivated   # an opponent is close to winning: my own elements count more',
     ].join('\n');
 
     function load() {

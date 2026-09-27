@@ -84,6 +84,9 @@
                                  // wall yourself in while building or blocking
         placeShrineDeny:     40, // × opponents heading for a shrine centre this stone covers
                                  // (they can't collect there until it's broken)
+        placeWaterChain:     12, // water on the bot's OWN objective path that would
+                                 // chain to wind: it copies wind (free movement)
+                                 // and is much cheaper than wind (owner, 2026-09-27)
         placeWindPath:       12, // wind on the bot's OWN objective path — moving
                                  // over wind is free (cost 0), so a corridor stone
                                  // dropped ahead pays back AP on every traversal;
@@ -786,10 +789,23 @@
             if (collectibleShrines(snap).some(t => Math.hypot(t.x - a.x, t.y - a.y) < 5)) b += WEIGHTS.placeSelfBlockPenalty;
         }
         if (a.stoneType === 'water') {
-            // Water slows (cost 2) rather than walls: half the earth value.
-            const slowed = tac.oppPathCount.get(k) || 0;
-            if (slowed) b += 0.5 * WEIGHTS.placeEarthBlock * slowed;
-            if (tac.ownPathHexes.has(k)) b += 0.5 * WEIGHTS.placeSelfBlockPenalty;
+            // Water copies what it chains to (bot-sim.js waterChainResult):
+            // next to wind it is free to walk on, for everyone, so it paves
+            // the bot's own route like wind and blocks nobody; next to earth
+            // it is a wall, so it blocks like earth (ours too).
+            const chain = window.BotSim?.waterChainResult?.(snap, a.x, a.y) || null;
+            if (chain === 'wind') {
+                if (tac.ownPathHexes.has(k)) b += WEIGHTS.placeWaterChain;
+            } else if (chain === 'earth') {
+                const blocked = tac.oppPathCount.get(k) || 0;
+                if (blocked) b += WEIGHTS.placeEarthBlock * blocked;
+                if (tac.ownPathHexes.has(k)) b += WEIGHTS.placeSelfBlockPenalty;
+            } else {
+                // Water slows (cost 2) rather than walls: half the earth value.
+                const slowed = tac.oppPathCount.get(k) || 0;
+                if (slowed) b += 0.5 * WEIGHTS.placeEarthBlock * slowed;
+                if (tac.ownPathHexes.has(k)) b += 0.5 * WEIGHTS.placeSelfBlockPenalty;
+            }
         }
         if (a.stoneType === 'earth') {
             const blocked = tac.oppPathCount.get(k) || 0;
@@ -1749,9 +1765,12 @@
         return { dist: pathField(snap, [gridKey(home.x, home.y)], 0.5) };
     }
 
-    // Which stone hexes can nobody walk through right now? Fields only change
-    // shape when this set changes (a break, a void next to earth, a burn, a
-    // new earth wall), so it is the cache key for search-leaf fields.
+    // Which stone hexes cost something other than a plain step right now:
+    // blocked (earth wall, water chained to earth), slow (water, 2) or free
+    // (wind, water chained to wind, 0)? Fields only change when this set
+    // changes (a break, a void, a burn, a new wall, a paved road), so it is
+    // the cache key for search-leaf fields. (Until 2026-09-27 it held only
+    // blocked hexes, so paving a road never reached the search's distances.)
     // Memoized: search asks this for every leaf (several times per leaf) and
     // each answer walks every stone through canMoveTo (water chains too), so
     // late in a game it was most of a bot's think time. Per snapshot object,
@@ -1773,7 +1792,9 @@
         if (sig === undefined) {
             const out = [];
             for (const s of snap.stones) {
-                if (!window.BotSim.canMoveTo(snap, s.x, s.y).canMove) out.push(gridKey(s.x, s.y));
+                const mv = window.BotSim.canMoveTo(snap, s.x, s.y);
+                if (!mv.canMove) out.push(gridKey(s.x, s.y) + 'x');
+                else if (mv.cost !== 1) out.push(gridKey(s.x, s.y) + mv.cost);
             }
             sig = out.sort().join(';');
             if (_blockedByKey.size > 2000) _blockedByKey.clear();
@@ -2040,6 +2061,22 @@
         const els = scrollCreditElements(snap, p, { ...def, id: name }, idx);
         const ease = scrollEase(p, def);
         return els.reduce((a, el) => a + 100 * need[el] * ease, 0) + (def.level || 0);
+    }
+
+    // Real cost for player i to walk home from where they stand (steps; a
+    // free wind or chained-water hex counts 0.5), for formula terms
+    // (bot-terms.js homeCost). Uses the search's cached field when one is
+    // live, else builds it. Unreachable = straight line + the unreachable
+    // penalty, like evaluateSnapshot.
+    function homeCost(snap, i) {
+        const p = snap.players[i];
+        const home = p && snap.tiles.find(t => t.isPlayerTile && t.playerIndex === i);
+        if (!home) return 0;
+        let field = leafField(snap, 'home', i);
+        if (field === undefined) field = buildHomeField(snap, i);
+        const c = field?.dist?.get(`${Math.round(p.x)},${Math.round(p.y)}`);
+        if (c !== undefined) return c;
+        return Math.hypot(home.x - p.x, home.y - p.y) / 35 + (WEIGHTS.evalUnreachableSteps || 0);
     }
 
     function evaluateSnapshot(snap, forIndex) {
@@ -3340,6 +3377,7 @@
         determinize,          // exposed for testing — samples one hidden-info completion
         rolloutStep,          // exposed for testing — mctsPick()'s per-step rollout policy
         evaluateSnapshot,     // Stage 2 state evaluator (search leaves)
+        homeCost,             // real walking cost home (formula input, bot-terms.js)
         scrollNeed,           // per-element 0..1: needs a scroll of this element (bot-effects.js choices)
         handValue,            // value of a player's held scrolls + per-element cover
         scrollPickScore,      // value of gaining one scroll now (bot-effects.js picks)

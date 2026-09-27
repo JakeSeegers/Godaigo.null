@@ -121,6 +121,17 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-27 (5): Water chains (owner's strategy)** Water touching wind (or water chained to it) copies free
+  movement and is much cheaper than wind; touching earth it becomes a wall; void cancels. bot-sim.js already modeled
+  this (chainedAbility / canMoveTo); new: waterChainResult / waterChainsToWind / isFreeStone. Gaps fixed: (1) bot-state.js
+  tactical candidates never offered water (outside Burning Motivation): now offered where it would chain (wind or earth);
+  (2) bot.js tacticalPlaceBonus treated water on its own path as a slow wall: chained-to-wind water now scores new weight
+  placeWaterChain (12, like placeWindPath), chained-to-earth water blocks like earth; (3) blockedSig (search field cache
+  key) held only blocked hexes, so paving (wind or chained water) never reached the search's home / explore distances
+  until the next real turn: it now includes each stone hex's cost class. Formula inputs: homeCost, freeStones,
+  freeWater, freeNearHome, adjacent(a,b), stonesOf, myPool, oppNeeds, commonFor. Formula Lab starter ideas replaced
+  (road home, water chains, scarcity, threat). Tested: chain rules on hand-built boards (wind, earth, both, void on
+  either, 2- and 3-long chains, broken chain); 4 games: water chains offered 2021x, placed 25 (18 chained to wind).
 - **2026-09-27 (4): Formula terms + Formula Lab (Option C)** (owner). js/bot-terms.js: bots can carry extra "senses" as
   safe formulas (WEIGHTS.terms), scored at the end of evaluateSnapshot (search). bot-arena.js mutate/crossover carry and
   nudge terms; opts.termMutations (hillClimb, evolve) also adds / removes / changes formulas. js/formula-lab.js: hermit

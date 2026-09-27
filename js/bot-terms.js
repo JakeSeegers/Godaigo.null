@@ -69,8 +69,35 @@
             fn: (s) => Object.values(s.sourcePool || {}).reduce((a, n) => a + (n || 0), 0) },
         players:         { label: 'number of players',
             fn: (s) => s.players.filter(Boolean).length },
+        // Roads (2026-09-27): wind is free to walk on, and water touching wind
+        // (or touching water that does) copies it, much cheaper than wind.
+        homeCost:        { label: 'real walking cost from my pawn to my home (steps; a free hex counts 0.5, walls go around)',
+            fn: (s, i) => window.BotSystem?.homeCost ? window.BotSystem.homeCost(s, i) : 0 },
+        freeStones:      { label: 'free-to-walk stones on the board (wind, and water chained to wind)',
+            fn: (s) => s.stones.filter(st => window.BotSim?.isFreeStone?.(s, st)).length },
+        freeWater:       { label: 'water stones copying wind (free to walk on)',
+            fn: (s) => s.stones.filter(st => st.type === 'water' && window.BotSim?.isFreeStone?.(s, st)).length },
+        freeNearHome:    { label: 'free-to-walk stones within 3 steps of my home',
+            fn: (s, i) => { const h = s.tiles.find(t => t.isPlayerTile && t.playerIndex === i); if (!h) return 0;
+                return s.stones.filter(st => dist(st.x, st.y, h.x, h.y) <= 3.2 && window.BotSim?.isFreeStone?.(s, st)).length; } },
     };
     const INPUT_NAMES = Object.keys(INPUTS);
+
+    // Inputs that take element names: adjacent(water, wind), myPool(fire)...
+    const touching = (a, b) => { const d = Math.hypot(a.x - b.x, a.y - b.y); return d > 5 && d < 50; };
+    const PARAM_INPUTS = {
+        adjacent:   { args: 2, sig: 'adjacent(a, b)', label: 'stones of element a touching a stone of element b (whole board)',
+            fn: (s, i, a, b) => s.stones.filter(st => st.type === a && s.stones.some(o => o !== st && o.type === b && touching(st, o))).length },
+        stonesOf:   { args: 1, sig: 'stonesOf(el)', label: 'stones of that element on the board',
+            fn: (s, i, a) => s.stones.filter(st => st.type === a).length },
+        myPool:     { args: 1, sig: 'myPool(el)', label: 'stones of that element I hold',
+            fn: (s, i, a) => s.players[i].pool[a] || 0 },
+        oppNeeds:   { args: 1, sig: 'oppNeeds(el)', label: 'opponents who still need that element',
+            fn: (s, i, a) => s.players.filter((p, j) => p && j !== i && !p.activated.includes(a)).length },
+        commonFor:  { args: 1, sig: 'commonFor(el)', label: 'scrolls of that element in the common area',
+            fn: (s, i, a) => (s.commonArea || []).filter(n => window.SCROLL_DEFINITIONS?.[n]?.element === a).length },
+    };
+    const PARAM_NAMES = Object.keys(PARAM_INPUTS);
 
     const BINARY = {
         '+':  (a, b) => a + b,
@@ -121,6 +148,18 @@
             if (/^[A-Za-z_]/.test(t)) {
                 take();
                 if (INPUTS[t]) return ['in', t];
+                if (PARAM_INPUTS[t]) {
+                    const need = PARAM_INPUTS[t].args, els = [];
+                    take('(');
+                    for (let k = 0; k < need; k++) {
+                        if (k) take(',');
+                        const el = take();
+                        if (!ELEMENTS.includes(el)) throw new Error(`${t} needs an element (earth, water, fire, wind, void), not "${el ?? 'end'}"`);
+                        els.push(el);
+                    }
+                    take(')');
+                    return ['pin', t, ...els];
+                }
                 if (BINARY[t] && /^[a-z]/.test(t)) { take('('); const a = expr(); take(','); const b = expr(); take(')'); return [t, a, b]; }
                 if (t === 'abs') { take('('); const a = expr(); take(')'); return ['abs', a]; }
                 throw new Error(`unknown name "${t}"`);
@@ -133,8 +172,16 @@
         return tree;
     }
 
+    // A formula that reads no input is the same number everywhere, so it
+    // cannot change any choice: evolution drops those.
+    function hasInput(n) {
+        if (n[0] === 'in' || n[0] === 'pin') return true;
+        if (n[0] === 'n') return false;
+        return n.slice(1).some(hasInput);
+    }
+
     function countNodes(n) {
-        if (n[0] === 'n' || n[0] === 'in') return 1;
+        if (n[0] === 'n' || n[0] === 'in' || n[0] === 'pin') return 1;
         return 1 + n.slice(1).reduce((a, c) => a + countNodes(c), 0);
     }
 
@@ -144,6 +191,7 @@
         switch (n[0]) {
             case 'n':  return String(+n[1].toFixed(3));
             case 'in': return n[1];
+            case 'pin': return `${n[1]}(${n.slice(2).join(', ')})`;
             case 'neg': return '-' + toText(n[1], 3);
             case 'abs': return `abs(${toText(n[1])})`;
             default:
@@ -161,6 +209,7 @@
         switch (n[0]) {
             case 'n':  { const v = n[1]; return () => v; }
             case 'in': { const k = n[1]; return ctx => ctx.get(k); }
+            case 'pin': { const name = n[1], args = n.slice(2), k = `${name}(${args.join(',')})`; return ctx => ctx.getP(k, name, args); }
             case 'neg': { const a = compileTree(n[1]); return ctx => -a(ctx); }
             case 'abs': { const a = compileTree(n[1]); return ctx => Math.abs(a(ctx)); }
             default: {
@@ -190,6 +239,13 @@
                 if (k in memo) return memo[k];
                 let v = 0;
                 try { v = INPUTS[k].fn(snap, i); } catch (e) { v = 0; }
+                if (!Number.isFinite(v)) v = 0;
+                return (memo[k] = v);
+            },
+            getP(k, name, args) {
+                if (k in memo) return memo[k];
+                let v = 0;
+                try { v = PARAM_INPUTS[name].fn(snap, i, ...args); } catch (e) { v = 0; }
                 if (!Number.isFinite(v)) v = 0;
                 return (memo[k] = v);
             },
@@ -256,10 +312,12 @@
     // With opts.structural: sometimes add a random term, drop one, or
     // change one part of a formula (swap an input, an operator, a number).
     // ---------------------------------------------------------------
+    const pick = (arr, rng) => arr[Math.floor(rng() * arr.length)];
     function randomLeaf(rng) {
-        return rng() < 0.75
-            ? ['in', INPUT_NAMES[Math.floor(rng() * INPUT_NAMES.length)]]
-            : ['n', 1 + Math.floor(rng() * 10)];
+        const r = rng();
+        if (r < 0.55) return ['in', pick(INPUT_NAMES, rng)];
+        if (r < 0.75) { const name = pick(PARAM_NAMES, rng); return ['pin', name, ...Array.from({ length: PARAM_INPUTS[name].args }, () => pick(ELEMENTS, rng))]; }
+        return ['n', 1 + Math.floor(rng() * 10)];
     }
     function randomTree(rng, depth) {
         if (depth <= 0 || rng() < 0.3) return randomLeaf(rng);
@@ -268,7 +326,7 @@
     }
     function allNodes(n, out = []) {
         out.push(n);
-        if (n[0] !== 'n' && n[0] !== 'in') n.slice(1).forEach(c => allNodes(c, out));
+        if (n[0] !== 'n' && n[0] !== 'in' && n[0] !== 'pin') n.slice(1).forEach(c => allNodes(c, out));
         return out;
     }
     function tweakTree(tree, rng) {
@@ -276,6 +334,7 @@
         const nodes = allNodes(t);
         const n = nodes[Math.floor(rng() * nodes.length)];
         if (n[0] === 'in') n[1] = INPUT_NAMES[Math.floor(rng() * INPUT_NAMES.length)];
+        else if (n[0] === 'pin') n[2 + Math.floor(rng() * (n.length - 2))] = pick(ELEMENTS, rng);
         else if (n[0] === 'n') n[1] = Math.max(0, +(n[1] + (rng() - 0.5) * Math.max(2, n[1])).toFixed(2));
         else if (BINARY[n[0]]) { const ops = Object.keys(BINARY); n[0] = ops[Math.floor(rng() * ops.length)]; }
         else if (n[0] === 'neg' || n[0] === 'abs') n[0] = n[0] === 'neg' ? 'abs' : 'neg';
@@ -305,7 +364,7 @@
                 if (c.tree) out[k] = { ...out[k], text: toText(tweakTree(c.tree, rng)), src: 'evolved' };
             }
         }
-        out = out.filter(t => t && typeof t.text === 'string' && !compile(t.text).error);
+        out = out.filter(t => { if (!t || typeof t.text !== 'string') return false; const c = compile(t.text); return !c.error && hasInput(c.tree); });
         return out;
     }
 
@@ -325,7 +384,8 @@
 
     window.BotTerms = {
         INPUTS, MAX_TERMS, MAX_NODES,
-        inputList: () => INPUT_NAMES.map(k => ({ name: k, label: INPUTS[k].label })),
+        inputList: () => [...INPUT_NAMES.map(k => ({ name: k, label: INPUTS[k].label })),
+            ...PARAM_NAMES.map(k => ({ name: PARAM_INPUTS[k].sig, label: PARAM_INPUTS[k].label }))],
         parse, toText, compile, score, explain,
         parseLines, toLines,
         mutateTerms, crossTerms,
