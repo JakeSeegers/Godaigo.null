@@ -1406,6 +1406,26 @@
             }
             if (credit > 0) out.push({ name, def, credit });
         }
+        // Deadlock fix (2026-09-28): an element still needed with no scroll
+        // to build anywhere in reach (hand, active, common). A scroll-drawing
+        // spell is then worth building even though its own element is won:
+        // two bots with four elements each sat for 180 turns next to an
+        // Inspiring Draught in the common area that would have drawn them a
+        // fire scroll. The plan casts it when the pattern is done.
+        const need = ELEMENTS.filter(el => !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0);
+        const covered = new Set();
+        for (const o of out) {
+            if (o.def.element === 'catacomb') for (const c of (o.def.patterns[0] || [])) covered.add(c.type);
+            else covered.add(o.def.element);
+        }
+        if (need.some(el => !covered.has(el))) {
+            for (const name of sources) {
+                if (!DRAW_SCROLLS.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
+                if (drawOnCooldown(snap.turn.activePlayerIndex, name)) continue;
+                const def = window.SCROLL_DEFINITIONS?.[name];
+                if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: 1, tool: true });
+            }
+        }
         return out;
     }
 
@@ -2796,11 +2816,26 @@
         return { needScroll, blockedTiles, occupiers: [...occupiers] };
     }
     const DRAW_SCROLLS = new Set(['VOID_SCROLL_4', 'WATER_SCROLL_3', 'WATER_SCROLL_2']);
+    // Cooldown: the same scroll-drawing spell at most once per 3 own turns
+    // (one bot cast Scholar's Insight 696 times when the draws never helped).
+    const DRAW_COOLDOWN = 3;
+    function noteDrawCast(idx, scroll) {
+        if (!DRAW_SCROLLS.has(scroll)) return;
+        const m = mem(idx);
+        (m.drawCasts || (m.drawCasts = {}))[scroll] = m.ownTurns || 0;
+    }
+    function drawOnCooldown(idx, scroll) {
+        if (!DRAW_SCROLLS.has(scroll)) return false;
+        const m = mem(idx);
+        const t = m.drawCasts?.[scroll];
+        return t != null && (m.ownTurns || 0) - t < DRAW_COOLDOWN;
+    }
     function drawNotNeeded(snap, self, scroll) {
         if (!DRAW_SCROLLS.has(scroll)) return false;
         // Still wins its own element: casting it is progress anyway.
         const el = window.SCROLL_DEFINITIONS?.[scroll]?.element;
         if (el && !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0) return false;
+        if (drawOnCooldown(snap.turn.activePlayerIndex, scroll)) return true;
         const st = stuckTools(snap, self);
         return !!st && !st.needScroll;
     }
@@ -3290,6 +3325,7 @@
             if (r.ok) {
                 if (planAction.type === 'cast') {
                     trackCastCredit(idx, snap, planAction.scroll);
+                    noteDrawCast(idx, planAction.scroll);
                     _castsApplied++;
                     advanceCombo(idx, planAction);
                     m.plan = null; // plan fulfilled
@@ -3490,7 +3526,7 @@
             if (self) recordVisited(idx, self.x, self.y);
             recordVisited(idx, action.x, action.y);
         }
-        if (action.type === 'cast') { trackCastCredit(idx, snap, action.scroll); _castsApplied++; advanceCombo(idx, action); }
+        if (action.type === 'cast') { trackCastCredit(idx, snap, action.scroll); noteDrawCast(idx, action.scroll); _castsApplied++; advanceCombo(idx, action); }
         return action;
     }
 

@@ -8,7 +8,7 @@
       "changes": [
         "Stuck bots now reach for Scholar's Insight, Combust (on a blocked shrine they need) and Take Flight (to move a player off it).",
         "Bots also answer casts with level 1 scrolls lying in the common area when they need that element.",
-        "Bots now use scrolls for their abilities (teleports, tile moves) when it gets them closer to a shrine they need, and break stones blocking the shrines they need."
+        "Bots now use scrolls for their abilities (teleports, tile moves, drawing scrolls), break stones blocking shrines they need, and no longer freeze when their active area is full."
       ]
     },
     {

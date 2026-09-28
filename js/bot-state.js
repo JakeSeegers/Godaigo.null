@@ -769,7 +769,29 @@
                 // uses it instead of its own default rule (bot-effects.js).
                 window.BotEffects?.setPendingChoice?.(a.scroll, a.choice || null);
                 const scrolls = window.spellSystem.getPlayerScrolls(false);
-                if (scrolls.hand.has(a.scroll)) window.spellSystem.moveToActive(a.scroll);
+                if (scrolls.hand.has(a.scroll)) {
+                    // A full active area (2) blocks moving a hand scroll in, and
+                    // castSpell() only looks at active + common: the cast then
+                    // failed every turn (two 300-turn deadlocks, 2026-09-28).
+                    // Make room first: discard the least useful active scroll
+                    // to the common area (its element already won, else the
+                    // lowest level).
+                    const max = window.spellSystem.MAX_ACTIVE_SIZE ?? 2;
+                    if (scrolls.active.size >= max) {
+                        const won = scrolls.activated || new Set();
+                        const rank = n => {
+                            const d = window.SCROLL_DEFINITIONS?.[n];
+                            const el = d?.element;
+                            const dead = el && el !== 'catacomb' && won.has(el);
+                            return (dead ? 0 : 100) + (d?.level || 0);
+                        };
+                        const out = [...scrolls.active].filter(n => n !== a.scroll).sort((x, y) => rank(x) - rank(y))[0];
+                        if (out) window.spellSystem.discardScroll(out);
+                    }
+                    if (!window.spellSystem.moveToActive(a.scroll)) {
+                        return { ok: false, reason: `could not move ${a.scroll} to the active area` };
+                    }
+                }
                 const ok = window.spellSystem.castSpell();
                 // When several scrolls match at once castSpell() opens a
                 // "Select Scroll to Cast" popup instead of executing — pick
