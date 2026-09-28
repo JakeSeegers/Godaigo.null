@@ -131,7 +131,13 @@
     };
 
     // ---------------------------------------------------------------- threat
-    function tracker(snap, j) { return Math.min(5, snap.players[j]?.activated?.length || 0); }
+    // Elements won, weighted by how hard each is to activate (void most,
+    // earth least; bot.js ELEMENT_THREAT, owner 2026-09-28).
+    function tracker(snap, j) {
+        const els = snap.players[j]?.activated || [];
+        const tc = window.BotSystem?.threatCount;
+        return Math.min(5.5, tc ? tc(els) : els.length);
+    }
     function canWinNext(snap, j) {
         const p = snap.players[j];
         if (!p || p.activated.length < 5 || !window.BotSystem?.homeCost) return false;
@@ -296,7 +302,7 @@
     // Favor shifts it: players who helped me get pushed a bit less, players
     // who hurt me a bit more. Humans count half an element further ahead.
     // Cached per look at the board; returns null when the system is off.
-    const STAGE = { clear: 1.5, four: 2, five: 2.5, canWin: 4 };
+    const STAGE = { clear: 1.5, four: 2, five: 2.5, canWin: 4 };  // 'four' = push 2, now from 3 elements
 
     // "One cast from winning" (owner, 2026-09-28): from public information
     // only (elements won, the active area, the ELEMENT of each hand scroll,
@@ -351,13 +357,17 @@
         for (let j = 0; j < n; j++) if (j !== o && snap.players[j] && (leader < 0 || t[j] > t[leader])) leader = j;
         if (leader >= 0) {
             const others = t.filter((v, j) => j !== leader && snap.players[j]);
-            const clear = t[leader] >= Math.max(...others) + 1;
-            if (clear) {
+            // Engage early (owner, 2026-09-28): a clear leader is 0.75
+            // (weighted) ahead of everyone else, so one element always
+            // counts, from the first element on. Pacts and harm (push 2)
+            // start when the leader has 3 elements, not 4.
+            const lead = t[leader] - Math.max(...others);
+            if (lead >= 0.75) {
                 const acts = snap.players[leader].activated.length;
-                const lead = t[leader] - Math.max(...others);
-                const byCount = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four : STAGE.clear;
-                const byLead = lead >= 3 ? STAGE.five : lead >= 2 ? STAGE.four : STAGE.clear;
-                arr[leader] = Math.max(byCount, byLead);
+                const byCount = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four + 0.25 : acts >= 3 ? STAGE.four : STAGE.clear;
+                const byLead = lead >= 2.75 ? STAGE.five : lead >= 1.75 ? STAGE.four : STAGE.clear;
+                // A lead in hard elements (void, wind) weighs a bit more.
+                arr[leader] = Math.max(byCount, byLead) * Math.max(0.9, Math.min(1.15, tracker(snap, leader) / Math.max(1, acts)));
             }
         }
         for (let j = 0; j < n; j++) {

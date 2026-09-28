@@ -295,7 +295,7 @@ Order matters — later scripts depend on earlier ones.
                              on the active player (half if it mostly served the actor, extra for hostile scrolls).
                              Runs in the arena and on the online host, not in replays; resets per game. Bot Mind
                              shows "How it sees the others" (+ Push, coalition target). Loads right after action-log.js.
-                             Phase 2: pressures(o) (clear leader 1.5 / 4 el or 2+ ahead 2 / 5 el or 3+ ahead 2.5 / can win 4, x favor) weight
+                             Phase 2: pressures(o) (elements weighted by difficulty, void most; clear leader 1.5 / 3 el or 2+ ahead 2 / 5 el or 3+ ahead 2.5 / can win 4, x favor) weight
                              opponentProgress in evaluateSnapshot, tacticalContext blocking, Arson/Plunder targets;
                              bot.js kingmakerFilter never lets an opponent with 5 elements get within 5 AP of home.
                              Phase 3: emote sentences (say(): Game Log 'botTalk' line at once, emotes queued; online

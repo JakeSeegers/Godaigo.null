@@ -194,6 +194,15 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   (3 bots), 3/6 on and off (4 bots). Guard mode ran on about 30% of turns
   and fetched 8 times, but only 1 counter fired: a counter needs the scroll,
   2 kept AP AND the leader's cast to land on that exact turn.
+- Element difficulty and earlier engagement (owner, 2026-09-28). Void is the
+  hardest element to activate, then wind, fire, water, earth. Won elements
+  count void 1.15, wind 1.07, fire 1, water 0.93, earth 0.85 (bot.js
+  ELEMENT_THREAT) in the diplomacy tracker and in every bot's opponentProgress,
+  so void + wind + fire is a bit more dangerous than earth + water + fire.
+  A clear leader is now 0.75 (weighted) ahead of everyone else; push 2
+  (warnings, pacts) starts when the leader has 3 elements, not 4 (4 = 2.25);
+  a lead mostly in hard elements pushes up to x1.15. Harm (harmContext) now
+  starts at push 1.5, any clear leader, scaled by push.
   Next (owner): Mason's Savvy wall around the leader (preferred), then Heavy
   Stomp / Wandering River / Control the Current denial.
 

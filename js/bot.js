@@ -25,6 +25,13 @@
     function log(...args) { console.log('🤖 [Bot]', ...args); }
 
     const ELEMENTS = ['earth', 'water', 'fire', 'wind', 'void'];
+    // How much a won element counts toward a player's threat (owner,
+    // 2026-09-28): void is the hardest to activate, then wind, fire, water,
+    // earth. Averages 1, so five elements still count as five; the spread
+    // is small on purpose (void + wind + fire is less than half an element
+    // ahead of earth + water + fire).
+    const ELEMENT_THREAT = { void: 1.15, wind: 1.07, fire: 1, water: 0.93, earth: 0.85 };
+    const threatCount = els => (els || []).reduce((a, el) => a + (ELEMENT_THREAT[el] || 1), 0);
     const POOL_CAP = 5;
 
     // ----------------------------------------------------------------
@@ -2051,7 +2058,7 @@
     function opponentProgress(snap, oppIndex) {
         const opp = snap.players[oppIndex];
         if (!opp) return 0;
-        let v = opp.activated.length * WEIGHTS.evalActivated;
+        let v = threatCount(opp.activated) * WEIGHTS.evalActivated;
         if (ELEMENTS.every(el => opp.activated.includes(el))) {
             const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === oppIndex);
             if (home) {
@@ -2795,7 +2802,9 @@
         if (!lp) return null;
         let push = (D.pressures(ai) || [])[L] || 1;
         if (duel) push = Math.max(push, 2);
-        if (push < 2) return null;
+        // From any clear leader (push 1.5, owner 2026-09-28: engage early);
+        // every harm score is multiplied by push, so early harm stays small.
+        if (push < 1.5) return null;
         const need = ELEMENTS.filter(el => !lp.activated.includes(el));
         const seats = snap.players.filter(Boolean).length;
         const stones = new Set();
@@ -3934,6 +3943,7 @@
         _harmContext: harmContext, // tests
         _helpContext: helpContext, // tests
         // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.
+        ELEMENT_THREAT, threatCount,
         guardWanted: () => { try { return guardWanted(window.BotState.snapshot()); } catch (e) { return false; } },
         // bot-effects.js targets: { needScroll, blockedTiles, occupiers, stuck } for the active bot
         stuckTools: () => {
