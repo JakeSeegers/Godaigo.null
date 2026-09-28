@@ -39,6 +39,10 @@
         castStuckTool:     150,  // stuck (no progress for UNPRODUCTIVE_LIMIT turns): a scroll whose
                                  // effect fixes the problem, even if its element is won
                                  // (Scholar's Insight, Combust, Take Flight; see stuckTools)
+        castDrawNotNeeded: -60,  // a scroll-drawing spell (Scholar's Insight, Inspiring Draught,
+                                 // Refreshing Thought) while every needed element already has
+                                 // a scroll to build: one bot cast Scholar's Insight 184 times
+                                 // in a game, swapping scrolls instead of building (2026-09-28)
         castAlreadyWon:    -120, // element already activated — no win-condition value left;
                                  // without this the bot loops forever re-casting a satisfied
                                  // pattern instead of exploring for the elements it still needs
@@ -341,6 +345,11 @@
                                   // the whitelist-gated stand-in for effects the
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
+        evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
+                                  // of an element still needed, before all 5. Without it a
+                                  // teleport / tile move / road toward that shrine scored as
+                                  // "2 AP for nothing" (owner 2026-09-28: bots never cast
+                                  // Take Flight, Telekinesis, Shifting Sands for the ability)
         evalHomeDist:     -0.6,   // × px to own shrine once all 5 elements are activated
         evalUnreachableSteps: 12, // search leaves: an unreachable home / hidden tile counts as
                                   // this many extra steps (35px each) past the straight line
@@ -1049,6 +1058,7 @@
                 if (mem(snap.turn.activePlayerIndex).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap, self, a.scroll)) {
                     s += contrib('castStuckTool', 1);
                 }
+                if (drawNotNeeded(snap, self, a.scroll)) s += contrib('castDrawNotNeeded', 1);
                 if (mem(snap.turn.activePlayerIndex).noCreditScrolls.has(a.scroll)) {
                     s += contrib('castNoCredit', 1); // effect cancelled before - hard veto, don't recast
                 } else if (el && ELEMENTS.includes(el)) {
@@ -1803,6 +1813,27 @@
     // Dijkstra). Leaf evaluation uses it instead of euclidean distance,
     // which freezes the search in cul-de-sacs exactly like it froze the
     // greedy scorer.
+    // Goal field: cost to the nearest shrine centre forIndex still needs
+    // stones from (element not activated, source alive, pool not full; void
+    // always, its stones are AP), centre free of stones and other pawns.
+    function goalShrines(snap, forIndex) {
+        const p = snap.players[forIndex];
+        if (!p) return [];
+        return snap.tiles.filter(t => {
+            if (!t.revealed || t.isPlayerTile || !ELEMENTS.includes(t.shrineType)) return false;
+            const el = t.shrineType;
+            if ((p.pool[el] || 0) >= POOL_CAP || (snap.sourcePool[el] || 0) <= 0) return false;
+            if (p.activated.includes(el) && el !== 'void') return false;
+            if (snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5)) return false;
+            return !snap.players.some((q, j) => q && j !== forIndex && Math.hypot(q.x - t.x, q.y - t.y) < 5);
+        });
+    }
+    function buildGoalField(snap, forIndex) {
+        const ts = goalShrines(snap, forIndex);
+        if (!ts.length) return null;
+        return { dist: pathField(snap, ts.map(t => gridKey(t.x, t.y)), 0.5) };
+    }
+
     function buildExploreField(snap) {
         const hiddenIds = new Set(snap.tiles.filter(t => !t.revealed && !t.isPlayerTile).map(t => t.id));
         if (!hiddenIds.size) return null;
@@ -1865,9 +1896,11 @@
         if (!_fieldCtx) return undefined;
         // Tile layout too: Shifting Sands / Telekinesis move whole tiles.
         const tiles = snap.tiles.map(t => `${t.id}@${Math.round(t.x)},${Math.round(t.y)}${t.revealed ? 'r' : 'h'}`).join('|');
-        const key = `${kind}:${forIndex}:${blockedSig(snap)}#${tiles}`;
+        // The goal field also depends on which shrines are wanted and free.
+        const extra = kind === 'goal' ? '#' + goalShrines(snap, forIndex).map(t => t.id).join(',') : '';
+        const key = `${kind}:${forIndex}:${blockedSig(snap)}#${tiles}${extra}`;
         if (_fieldCtx.cache.has(key)) return _fieldCtx.cache.get(key);
-        const f = kind === 'home' ? buildHomeField(snap, forIndex) : buildExploreField(snap);
+        const f = kind === 'home' ? buildHomeField(snap, forIndex) : kind === 'goal' ? buildGoalField(snap, forIndex) : buildExploreField(snap);
         _fieldCtx.cache.set(key, f);
         return f;
     }
@@ -1882,7 +1915,9 @@
     // earth wall between the bot and its last shrine was never cleared and
     // the game stalled.
     // ----------------------------------------------------------------
-    function goalValue(snap, extraCost) {
+    // perGoal (optional Map): filled with each goal's own value, keyed by
+    // shrine id / 'home' / 'explore', so a break can be judged goal by goal.
+    function goalValue(snap, extraCost, perGoal) {
         const self = me(snap);
         if (!self) return 0;
         const costs = pathField(snap, [gridKey(self.x, self.y)], 0);
@@ -1894,10 +1929,13 @@
         if (ELEMENTS.every(el => self.activated.includes(el))) {
             const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === snap.turn.activePlayerIndex);
             if (home) best = Math.max(best, val(gridKey(home.x, home.y), WEIGHTS.moveReturnHome));
+            if (perGoal) perGoal.set('home', best);
             return best;
         }
         for (const t of collectibleShrines(snap)) {
-            best = Math.max(best, val(gridKey(t.x, t.y), WEIGHTS.moveShrineValue * shrineValue(snap, t.shrineType)));
+            const gv = val(gridKey(t.x, t.y), WEIGHTS.moveShrineValue * shrineValue(snap, t.shrineType));
+            if (perGoal) perGoal.set('shrine' + t.id, gv);
+            best = Math.max(best, gv);
         }
         const hiddenIds = new Set(snap.tiles.filter(t => !t.revealed && !t.isPlayerTile).map(t => t.id));
         if (hiddenIds.size) {
@@ -1907,7 +1945,11 @@
                 const c = costs.get(h.key);
                 if (c !== undefined && c < minC) minC = c;
             }
-            if (minC < Infinity) best = Math.max(best, WEIGHTS.moveExplorePath / (1 + minC + extraCost));
+            if (minC < Infinity) {
+                const gv = WEIGHTS.moveExplorePath / (1 + minC + extraCost);
+                if (perGoal) perGoal.set('explore', gv);
+                best = Math.max(best, gv);
+            }
         }
         return best;
     }
@@ -1925,9 +1967,23 @@
         const sigBefore = uctx.sigBefore ?? (uctx.sigBefore = blockedSig(snap));
         const removed = after.stones.length < snap.stones.length + (isBreak ? 0 : 1);
         if (!removed && blockedSig(after) === sigBefore) return 0;
-        if (uctx.before === null) uctx.before = goalValue(snap, 0);
+        if (uctx.before === null) { uctx.beforeGoals = new Map(); uctx.before = goalValue(snap, 0, uctx.beforeGoals); }
         // A break's AP is spent before the first step: count it as path cost.
-        const gain = goalValue(after, isBreak ? (a.cost || 0) : 0) - uctx.before;
+        // Judged goal by goal (2026-09-28): comparing only the single best
+        // goal made a break that opens a needed shrine worth 0 whenever some
+        // other goal (often a hidden tile the bot never actually reached)
+        // scored higher, and two bots circled a blocked void shrine for 240
+        // turns. Gain = the biggest improvement of any one goal, minus the
+        // biggest loss (a burnt road still counts against).
+        const afterGoals = new Map();
+        goalValue(after, isBreak ? (a.cost || 0) : 0, afterGoals);
+        let up = 0, down = 0;
+        for (const k of new Set([...uctx.beforeGoals.keys(), ...afterGoals.keys()])) {
+            const d = (afterGoals.get(k) || 0) - (uctx.beforeGoals.get(k) || 0);
+            if (d > up) up = d;
+            if (d < down) down = d;
+        }
+        const gain = up + down;
         // Negative too: breaking the void that holds an earth wall open (or
         // burning our own wind road) makes the way worse, and without the
         // penalty the bot looped "place void, break void" for the flat
@@ -2226,6 +2282,18 @@
                 if (d === null) d = Math.min(...hidden.map(t => Math.hypot(t.x - p.x, t.y - p.y)));
                 v += WEIGHTS.evalHiddenDist * d;
             }
+            // Next objective: the nearest needed shrine (search leaves only).
+            const gField = leafField(snap, 'goal', forIndex);
+            if (gField && gField.dist && WEIGHTS.evalGoalDist) {
+                let c = gField.dist.get(pk);
+                if (c === undefined) {
+                    for (const nb of gridInfo(snap).adj.get(pk) || []) {
+                        const dn = gField.dist.get(nb.key);
+                        if (dn !== undefined && (c === undefined || dn + 1 < c)) c = dn + 1;
+                    }
+                }
+                v += WEIGHTS.evalGoalDist * STEP_PX * Math.min(c === undefined ? 15 : c, 15);
+            }
         }
 
         // Opponent threat — zero-sum: their progress toward winning is danger
@@ -2374,8 +2442,12 @@
             return 0;
         };
         const help = me(snap0) ? helpContext(snap0, me(snap0)) : null;
-        const stuckRoot = (a) => (a.type === 'cast' && mem(meIdx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && me(snap0)
-            && stuckToolHelps(snap0, me(snap0), a.scroll)) ? WEIGHTS.castStuckTool : 0;
+        const stuckRoot = (a) => {
+            if (a.type !== 'cast' || !me(snap0)) return 0;
+            let v = (mem(meIdx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap0, me(snap0), a.scroll)) ? WEIGHTS.castStuckTool : 0;
+            if (drawNotNeeded(snap0, me(snap0), a.scroll)) v += WEIGHTS.castDrawNotNeeded;
+            return v;
+        };
         const helpRoot = (a) => {
             if (!help) return 0;
             if (a.type === 'discardScroll' && help.gift.has(scrollElement(a.scroll)) && window.SCROLL_DEFINITIONS?.[a.scroll]?.level > 1) return WEIGHTS.discardForAlly;
@@ -2722,6 +2794,15 @@
             snap.players.forEach((q, j) => { if (q && j !== ai && Math.hypot(q.x - t.x, q.y - t.y) < 5) occupiers.add(j); });
         }
         return { needScroll, blockedTiles, occupiers: [...occupiers] };
+    }
+    const DRAW_SCROLLS = new Set(['VOID_SCROLL_4', 'WATER_SCROLL_3', 'WATER_SCROLL_2']);
+    function drawNotNeeded(snap, self, scroll) {
+        if (!DRAW_SCROLLS.has(scroll)) return false;
+        // Still wins its own element: casting it is progress anyway.
+        const el = window.SCROLL_DEFINITIONS?.[scroll]?.element;
+        if (el && !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0) return false;
+        const st = stuckTools(snap, self);
+        return !!st && !st.needScroll;
     }
     function stuckToolHelps(snap, self, scroll) {
         const st = stuckTools(snap, self);
