@@ -222,7 +222,7 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   says what a bot just did as an emote sentence + Game Log line: break
   (leader's new stones), camp (holds a shrine the target needs), gift, road,
   fetch (looks for a counter), watch (guard mode), counter (bot-effects.js
-  response), idea (stuck tool), home (runs home with all five). Called from
+  response), idea (stuck tool), home (runs home with all five), think / playout (Calculating / Counting emote, no log line, once every 2 rounds, from bot.js signalBrainMode when look-ahead or playouts decide). Camp = open hand + book + target, gift = gift + book + the partner who needs it. Called from
   bot.js `announceIntent` after each applied action. Once a round per
   intention and target; home once a game; watch once per target stage.
   Emotes (js/emoji-system.js): pinned to the board (an invisible marker rect

@@ -671,14 +671,18 @@
     // number of elements the target has.
     const INTENT = {
         break:   { sp: [70, 40],     text: '{o} breaks the new stones of {t}' },
-        camp:    { sp: [87, 45],     text: '{o} holds a shrine that {t} needs' },
-        gift:    { sp: [76, 12],     text: '{o} leaves a scroll for its partners' },
+        camp:    { sp: [87, 68],     text: '{o} holds a shrine that {t} needs' },
+        gift:    { sp: [76, 68],     text: '{o} leaves a scroll for {t}' },
         road:    { sp: [57, 88],     text: '{o} lays a wind road for a partner' },
         fetch:   { sp: [68, 15],     text: '{o} looks for a counter to {t}' },
         watch:   { sp: [24, 31],     text: '{o} watches the next cast of {t}' },
         counter: { sp: [43],         text: '{o} counters {t}' },
         idea:    { sp: [16],         text: '{o} has an idea' },
         home:    { sp: [77, 88],     text: '{o} runs for home' },
+        // Look-ahead (Calculating) and playouts (Counting): emote only, no
+        // Game Log line, at most once every 2 rounds.
+        think:   { sp: [51],         text: null, rounds: 2 },
+        playout: { sp: [50],         text: null, rounds: 2 },
     };
     function intend(o, kind, t) {
         const I = INTENT[kind];
@@ -691,11 +695,11 @@
         const last = S.intents[key];
         if (last != null) {
             if (kind === 'home' || kind === 'watch') return;
-            if (last > S.turns - (S.seats || 1)) return;
+            if (last > S.turns - (I.rounds || 1) * (S.seats || 1)) return;
         }
         S.intents[key] = S.turns;
         const sprites = t != null ? [...I.sp, symbolOf(t, null)] : I.sp.slice();
-        const text = I.text.replace('{o}', `{p${o}}`).replace('{t}', t != null ? `{p${t}}` : 'someone');
+        const text = I.text ? I.text.replace('{o}', `{p${o}}`).replace('{t}', t != null ? `{p${t}}` : 'someone') : null;
         say(o, sprites, text);
     }
 

@@ -1309,6 +1309,9 @@
     // BRAIN_SIGNAL_ENABLED = true to show the emoji again.
     const BRAIN_SIGNAL_ENABLED = false;
     function signalBrainMode(playerIndex, mode) {
+        // Pixel emote instead (owner, 2026-09-28): Calculating for look-ahead,
+        // Counting for playouts (BotDiplomacy.intend, rate-limited).
+        try { window.BotDiplomacy?.intend?.(playerIndex, mode === 'mcts' ? 'playout' : 'think', null); } catch (e) {}
         if (!BRAIN_SIGNAL_ENABLED) return;
         const es = window.emojiSystem;
         if (!es || typeof es.showEmojiOverPawn !== 'function') return;
@@ -2972,7 +2975,13 @@
                 if (h?.campHere) D.intend(idx, 'camp', h.L);
             } else if (action.type === 'discardScroll') {
                 const hp = helpContext(snap, self);
-                if (hp?.gift.has(scrollElement(action.scroll)) && window.SCROLL_DEFINITIONS?.[action.scroll]?.level > 1) D.intend(idx, 'gift', null);
+                const el = scrollElement(action.scroll);
+                if (hp?.gift.has(el) && window.SCROLL_DEFINITIONS?.[action.scroll]?.level > 1) {
+                    // The partner who still needs that element.
+                    const P = D.pact?.();
+                    const to = (P?.members || []).find(m => m !== idx && snap.players[m] && !snap.players[m].activated.includes(el));
+                    D.intend(idx, 'gift', to ?? null);
+                }
             } else if (action.type === 'placeStone' && action.stoneType === 'wind') {
                 const hp = helpContext(snap, self);
                 if (hp?.road.has(hexKey(action.x, action.y))) D.intend(idx, 'road', null);
