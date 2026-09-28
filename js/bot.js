@@ -142,6 +142,9 @@
                                   // else to prefer one over the other); weighted by
                                   // recency so undoing your immediately previous move is
                                   // penalized far more than a revisit from several steps back
+        moveStrandOnStone: -80,  // a step that lands on a stone with no AP left to step off:
+                                 // the pawn is stranded there (9% of training turn ends,
+                                 // owner report 2026-09-28)
         moveFixation:      150,  // ÷ (1 + remaining path cost) when the step is the first hop
                                  // toward a findFixationTarget() hex — a REVEALED tile
                                  // elsewhere on the board where an uncast-element pattern is
@@ -1149,6 +1152,9 @@
                     }
                 }
                 let harm = 0;
+                if (snap.turn.ap - (a.cost || 0) < 1 && snap.stones.some(q => Math.hypot(q.x - a.x, q.y - a.y) < 5)) {
+                    harm += contrib('moveStrandOnStone', 1);
+                }
                 if (ctx.responseReady) harm += contrib('leaveResponseReady', 1);
                 if (firstHop(ctx.blockedShrinePath, a)) {
                     harm += contrib('moveBlockedShrine', WEIGHTS.moveShrineValue * ctx.blockedShrineValue);
@@ -2481,6 +2487,9 @@
             const line = [];
             let v = value(c.s1, depth - 1, line) + harmRoot(c.a) + helpRoot(c.a) + stuckRoot(c.a);
             if (c.a.type === 'move') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.moveRevisitPenalty);
+            if (c.a.type === 'move' && snap0.turn.ap - (c.a.cost || 0) < 1 && snap0.stones.some(q => Math.hypot(q.x - c.a.x, q.y - c.a.y) < 5)) {
+                v += WEIGHTS.moveStrandOnStone; // stranded on a stone (see scoreAction)
+            }
             if (c.a.type === 'teleport') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.teleportRevisitPenalty);
             if (c.a.type === 'breakStone' || c.a.type === 'placeStone') v += unblockBonus(c.a, snap0, uctx);
             if (c.a.type === 'cast') v += comboBonus(c.a, snap0);
@@ -2758,10 +2767,15 @@
         const D = window.BotDiplomacy;
         if (!D?.enabled?.() || !D.coalitionTarget || !D.recentStones) return null;
         const ai = snap.turn.activePlayerIndex;
-        const L = D.coalitionTarget(ai);
+        // Two players (owner, 2026-09-28): the only opponent is always the
+        // one to harm, at push 2 or more, not just when it clearly leads.
+        const live = snap.players.map((q, j) => q ? j : -1).filter(j => j >= 0);
+        const duel = live.length === 2;
+        const L = duel ? live.find(j => j !== ai) : D.coalitionTarget(ai);
         const lp = L != null ? snap.players[L] : null;
         if (!lp) return null;
-        const push = (D.pressures(ai) || [])[L] || 1;
+        let push = (D.pressures(ai) || [])[L] || 1;
+        if (duel) push = Math.max(push, 2);
         if (push < 2) return null;
         const need = ELEMENTS.filter(el => !lp.activated.includes(el));
         const seats = snap.players.filter(Boolean).length;
@@ -3313,7 +3327,14 @@
             m.plan = makePlan(snap);
             if (m.plan) log(`New plan: build ${m.plan.scroll} anchored at hex (${m.plan.anchor.q},${m.plan.anchor.r})`);
         }
-        const planAction = m.plan ? planNextAction(snap) : null;
+        let planAction = m.plan ? planNextAction(snap) : null;
+        // A plan step that ends on a stone with no AP left strands the pawn
+        // there (moveStrandOnStone): let normal scoring pick instead.
+        if (planAction && planAction.type === 'move' && snap.turn.ap - (planAction.cost || 0) < 1 &&
+            snap.stones.some(q => Math.hypot(q.x - planAction.x, q.y - planAction.y) < 5)) {
+            log('Plan step would strand the pawn on a stone - scoring instead');
+            planAction = null;
+        }
         if (planAction) {
             const label = planAction.type === 'cast' ? `cast ${planAction.scroll}`
                         : planAction.type === 'placeStone' ? `place ${planAction.stoneType} for ${planAction.scroll}`

@@ -4265,6 +4265,41 @@ document.getElementById('undo-move').onclick = function() {
         // applied/submitted/rewarded if it's a better GENERALIST, not just a
         // better duelist. Keeps the reliable 2-player trainer while making
         // sure what ships to the shared champion holds up at big tables too.
+        // ─── Bot talk during training (alliances, owner 2026-09-28) ────────
+        // Every sentence the bots say in a training run (bot-diplomacy.js
+        // onTalk, shown or not), newest first, for the popup's list.
+        // {pN} becomes the seat's colour name, coloured.
+        const trainTalk = [];
+        let trainTalkHooked = false;
+        function hookTrainTalk() {
+            if (trainTalkHooked || !window.BotDiplomacy?.onTalk) return;
+            trainTalkHooked = true;
+            window.BotDiplomacy.onTalk(({ text }) => {
+                if (!window.BotArena?.isRunning?.()) return;
+                const html = String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+                    .replace(/\{p(\d+)\}/g, (m, n) => {
+                        const i = Number(n);
+                        const name = typeof getPlayerColorName === 'function' ? getPlayerColorName(i) : `Player ${i + 1}`;
+                        const hex = (typeof playerPositions !== 'undefined' && playerPositions[i]?.color) || '#ddd';
+                        return `<span style="color:${hex};font-style:normal;font-weight:600;">${name}</span>`;
+                    });
+                trainTalk.unshift(html);
+                if (trainTalk.length > 6) trainTalk.pop();
+            });
+        }
+        function startTrainTalk(show) {
+            hookTrainTalk();
+            trainTalk.length = 0;
+            window.BotDiplomacy?.setTalkInTraining?.(show !== false);
+        }
+        function renderTrainingTalk(el) {
+            const box = el.querySelector('#bt-popup-talk');
+            const label = el.querySelector('#bt-popup-talk-label');
+            if (!box || !label) return;
+            label.style.display = trainTalk.length ? 'block' : 'none';
+            box.innerHTML = trainTalk.map(h => `<div>${h}</div>`).join('');
+        }
+
         // ─── Saved training runs (owner request 2026-09-27) ───────────────
         // A Hill Climb run saves itself after every challenger series and
         // every Explore generation (localStorage, this browser only), so it
@@ -4785,6 +4820,8 @@ document.getElementById('undo-move').onclick = function() {
                         <div style="color:#b8c6d2;margin-bottom:6px;">Bots can invent new things to notice about the board. One is kept only if its bot beats the champion. <span style="color:#8a9aa8;">[ ] = only when true.</span></div>
                         <div id="bt-popup-formulas-list"></div>
                     </div>
+                    <div id="bt-popup-talk-label" style="font-size:12px;font-weight:600;color:#bbb;margin-bottom:3px;display:none;">What the bots said</div>
+                    <div id="bt-popup-talk" style="font-size:12px;color:#ccc;line-height:1.5;margin-bottom:10px;font-style:italic;"></div>
                     <div id="bt-popup-events-label" style="font-size:12px;font-weight:600;color:#bbb;margin-bottom:3px;display:none;">What happened</div>
                     <div id="bt-popup-events" style="font-size:12px;color:#ccc;line-height:1.5;margin-bottom:10px;"></div>
 
@@ -4963,6 +5000,7 @@ document.getElementById('undo-move').onclick = function() {
                     ? ` · about ${fmtPopupTime(elapsedS / p.gamesDone * (p.totalGames - p.gamesDone))} left` : '');
             el.querySelector('#bt-popup-summary').textContent = summaryLine || '';
             renderTrainingStats(el, p);
+            renderTrainingTalk(el);
             // Nothing left to "skip ahead to" once already confirming —
             // and breeding has no confirmation phase to jump to at all, so
             // End Early there just means "stop generating more generations
@@ -5896,7 +5934,7 @@ document.getElementById('undo-move').onclick = function() {
         (function initBotTrainingPanel() {
             let clickCount = 0;
             let clickTimer = null;
-            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, _public: false };
+            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, talk: true, _public: false };
 
             // Weight groupings mirror the section comments in bot.js's
             // DEFAULT_WEIGHTS — used purely for the drill-down diagram, so
@@ -6134,6 +6172,14 @@ document.getElementById('undo-move').onclick = function() {
                     { value: true, text: `Invent (+${FORMULA_BONUS_GOLD} gold)`, title: `Challengers may also invent new senses: small formulas built from board facts, like "the cost of my road home" or "water touching wind". Most will not help; the few that do win their way in. +${FORMULA_BONUS_GOLD} gold when the whole run finishes, and +${FORMULA_DISCOVERY_GOLD} more if the new champion keeps a formula it invented.` },
                 ], () => state.formulas, (v) => { state.formulas = v; },
                     'The bot judges a position with a list of things it notices, each with a weight. Normal training only changes the weights. With Invent, a challenger can also add, drop or change a formula, a new thing to notice. It still has to beat the champion to count. Hill Climb only.');
+
+                // Bot talk (alliances emotes) during fast training too, and
+                // the training window's "What the bots said" list either way.
+                makeChoiceRow('Bot talk:', [
+                    { value: true, text: 'Show', title: 'Bots show their emote sentences over their pawns even at Extreme speed.' },
+                    { value: false, text: 'Hide', title: 'No emotes over the pawns at Extreme speed (a little faster). The training window still lists what they said.' },
+                ], () => state.talk, (v) => { state.talk = v; window.BotDiplomacy?.setTalkInTraining?.(v); },
+                    'Bots warn each other, make pacts and hold grudges with emotes. Watchable speed always shows them. Show also keeps them on at Extreme speed; the training window lists what was said either way.');
 
                 const progressText = document.createElement('div');
                 progressText.style.cssText = 'font-size:11px;color:#aaa;white-space:pre-line;display:none;';
@@ -6410,6 +6456,7 @@ document.getElementById('undo-move').onclick = function() {
                     startBtn.textContent = 'Training…';
                     resetInsights();
                     renderRoster();
+                    startTrainTalk(state.talk);
                     // Public mode: collapse to the corner progress popup right
                     // away — the modal's own body has nothing extra to show for
                     // a hill-climb run (the roster is evolve-only). Re-arm the

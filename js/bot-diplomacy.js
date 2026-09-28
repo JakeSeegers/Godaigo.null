@@ -365,9 +365,17 @@
     // Emotes only show where someone watches: online, spectated or visual
     // arena games. Muted training keeps the pacts but skips the talking.
     let talkAlways = false; // tests
+    // Fast (muted) training: emotes show when talkInTraining is on (Train
+    // Bot option "Bot talk", owner 2026-09-28; on by default).
+    let talkInTraining = true;
     function visible() {
         if (talkAlways || !arenaRunning()) return true;
-        return !!(window.BotArena?.isSpectating?.() || (window.BotSystem?.speedScale ?? 0) >= 1);
+        return !!(window.BotArena?.isSpectating?.() || (window.BotSystem?.speedScale ?? 0) >= 1 || talkInTraining);
+    }
+    // Every sentence, shown or not: {o, text} (the training window's list).
+    const talkListeners = [];
+    function tellListeners(o, text) {
+        for (const fn of talkListeners) { try { fn({ o, text }); } catch (e) {} }
     }
     const queue = [];
     let speaking = false;
@@ -377,6 +385,7 @@
     // apart. A long backlog drops the oldest sentences so the table never
     // lags behind the game.
     function say(o, sprites, text) {
+        if (text) tellListeners(o, text);
         if (!visible() || !window.emojiSystem?.showEmojiOverPawn) return;
         if (text) window.ActionLog?.record?.('botTalk', { text }, o);
         queue.push({ o, sprites: sprites.map(pickOne), text });
@@ -476,7 +485,10 @@
             r.trust = clampT(r.trust + PACT.keptTrust + (P.committed.has(m) ? PACT.committedTrust : 0));
             r.favor += 0.05;
         }
-        if (kept.length >= 2 && visible()) window.ActionLog?.record?.('botTalk', { text: `The pact against {p${P.target}} ends` }, kept[0]);
+        if (kept.length >= 2) {
+            tellListeners(kept[0], `The pact against {p${P.target}} ends`);
+            if (visible()) window.ActionLog?.record?.('botTalk', { text: `The pact against {p${P.target}} ends` }, kept[0]);
+        }
         S.pact = null;
         S.lastPactTurn = S.turns; // the next offer waits two rounds from here
         S.press = {};
@@ -540,6 +552,9 @@
         // Stones player j placed in the last `turns` turns: [{x, y, type, turn}].
         recentStones: (j, turns) => (S.placed[j] || []).filter(r => S.turns - r.turn <= turns),
         setTalkAlways: on => { talkAlways = !!on; },
+        setTalkInTraining: on => { talkInTraining = !!on; },
+        talkInTraining: () => talkInTraining,
+        onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },
         pact: () => S.pact ? { target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft } : null,
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },
     };
