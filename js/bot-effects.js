@@ -801,6 +801,9 @@
 
         if (choice) {
             log(`Player ${responderIndex}: responding with ${choice.name}`);
+            if (choice.name === 'VOID_SCROLL_1' || choice.name === 'EARTH_SCROLL_1') {
+                try { window.BotDiplomacy?.intend?.(responderIndex, 'counter', casterIndex); } catch (e) {}
+            }
             rw.playerResponds(choice, responderIndex);
         } else {
             log(`Player ${responderIndex}: passing (nothing worth playing)`);

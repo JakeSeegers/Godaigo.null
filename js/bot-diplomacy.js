@@ -39,7 +39,7 @@
     let S = fresh();
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
-                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, spoke: {}, thanked: {}, placed: {} };
+                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, intents: {}, spoke: {}, thanked: {}, placed: {} };
     }
     function reset() { S = fresh(); }
 
@@ -483,7 +483,8 @@
         speaking = true;
         // One float with the whole sentence side by side (emoji-system.js
         // takes an array of sprites and pops them in one after another).
-        const sprite = item.sprites.length === 1 ? item.sprites[0] : item.sprites;
+        // Always a list, so a new sentence replaces the last one (emoji-system.js).
+        const sprite = item.sprites;
         if (gameActive()) {
             window.emojiSystem.showEmojiOverPawn(item.o, '', false, sprite);
             const payload = { playerIndex: item.o, display: '', isText: false, sprite };
@@ -663,6 +664,41 @@
         S.thanked[key] = S.turns;
     }
 
+    // Intentions (owner, 2026-09-28): short emote sentences that show what a
+    // bot is doing to (or for) others. Called by bot.js announceIntent and
+    // bot-effects.js (counters). The same intention toward the same player
+    // is said at most once a round; 'home' once a game, 'watch' once per
+    // number of elements the target has.
+    const INTENT = {
+        break:   { sp: [70, 40],     text: '{o} breaks the new stones of {t}' },
+        camp:    { sp: [87, 45],     text: '{o} holds a shrine that {t} needs' },
+        gift:    { sp: [76, 12],     text: '{o} leaves a scroll for its partners' },
+        road:    { sp: [57, 88],     text: '{o} lays a wind road for a partner' },
+        fetch:   { sp: [68, 15],     text: '{o} looks for a counter to {t}' },
+        watch:   { sp: [24, 31],     text: '{o} watches the next cast of {t}' },
+        counter: { sp: [43],         text: '{o} counters {t}' },
+        idea:    { sp: [16],         text: '{o} has an idea' },
+        home:    { sp: [77, 88],     text: '{o} runs for home' },
+    };
+    function intend(o, kind, t) {
+        const I = INTENT[kind];
+        if (!I || !enabled()) return;
+        let stage = '';
+        if (kind === 'watch' && t != null) {
+            try { stage = window.BotState.snapshot().players[t]?.activated?.length ?? ''; } catch (e) {}
+        }
+        const key = `${o}:${kind}:${t ?? ''}:${stage}`;
+        const last = S.intents[key];
+        if (last != null) {
+            if (kind === 'home' || kind === 'watch') return;
+            if (last > S.turns - (S.seats || 1)) return;
+        }
+        S.intents[key] = S.turns;
+        const sprites = t != null ? [...I.sp, symbolOf(t, null)] : I.sp.slice();
+        const text = I.text.replace('{o}', `{p${o}}`).replace('{t}', t != null ? `{p${t}}` : 'someone');
+        say(o, sprites, text);
+    }
+
     // ---------------------------------------------------------------- api
     // How bot `o` sees every other player right now.
     function view(o) {
@@ -689,7 +725,7 @@
         recentStones: (j, turns) => (S.placed[j] || []).filter(r => S.turns - r.turn <= turns),
         setTalkAlways: on => { talkAlways = !!on; },
         oneCastFromWin: (j, snap) => { try { return oneCastFromWin(snap || window.BotState.snapshot(), j); } catch (e) { return false; } },
-        alertOn,
+        alertOn, intend,
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },

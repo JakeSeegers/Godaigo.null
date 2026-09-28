@@ -439,16 +439,83 @@
             el.className = 'emoji-float' + (isText ? ' emoji-float-text' : '');
             el.textContent = display;
         }
-        el.style.left = cx + 'px';
+        // Outline in the player's colour (pixel emotes: an edge that follows
+        // the sprite; text: the border).
+        const colour = typeof player.color === 'string' ? player.color : null;
+        if (colour) {
+            if (px) {
+                const d = (x, y) => `drop-shadow(${x}px ${y}px 0 ${colour})`;
+                el.style.filter = `${d(2, 0)} ${d(-2, 0)} ${d(0, 2)} ${d(0, -2)} drop-shadow(0 3px 6px rgba(0,0,0,0.55))`;
+            } else if (isText) el.style.borderColor = colour;
+        }
         // Pixel emotes (64 px tall): bottom edge just above the pawn, like a
         // speech bubble. Text emojis keep their old anchor at the pawn centre.
-        el.style.top  = (px ? rect.top - (list && list.length > 2 ? 48 : 64) - 4 : cy) + 'px';
+        const anchorY = px ? rect.top - 4 : cy;
+        el.style.left = '0px';
+        el.style.top = px ? `-${list && list.length > 2 ? 48 : 64}px` : '0px';
+        el.style.position = 'absolute';
+        // Pinned to the board (owner, 2026-09-28): the anchor is a point on
+        // the board (#viewport), mapped to the screen every frame, so the
+        // emote pans and zooms with the board and stays where it was said.
+        const holder = document.createElement('div');
+        holder.className = 'emoji-anchor';
+        holder.style.left = cx + 'px';
+        holder.style.top = anchorY + 'px';
+        holder.appendChild(el);
+        // The anchor is an invisible box in the board where the pawn stood;
+        // its on-screen box (getBoundingClientRect) includes every pan, zoom
+        // and board tilt.
+        let marker = null, w0 = rect.width || 1;
+        try {
+            const pe = player.element, parent = pe.parentNode;
+            const bb = pe.getBBox();
+            const tm = pe.transform?.baseVal?.consolidate?.()?.matrix;
+            const a = tm ? new DOMPoint(bb.x, bb.y).matrixTransform(tm) : { x: bb.x, y: bb.y };
+            const c = tm ? new DOMPoint(bb.x + bb.width, bb.y + bb.height).matrixTransform(tm) : { x: bb.x + bb.width, y: bb.y + bb.height };
+            marker = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            marker.setAttribute('x', Math.min(a.x, c.x));
+            marker.setAttribute('y', Math.min(a.y, c.y));
+            marker.setAttribute('width', Math.max(0.01, Math.abs(c.x - a.x)));
+            marker.setAttribute('height', Math.max(0.01, Math.abs(c.y - a.y)));
+            marker.setAttribute('fill', 'none');
+            marker.setAttribute('pointer-events', 'none');
+            marker.setAttribute('class', 'emoji-anchor-mark');
+            parent.appendChild(marker);
+            w0 = marker.getBoundingClientRect().width || w0;
+        } catch (e) { marker?.remove(); marker = null; }
+        if (marker) {
+            const born = performance.now();
+            const follow = () => {
+                if (!holder.isConnected || !marker.isConnected || performance.now() - born > 6000) { marker.remove(); return; }
+                const r = marker.getBoundingClientRect();
+                if (r.width || r.height) {
+                    const k = Math.max(0.4, Math.min(2, r.width / w0));
+                    holder.style.left = (r.left + r.width / 2) + 'px';
+                    holder.style.top = (px ? r.top - 4 * k : r.top + r.height / 2) + 'px';
+                    holder.style.transform = `scale(${k})`;
+                }
+                requestAnimationFrame(follow);
+            };
+            requestAnimationFrame(follow);
+        }
 
-        document.body.appendChild(el);
+        // A new bot sentence over the same pawn replaces the one before it
+        // (fades it out) so two sentences never mix into each other.
+        if (list) {
+            const prev = lastSentence[playerIndex];
+            if (prev && prev.isConnected) {
+                try { prev.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' }); } catch (e) {}
+                setTimeout(() => (prev.parentElement || prev).remove(), 260);
+            }
+            lastSentence[playerIndex] = el;
+        }
+
+        document.body.appendChild(holder);
 
         // Remove once CSS animation finishes (5.5 s to let fade complete)
-        setTimeout(() => el.remove(), 5500);
+        setTimeout(() => holder.remove(), 5500);
     }
+    const lastSentence = {};
 
     // ----------------------------------------------------------------
     // HELPERS

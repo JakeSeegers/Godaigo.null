@@ -218,6 +218,17 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   holds while every member still dislikes the target (favor <= -0.2);
   the target gets push 1.6 at least. Leader pacts go first. A friend of
   the proposer (liking >= 0.2) also joins a leader pact it had not chosen.
+- Intentions (owner, 2026-09-28): `BotDiplomacy.intend(o, kind, target)`
+  says what a bot just did as an emote sentence + Game Log line: break
+  (leader's new stones), camp (holds a shrine the target needs), gift, road,
+  fetch (looks for a counter), watch (guard mode), counter (bot-effects.js
+  response), idea (stuck tool), home (runs home with all five). Called from
+  bot.js `announceIntent` after each applied action. Once a round per
+  intention and target; home once a game; watch once per target stage.
+  Emotes (js/emoji-system.js): pinned to the board (an invisible marker rect
+  in the board where the pawn stood; the float follows its screen box each
+  frame, so pan, zoom and tilt all apply), outlined in the player's colour,
+  and a new bot sentence over the same pawn fades out the previous one.
   Next (owner): Mason's Savvy wall around the leader (preferred), then Heavy
   Stomp / Wandering River / Control the Current denial.
 

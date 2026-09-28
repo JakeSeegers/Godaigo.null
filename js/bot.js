@@ -2956,6 +2956,34 @@
     //  - road: hexes on the way home of a partner with all five -> wind
     //    there helps. kingmakerFilter still stops any action that brings
     //    them within 5 AP of home, so the help stays small.
+    // Intentions shown as bot emotes (owner, 2026-09-28): what a bot is up
+    // to, said once it has done it (BotDiplomacy.intend rate-limits them).
+    function announceIntent(snap, action, idx) {
+        const D = window.BotDiplomacy;
+        if (!D?.enabled?.() || !D.intend) return;
+        try {
+            const self = snap.players[idx];
+            if (!self) return;
+            if (action.type === 'breakStone') {
+                const h = harmContext(snap, self);
+                if (h && h.stones.has(hexKey(action.x, action.y))) D.intend(idx, 'break', h.L);
+            } else if (action.type === 'endTurn') {
+                const h = harmContext(snap, self);
+                if (h?.campHere) D.intend(idx, 'camp', h.L);
+            } else if (action.type === 'discardScroll') {
+                const hp = helpContext(snap, self);
+                if (hp?.gift.has(scrollElement(action.scroll)) && window.SCROLL_DEFINITIONS?.[action.scroll]?.level > 1) D.intend(idx, 'gift', null);
+            } else if (action.type === 'placeStone' && action.stoneType === 'wind') {
+                const hp = helpContext(snap, self);
+                if (hp?.road.has(hexKey(action.x, action.y))) D.intend(idx, 'road', null);
+            } else if (action.type === 'cast') {
+                if (GUARD_FETCH.has(action.scroll) && guardWanted(snap)) D.intend(idx, 'fetch', D.alertOn(idx, snap));
+                else if (mem(idx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap, self, action.scroll)) D.intend(idx, 'idea', null);
+            }
+            if (ELEMENTS.every(el => self.activated.includes(el))) D.intend(idx, 'home', null);
+            else if (guardWanted(snap)) D.intend(idx, 'watch', D.alertOn(idx, snap));
+        } catch (e) {}
+    }
     function helpContext(snap, self) {
         const D = window.BotDiplomacy;
         const P = D?.enabled?.() ? D.pact?.() : null;
@@ -3623,6 +3651,7 @@
 
         const res = window.BotState.applyAction(action);
         if (!res.ok) { log(`Action failed: ${res.reason}`); return null; }
+        announceIntent(snap, action, idx);
         // Episodic memory (js/bot-memory.js, optional — window.BotMemory may
         // not be loaded): record this decision if it swung the position
         // sharply, for MCTS's root to later seed as a prior in a similar

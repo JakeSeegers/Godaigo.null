@@ -3155,6 +3155,16 @@ svg {
 }
 
 /* ── Floating emoji animation ───────────────────────────────────── */
+/* Board-pinned anchor (js/emoji-system.js): a zero-size point that follows
+   the board's pan and zoom; the float inside is positioned from it. */
+.emoji-anchor {
+    position: fixed;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    z-index: 9999;
+    transform-origin: 0 0;
+}
 .emoji-float {
     position: fixed;
     font-size: 54px;
