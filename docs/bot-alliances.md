@@ -203,6 +203,21 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   (warnings, pacts) starts when the leader has 3 elements, not 4 (4 = 2.25);
   a lead mostly in hard elements pushes up to x1.15. Harm (harmContext) now
   starts at push 1.5, any clear leader, scaled by push.
+- Touchy bots and grudge pacts (owner, 2026-09-28: walls and denial tools
+  would add little; focus on how bots react to each other). New hurt parts in
+  `parts()`: `plan` (stones of the bot's own build plan, BotSystem.planOf),
+  `common` (common-area scrolls level 2+ for an element it needs) and `path`
+  (real path cost to its next wanted shrine, BotSystem.goalCost, measured
+  only at turn ends). Losses count extra (DISRUPT: plan, common, path x2,
+  ready, shrines x1.5). Favor now moves push more (1 - 0.6 favor, up to 1.7),
+  so a strong grudge alone reaches push 1.5 and harm starts. Grudge pact
+  (`proposeGrudge`, 3+ players): a bot with favor <= -0.25 toward someone
+  (-0.15 if it has a friend) asks the others for help against them at once,
+  leader or not (not against a player 1.5+ behind it; after a no, not about the same player for 2 rounds). Others join on
+  dislike of the target + 0.6 x liking of the proposer + 0.5 x threat. It
+  holds while every member still dislikes the target (favor <= -0.2);
+  the target gets push 1.6 at least. Leader pacts go first. A friend of
+  the proposer (liking >= 0.2) also joins a leader pact it had not chosen.
   Next (owner): Mason's Savvy wall around the leader (preferred), then Heavy
   Stomp / Wandering River / Control the Current denial.
 

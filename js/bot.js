@@ -2247,6 +2247,27 @@
     // (bot-terms.js homeCost). Uses the search's cached field when one is
     // live, else builds it. Unreachable = straight line + the unreachable
     // penalty, like evaluateSnapshot.
+    // Real path cost for player i to its nearest wanted shrine (goalShrines),
+    // capped at 20; bot-diplomacy.js blames a longer path on whoever made it
+    // (owner, 2026-09-28: bots are sensitive to disruption). null = no goal.
+    function goalCost(snap, i) {
+        const p = snap.players[i];
+        if (!p) return null;
+        let field = leafField(snap, 'goal', i);
+        if (field === undefined) field = buildGoalField(snap, i);
+        if (!field?.dist) return null;
+        const pk = `${Math.round(p.x)},${Math.round(p.y)}`;
+        let c = field.dist.get(pk);
+        if (c === undefined) {
+            let best = Infinity;
+            for (const nb of gridInfo(snap).adj.get(pk) || []) {
+                const dn = field.dist.get(nb.key);
+                if (dn !== undefined && dn < best) best = dn;
+            }
+            c = best < Infinity ? best + 1 : 20;
+        }
+        return Math.min(20, c);
+    }
     function homeCost(snap, i) {
         const p = snap.players[i];
         const home = p && snap.tiles.find(t => t.isPlayerTile && t.playerIndex === i);
@@ -3944,6 +3965,9 @@
         _helpContext: helpContext, // tests
         // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.
         ELEMENT_THREAT, threatCount,
+        goalCost,
+        // Bot i's current build plan (read-only view for bot-diplomacy.js).
+        planOf: i => { const pl = _mem[i]?.plan; return pl ? { scroll: pl.scroll, cells: pl.cells } : null; },
         guardWanted: () => { try { return guardWanted(window.BotState.snapshot()); } catch (e) { return false; } },
         // bot-effects.js targets: { needScroll, blockedTiles, occupiers, stuck } for the active bot
         stuckTools: () => {

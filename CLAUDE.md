@@ -299,7 +299,7 @@ Order matters — later scripts depend on earlier ones.
                              opponentProgress in evaluateSnapshot, tacticalContext blocking, Arson/Plunder targets;
                              bot.js kingmakerFilter never lets an opponent with 5 elements get within 5 AP of home.
                              Phase 3: emote sentences (say(): Game Log 'botTalk' line at once, emotes queued; online
-                             the emoji broadcast carries `talk`), one-round pacts against the leader, trust from
+                             the emoji broadcast carries `talk`), one-round pacts against the leader or (grudge pacts) against whoever hurt a bot, trust from
                              kept / withdrawn / broken pacts, thanks and grudges. Silent in muted training.
                              Pacts hold while the leader stays a danger. Harm (bot.js harmContext): break the
                              leader's fresh pattern stones (recentStones), camp scarce shrines it needs.

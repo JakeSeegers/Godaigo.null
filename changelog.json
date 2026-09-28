@@ -8,7 +8,7 @@
       "changes": [
         "Stuck bots now reach for Scholar's Insight, Combust (on a blocked shrine they need) and Take Flight (to move a player off it).",
         "Bots also answer casts with level 1 scrolls in the common area, and in 2 player games they now break your fresh pattern stones and guard shrines you need.",
-        "Bots gang up on a clear leader sooner (from 3 elements), count void and wind as harder to win, and guard against a winning cast with Iron Stance or Psychic.",
+        "Bots now hold grudges: break their plans or take the scroll they wanted and they ask others to team up against you. They also gang up on a leader sooner, and guard against a winning cast.",
         "Train Bot: see bot talk at any speed (new Bot talk option), and a list of what the bots said in the training window.",
         "Bots now use scrolls for their abilities (teleports, tile moves, drawing scrolls), break stones blocking shrines they need, no longer freeze when their active area is full, and rarely get stuck standing on a stone."
       ]

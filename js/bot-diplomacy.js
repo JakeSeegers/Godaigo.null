@@ -39,7 +39,7 @@
     let S = fresh();
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
-                 pact: null, lastPactTurn: -99, warned: {}, spoke: {}, thanked: {}, placed: {} };
+                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, spoke: {}, thanked: {}, placed: {} };
     }
     function reset() { S = fresh(); }
 
@@ -68,11 +68,33 @@
     // ---------------------------------------------------------------- my progress
     // Parts, so an event can say what changed. Points are on the bot's usual
     // scale (an activated element is about 200).
-    function parts(snap, o) {
+    // full: also measure the path to my next shrine (a path search, so only
+    // at turn ends; between them the last value is kept).
+    function parts(snap, o, full, prevPt) {
         const p = snap.players[o];
         if (!p) return null;
         const need = ELEMENTS4.filter(el => !p.activated.includes(el));
-        const out = { elements: 200 * p.activated.length, stones: 0, ready: 0, shrines: 0, supply: 0, road: 0 };
+        const out = { elements: 200 * p.activated.length, stones: 0, ready: 0, shrines: 0, supply: 0, road: 0, plan: 0, common: 0, path: 0 };
+        // Disruption (owner, 2026-09-28): the shape I am building, a common
+        // scroll I could use, and my path to the next shrine I need.
+        const plan = isBotSeat(o) ? window.BotSystem?.planOf?.(o) : null;
+        if (plan?.cells) {
+            for (const c of plan.cells) {
+                if ((snap.stones || []).some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5)) out.plan += 20;
+            }
+        }
+        let usable = 0;
+        for (const n of snap.commonArea || []) {
+            if (window.SCROLL_DEFINITIONS?.[n]?.level >= 2 && need.some(el => scrollCovers(n, el))) usable++;
+        }
+        out.common = 20 * Math.min(2, usable);
+        // Hidden flag (not summed): the path value is a real measurement, so
+        // the first one is never read as a sudden detour.
+        let pathOk = false;
+        if (full && window.BotSystem?.goalCost) {
+            try { const c = window.BotSystem.goalCost(snap, o); out.path = c == null ? 0 : -4 * c; pathOk = true; } catch (e) {}
+        } else if (prevPt) { out.path = prevPt.path || 0; pathOk = !!prevPt._pathOk; }
+        Object.defineProperty(out, '_pathOk', { value: pathOk, enumerable: false });
         for (const el of need) out.stones += 8 * Math.min(p.pool[el] || 0, 5);
         out.stones += 4 * Math.min(p.pool.void || 0, 3);
         // Scrolls I hold whose stone pattern is formed around me right now.
@@ -111,23 +133,28 @@
             let c = now[k] - (prev?.[k] || 0);
             if (k === 'elements') c = 0;
             if (k === 'stones' && c > 0) c = 0;
+            if (k === 'path' && !(now._pathOk && prev?._pathOk)) c = 0;
+            // Disruption hurts more than it measures (bots are touchy).
+            if (c < 0) c *= (DISRUPT[k] || 1);
             out[k] = c;
         }
         return out;
     }
+    const DISRUPT = { ready: 1.5, shrines: 1.5, plan: 2, common: 2, path: 2 };
     const sumParts = o => Object.values(o).reduce((a, b) => a + b, 0);
     // Which of my parts each hostile scroll can plausibly have hit.
     const HOSTILE_HITS = {
         FIRE_SCROLL_5: ['stones'],                              // Arson
         CATACOMB_SCROLL_8: ['ready'],                           // Plunder
-        EARTH_SCROLL_2: ['ready', 'road', 'shrines'],           // Shifting Sands
-        VOID_SCROLL_2: ['ready', 'road', 'shrines'],            // Telekinesis
-        WIND_SCROLL_4: ['ready', 'road', 'shrines'],            // Take Flight
-        CATACOMB_SCROLL_10: ['ready', 'road', 'shrines'],       // Combust
+        EARTH_SCROLL_2: ['ready', 'road', 'shrines', 'plan', 'path'],     // Shifting Sands
+        VOID_SCROLL_2: ['ready', 'road', 'shrines', 'plan', 'path'],      // Telekinesis
+        WIND_SCROLL_4: ['ready', 'road', 'shrines', 'path'],              // Take Flight
+        CATACOMB_SCROLL_10: ['ready', 'road', 'shrines', 'plan', 'path'], // Combust
     };
     const PART_WORDS = {
         elements: 'my elements', stones: 'stones I need', ready: 'a scroll pattern I had ready',
         shrines: 'a shrine I need', supply: 'the stone supply I need', road: 'my road home',
+        plan: 'the shape I was building', common: 'a common scroll I wanted', path: 'my path to a shrine',
     };
 
     // ---------------------------------------------------------------- threat
@@ -166,14 +193,15 @@
 
     // Look at the board: blame each bot's change since the last look on the
     // player whose turn it was.
-    function observe() {
+    function observe(full) {
         if (!enabled() || !window.BotState?.snapshot) return;
         let snap;
         try { snap = window.BotState.snapshot(); } catch (e) { return; }
         const n = snap.players.length;
         if (S.seats && S.seats !== n) reset();
         S.seats = n;
-        const now = snap.players.map((p, j) => (p ? parts(snap, j) : null));
+        const prevOk = S.prev && S.prev.length === n;
+        const now = snap.players.map((p, j) => (p ? parts(snap, j, full, prevOk ? S.prev[j] : null) : null));
         const actor = S.lastActive;
         if (S.prev && actor != null && S.prev.length === n) {
             const changes = now.map((pt, j) => (pt && S.prev[j]) ? blameable(pt, S.prev[j]) : null);
@@ -241,7 +269,7 @@
         // after its end-turn entry), except for entries logged AFTER their
         // effect (placeStone), which already belong to the new turn.
         else if (active != null && active !== S.lastActive && e.type !== 'endTurn') {
-            if (e.type !== 'placeStone') observe();
+            if (e.type !== 'placeStone') observe(true);
             turnChanged(active);
         }
         // Who placed which stone (public): bot.js breaks a leader's fresh
@@ -255,7 +283,7 @@
             const def = window.SCROLL_DEFINITIONS?.[e.scrollName];
             S.hostile = { actor: e.playerIndex ?? e.player, id: e.scrollName, name: def?.name || e.scrollName };
         }
-        observe();
+        observe(e.type === 'endTurn');
     }
     function hook() {
         if (!window.ActionLog?.onRecord) return false;
@@ -285,8 +313,8 @@
         const turn = (typeof currentTurnNumber !== 'undefined') ? currentTurnNumber : null;
         const active = (typeof activePlayerIndex !== 'undefined') ? activePlayerIndex : null;
         if (S.lastTurn != null && turn != null && turn < S.lastTurn) reset();
-        if (S.lastActive == null) { S.lastActive = active; observe(); }
-        else if (active !== S.lastActive) { observe(); turnChanged(active); }
+        if (S.lastActive == null) { S.lastActive = active; observe(true); }
+        else if (active !== S.lastActive) { observe(true); turnChanged(active); }
         S.lastTurn = turn;
     }, 200);
 
@@ -373,12 +401,14 @@
         for (let j = 0; j < n; j++) {
             if (j === o || !snap.players[j]) continue;
             const f = S.rel[o]?.[j]?.favor || 0;
-            arr[j] *= Math.max(0.6, Math.min(1.4, 1 - 0.4 * f));
+            // Touchy (owner, 2026-09-28): a grudge of about -0.85 alone
+            // reaches push 1.5, where harm actions start.
+            arr[j] *= Math.max(0.6, Math.min(1.7, 1 - 0.6 * f));
         }
         // A pact: push harder on its target, ease off fellow members.
         if (S.pact && S.pact.members.has(o)) {
             for (let j = 0; j < n; j++) {
-                if (j === S.pact.target) arr[j] *= 1.3;
+                if (j === S.pact.target) arr[j] = S.pact.kind === 'grudge' ? Math.max(arr[j] * 1.3, 1.6) : arr[j] * 1.3;
                 else if (S.pact.members.has(j)) arr[j] *= 0.7;
             }
         }
@@ -477,6 +507,7 @@
             // Members who no longer see the target as the leader step out.
             for (const m of [...P.members]) {
                 if (coalitionTarget(m) === P.target) continue;
+                if (P.kind === 'grudge' && relOf(m, P.target).favor < 0) continue;
                 P.members.delete(m);
                 for (const k of P.members) relOf(k, m).trust = clampT(relOf(k, m).trust + PACT.withdrawTrust);
                 say(m, [E.withdraw], `{p${m}} leaves the pact against {p${P.target}}`);
@@ -486,7 +517,9 @@
                 // Still a real threat to every member: the pact holds for
                 // another round instead of lapsing just as the leader runs
                 // home (owner's test game, 2026-09-27).
-                const holds = [...P.members].every(m => ((pressures(m) || [])[P.target] || 1) >= PACT.minPush);
+                const holds = P.kind === 'grudge'
+                    ? [...P.members].every(m => relOf(m, P.target).favor <= GRUDGE.hold)
+                    : [...P.members].every(m => ((pressures(m) || [])[P.target] || 1) >= PACT.minPush);
                 if (holds) P.turnsLeft = S.seats || seatCount();
                 else endPact();
             }
@@ -497,6 +530,7 @@
             let urgent = false;
             if (L != null) { try { urgent = window.BotState.snapshot().players[L]?.activated?.length >= 5; } catch (e) {} }
             if (urgent || S.turns - S.lastPactTurn >= PACT.gapTurns * (S.seats || 1)) propose(active);
+            if (!S.pact && S.turns - S.lastPactTurn >= GRUDGE.gapTurns * (S.seats || 1)) proposeGrudge(active);
         }
     }
     function clampT(v) { return Math.max(-1, Math.min(1, v)); }
@@ -522,13 +556,60 @@
         const members = new Set([o]);
         for (const b of others) {
             const r = relOf(b, o);
-            const ok = coalitionTarget(b) === L && (W.favor * r.favor + W.trust * r.trust) > -0.5;
+            const mine = W.favor * r.favor + W.trust * r.trust;
+            // A friend of the proposer (thanked them) joins even when it
+            // had not picked the same target yet, unless it likes the target.
+            const ok = (coalitionTarget(b) === L && mine > -0.5) || (mine >= GRUDGE.friend && relOf(b, L).favor < 0.3);
             if (ok) members.add(b);
             say(b, [ok ? E.accept : E.decline], `{p${b}} ${ok ? 'accepts' : 'declines'}`);
         }
         if (members.size < 2) return;
-        S.pact = { target: L, members, committed: new Set(), turnsLeft: n + 1 };
+        S.pact = { kind: 'leader', target: L, members, committed: new Set(), turnsLeft: n + 1 };
         S.press = {}; // pact changes pressures
+    }
+    // Grudge pacts (owner, 2026-09-28): bots are touchy. A bot that another
+    // player hurt (broke its shape, took the common scroll it wanted, blocked
+    // its path, cast a hostile scroll on it: favor at or under GRUDGE.bar)
+    // asks the others for help against that player at once, leader or not.
+    // Having a friend (someone it thanked, or who thanked it) makes it
+    // quicker to ask. Others join when they also dislike the target, like
+    // the proposer, or find the target a threat.
+    const GRUDGE = { bar: -0.25, friendBar: -0.15, friend: 0.2, accept: 0.05, hold: -0.2, gapTurns: 1, askAgain: 2 };
+    function proposeGrudge(o) {
+        let snap; try { snap = window.BotState.snapshot(); } catch (e) { return; }
+        const n = snap.players.length;
+        const live = snap.players.map((p, j) => p ? j : -1).filter(j => j >= 0);
+        if (live.length < 3) return;
+        const hasFriend = live.some(b => b !== o && isBotSeat(b) &&
+            (relOf(o, b).favor >= GRUDGE.friend || relOf(b, o).favor >= GRUDGE.friend));
+        const bar = hasFriend ? GRUDGE.friendBar : GRUDGE.bar;
+        let X = null;
+        for (const j of live) {
+            if (j === o) continue;
+            // Turned down about this player lately: do not ask again yet.
+            if ((S.asked[`${o}>${j}`] ?? -99) > S.turns - GRUDGE.askAgain * n) continue;
+            const f = relOf(o, j).favor;
+            if (f <= bar && (X == null || f < relOf(o, X).favor)) X = j;
+        }
+        if (X == null) return;
+        // Not against a player already well behind me.
+        if (tracker(snap, X) < tracker(snap, o) - 1.5) return;
+        const others = live.filter(b => b !== o && b !== X && isBotSeat(b));
+        if (!others.length) return;
+        S.lastPactTurn = S.turns;
+        S.asked[`${o}>${X}`] = S.turns;
+        say(o, [E.grudge, E.bread, E.question, symbolOf(X, null)], `{p${o}} was hurt by {p${X}} and asks for help against them`);
+        const members = new Set([o]);
+        for (const b of others) {
+            const fx = relOf(b, X).favor, r = relOf(b, o);
+            const score = -fx + 0.6 * (W.favor * r.favor + W.trust * r.trust) + 0.5 * (threatOf(snap, b, X) - 0.45);
+            const ok = score >= GRUDGE.accept && fx < 0.3;
+            if (ok) members.add(b);
+            say(b, [ok ? E.accept : E.decline], `{p${b}} ${ok ? 'accepts' : 'declines'}`);
+        }
+        if (members.size < 2) return;
+        S.pact = { kind: 'grudge', target: X, members, committed: new Set(), turnsLeft: n + 1 };
+        S.press = {};
     }
     function endPact() {
         const P = S.pact;
@@ -612,7 +693,7 @@
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },
-        pact: () => S.pact ? { target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft } : null,
+        pact: () => S.pact ? { kind: S.pact.kind, target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft } : null,
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },
     };
 })();
