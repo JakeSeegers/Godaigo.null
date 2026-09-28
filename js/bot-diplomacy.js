@@ -437,7 +437,13 @@
         leader: 79,                    // Crown
         colour: { green: 99, blue: 97, red: 96, yellow: 98, purple: 19 },
     };
-    const pickOne = a => (Array.isArray(a) ? a[Math.floor(Math.random() * a.length)] : a);
+    // Its own random numbers: the arena seeds Math.random, and talk must
+    // never change how a seeded game plays out (2026-09-28: new sentences
+    // shifted every later random pick, so the same seed played a new game).
+    const talkRandom = () => {
+        try { return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296; } catch (e) { return 0.5; }
+    };
+    const pickOne = a => (Array.isArray(a) ? a[Math.floor(talkRandom() * a.length)] : a);
     // Pawn colours are stored as hex codes (game-core.js PLAYER_COLORS).
     const HEX_TO_COLOUR = { '#69d83a': 'green', '#5894f4': 'blue', '#ed1b43': 'red', '#ffce00': 'yellow', '#9458f4': 'purple' };
     function symbolOf(j, leader) {
