@@ -545,7 +545,7 @@
                     streak.tileId = campTile ? campTile.id : null;
                     streak.count = campTile ? 1 : 0;
                 }
-                const campers = Object.keys(camp).filter(i => camp[i].count >= STALL_TURNS).map(Number);
+                const campers = Object.keys(camp).filter(i => camp[i].count >= (opts.stallCampTurns ?? STALL_TURNS)).map(Number); // opts.stallCampTurns: tests (Infinity = off)
                 if (campers.length >= STALL_MIN_BOTS) {
                     result.stalled = true;
                     result.stallReason = 'camping';

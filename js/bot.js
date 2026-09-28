@@ -36,6 +36,9 @@
         castBase:          100,  // any satisfied pattern is usually worth firing
         castUnactivated:    80,  // scroll element not yet activated (win progress!)
         castDeadElement:   -60,  // source pool empty → effect fires but NO win credit
+        castStuckTool:     150,  // stuck (no progress for UNPRODUCTIVE_LIMIT turns): a scroll whose
+                                 // effect fixes the problem, even if its element is won
+                                 // (Scholar's Insight, Combust, Take Flight; see stuckTools)
         castAlreadyWon:    -120, // element already activated — no win-condition value left;
                                  // without this the bot loops forever re-casting a satisfied
                                  // pattern instead of exploring for the elements it still needs
@@ -1043,6 +1046,9 @@
                 let s = contrib('castBase', 1) + contrib('castLevel', def?.level || 0);
                 if (a.choice) s += castChoiceBonus(a, snap);
                 s += comboBonus(a, snap);
+                if (mem(snap.turn.activePlayerIndex).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap, self, a.scroll)) {
+                    s += contrib('castStuckTool', 1);
+                }
                 if (mem(snap.turn.activePlayerIndex).noCreditScrolls.has(a.scroll)) {
                     s += contrib('castNoCredit', 1); // effect cancelled before - hard veto, don't recast
                 } else if (el && ELEMENTS.includes(el)) {
@@ -2368,6 +2374,8 @@
             return 0;
         };
         const help = me(snap0) ? helpContext(snap0, me(snap0)) : null;
+        const stuckRoot = (a) => (a.type === 'cast' && mem(meIdx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && me(snap0)
+            && stuckToolHelps(snap0, me(snap0), a.scroll)) ? WEIGHTS.castStuckTool : 0;
         const helpRoot = (a) => {
             if (!help) return 0;
             if (a.type === 'discardScroll' && help.gift.has(scrollElement(a.scroll)) && window.SCROLL_DEFINITIONS?.[a.scroll]?.level > 1) return WEIGHTS.discardForAlly;
@@ -2375,10 +2383,11 @@
             return 0;
         };
         if (harm) for (const c of scored) if (harmRoot(c.a) > 0 && !rootChildren.includes(c)) rootChildren.push(c);
+        for (const c of scored) if (stuckRoot(c.a) > 0 && !rootChildren.includes(c)) rootChildren.push(c);
         let best = null;
         for (const c of rootChildren) {
             const line = [];
-            let v = value(c.s1, depth - 1, line) + harmRoot(c.a) + helpRoot(c.a);
+            let v = value(c.s1, depth - 1, line) + harmRoot(c.a) + helpRoot(c.a) + stuckRoot(c.a);
             if (c.a.type === 'move') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.moveRevisitPenalty);
             if (c.a.type === 'teleport') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.teleportRevisitPenalty);
             if (c.a.type === 'breakStone' || c.a.type === 'placeStone') v += unblockBonus(c.a, snap0, uctx);
@@ -2683,6 +2692,46 @@
         return { L, push, stones, camps, campHere };
     }
 
+    // Stuck tools (owner, 2026-09-28): about 1 in 5 two-bot games deadlocked
+    // (no winner by turn 300 with the stall restarts off). What a stuck bot
+    // needs, and which scroll effects fix it:
+    //  - needScroll: an element it still needs has no scroll it could build
+    //    (hand, active, common) -> Scholar's Insight (VOID_SCROLL_4)
+    //  - blockedTiles: tile ids whose shrine it needs has a stone on the
+    //    centre and no free shrine of that element -> Combust (CATACOMB_10)
+    //  - occupiers: opponents standing on a shrine it needs, no free one of
+    //    that element -> Take Flight (WIND_SCROLL_4) on them
+    // Fire next to a blocked centre and breaking it are handled by the
+    // blocked-shrine walk + unblockBonus.
+    function stuckTools(snap, self) {
+        const ai = snap.turn.activePlayerIndex;
+        const need = ELEMENTS.filter(el => !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0);
+        if (!need.length) return null;
+        const covered = new Set();
+        for (const { def } of creditableSources(snap, self, mem(ai).noCreditScrolls)) {
+            if (def.element === 'catacomb') for (const c of (def.patterns[0] || [])) covered.add(c.type);
+            else covered.add(def.element);
+        }
+        const needScroll = need.some(el => !covered.has(el));
+        const wantStones = ELEMENTS.filter(el => (self.pool[el] || 0) < POOL_CAP && (need.includes(el) || covered.has(el)));
+        const free = new Set(collectibleShrines(snap).map(t => t.shrineType));
+        const blockedTiles = new Set(), occupiers = new Set();
+        for (const t of snap.tiles) {
+            if (!t.revealed || t.isPlayerTile || !wantStones.includes(t.shrineType) || free.has(t.shrineType)) continue;
+            if (snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5)) blockedTiles.add(t.id);
+            snap.players.forEach((q, j) => { if (q && j !== ai && Math.hypot(q.x - t.x, q.y - t.y) < 5) occupiers.add(j); });
+        }
+        return { needScroll, blockedTiles, occupiers: [...occupiers] };
+    }
+    function stuckToolHelps(snap, self, scroll) {
+        const st = stuckTools(snap, self);
+        if (!st) return false;
+        if (scroll === 'VOID_SCROLL_4') return st.needScroll;
+        if (scroll === 'CATACOMB_SCROLL_10') return st.blockedTiles.size > 0;
+        if (scroll === 'WIND_SCROLL_4') return st.occupiers.length > 0;
+        return false;
+    }
+
     // Alliances: help fellow pact members (owner's list, 2026-09-27).
     //  - gift: elements some partner still needs, that the pact's target
     //    already has (so it gains no win from the scroll) and I already have
@@ -2792,7 +2841,7 @@
         ctx.responseReady = false;
         try {
             const ai = snap.turn.activePlayerIndex;
-            for (const name of [...(self.hand || []), ...(self.active || [])]) {
+            for (const name of [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]) {
                 const def = window.SCROLL_DEFINITIONS?.[name];
                 if (!def || def.level !== 1 || !ELEMENTS.includes(def.element)) continue;
                 if (self.activated.includes(def.element) || (snap.sourcePool[def.element] || 0) <= 0) continue;
@@ -3681,6 +3730,14 @@
         DEFAULT_WEIGHTS,
         _harmContext: harmContext, // tests
         _helpContext: helpContext, // tests
+        // bot-effects.js targets: { needScroll, blockedTiles, occupiers, stuck } for the active bot
+        stuckTools: () => {
+            try {
+                const s = window.BotState.snapshot(); const p = s.players[s.turn.activePlayerIndex];
+                const st = p ? stuckTools(s, p) : null;
+                return st ? { ...st, stuck: mem(s.turn.activePlayerIndex).unproductiveStreak >= UNPRODUCTIVE_LIMIT } : null;
+            } catch (e) { return null; }
+        },
     };
 
     log('Loaded - Shift+R = one bot step, Shift+B = full bot turn');

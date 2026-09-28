@@ -220,6 +220,11 @@
     function driveScorchedEarth(se, sm) {
         const tiles = sm.eligibleTiles || [];
         if (!tiles.length) return false;
+        // A stuck bot casts Combust to clear a shrine it needs (bot.js
+        // stuckTools): burn that tile first.
+        const st = window.BotSystem?.stuckTools?.();
+        const clear = st?.blockedTiles ? tiles.find(t => st.blockedTiles.has(t.id)) : null;
+        if (clear) { sm.handleTileClick(clear); return true; }
         let best = tiles[0], bestCount = -1;
         for (const t of tiles) {
             const count = (typeof placedStones !== 'undefined' ? placedStones : [])
@@ -839,7 +844,14 @@
     function driveTakeFlightPlayerModal() {
         const modal = document.getElementById('take-flight-player-modal');
         if (!modal) return false;
-        const btn = [...modal.querySelectorAll('button')].find(b => b.textContent.includes('(you)'));
+        // A stuck bot casts Take Flight to move an opponent off a shrine it
+        // needs (bot.js stuckTools); otherwise it moves itself.
+        const st = window.BotSystem?.stuckTools?.();
+        const buttons = [...modal.querySelectorAll('button')];
+        const off = st?.stuck && st.occupiers?.length
+            ? buttons.find(b => b.dataset.playerIndex != null && st.occupiers.includes(Number(b.dataset.playerIndex)))
+            : null;
+        const btn = off || buttons.find(b => b.textContent.includes('(you)'));
         if (!btn) return false;
         btn.click();
         return true;

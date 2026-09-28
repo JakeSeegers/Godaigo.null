@@ -2030,7 +2030,8 @@
         // Level 1 (response) scrolls too, for an element still needed and
         // alive: a response activates its element (mirrors bot-state.js).
         const activeArea = p.active || [];
-        for (const name of pawnOnStone ? [] : [...hand, ...activeArea]) {
+        const commonL1 = (snap.commonArea || []).filter(n => window.SCROLL_DEFINITIONS?.[n]?.level === 1);
+        for (const name of pawnOnStone ? [] : new Set([...hand, ...activeArea, ...commonL1])) {
             const def = window.SCROLL_DEFINITIONS?.[name];
             if (!def || !Array.isArray(def.patterns)) continue;
             if (def.level === 1) {

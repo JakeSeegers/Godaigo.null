@@ -451,7 +451,12 @@
             const neededL1 = (def) => def.level === 1 && ELEMENT_TYPES_L1.includes(def.element)
                 && !myActivated.includes(def.element) && ((window.stonePools?.[def.element] ?? 0) > 0);
             const handNames = [...scrolls.hand];
-            for (const name of [...handNames, ...scrolls.active]) {
+            // A response can also be cast from the common area
+            // (response-window.js canPlayerRespond), so a needed level 1
+            // lying there counts too.
+            const commonL1 = (window.spellSystem.getCommonAreaScrolls?.() || [])
+                .filter(n => window.SCROLL_DEFINITIONS?.[n]?.level === 1);
+            for (const name of new Set([...handNames, ...scrolls.active, ...commonL1])) {
                 const def = window.SCROLL_DEFINITIONS?.[name];
                 if (!def || !Array.isArray(def.patterns)) continue;
                 if (def.level === 1 && !neededL1(def)) continue;

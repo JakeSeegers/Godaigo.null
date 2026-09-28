@@ -2,6 +2,15 @@
   "_readme": "Player-facing release notes, newest first, shown by the Change Log button in the lobby. Rules (full text: HOUSE RULES #2 in CLAUDE.md): at most ONE entry per day, id = date. If today's entry exists, rewrite it as one summary of the whole day; do not add a second entry. At most 5 lines per entry. Only list changes players will notice; group small fixes into one 'Small fixes and polish' line. Simple English, no file names, no em dashes.",
   "entries": [
     {
+      "id": "2026-09-28",
+      "date": "2026-09-28",
+      "title": "Bots get unstuck",
+      "changes": [
+        "Stuck bots now reach for Scholar's Insight, Combust (on a blocked shrine they need) and Take Flight (to move a player off it).",
+        "Bots also answer casts with level 1 scrolls lying in the common area when they need that element."
+      ]
+    },
+    {
       "id": "2026-09-27",
       "date": "2026-09-27",
       "title": "Pixel emotes and credits",

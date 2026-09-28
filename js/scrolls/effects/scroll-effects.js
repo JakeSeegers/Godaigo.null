@@ -4733,6 +4733,7 @@ const ScrollEffects = {
 
                 const btn = document.createElement('button');
                 btn.textContent = playerIdx === casterIndex ? `${name} (you)` : name;
+                btn.dataset.playerIndex = String(playerIdx); // bots pick by index (bot-effects.js)
                 Object.assign(btn.style, {
                     display: 'block',
                     width: '100%',
