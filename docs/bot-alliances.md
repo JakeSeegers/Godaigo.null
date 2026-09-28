@@ -229,8 +229,28 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   in the board where the pawn stood; the float follows its screen box each
   frame, so pan, zoom and tilt all apply), outlined in the player's colour,
   and a new bot sentence over the same pawn fades out the previous one.
-  Next (owner): Mason's Savvy wall around the leader (preferred), then Heavy
-  Stomp / Wandering River / Control the Current denial.
+- More harm moves (owner's list, 2026-09-28; bot.js `harmChoices` +
+  `harmCastBonus`, all x push, only with a harm target):
+  - Heavy Stomp: reveal a face-down tile next to the leader (closer to it
+    than to me) so I take the scroll draw it would have explored for
+    (castHarmChoice 40 x 0.8). Hiding a shrine was tried and dropped: a
+    human remembers it and revealing it again gives them a free draw.
+  - Wandering River: a key shrine of the leader (an element it needs, one
+    of at most 2 open shrines of it, near it) counts as an element it
+    already has until my next turn (x 0.6).
+  - Shifting Sands: swap the leader's tile (only it on it, no stones) with
+    the free tile farthest from where it is heading (home with five, else
+    its key shrines), when that is 2+ tiles farther (up to x 1.5).
+  - Mason's Savvy: cast when the leader's route (home or nearest key shrine)
+    passes within 5 hexes (castHarmWall 30); the earth wall placements
+    themselves were already scored (tacticalContext, x push).
+  - Control the Current: cast next to the leader's fresh water stones of an
+    element it needs (castHarmCurrent 25); the driver turns those first.
+  Choices go through BotSim.castChoices, so search sees them too. Take
+  Flight on the leader was left out: the target chooses where it lands.
+  Bot talk: scout, river, shove, wall, current intentions.
+  Open question (owner): bots forget the element of a tile flipped face-down
+  again (the snapshot masks it); a memory of seen tiles would fix that.
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every

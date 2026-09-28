@@ -1821,6 +1821,13 @@
     //     into a free slot next to the pawn's tile).
     // ----------------------------------------------------------------
     function castChoices(snap, name) {
+        const base = castChoicesBase(snap, name);
+        // Harm choices aimed at the leader (bot.js harmChoices, 2026-09-28).
+        let harm = [];
+        try { harm = window.BotSystem?.harmChoices?.(snap, name) || []; } catch (e) {}
+        return harm.length ? [...base, ...harm] : base;
+    }
+    function castChoicesBase(snap, name) {
         const p = activePlayer(snap);
         if (!p) return [];
         const near = (a, b) => dist(a.x, a.y, p.x, p.y) - dist(b.x, b.y, p.x, p.y);

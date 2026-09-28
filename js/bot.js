@@ -198,6 +198,9 @@
         breakStoneBase:      3,
         // Alliances (docs/bot-alliances.md, owner's harm list): against the
         // coalition target (push 2+), all × push.
+        castHarmChoice:     40,  // × push: a cast aimed at the leader (hide / change / move it away, harmChoices)
+        castHarmWall:       30,  // × push: Mason's Savvy while the leader's route is within 5 hexes (walls)
+        castHarmCurrent:    25,  // × push: Control the Current next to the leader's fresh water stones
         breakLeaderPattern: 25,  // break a stone the leader placed last round (element it still needs)
         moveToBreak:        25,  // ÷ (1 + path cost) toward such a stone, 3 AP away at most
         moveCamp:           60,  // ÷ (1 + path cost) toward a scarce shrine the leader needs
@@ -1075,6 +1078,7 @@
                 }
                 if (drawNotNeeded(snap, self, a.scroll)) s += contrib('castDrawNotNeeded', 1);
                 if (guardFetchHelps(snap, self, a.scroll)) s += contrib('castGuardFetch', 1);
+                s += harmCastBonus(snap, self, a);
                 if (mem(snap.turn.activePlayerIndex).noCreditScrolls.has(a.scroll)) {
                     s += contrib('castNoCredit', 1); // effect cancelled before - hard veto, don't recast
                 } else if (el && ELEMENTS.includes(el)) {
@@ -2512,6 +2516,7 @@
             if (a.type === 'breakStone' && harm.stones.has(hexKey(a.x, a.y))) return WEIGHTS.breakLeaderPattern * harm.push;
             if (harm.campHere && (a.type === 'move' || a.type === 'teleport')) return WEIGHTS.campLeave * harm.push;
             if (harm.campHere && a.type === 'endTurn') return WEIGHTS.endTurnCamp * harm.push;
+            if (a.type === 'cast') return harmCastBonus(snap0, me(snap0), a);
             return 0;
         };
         const help = me(snap0) ? helpContext(snap0, me(snap0)) : null;
@@ -2850,6 +2855,103 @@
         return { L, push, stones, camps, campHere };
     }
 
+    // More ways to hurt the leader (owner, 2026-09-28), as cast choices
+    // (BotSim.castChoices adds these; drivers follow the choice):
+    //  - Heavy Stomp: reveal a face-down tile next to the leader first, so
+    //    I get the scroll draw and it loses that exploration (hiding a
+    //    shrine was dropped: a human remembers it, and revealing it again
+    //    hands them a free draw).
+    //  - Wandering River: that shrine counts as an element the leader
+    //    already has, until my next turn.
+    //  - Shifting Sands: swap the leader's tile with a far one, carrying
+    //    the leader away from home or from the shrines it needs.
+    // A key shrine: revealed, of an element the leader still needs (supply
+    // left), no stones or pawns on the tile, close to the leader, and one of
+    // at most 2 free shrines of that element.
+    const TILE_R = 80;
+    function keyShrines(snap, lp) {
+        const need = ELEMENTS.filter(el => !lp.activated.includes(el) && (snap.sourcePool[el] || 0) > 0);
+        const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
+        const free = t => !snap.stones.some(q => onTile(t, q)) && !snap.players.some(q => q && onTile(t, q));
+        const out = [];
+        for (const el of need) {
+            const ts = snap.tiles.filter(t => t.revealed && !t.isPlayerTile && t.shrineType === el);
+            const open = ts.filter(t => !snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5));
+            if (!open.length || open.length > 2) continue;
+            for (const t of open) {
+                if (!free(t) || Math.hypot(t.x - lp.x, t.y - lp.y) > 8 * 35) continue;
+                out.push(t);
+            }
+        }
+        return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
+    }
+    function harmChoices(snap, name) {
+        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'EARTH_SCROLL_2'].includes(name)) return [];
+        const self = snap.players[snap.turn.activePlayerIndex];
+        const h = self ? harmContext(snap, self) : null;
+        if (!h) return [];
+        const lp = snap.players[h.L];
+        const out = [];
+        if (name === 'EARTH_SCROLL_4') {
+            // Face-down, no stones or pawns, and clearly closer to the leader
+            // than to me (the leader would explore it next).
+            const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
+            const hid = snap.tiles.filter(t => !t.revealed && !t.isPlayerTile &&
+                !snap.stones.some(q => onTile(t, q)) && !snap.players.some(q => q && onTile(t, q)));
+            const dl = t => Math.hypot(t.x - lp.x, t.y - lp.y), dm = t => Math.hypot(t.x - self.x, t.y - self.y);
+            for (const t of hid.filter(t => dl(t) <= 3 * TILE_R && dl(t) + TILE_R < dm(t)).sort((a, b) => dl(a) - dl(b)).slice(0, 2)) {
+                out.push({ tileId: t.id, harm: 0.8 });
+            }
+        } else if (name === 'WATER_SCROLL_4') {
+            const has = ELEMENTS.filter(el => lp.activated.includes(el));
+            const el = has.find(e => !self.activated.includes(e)) || has[0] || 'void';
+            for (const t of keyShrines(snap, lp).slice(0, 2)) out.push({ tileId: t.id, element: el, harm: 0.6 });
+        } else if (name === 'EARTH_SCROLL_2') {
+            const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
+            const lt = snap.tiles.find(t => !t.isPlayerTile && onTile(t, lp));
+            if (!lt || snap.stones.some(q => onTile(lt, q)) || snap.players.filter(q => q && onTile(lt, q)).length !== 1) return out;
+            // Where the leader is heading: home with all five, else its key shrines.
+            const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === h.L);
+            const goals = ELEMENTS.every(el => lp.activated.includes(el)) ? (home ? [home] : []) : keyShrines(snap, lp);
+            if (!goals.length) return out;
+            const gd = t => Math.min(...goals.map(g => Math.hypot(g.x - t.x, g.y - t.y)));
+            const far = snap.tiles.filter(t => t !== lt && !t.isPlayerTile && !snap.stones.some(q => onTile(t, q)) &&
+                !snap.players.some(q => q && onTile(t, q)) && !goals.includes(t))
+                .sort((a, b) => gd(b) - gd(a))[0];
+            if (!far || gd(far) < gd(lt) + 2 * TILE_R) return out;
+            out.push({ a: lt.id, b: far.id, harm: Math.min(1.5, (gd(far) - gd(lt)) / (4 * TILE_R)) });
+        }
+        return out;
+    }
+    // Harm bonus for a cast (greedy and the search root).
+    function harmCastBonus(snap, self, a) {
+        if (a.type !== 'cast') return 0;
+        if (a.choice?.harm) {
+            const h = harmContext(snap, self);
+            return h ? WEIGHTS.castHarmChoice * h.push * a.choice.harm : 0;
+        }
+        if (a.scroll !== 'EARTH_SCROLL_3' && a.scroll !== 'WATER_SCROLL_5') return 0;
+        const h = harmContext(snap, self);
+        if (!h) return 0;
+        const lp = snap.players[h.L];
+        if (a.scroll === 'WATER_SCROLL_5') {
+            // Its fresh stones of elements it needs, water, next to me.
+            const near = [...h.stones].some(k => {
+                const st = snap.stones.find(q => hexKey(q.x, q.y) === k);
+                return st && st.type === 'water' && Math.hypot(st.x - self.x, st.y - self.y) < 40;
+            });
+            return near ? WEIGHTS.castHarmCurrent * h.push : 0;
+        }
+        // Mason's Savvy: the leader's route (home with five, else its
+        // nearest key shrine) passes within 5 hexes of me.
+        const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === h.L);
+        const goal = ELEMENTS.every(el => lp.activated.includes(el)) ? home : keyShrines(snap, lp)[0];
+        if (!goal) return 0;
+        const path = pathToOrNear(lp.x, lp.y, goal.x, goal.y) || [];
+        const reach = path.some(st => Math.hypot(st.x - self.x, st.y - self.y) <= 5 * 35 + 5);
+        return reach ? WEIGHTS.castHarmWall * h.push : 0;
+    }
+
     // Stuck tools (owner, 2026-09-28): about 1 in 5 two-bot games deadlocked
     // (no winner by turn 300 with the stall restarts off). What a stuck bot
     // needs, and which scroll effects fix it:
@@ -2985,6 +3087,10 @@
             } else if (action.type === 'placeStone' && action.stoneType === 'wind') {
                 const hp = helpContext(snap, self);
                 if (hp?.road.has(hexKey(action.x, action.y))) D.intend(idx, 'road', null);
+            } else if (action.type === 'cast' && (action.choice?.harm || (action.scroll === 'EARTH_SCROLL_3' && harmCastBonus(snap, self, action) > 0))) {
+                const h = harmContext(snap, self);
+                const kind = { EARTH_SCROLL_4: 'scout', WATER_SCROLL_4: 'river', EARTH_SCROLL_2: 'shove', EARTH_SCROLL_3: 'wall' }[action.scroll];
+                if (h && kind) D.intend(idx, kind, h.L);
             } else if (action.type === 'cast') {
                 if (GUARD_FETCH.has(action.scroll) && guardWanted(snap)) D.intend(idx, 'fetch', D.alertOn(idx, snap));
                 else if (mem(idx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap, self, action.scroll)) D.intend(idx, 'idea', null);
@@ -4003,7 +4109,7 @@
         _helpContext: helpContext, // tests
         // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.
         ELEMENT_THREAT, threatCount,
-        goalCost,
+        goalCost, harmChoices,
         // Bot i's current build plan (read-only view for bot-diplomacy.js).
         planOf: i => { const pl = _mem[i]?.plan; return pl ? { scroll: pl.scroll, cells: pl.cells } : null; },
         guardWanted: () => { try { return guardWanted(window.BotState.snapshot()); } catch (e) { return false; } },

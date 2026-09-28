@@ -678,6 +678,11 @@
         watch:   { sp: [24, 31],     text: '{o} watches the next cast of {t}' },
         counter: { sp: [43],         text: '{o} counters {t}' },
         idea:    { sp: [16],         text: '{o} has an idea' },
+        scout:   { sp: [5, 45],      text: '{o} reveals a tile before {t} can' },
+        river:   { sp: [55, 18],     text: '{o} turns a shrine that {t} needs' },
+        shove:   { sp: [7, 29],      text: '{o} sends {t} far away' },
+        wall:    { sp: [29, 87],     text: '{o} builds a wall against {t}' },
+        current: { sp: [55, 40],     text: '{o} turns the water stones of {t}' },
         home:    { sp: [77, 88],     text: '{o} runs for home' },
         // Look-ahead (Calculating) and playouts (Counting): emote only, no
         // Game Log line, at most once every 2 rounds.

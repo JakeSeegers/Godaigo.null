@@ -8,7 +8,7 @@
       "changes": [
         "Stuck bots now reach for Scholar's Insight, Combust and Take Flight, answer casts with level 1 scrolls, and in 2 player games break your fresh pattern stones and guard shrines you need.",
         "Emotes now stay on the board as you pan and zoom, are outlined in the player's colour, and a bot's new sentence replaces its last one. Bots also show what they are up to (countering, guarding a shrine, running home).",
-        "Bots now hold grudges: break their plans or take the scroll they wanted and they ask others to team up against you. They also gang up on a leader sooner, and guard against a winning cast.",
+        "Bots hold grudges and team up against players who hurt them, gang up on a leader sooner, and use more scrolls against a leader: earth walls, taking tiles near them first, moving them away, and counters.",
         "Train Bot: see bot talk at any speed (new Bot talk option), and a list of what the bots said in the training window.",
         "Bots now use scrolls for their abilities (teleports, tile moves, drawing scrolls), break stones blocking shrines they need, no longer freeze when their active area is full, and rarely get stuck standing on a stone."
       ]
