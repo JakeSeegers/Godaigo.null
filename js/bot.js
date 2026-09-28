@@ -39,6 +39,11 @@
         castStuckTool:     150,  // stuck (no progress for UNPRODUCTIVE_LIMIT turns): a scroll whose
                                  // effect fixes the problem, even if its element is won
                                  // (Scholar's Insight, Combust, Take Flight; see stuckTools)
+        castGuardFetch:    120,
+        guardKeepAp:      -150,  // guard mode on a ready counter: an action that leaves less AP
+                                 // than the counter costs (2, 0 with Quick Reflexes). A response
+                                 // is paid from AP kept from your own turn, and bots spent it all  // guard mode, no counter in reach: Quick Reflexes / Scholar's
+                                 // Insight to fetch Iron Stance or Psychic (owner 2026-09-28)
         castDrawNotNeeded: -60,  // a scroll-drawing spell (Scholar's Insight, Inspiring Draught,
                                  // Refreshing Thought) while every needed element already has
                                  // a scroll to build: one bot cast Scholar's Insight 184 times
@@ -1062,6 +1067,7 @@
                     s += contrib('castStuckTool', 1);
                 }
                 if (drawNotNeeded(snap, self, a.scroll)) s += contrib('castDrawNotNeeded', 1);
+                if (guardFetchHelps(snap, self, a.scroll)) s += contrib('castGuardFetch', 1);
                 if (mem(snap.turn.activePlayerIndex).noCreditScrolls.has(a.scroll)) {
                     s += contrib('castNoCredit', 1); // effect cancelled before - hard veto, don't recast
                 } else if (el && ELEMENTS.includes(el)) {
@@ -1077,7 +1083,8 @@
                 let s;
                 if (a.scroll) {
                     s = WEIGHTS.placeBase + WEIGHTS.placeProgress * (a.progress || 0);
-                    s += hasWinCredit(snap, a.scroll) ? WEIGHTS.placeUnactivated : WEIGHTS.placeNoCredit;
+                    const guardCounter = COUNTERS.has(a.scroll) && guardWanted(snap);
+                    s += (hasWinCredit(snap, a.scroll) || guardCounter) ? WEIGHTS.placeUnactivated : WEIGHTS.placeNoCredit;
                 } else {
                     // Tactical placement (Stage 4, scroll:null — see
                     // bot-state.js): no pattern value at all; only worth
@@ -1222,7 +1229,8 @@
                 // A level 1 for an element still needed is a real way to
                 // activate it (as a response), so it is only dead weight
                 // once that element is won or its source is empty.
-                if (def?.level === 1 && !(el && ELEMENTS.includes(el) && !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0)) {
+                if (def?.level === 1 && !(COUNTERS.has(a.scroll) && guardWanted(snap)) &&
+                    !(el && ELEMENTS.includes(el) && !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0)) {
                     s += contrib('discardResponseOnly', 1);
                 }
                 if (el && ELEMENTS.includes(el)) {
@@ -1423,6 +1431,14 @@
         for (const o of out) {
             if (o.def.element === 'catacomb') for (const c of (o.def.patterns[0] || [])) covered.add(c.type);
             else covered.add(o.def.element);
+        }
+        if (guardWanted(snap) && !counterInReach(snap, self)) {
+            for (const name of sources) {
+                if (!GUARD_FETCH.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
+                if (drawOnCooldown(snap.turn.activePlayerIndex, name)) continue;
+                const def = window.SCROLL_DEFINITIONS?.[name];
+                if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: 1, tool: true });
+            }
         }
         if (need.some(el => !covered.has(el))) {
             for (const name of sources) {
@@ -2468,10 +2484,12 @@
             return 0;
         };
         const help = me(snap0) ? helpContext(snap0, me(snap0)) : null;
+        const guardRes = me(snap0) ? guardReserve(snap0, me(snap0)) : 0;
         const stuckRoot = (a) => {
             if (a.type !== 'cast' || !me(snap0)) return 0;
             let v = (mem(meIdx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap0, me(snap0), a.scroll)) ? WEIGHTS.castStuckTool : 0;
             if (drawNotNeeded(snap0, me(snap0), a.scroll)) v += WEIGHTS.castDrawNotNeeded;
+            if (guardFetchHelps(snap0, me(snap0), a.scroll)) v += WEIGHTS.castGuardFetch;
             return v;
         };
         const helpRoot = (a) => {
@@ -2486,6 +2504,7 @@
         for (const c of rootChildren) {
             const line = [];
             let v = value(c.s1, depth - 1, line) + harmRoot(c.a) + helpRoot(c.a) + stuckRoot(c.a);
+            if (guardRes > 0 && snap0.turn.ap - actionApCost(snap0, c.a) < guardRes) v += WEIGHTS.guardKeepAp;
             if (c.a.type === 'move') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.moveRevisitPenalty);
             if (c.a.type === 'move' && snap0.turn.ap - (c.a.cost || 0) < 1 && snap0.stones.some(q => Math.hypot(q.x - c.a.x, q.y - c.a.y) < 5)) {
                 v += WEIGHTS.moveStrandOnStone; // stranded on a stone (see scoreAction)
@@ -2830,6 +2849,43 @@
         return { needScroll, blockedTiles, occupiers: [...occupiers] };
     }
     const DRAW_SCROLLS = new Set(['VOID_SCROLL_4', 'WATER_SCROLL_3', 'WATER_SCROLL_2']);
+    // Guard mode (owner, 2026-09-28): an opponent is one cast from winning
+    // (BotDiplomacy.alertOn, public info only). Keep a counter (Iron Stance,
+    // Psychic) ready: keep them, build their 2-stone pattern and stay on
+    // it, fetch one with Quick Reflexes / Scholar's Insight if none is in
+    // reach. bot-effects.js decideResponse fires it at the winning cast.
+    const COUNTERS = new Set(['EARTH_SCROLL_1', 'VOID_SCROLL_1']);
+    const GUARD_FETCH = new Set(['CATACOMB_SCROLL_9', 'VOID_SCROLL_4']);
+    function guardWanted(snap) {
+        const D = window.BotDiplomacy;
+        if (!D?.enabled?.() || !D.alertOn) return false;
+        try { return D.alertOn(snap.turn.activePlayerIndex, snap) != null; } catch (e) { return false; }
+    }
+    function counterInReach(snap, self) {
+        return [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])].some(n => COUNTERS.has(n));
+    }
+    // Guard mode and a counter pattern complete where the bot stands: the AP
+    // it must keep for the response (2, or 0 under its own Quick Reflexes).
+    function guardReserve(snap, self) {
+        if (!guardWanted(snap)) return 0;
+        const ai = snap.turn.activePlayerIndex;
+        const ready = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]
+            .some(n => COUNTERS.has(n) && window.BotSim?.checkPattern(snap, n, ai));
+        if (!ready) return 0;
+        const qr = window.spellSystem?.scrollEffects?.activeBuffs?.quickReflexes;
+        return qr && qr.playerIndex === ai ? 0 : (window.spellSystem?.SPELL_AP_COST ?? 2);
+    }
+    function actionApCost(snap, a) {
+        if (a.type === 'move' || a.type === 'breakStone') return a.cost || 0;
+        if (a.type === 'cast') {
+            const def = window.SCROLL_DEFINITIONS?.[a.scroll];
+            try { return window.spellSystem?.getSpellCost ? window.spellSystem.getSpellCost(def, snap.turn.activePlayerIndex) : 2; } catch (e) { return 2; }
+        }
+        return 0;
+    }
+    function guardFetchHelps(snap, self, scroll) {
+        return GUARD_FETCH.has(scroll) && guardWanted(snap) && !counterInReach(snap, self);
+    }
     // Cooldown: the same scroll-drawing spell at most once per 3 own turns
     // (one bot cast Scholar's Insight 696 times when the draws never helped).
     const DRAW_COOLDOWN = 3;
@@ -2850,6 +2906,7 @@
         const el = window.SCROLL_DEFINITIONS?.[scroll]?.element;
         if (el && !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0) return false;
         if (drawOnCooldown(snap.turn.activePlayerIndex, scroll)) return true;
+        if (guardFetchHelps(snap, self, scroll)) return false;
         const st = stuckTools(snap, self);
         return !!st && !st.needScroll;
     }
@@ -2971,10 +3028,13 @@
         ctx.responseReady = false;
         try {
             const ai = snap.turn.activePlayerIndex;
+            const guard = guardWanted(snap);
             for (const name of [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]) {
                 const def = window.SCROLL_DEFINITIONS?.[name];
                 if (!def || def.level !== 1 || !ELEMENTS.includes(def.element)) continue;
-                if (self.activated.includes(def.element) || (snap.sourcePool[def.element] || 0) <= 0) continue;
+                const useful = (guard && COUNTERS.has(name)) ||
+                    (!self.activated.includes(def.element) && (snap.sourcePool[def.element] || 0) > 0);
+                if (!useful) continue;
                 if (window.BotSim?.checkPattern(snap, name, ai)) { ctx.responseReady = true; break; }
             }
         } catch (e) {}
@@ -3043,8 +3103,13 @@
         ctx.tac = legal.some(a => a.type === 'placeStone') ? tacticalContext(snap) : null;
 
         const out = legal
-            .map(a => scoreWithOptionalTrace(a, ctx))
-            .sort((x, y) => y.score - x.score);
+            .map(a => scoreWithOptionalTrace(a, ctx));
+        // Guard: keep the AP a counter response costs.
+        const reserve = guardReserve(snap, self);
+        if (reserve > 0) {
+            for (const r of out) if (snap.turn.ap - actionApCost(snap, r.action) < reserve) r.score += WEIGHTS.guardKeepAp;
+        }
+        out.sort((x, y) => y.score - x.score);
         if (opts && opts.withCtx) out.ctx = ctx; // Bot Mind viewer: goals/paths
         return out;
     }
@@ -3868,6 +3933,8 @@
         DEFAULT_WEIGHTS,
         _harmContext: harmContext, // tests
         _helpContext: helpContext, // tests
+        // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.
+        guardWanted: () => { try { return guardWanted(window.BotState.snapshot()); } catch (e) { return false; } },
         // bot-effects.js targets: { needScroll, blockedTiles, occupiers, stuck } for the active bot
         stuckTools: () => {
             try {

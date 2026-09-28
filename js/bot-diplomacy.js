@@ -297,6 +297,45 @@
     // who hurt me a bit more. Humans count half an element further ahead.
     // Cached per look at the board; returns null when the system is off.
     const STAGE = { clear: 1.5, four: 2, five: 2.5, canWin: 4 };
+
+    // "One cast from winning" (owner, 2026-09-28): from public information
+    // only (elements won, the active area, the ELEMENT of each hand scroll,
+    // the common area). Player j has all five (walking home), or misses one
+    // live element and has a scroll that could give it: a hand scroll of
+    // that element, an active-area or common-area scroll of it (level 2+,
+    // level 1 only as a response) or a catacomb covering it.
+    const ALL_ELS = ['earth', 'water', 'fire', 'wind', 'void'];
+    function scrollCovers(name, el) {
+        const d = window.SCROLL_DEFINITIONS?.[name];
+        if (!d) return false;
+        if (d.element === 'catacomb') return (d.patterns?.[0] || []).some(c => c.type === el);
+        return d.element === el;
+    }
+    function oneCastFromWin(snap, j) {
+        const p = snap.players[j];
+        if (!p) return false;
+        const miss = ALL_ELS.filter(el => !p.activated.includes(el));
+        if (!miss.length) return true;
+        if (miss.length !== 1) return false;
+        const el = miss[0];
+        if ((snap.sourcePool?.[el] || 0) <= 0) return false;
+        if ((p.handElements || []).includes(el)) return true;
+        if ((p.active || []).some(n => scrollCovers(n, el))) return true;
+        return (snap.commonArea || []).some(n => scrollCovers(n, el));
+    }
+    // The opponent of o to guard against right now (one cast from winning),
+    // or null. In a two-player game the opponent as soon as it has four.
+    function alertOn(o, snapIn) {
+        let snap = snapIn;
+        if (!snap) { try { snap = window.BotState.snapshot(); } catch (e) { return null; } }
+        let best = null;
+        for (let j = 0; j < snap.players.length; j++) {
+            if (j === o || !snap.players[j] || !oneCastFromWin(snap, j)) continue;
+            if (best == null || snap.players[j].activated.length > snap.players[best].activated.length) best = j;
+        }
+        return best;
+    }
+
     function pressures(o) {
         if (!enabled()) return null;
         const key = `${S.turns}|${S.looks}`;
@@ -334,7 +373,13 @@
             }
         }
         arr[o] = 1;
-        S.press[o] = { key, arr, leader: arr[leader] > 1.2 ? leader : null };
+        // One cast from winning: at least "five elements" pressure.
+        for (let j = 0; j < n; j++) {
+            if (j !== o && snap.players[j] && oneCastFromWin(snap, j)) arr[j] = Math.max(arr[j], STAGE.five);
+        }
+        let top = -1;
+        for (let j = 0; j < n; j++) if (j !== o && snap.players[j] && (top < 0 || arr[j] > arr[top])) top = j;
+        S.press[o] = { key, arr, leader: top >= 0 && arr[top] > 1.2 ? top : null };
         return arr;
     }
     function coalitionTarget(o) {
@@ -552,6 +597,8 @@
         // Stones player j placed in the last `turns` turns: [{x, y, type, turn}].
         recentStones: (j, turns) => (S.placed[j] || []).filter(r => S.turns - r.turn <= turns),
         setTalkAlways: on => { talkAlways = !!on; },
+        oneCastFromWin: (j, snap) => { try { return oneCastFromWin(snap || window.BotState.snapshot(), j); } catch (e) { return false; } },
+        alertOn,
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },

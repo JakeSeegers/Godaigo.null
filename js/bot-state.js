@@ -448,8 +448,11 @@
             // when the bot still needs that element (owner 2026-09-27: bots
             // stalled holding only a level 1 for a missing element).
             const myActivated = [...(scrolls.activated || [])];
+            // Guard mode (bot.js): counters too, even of a won element.
+            const guard = !!window.BotSystem?.guardWanted?.();
             const neededL1 = (def) => def.level === 1 && ELEMENT_TYPES_L1.includes(def.element)
-                && !myActivated.includes(def.element) && ((window.stonePools?.[def.element] ?? 0) > 0);
+                && ((guard && def.canCounter === 'any') ||
+                    (!myActivated.includes(def.element) && ((window.stonePools?.[def.element] ?? 0) > 0)));
             const handNames = [...scrolls.hand];
             // A response can also be cast from the common area
             // (response-window.js canPlayerRespond), so a needed level 1

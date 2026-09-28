@@ -2035,7 +2035,9 @@
             const def = window.SCROLL_DEFINITIONS?.[name];
             if (!def || !Array.isArray(def.patterns)) continue;
             if (def.level === 1) {
-                if (!ELEMENTS.includes(def.element) || p.activated.includes(def.element) || (snap.sourcePool[def.element] || 0) <= 0) continue;
+                const guard = def.canCounter === 'any' && !!window.BotDiplomacy?.enabled?.() &&
+                    window.BotDiplomacy.alertOn?.(snap.turn.activePlayerIndex, snap) != null;
+                if (!guard && (!ELEMENTS.includes(def.element) || p.activated.includes(def.element) || (snap.sourcePool[def.element] || 0) <= 0)) continue;
             } else if (!hand.includes(name)) continue;
             for (const variant of def.patterns) {
                 const cells = variant.map(req => {

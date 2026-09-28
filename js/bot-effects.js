@@ -475,7 +475,12 @@
         const modal = document.getElementById('scholars-insight-modal');
         if (!modal) return false;
         const heading = modal.querySelector('h3')?.textContent || '';
+        const guard = !!window.BotSystem?.guardWanted?.();
         if (heading.includes('Choose a Deck')) {
+            if (guard) {
+                takeChoice('VOID_SCROLL_4');
+                return !!clickBestElement(modal, ['void', 'earth', ...rankedScrollElements().filter(e => e !== 'void' && e !== 'earth')]);
+            }
             return !!clickBestElement(modal, withChoice('VOID_SCROLL_4', rankedScrollElements()));
         }
         // Deck browser: cards are <div>s whose first child is the scroll name.
@@ -488,6 +493,7 @@
         let best = null, bestScore = -Infinity;
         for (const card of cards) {
             const name = card.firstElementChild?.textContent || '';
+            if (guard && (name === 'Psychic' || name === 'Iron Stance')) { best = card; break; }
             const score = pickScore(scrollIdByDisplayName(name, deckEl));
             if (score > bestScore) { bestScore = score; best = card; }
         }
@@ -641,6 +647,13 @@
     function driveQuickReflexes() {
         const modal = document.getElementById('quick-reflexes-modal');
         if (!modal) return false;
+        // Guard mode (bot.js guardWanted): fetch a counter, Psychic (void)
+        // first, then Iron Stance (earth).
+        if (window.BotSystem?.guardWanted?.()) {
+            const order = ['void', 'earth', ...rankedElements().filter(e => e !== 'void' && e !== 'earth')];
+            takeChoice('CATACOMB_SCROLL_9');
+            return !!clickBestElement(modal, order);
+        }
         return !!clickBestElement(modal, withChoice('CATACOMB_SCROLL_9', rankedElements()));
     }
 
@@ -756,10 +769,32 @@
                 return el && !won.includes(el) && ((window.stonePools?.[el] ?? 0) > 0);
             });
         } catch (e) { needed = []; }
-        if (needed.length > 0) {
+        // Counters against the leader (owner, 2026-09-28). Psychic first: it
+        // also steals the scroll for this bot's own turn.
+        const pickCounter = () => counters.find(c => c.name === 'VOID_SCROLL_1') ||
+            counters.reduce((a, b) => (a.cost <= b.cost ? a : b));
+        const grantsNew = counters.length > 0 && wouldGrantUnactivatedElement(rw, casterIndex);
+        const D = window.BotDiplomacy;
+        const smart = !!D?.enabled?.();
+        let finalBlow = false, isTarget = false;
+        if (grantsNew) {
+            try {
+                // Would this cast give the caster their LAST missing element?
+                const def = rw.pendingScrollData?.spell || rw.pendingScrollData?.definition;
+                const won = [...(window.spellSystem?.playerScrolls?.[casterIndex]?.activated || [])];
+                const miss = ['earth', 'water', 'fire', 'wind', 'void'].filter(el => !won.includes(el));
+                const gives = def?.element === 'catacomb' ? new Set((def.patterns?.[0] || []).map(c => c.type)) : new Set([def?.element]);
+                finalBlow = miss.length > 0 && miss.every(el => gives.has(el));
+                const seats = (typeof playerPositions !== 'undefined' ? playerPositions : []).filter(Boolean).length;
+                isTarget = seats === 2 || (smart && (D.coalitionTarget(responderIndex) === casterIndex || D.alertOn(responderIndex) === casterIndex));
+            } catch (e) {}
+        }
+        if (grantsNew && finalBlow) {
+            choice = pickCounter();                              // stop the winning cast
+        } else if (needed.length > 0) {
             choice = needed.reduce((a, b) => (a.cost <= b.cost ? a : b));
-        } else if (counters.length > 0 && wouldGrantUnactivatedElement(rw, casterIndex)) {
-            choice = counters.reduce((a, b) => (a.cost <= b.cost ? a : b));
+        } else if (grantsNew && (isTarget || !smart)) {
+            choice = pickCounter();                              // the leader / the only opponent
         } else if (responses.length > 0) {
             choice = responses.reduce((a, b) => (a.cost <= b.cost ? a : b));
         }
