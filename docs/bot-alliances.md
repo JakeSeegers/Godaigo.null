@@ -180,6 +180,22 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   hidden, patterns sit around their own pawn), Shifting Sands / Telekinesis /
   Take Flight to move the leader somewhere bad, and pushing a scroll to the
   common area on purpose to deny.
+- Guarding against the final cast (2026-09-28, owner's aggression list step 1+2).
+  A test of 40 games showed pacts had no effect on the leader's win rate, and
+  bots never countered: responses cost 2 AP paid from AP kept from your own
+  turn, and bots always spent it all. Now, from public info only (elements
+  won, active area, hand scroll elements, common area), `oneCastFromWin` /
+  `alertOn` flag a player one cast from winning; that player counts as push
+  2 (STAGE.five) at least. Guard mode (bot.js `guardWanted`): keep Iron Stance
+  and Psychic, build their pattern, keep 2 AP (`guardKeepAp`), fetch one with
+  Quick Reflexes or Scholar's Insight when none is in reach (`castGuardFetch`).
+  decideResponse counters the cast giving the caster their last element first.
+  Test (6 games each, same seeds): leader won 2/6 with diplomacy on and off
+  (3 bots), 3/6 on and off (4 bots). Guard mode ran on about 30% of turns
+  and fetched 8 times, but only 1 counter fired: a counter needs the scroll,
+  2 kept AP AND the leader's cast to land on that exact turn.
+  Next (owner): Mason's Savvy wall around the leader (preferred), then Heavy
+  Stomp / Wandering River / Control the Current denial.
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every
