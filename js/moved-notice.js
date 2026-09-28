@@ -12,7 +12,9 @@
     const OLD_BASE = '/Godaigo.Elements';
 
     const testing = /[?&]movedtest=1\b/.test(location.search);
-    if (location.hostname !== OLD_HOST && !testing) return;
+    // Only the OLD project path: other GitHub Pages sites on the same host
+    // (e.g. /Godaigo.null/ published for a test, 2026-09-28) must load.
+    if (!testing && (location.hostname !== OLD_HOST || !location.pathname.startsWith(OLD_BASE))) return;
 
     let path = location.pathname;
     if (path.startsWith(OLD_BASE)) path = path.slice(OLD_BASE.length);
