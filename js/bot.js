@@ -1631,6 +1631,11 @@
         return Object.keys(deficit).every(t => collectible.some(s => s.shrineType === t));
     }
 
+    // How far (steps) makePlan looks for a pattern centre (owner, 2026-09-29:
+    // "look further for built and partial patterns"). Stones already on the
+    // board, anyone's, count 10 each; a step costs like a missing stone, and
+    // the best few are re-scored with the real path cost.
+    const PLAN_REACH = 8;
     function makePlan(snap, opts) {
         const self = me(snap);
         if (!self || !self.hand) return null;
@@ -1641,23 +1646,61 @@
         const pHex = pixelToHex(self.x, self.y, TILE_SIZE);
         const grid = window.BotState.hexGrid();
         const collectible = collectibleShrines(snap);
-        let best = null;
-        // opts.near: also try anchors up to that many steps away (attack
-        // plans, reviewPlan), a step costing like a missing stone.
-        const anchors = [{ hex: pHex, steps: 0 }];
-        if (opts?.near) {
-            for (const h of grid) {
-                const d = Math.hypot(h.x - self.x, h.y - self.y);
-                if (d < 5 || d > opts.near * 35 + 5) continue;
-                if (typeof isPositionOnFlippedTile === 'function' && isPositionOnFlippedTile(h.x, h.y, grid)) continue;
-                if (typeof isPositionOnPlayerTile === 'function' && isPositionOnPlayerTile(h.x, h.y, grid)) continue;
-                anchors.push({ hex: pixelToHex(h.x, h.y, TILE_SIZE), steps: Math.round(d / 35) });
-            }
+        // One pass over the board: which hexes can hold a pattern stone, and
+        // which stone is on each (the same rules as viablePatternAt()).
+        const table = new Map();
+        for (const h of grid) {
+            const hx = pixelToHex(h.x, h.y, TILE_SIZE);
+            const k = `${hx.q},${hx.r}`;
+            if (table.has(k)) continue;
+            const ok = !(typeof isPositionOnFlippedTile === 'function' && isPositionOnFlippedTile(h.x, h.y, grid)) &&
+                       !(typeof isPositionOnPlayerTile === 'function' && isPositionOnPlayerTile(h.x, h.y, grid));
+            table.set(k, { x: h.x, y: h.y, ok, stone: placedStones.find(st => Math.hypot(st.x - h.x, st.y - h.y) < 5) || null });
         }
+        const survive = new Map();
+        const viable = (variant, a) => {
+            const cells = [];
+            let placed = 0;
+            const need = {};
+            for (const req of variant) {
+                const q = a.q + req.q, r = a.r + req.r;
+                const t = table.get(`${q},${r}`);
+                if (!t || !t.ok) return null;
+                const px = hexToPixel(q, r, TILE_SIZE);
+                const c = { q, r, x: px.x, y: px.y, type: req.type };
+                if (cursedCells.has(cellKey(c))) return null;
+                if (t.stone) {
+                    if (t.stone.type !== c.type) return null;
+                    placed++;
+                } else {
+                    const sk = `${q},${r},${c.type}`;
+                    if (!survive.has(sk)) survive.set(sk, !window.BotSim || window.BotSim.stoneWouldSurvive(snap, c.x, c.y, c.type));
+                    if (!survive.get(sk)) return null;
+                    need[c.type] = (need[c.type] || 0) + 1;
+                }
+                cells.push(c);
+            }
+            const deficit = {};
+            for (const [t, n] of Object.entries(need)) {
+                const short = n - (self.pool[t] || 0);
+                if (short > 0) deficit[t] = short;
+            }
+            return { cells, placed, deficit };
+        };
+        const reach = opts?.near ?? PLAN_REACH;
+        const anchors = [{ hex: pHex, steps: 0 }];
+        for (const [k, t] of table) {
+            if (!t.ok) continue;
+            const d = Math.hypot(t.x - self.x, t.y - self.y);
+            if (d < 5 || d > reach * 35 + 5) continue;
+            const [q, r] = k.split(',').map(Number);
+            anchors.push({ hex: { q, r }, steps: Math.round(d / 35) });
+        }
+        const cands = [];
         for (const { name, def, credit, attack } of creditableSources(snap, self, noCreditScrolls)) {
             if (opts?.only && !opts.only.has(name)) continue;
             for (const variant of def.patterns) for (const { hex: anchorHex, steps } of anchors) {
-                const v = viablePatternAt(snap, self, variant, anchorHex, grid, cursedCells);
+                const v = viable(variant, anchorHex);
                 if (!v) continue;
                 const totalDeficit = Object.values(v.deficit).reduce((a, b) => a + b, 0);
                 // Missing stone types are fine — planNextAction() routes
@@ -1670,12 +1713,28 @@
                 // collecting is discounted (slower, riskier) but still far
                 // better than no plan at all — WEIGHTS.planDeficitPenalty is
                 // negative, same sign convention as moveApPenalty etc.
-                const score = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * (totalDeficit + steps);
-                if (!best || score > best.score) best = { score, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps };
+                const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit;
+                cands.push({ base, score: base + WEIGHTS.planDeficitPenalty * steps, placed: v.placed, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps });
             }
         }
+        if (!cands.length) return null;
+        // The best few by straight-line distance, re-scored by the real path.
+        cands.sort((x, y) => y.score - x.score);
+        let best = null;
+        for (const c of cands.slice(0, 6)) {
+            if (c.steps > 0) {
+                const ap = hexToPixel(c.anchor.q, c.anchor.r, TILE_SIZE);
+                const path = window.BotState.findPath(self.x, self.y, ap.x, ap.y);
+                if (!path || !path.length) continue;
+                c.steps = pathCost(path);
+                c.score = c.base + WEIGHTS.planDeficitPenalty * c.steps;
+            }
+            if (!best || c.score > best.score) best = c;
+        }
+        if (best && !opts) { _planStats.made++; if (best.steps > 0) _planStats.away++; _planStats.reused += best.placed; if (best.placed === best.cells.length) _planStats.finished++; }
         return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps } : null;
     }
+    const _planStats = { made: 0, away: 0, reused: 0, finished: 0 }; // tests
     // Plan review (owner, 2026-09-29: attacks as multi-turn intentions). Once
     // per own turn: an attack plan that is no longer worth it (the leader is
     // no longer a danger it can hurt) is dropped; a building plan gives way
@@ -4432,6 +4491,7 @@
         SOCIAL_KEYS, pinSocial,
         _harmContext: harmContext, // tests
         _review,                    // tests: plan review counters
+        _planStats,                 // tests: plans made / away from the pawn / stones reused / already finished
         _helpContext: helpContext, // tests
         // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.
         ELEMENT_THREAT, threatCount,

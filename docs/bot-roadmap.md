@@ -368,6 +368,16 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   right attack scroll in reach (3 of 341 turn reviews). Level-1 counters
   are built only in guard mode (alertOn), so Iron Stance was almost never
   built; Psychic answered 12 of 12 chances. `BotSystem._review` = counters.
+  **Wider plan search (2026-09-29, owner: "look further for built and
+  partial patterns").** makePlan tries pattern centres up to `PLAN_REACH` (8)
+  steps away, not only the pawn's hex. One pass builds a board table (can
+  hold a stone? which stone is there?) so each check is O(cells); stones
+  already on the board (anyone's) count 10 each, a step costs like a missing
+  stone (planDeficitPenalty), the best 6 are re-scored with the real path
+  cost. A finished pattern elsewhere is a plan with nothing missing: walk
+  there and cast. Result (same seeds): 4-bot games 95 -> 75 turns, 6/6 won
+  (was 5/6); of 114 plans 83 were away from the pawn, 110 stones reused, 16
+  already finished; 2-player 23/24 wins, much shorter. `BotSystem._planStats`.
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY
