@@ -412,7 +412,9 @@
     // SHOW EMOJI OVER PAWN  (called locally + by broadcast receiver)
     // ----------------------------------------------------------------
 
-    function showEmojiOverPawn(playerIndex, display, isText, sprite) {
+    // opts.dur: how long it shows, in ms (default 5000; bot 'thinking' emotes are short).
+    function showEmojiOverPawn(playerIndex, display, isText, sprite, opts) {
+        const dur = Math.max(400, Math.min(8000, +(opts?.dur) || 5000));
         if (typeof playerPositions === 'undefined') return;
         const player = playerPositions[playerIndex];
         if (!player?.element) return;
@@ -486,7 +488,7 @@
         if (marker) {
             const born = performance.now();
             const follow = () => {
-                if (!holder.isConnected || !marker.isConnected || performance.now() - born > 6000) { marker.remove(); return; }
+                if (!holder.isConnected || !marker.isConnected || performance.now() - born > dur + 1000) { marker.remove(); return; }
                 const r = marker.getBoundingClientRect();
                 if (r.width || r.height) {
                     const k = Math.max(0.4, Math.min(2, r.width / w0));
@@ -510,12 +512,18 @@
             lastSentence[playerIndex] = el;
         }
 
+        if (dur !== 5000) el.style.animationDuration = (dur / 1000) + 's';
         document.body.appendChild(holder);
 
-        // Remove once CSS animation finishes (5.5 s to let fade complete)
-        setTimeout(() => holder.remove(), 5500);
+        // Remove once the CSS animation finishes (+0.5 s to let the fade complete)
+        setTimeout(() => holder.remove(), dur + 500);
     }
     const lastSentence = {};
+    // Remove every floating emote at once (a training round ended).
+    function clearAll() {
+        document.querySelectorAll('.emoji-anchor, .emoji-anchor-mark').forEach(n => n.remove());
+        for (const k of Object.keys(lastSentence)) delete lastSentence[k];
+    }
 
     // ----------------------------------------------------------------
     // HELPERS
@@ -594,6 +602,7 @@
         purchaseEmoji,
         useEmoji,
         showEmojiOverPawn,
+        clearAll,
         displayHtml,
         reloadInventory: loadInventory,
         getItems()     { return EMOJI_ITEMS; },

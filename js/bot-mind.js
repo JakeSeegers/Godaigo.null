@@ -259,6 +259,14 @@
         renderPanel();
     }
 
+    // A new game or training round: drop the last bot's record at once and
+    // show the empty panel (it used to keep the old round's view).
+    function reset() {
+        last = null;
+        document.querySelectorAll('.bot-mind-layer').forEach(n => n.remove());
+        if (document.getElementById('bot-mind-panel')) renderPanel();
+    }
+
     function clear() {
         document.querySelectorAll('.bot-mind-layer').forEach(n => n.remove());
         document.getElementById('bot-mind-panel')?.remove();
@@ -295,5 +303,5 @@
         setEnabled(!enabled);
     });
 
-    window.BotMind = { wants, record, setEnabled, isEnabled: () => enabled, clear, last: () => last };
+    window.BotMind = { wants, record, setEnabled, isEnabled: () => enabled, clear, reset, last: () => last };
 })();

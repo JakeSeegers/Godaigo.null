@@ -615,6 +615,8 @@
                 : (_stopRequested || _endEarlyRequested) ? 'stopped'
                 : result.turns >= turnCap ? 'turn_cap' : 'stopped';
         }
+        // Round over: bot talk, emotes and the Bot Mind view go at once.
+        try { window.BotDiplomacy?.reset?.(); } catch (e) {}
         return result;
     }
 

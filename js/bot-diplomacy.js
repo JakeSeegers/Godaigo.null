@@ -41,7 +41,14 @@
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
                  pact: null, lastPactTurn: -99, warned: {}, asked: {}, intents: {}, spoke: {}, thanked: {}, placed: {} };
     }
-    function reset() { S = fresh(); }
+    // A new game or the end of a training round: forget everything, and take
+    // every floating emote and queued sentence off the board at once.
+    function reset() {
+        S = fresh();
+        try { queue.length = 0; } catch (e) {}
+        try { window.emojiSystem?.clearAll?.(); } catch (e) {}
+        try { window.BotMind?.reset?.(); } catch (e) {}
+    }
 
     // ---------------------------------------------------------------- where it runs
     function gameActive() { return !!document.getElementById('game-layout')?.classList.contains('active'); }
@@ -475,13 +482,34 @@
     // side by side over the bot, and sentences follow each other about 2 s
     // apart. A long backlog drops the oldest sentences so the table never
     // lags behind the game.
-    function say(o, sprites, text) {
+    // opts.short: a quick emote (thinking), shown for a quarter of the time.
+    function say(o, sprites, text, opts) {
         if (text) tellListeners(o, text);
         if (!visible() || !window.emojiSystem?.showEmojiOverPawn) return;
         if (text) window.ActionLog?.record?.('botTalk', { text }, o);
-        queue.push({ o, sprites: sprites.map(pickOne), text });
+        const item = { o, sprites: sprites.map(pickOne), text, short: !!opts?.short };
+        // Fast training: show it now (a queue falls behind fast games; a new
+        // sentence over the same bot replaces its last one anyway).
+        if (fastTraining()) { show(item); return; }
+        queue.push(item);
         while (queue.length > 3) queue.shift();
         if (!speaking) speakNext();
+    }
+    function fastTraining() {
+        return arenaRunning() && !window.BotArena?.isSpectating?.() && (window.BotSystem?.speedScale ?? 0) < 1;
+    }
+    function show(item) {
+        if (!gameActive()) return;
+        // Always a list, so a new sentence replaces the last one (emoji-system.js).
+        const sprite = item.sprites;
+        const dur = item.short ? 1250 : undefined;
+        window.emojiSystem.showEmojiOverPawn(item.o, '', false, sprite, dur ? { dur } : undefined);
+        const payload = { playerIndex: item.o, display: '', isText: false, sprite };
+        if (dur) payload.dur = dur;
+        if (item.text) payload.talk = item.text; // other players' Game Log
+        if (hostOnline() && typeof broadcastGameAction === 'function') {
+            try { broadcastGameAction('emoji', payload); } catch (e) {}
+        }
     }
     function speakNext() {
         const item = queue.shift();
@@ -489,17 +517,8 @@
         speaking = true;
         // One float with the whole sentence side by side (emoji-system.js
         // takes an array of sprites and pops them in one after another).
-        // Always a list, so a new sentence replaces the last one (emoji-system.js).
-        const sprite = item.sprites;
-        if (gameActive()) {
-            window.emojiSystem.showEmojiOverPawn(item.o, '', false, sprite);
-            const payload = { playerIndex: item.o, display: '', isText: false, sprite };
-            if (item.text) payload.talk = item.text; // other players' Game Log
-            if (hostOnline() && typeof broadcastGameAction === 'function') {
-                try { broadcastGameAction('emoji', payload); } catch (e) {}
-            }
-        }
-        setTimeout(speakNext, 1500 + item.sprites.length * 450);
+        show(item);
+        setTimeout(speakNext, item.short ? 400 : 1500 + item.sprites.length * 450);
     }
 
     // ---------------------------------------------------------------- phase 3: pacts
@@ -692,8 +711,8 @@
         home:    { sp: [77, 88],     text: '{o} runs for home' },
         // Look-ahead (Calculating) and playouts (Counting): emote only, no
         // Game Log line, at most once every 2 rounds.
-        think:   { sp: [51],         text: null, rounds: 2 },
-        playout: { sp: [50],         text: null, rounds: 2 },
+        think:   { sp: [51],         text: null, rounds: 2, short: true },
+        playout: { sp: [50],         text: null, rounds: 2, short: true },
     };
     function intend(o, kind, t) {
         const I = INTENT[kind];
@@ -711,7 +730,7 @@
         S.intents[key] = S.turns;
         const sprites = t != null ? [...I.sp, symbolOf(t, null)] : I.sp.slice();
         const text = I.text ? I.text.replace('{o}', `{p${o}}`).replace('{t}', t != null ? `{p${t}}` : 'someone') : null;
-        say(o, sprites, text);
+        say(o, sprites, text, I.short ? { short: true } : undefined);
     }
 
     // ---------------------------------------------------------------- api

@@ -3948,7 +3948,8 @@
             gameChannel.on('broadcast', { event: 'emoji' }, ({ payload }) => {
                 const { playerIndex, display, isText, sprite, talk } = payload;
                 if (typeof window.emojiSystem !== 'undefined') {
-                    window.emojiSystem.showEmojiOverPawn(playerIndex, display, !!isText, sprite);
+                    const dur = typeof payload.dur === 'number' ? payload.dur : undefined;
+                    window.emojiSystem.showEmojiOverPawn(playerIndex, display, !!isText, sprite, dur ? { dur } : undefined);
                 }
                 // Bot alliance talk (js/bot-diplomacy.js): the first emote of a
                 // sentence carries its Game Log line.
