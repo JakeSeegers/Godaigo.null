@@ -510,7 +510,7 @@
         placePlayerTilesSpread(nPlayers);
         await sleep(vis() ? 300 : 30);
         activePlayerIndex = 0;
-        if (visual0) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it — the log needs it
+        if (visual0) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it (the log needs it)
 
         // Every seat in a bot-arena game is a bot, so the "you're out of AP,
         // end turn?" modal (a human-click nudge — see showEndTurnPrompt's own
