@@ -1129,6 +1129,7 @@
                     s += WEIGHTS.placeDoomed;
                 }
                 if (a.stoneType === 'void') s += WEIGHTS.placeVoidSpendPenalty;
+                if (mem(snap.turn.activePlayerIndex).brokeThisTurn?.has(`${hexKey(a.x, a.y)}:${a.stoneType}`)) s -= 80; // just broke that very stone
                 s += tacticalPlaceBonus(a, snap, ctx.tac);
                 if (ctx.help?.road.has(hexKey(a.x, a.y)) && a.stoneType === 'wind') s += WEIGHTS.placeAllyRoad * ctx.help.push;
                 s += unblockBonus(a, snap, ctx.unblock);
@@ -1792,6 +1793,19 @@
 
         // Shape complete → return to the anchor and cast
         const aPx = hexToPixel(plan.anchor.q, plan.anchor.r, TILE_SIZE);
+        // A stone on the anchor: casting there is not allowed (standing on a
+        // stone). Break it first (from next to it, keeping 2 AP to cast), or
+        // step next to it (2026-09-29: a bot looped move / failed cast forever).
+        const anchorStone = placedStones.find(st => Math.hypot(st.x - aPx.x, st.y - aPx.y) < 5);
+        if (anchorStone) {
+            const b = window.BotState.legalActions().find(a => a.type === 'breakStone' && Math.hypot(a.x - anchorStone.x, a.y - anchorStone.y) < 5);
+            if (b && (b.cost || 0) + 2 <= snap.turn.ap) return b;
+            if (snap.turn.ap > 0) {
+                const mv = stepTowardCell(self, { x: aPx.x, y: aPx.y }, [], snap.turn.ap);
+                if (mv) return mv;
+            }
+            return null;
+        }
         if (Math.hypot(self.x - aPx.x, self.y - aPx.y) >= 5) {
             if (snap.turn.ap > 0) {
                 const path = window.BotState.findPath(self.x, self.y, aPx.x, aPx.y);
@@ -2955,6 +2969,10 @@
     // Harm bonus for a cast (greedy and the search root).
     function harmCastBonus(snap, self, a) {
         if (a.type !== 'cast') return 0;
+        // One attack cast per own turn (2026-09-29: a bot cast Shifting Sands
+        // on the opponent four times in one turn, every turn).
+        const hm = mem(snap.turn.activePlayerIndex);
+        if (hm.harmCastTurn === hm.ownTurns) return 0;
         if (a.choice?.harm) {
             const h = harmContext(snap, self);
             return h ? WEIGHTS.castHarmChoice * h.push * a.choice.harm : 0;
@@ -3875,9 +3893,16 @@
 
         let harmEntry = null;
         if (harmLogOn()) { try { harmEntry = harmMeasure(snap, action, idx); } catch (e) { harmEntry = null; } }
+        let harmCast = false;
+        if (action.type === 'cast') { try { harmCast = !!snap.players[idx] && harmCastBonus(snap, snap.players[idx], action) > 0; } catch (e) {} }
         const res = window.BotState.applyAction(action);
         if (!res.ok) { log(`Action failed: ${res.reason}`); return null; }
         if (harmEntry) { try { harmAfter(harmEntry); } catch (e) {} }
+        // Remember stones broken this turn: putting the same stone back on the
+        // same hex is a wasted loop (2026-09-29: a bot broke and re-placed its
+        // own void stone every turn until the turn cap).
+        if (action.type === 'breakStone') (mem(idx).brokeThisTurn ||= new Set()).add(`${hexKey(action.x, action.y)}:${action.stoneType}`);
+        if (harmCast) mem(idx).harmCastTurn = mem(idx).ownTurns;
         announceIntent(snap, action, idx);
         // Episodic memory (js/bot-memory.js, optional — window.BotMemory may
         // not be loaded): record this decision if it swung the position
@@ -4024,6 +4049,7 @@
         if (harmLogOn()) { try { harmFlush(startingPlayer); } catch (e) {} }
         const m = mem(startingPlayer);
         m.ownTurns = (m.ownTurns || 0) + 1; // combo timing (Phase 4)
+        m.brokeThisTurn = new Set();
         if (m.noCreditAt) for (const [n, t] of m.noCreditAt) {
             if (m.ownTurns - t >= 5) { m.noCreditScrolls.delete(n); m.noCreditAt.delete(n); }
         }
