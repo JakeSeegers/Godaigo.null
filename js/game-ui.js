@@ -5986,11 +5986,19 @@ document.getElementById('undo-move').onclick = function() {
                 // champion, with Quick / Standard / Deep presets. Consumed
                 // into `state` (which persists across this modal being
                 // closed/reopened mid-run via the popup's expand button).
+                const busy = !!(window.BotArena.isEvolving?.() || window.BotArena.isClimbing?.());
                 if (window._botTrainingPublic) {
+                    if (!state._public && !state._forced) state._forced = { method: state.method, n: state.n };
                     state._public = true;
                     state.method = 'hillclimb';
                     state.n = 2;
                     window._botTrainingPublic = null;
+                } else if (!busy) {
+                    // The hermit panel (owner, 2026-09-29): a finished public
+                    // Train Bot run or a continued saved run left the panel stuck
+                    // in public / Hill Climb mode, hiding or greying out Players.
+                    state._public = false;
+                    if (state._forced) { state.method = state._forced.method; state.n = state._forced.n; state._forced = null; }
                 }
 
                 // ── Shell: full-screen overlay + centered modal box ──────────
@@ -6469,7 +6477,10 @@ document.getElementById('undo-move').onclick = function() {
                     }
                     try {
                         // Public "Train Bot" is hill-climb-only by definition.
-                        if (state._public || resumeSave) state.method = 'hillclimb';
+                        if ((state._public || resumeSave) && state.method !== 'hillclimb') {
+                            if (!state._forced) state._forced = { method: state.method, n: state.n };
+                            state.method = 'hillclimb';
+                        }
                         if (state.method === 'hillclimb') {
                             // Public Depth presets scale the whole run so the
                             // times in the tooltips are honest; the hermit panel
