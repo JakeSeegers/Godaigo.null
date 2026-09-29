@@ -8,7 +8,7 @@
       "changes": [
         "Bot emotes: the thinking emote is shorter, emotes clear as soon as a training game ends, and in fast training they show right away instead of late.",
         "New bot emote sentences: pact answers show a crown (against the leader) or a heart (a grudge), and many emotes are simpler and clearer.",
-        "Smarter bots: they build on stones already on the board, stick to their goals, stop pacing, team up against any clear leader, and build Arson, Plunder and Take Flight to use on the leader.",
+        "Smarter bots: they build on stones already on the board, stick to their goals, stop pacing, team up against any clear leader, build Arson, Plunder and Take Flight for the leader, and set up Iron Stance or Psychic to stop a leader about to win.",
         "Game Log has a new Alliances tab: current pacts, how each bot feels about everyone, and what they said this game.",
         "Train Bot: a Speed button to switch between Watchable and Extreme mid-run, and no more menus flashing during training."
       ]

@@ -378,6 +378,19 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   there and cast. Result (same seeds): 4-bot games 95 -> 75 turns, 6/6 won
   (was 5/6); of 114 plans 83 were away from the pawn, 110 stones reused, 16
   already finished; 2-player 23/24 wins, much shorter. `BotSystem._planStats`.
+  **Side counter and guard post (2026-09-29, owner: "I set up a counter
+  while I'm setting up something else").** With a leader at push 2+ and Iron
+  Stance / Psychic in reach, a plan centre where the counter shape also fits
+  (no clashing cell) gets SIDE_COUNTER_BONUS (8) + 3 per counter stone already
+  there; `sideStep()` places counter stones the main shape does not need
+  when they are in range. Guard post: when someone is one cast from winning
+  (guardWanted) and no counter is ready, reviewPlan makes a counter-only plan
+  (makePlan `extra` sources, 4 steps); a finished level-1 plan is not cast:
+  the bot stands on its centre and ends the turn with the AP kept, at most
+  GUARD_WAIT (3) own turns, then GUARD_REST (3) turns of own progress. Not
+  when the bot is one cast from winning itself. The wider plan search had
+  cut Psychic answers 12 -> 0 (bots always had a plan, so the old greedy
+  guard placement never ran); now 3, and 2-player 24/24 wins, ~41 turns.
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY

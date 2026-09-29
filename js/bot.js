@@ -1696,8 +1696,35 @@
             const [q, r] = k.split(',').map(Number);
             anchors.push({ hex: { q, r }, steps: Math.round(d / 35) });
         }
+        // Side counter (owner, 2026-09-29: "I set up a counter while I'm
+        // setting up something else"): with a dangerous leader and Iron Stance
+        // or Psychic in reach, a centre where the counter's shape also fits
+        // gets a bonus. A response is made from the pattern's centre, the
+        // same spot the bot stands on to build and cast its main scroll.
+        let sideScrolls = [];
+        if (!opts?.only) {
+            try {
+                const att = attackTools(snap, self);
+                const inReach = new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]);
+                if ((att.push || 0) >= 2) sideScrolls = [...COUNTERS].filter(n => inReach.has(n) &&
+                    !window.BotSim?.checkPattern(snap, n, snap.turn.activePlayerIndex));
+            } catch (e) { sideScrolls = []; }
+        }
+        const sideFor = (anchorHex, mainCells) => {
+            let best = null;
+            for (const n of sideScrolls) {
+                for (const variant of window.SCROLL_DEFINITIONS?.[n]?.patterns || []) {
+                    const v = viable(variant, anchorHex);
+                    if (!v) continue;
+                    if (v.cells.some(c => mainCells.some(m => m.q === c.q && m.r === c.r && m.type !== c.type))) continue;
+                    const val = SIDE_COUNTER_BONUS + 3 * v.placed;
+                    if (!best || val > best.val) best = { val, scroll: n, cells: v.cells };
+                }
+            }
+            return best;
+        };
         const cands = [];
-        for (const { name, def, credit, attack } of creditableSources(snap, self, noCreditScrolls)) {
+        for (const { name, def, credit, attack } of [...creditableSources(snap, self, noCreditScrolls), ...(opts?.extra || [])]) {
             if (opts?.only && !opts.only.has(name)) continue;
             for (const variant of def.patterns) for (const { hex: anchorHex, steps } of anchors) {
                 const v = viable(variant, anchorHex);
@@ -1713,8 +1740,9 @@
                 // collecting is discounted (slower, riskier) but still far
                 // better than no plan at all — WEIGHTS.planDeficitPenalty is
                 // negative, same sign convention as moveApPenalty etc.
-                const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit;
-                cands.push({ base, score: base + WEIGHTS.planDeficitPenalty * steps, placed: v.placed, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps });
+                const side = sideScrolls.length ? sideFor(anchorHex, v.cells) : null;
+                const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit + (side ? side.val : 0);
+                cands.push({ base, score: base + WEIGHTS.planDeficitPenalty * steps, placed: v.placed, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps, side });
             }
         }
         if (!cands.length) return null;
@@ -1731,10 +1759,30 @@
             }
             if (!best || c.score > best.score) best = c;
         }
-        if (best && !opts) { _planStats.made++; if (best.steps > 0) _planStats.away++; _planStats.reused += best.placed; if (best.placed === best.cells.length) _planStats.finished++; }
-        return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps } : null;
+        if (best && !opts) { _planStats.made++; if (best.steps > 0) _planStats.away++; _planStats.reused += best.placed; if (best.placed === best.cells.length) _planStats.finished++; if (best.side) _planStats.side++; }
+        return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps,
+                        side: best.side ? { scroll: best.side.scroll, cells: best.side.cells } : null } : null;
     }
-    const _planStats = { made: 0, away: 0, reused: 0, finished: 0 }; // tests
+    const SIDE_COUNTER_BONUS = 8;
+    const GUARD_WAIT = 3, GUARD_REST = 3;
+    const _planStats = { made: 0, away: 0, reused: 0, finished: 0, side: 0, sidePlaced: 0 }; // tests
+    // A side-counter stone to place now, or null: only stones the main shape
+    // does not still need, only cells in placement range that are empty and
+    // would keep the stone.
+    function sideStep(snap, self, plan, missing) {
+        if (!plan.side) return null;
+        const mainNeed = {};
+        for (const c of missing) mainNeed[c.type] = (mainNeed[c.type] || 0) + 1;
+        for (const c of plan.side.cells) {
+            if (placedStones.some(st => Math.hypot(st.x - c.x, st.y - c.y) < 5)) continue;
+            if ((self.pool[c.type] || 0) <= (mainNeed[c.type] || 0)) continue;
+            if (typeof isInPlacementRange !== 'function' || !isInPlacementRange(c.x, c.y, c.type)) continue;
+            if (window.BotSim && !window.BotSim.stoneWouldSurvive(snap, c.x, c.y, c.type)) continue;
+            _planStats.sidePlaced++;
+            return { type: 'placeStone', x: c.x, y: c.y, stoneType: c.type, scroll: plan.side.scroll, progress: 0 };
+        }
+        return null;
+    }
     // Plan review (owner, 2026-09-29: attacks as multi-turn intentions). Once
     // per own turn: an attack plan that is no longer worth it (the leader is
     // no longer a danger it can hurt) is dropped; a building plan gives way
@@ -1756,6 +1804,38 @@
         m.planReviewTurn = m.ownTurns;
         const self = me(snap);
         if (!self) return;
+        // Guard post (2026-09-29): someone is one cast from winning and no
+        // counter is ready: build Iron Stance or Psychic nearby, then stand on
+        // it with the AP kept (planNextAction ends the turn there). Not when
+        // this bot is one cast from winning itself: then it races.
+        const D = window.BotDiplomacy;
+        const guard = guardWanted(snap) && !D?.oneCastFromWin?.(idx, snap);
+        if (m.plan && m.plan.guard) {
+            // At most GUARD_WAIT own turns on the post, then GUARD_REST turns
+            // of own progress (two guards facing each other stalled before).
+            const waited = m.plan.waitFrom != null ? (m.ownTurns || 0) - m.plan.waitFrom : 0;
+            if (!guard || waited >= GUARD_WAIT) {
+                log(guard ? 'Guarded long enough - back to my own plan' : 'Guard no longer needed - dropping the counter plan');
+                m.plan = null;
+                m.guardRestUntil = (m.ownTurns || 0) + GUARD_REST;
+            }
+            return;
+        }
+        if (guard && !guardReserve(snap, self) && (m.ownTurns || 0) >= (m.guardRestUntil || 0)) {
+            const inReach = new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]);
+            const counters = [...COUNTERS].filter(n => inReach.has(n) && window.SCROLL_DEFINITIONS?.[n]);
+            if (counters.length) {
+                const alt = makePlan(snap, { only: new Set(counters), near: 4,
+                    extra: counters.map(n => ({ name: n, def: window.SCROLL_DEFINITIONS[n], credit: 1.5 })) });
+                if (alt) {
+                    log(`Guard: building ${alt.scroll} to answer the player one cast from winning`);
+                    alt.guard = true;
+                    m.plan = alt;
+                    _review.guard = (_review.guard || 0) + 1;
+                    return;
+                }
+            }
+        }
         const attacks = attackTools(snap, self);
         if (m.plan && m.plan.attack) {
             // Two own turns in a row without a reason, so a leader hovering
@@ -1973,6 +2053,8 @@
                              progress: (plan.cells.length - missing.length + 1) / plan.cells.length };
                 }
             }
+            const side = sideStep(snap, self, plan, missing);
+            if (side) return side;
             if (snap.turn.ap > 0) {
                 const fillableOrdered = fillableMissing.filter(c => !m.cursedCells.has(cellKey(c)));
                 if (fillableOrdered.length) {
@@ -1995,6 +2077,8 @@
         }
 
         // Shape complete → return to the anchor and cast
+        const sideNow = sideStep(snap, self, plan, []);
+        if (sideNow) return sideNow;
         const aPx = hexToPixel(plan.anchor.q, plan.anchor.r, TILE_SIZE);
         // A stone on the anchor: casting there is not allowed (standing on a
         // stone). Break it first (from next to it, keeping 2 AP to cast), or
@@ -2008,6 +2092,13 @@
                 if (mv) return mv;
             }
             return null;
+        }
+        const isResponse = window.SCROLL_DEFINITIONS?.[plan.scroll]?.level === 1;
+        if (isResponse && Math.hypot(self.x - aPx.x, self.y - aPx.y) < 5) {
+            // A counter is answered, not cast: wait here with the AP kept.
+            const gm = mem(snap.turn.activePlayerIndex);
+            if (plan.waitFrom == null) plan.waitFrom = gm.ownTurns || 0;
+            return (snap.turn.ap >= 2 || window.BotSim?.checkPattern(snap, plan.scroll, snap.turn.activePlayerIndex)) ? { type: 'endTurn' } : null;
         }
         if (Math.hypot(self.x - aPx.x, self.y - aPx.y) >= 5) {
             if (snap.turn.ap > 0) {
