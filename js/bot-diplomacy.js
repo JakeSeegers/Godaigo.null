@@ -185,6 +185,7 @@
 
     // ---------------------------------------------------------------- memory
     function relOf(o, j) {
+        if (!S.seeded) ensureSeeded();
         const r = (S.rel[o] ||= {});
         return (r[j] ||= { favor: 0, trust: 0 });
     }
@@ -380,6 +381,7 @@
 
     function pressures(o) {
         if (!enabled()) return null;
+        if (!S.seeded) ensureSeeded();
         const key = `${S.turns}|${S.looks}`;
         const c = S.press[o];
         if (c && c.key === key) return c.arr;
@@ -759,6 +761,14 @@
         return window.BotElements?.COLOR_ELEMENT?.[c] || null;
     }
     function rememberOn() { return remember && arenaRunning(); }
+    // Load kept bonds the first time a relationship is read in a game (the
+    // first look can come after the first move in fast training).
+    function ensureSeeded() {
+        if (S.seeded || !rememberOn() || !gameActive()) return;
+        let snap;
+        try { snap = window.BotState.snapshot(); } catch (e) { return; }
+        if (snap?.players?.some(Boolean)) seedBonds(snap);
+    }
     function seedBonds(snap) {
         S.seeded = true;
         if (!rememberOn()) return;
