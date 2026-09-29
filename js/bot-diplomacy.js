@@ -408,8 +408,11 @@
                 const acts = snap.players[leader].activated.length;
                 const byCount = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four + 0.25 : acts >= 3 ? STAGE.four : STAGE.clear;
                 const byLead = lead >= 2.75 ? STAGE.five : lead >= 1.75 ? STAGE.four : STAGE.clear;
-                // A lead in hard elements (void, wind) weighs a bit more.
-                arr[leader] = Math.max(byCount, byLead) * Math.max(0.9, Math.min(1.15, tracker(snap, leader) / Math.max(1, acts)));
+                // A lead in hard elements (void, wind) weighs a bit more. Easy
+                // elements never pull it under its stage (owner's game 858,
+                // 2026-09-29: water, earth and fire gave 2 x 0.93 = 1.85, just
+                // under the pact bar, so no bot ever warned or offered a pact).
+                arr[leader] = Math.max(byCount, byLead) * Math.max(1, Math.min(1.15, tracker(snap, leader) / Math.max(1, acts)));
             }
         }
         for (let j = 0; j < n; j++) {

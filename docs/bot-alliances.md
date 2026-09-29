@@ -201,7 +201,10 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   so void + wind + fire is a bit more dangerous than earth + water + fire.
   A clear leader is now 0.75 (weighted) ahead of everyone else; push 2
   (warnings, pacts) starts when the leader has 3 elements, not 4 (4 = 2.25);
-  a lead mostly in hard elements pushes up to x1.15. Harm (harmContext) now
+  a lead mostly in hard elements pushes up to x1.15, easy elements never
+  push below the stage (2026-09-29 fix: before, water + earth + fire gave
+  2 x 0.93 = 1.85, under the pact bar, so the owner's game 858 had no
+  warning or pact at all, and 1.5 x 0.89 also missed harm). Harm (harmContext) now
   starts at push 1.5, any clear leader, scaled by push.
 - Touchy bots and grudge pacts (owner, 2026-09-28: walls and denial tools
   would add little; focus on how bots react to each other). New hurt parts in
