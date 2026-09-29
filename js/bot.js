@@ -2887,7 +2887,11 @@
         }
         const camps = [];
         let campHere = null;
-        for (const t of snap.tiles) {
+        // Camping costs the camper whole turns: only when the leader is one
+        // cast from winning (owner, 2026-09-29: a bot camped a void shrine
+        // for most of a game and did nothing else).
+        const campOk = D.alertOn?.(ai, snap) === L;
+        for (const t of (campOk ? snap.tiles : [])) {
             if (!t.revealed || t.isPlayerTile || !need.includes(t.shrineType)) continue;
             if ((snap.sourcePool[t.shrineType] || 0) > 3 || (lp.pool[t.shrineType] || 0) >= 3) continue;
             if (snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5)) continue; // already blocked
@@ -2906,8 +2910,8 @@
     //    hands them a free draw).
     //  - Wandering River: that shrine counts as an element the leader
     //    already has, until my next turn.
-    //  - Shifting Sands: swap the leader's tile with a far one, carrying
-    //    the leader away from home or from the shrines it needs.
+    //  (Shifting Sands was dropped as an attack, owner 2026-09-29: it only
+    //  works in rare cases.)
     // A key shrine: revealed, of an element the leader still needs (supply
     // left), no stones or pawns on the tile, close to the leader, and one of
     // at most 2 free shrines of that element.
@@ -2929,7 +2933,7 @@
         return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
     }
     function harmChoices(snap, name) {
-        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'EARTH_SCROLL_2'].includes(name)) return [];
+        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4'].includes(name)) return [];
         const self = snap.players[snap.turn.activePlayerIndex];
         const h = self ? harmContext(snap, self) : null;
         if (!h) return [];
@@ -2949,20 +2953,6 @@
             const has = ELEMENTS.filter(el => lp.activated.includes(el));
             const el = has.find(e => !self.activated.includes(e)) || has[0] || 'void';
             for (const t of keyShrines(snap, lp).slice(0, 2)) out.push({ tileId: t.id, element: el, harm: 0.6 });
-        } else if (name === 'EARTH_SCROLL_2') {
-            const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
-            const lt = snap.tiles.find(t => !t.isPlayerTile && onTile(t, lp));
-            if (!lt || snap.stones.some(q => onTile(lt, q)) || snap.players.filter(q => q && onTile(lt, q)).length !== 1) return out;
-            // Where the leader is heading: home with all five, else its key shrines.
-            const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === h.L);
-            const goals = ELEMENTS.every(el => lp.activated.includes(el)) ? (home ? [home] : []) : keyShrines(snap, lp);
-            if (!goals.length) return out;
-            const gd = t => Math.min(...goals.map(g => Math.hypot(g.x - t.x, g.y - t.y)));
-            const far = snap.tiles.filter(t => t !== lt && !t.isPlayerTile && !snap.stones.some(q => onTile(t, q)) &&
-                !snap.players.some(q => q && onTile(t, q)) && !goals.includes(t))
-                .sort((a, b) => gd(b) - gd(a))[0];
-            if (!far || gd(far) < gd(lt) + 2 * TILE_R) return out;
-            out.push({ a: lt.id, b: far.id, harm: Math.min(1.5, (gd(far) - gd(lt)) / (4 * TILE_R)) });
         }
         return out;
     }
@@ -3146,7 +3136,7 @@
         if (harmPart < 1) return null; // the harm bonus did not touch this move
         const kind = action.type === 'breakStone' ? 'break' : action.type === 'endTurn' ? 'camp'
             : action.type === 'move' || action.type === 'teleport' ? 'move'
-            : action.type === 'cast' ? ({ EARTH_SCROLL_4: 'scout', WATER_SCROLL_4: 'river', EARTH_SCROLL_2: 'shove', EARTH_SCROLL_3: 'wall' }[action.scroll] || 'cast') : action.type;
+            : action.type === 'cast' ? ({ EARTH_SCROLL_4: 'scout', WATER_SCROLL_4: 'river', EARTH_SCROLL_3: 'wall' }[action.scroll] || 'cast') : action.type;
         const D = window.BotDiplomacy;
         return {
             kind, actor: idx, target: h.L, push: +h.push.toFixed(2),
@@ -3208,7 +3198,7 @@
                 }
             } else if (action.type === 'cast' && (action.choice?.harm || (action.scroll === 'EARTH_SCROLL_3' && harmCastBonus(snap, self, action) > 0))) {
                 const h = harmContext(snap, self);
-                const kind = { EARTH_SCROLL_4: 'scout', WATER_SCROLL_4: 'river', EARTH_SCROLL_2: 'shove', EARTH_SCROLL_3: 'wall' }[action.scroll];
+                const kind = { EARTH_SCROLL_4: 'scout', WATER_SCROLL_4: 'river', EARTH_SCROLL_3: 'wall' }[action.scroll];
                 if (h && kind) D.intend(idx, kind, h.L);
             } else if (action.type === 'cast') {
                 if (GUARD_FETCH.has(action.scroll) && fetchTarget(snap) != null) D.intend(idx, 'fetch', fetchTarget(snap));

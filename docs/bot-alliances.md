@@ -238,9 +238,8 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   - Wandering River: a key shrine of the leader (an element it needs, one
     of at most 2 open shrines of it, near it) counts as an element it
     already has until my next turn (x 0.6).
-  - Shifting Sands: swap the leader's tile (only it on it, no stones) with
-    the free tile farthest from where it is heading (home with five, else
-    its key shrines), when that is 2+ tiles farther (up to x 1.5).
+  - Shifting Sands as an attack was dropped (owner, 2026-09-29: it only
+    works in rare cases).
   - Mason's Savvy: cast when the leader's route (home or nearest key shrine)
     passes within 5 hexes (castHarmWall 30); the earth wall placements
     themselves were already scored (tacticalContext, x push).
@@ -287,6 +286,9 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   never changes the harm / help weights (bot.js SOCIAL_KEYS, pinSocial).
   Per-bot personalities were dropped for now (owner: colours play unevenly,
   it would muddy training).
+- Camping a scarce shrine only when the leader is one cast from winning
+  (2026-09-29; in the owner's 4-player game a bot camped a void shrine for
+  most of the game and cast nothing).
 - 2-player draws (2026-09-29; 24 seeded games, stall restarts off, 4 draws
   before, 1 after). Causes found by replaying them: (1) guard standoff, both
   one cast from winning kept AP for a counter and never cast: guardReserve
