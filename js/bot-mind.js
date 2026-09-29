@@ -41,7 +41,10 @@
         try {
             if (typeof window.isHermit !== 'function' || !window.isHermit()) return false;
             const A = window.BotArena;
-            if (A && !A.isSpectating?.() && (A.isRunning?.() || A.isEvolving?.() || A.isClimbing?.())) return false;
+            // Off only in fast (Extreme) training; Watchable training shows it
+            // (owner, 2026-09-29).
+            if (A && !A.isSpectating?.() && (A.isRunning?.() || A.isEvolving?.() || A.isClimbing?.()) &&
+                (window.BotSystem?.speedScale ?? 1) < 1) return false;
             return !!document.getElementById('game-layout')?.classList.contains('active');
         } catch (e) { return false; }
     }

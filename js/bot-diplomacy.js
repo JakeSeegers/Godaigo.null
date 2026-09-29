@@ -845,6 +845,7 @@
         setTalkAlways: on => { talkAlways = !!on; },
         oneCastFromWin: (j, snap) => { try { return oneCastFromWin(snap || window.BotState.snapshot(), j); } catch (e) { return false; } },
         alertOn, intend, roundOver, bonds,
+        isBot: j => isBotSeat(j),
         setRemember: on => { remember = !!on; },
         remembers: () => remember,
         forgetBonds: () => { try { localStorage.removeItem(BONDS_KEY); } catch (e) {} },

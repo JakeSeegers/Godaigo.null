@@ -479,6 +479,11 @@
 
         // Seed ALL shuffle randomness (tile deck, scroll decks) for this game
         Math.random = mulberry32(seed);
+        // Training (not Spectate): hide the pop-ups bots click through (the
+        // response window, scroll choice menus, "New Scroll" toasts). They
+        // still work, just invisible (css body.bot-training-quiet, owner
+        // 2026-09-29: distracting flashes at high speed).
+        if (!_spectating) document.body.classList.add('bot-training-quiet');
 
         neutralizeTutorial();
         ensureLocalMode();
@@ -605,6 +610,7 @@
             }
         } finally {
             window.showEndTurnPrompt = savedShowEndTurnPrompt;
+            document.body.classList.remove('bot-training-quiet');
         }
         // Why this attempt ended, for training UIs: 'win', a stall reason
         // ('camping' / 'no_cast' / 'no_progress'), 'stuck', 'turn_cap' or

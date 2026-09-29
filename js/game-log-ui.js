@@ -371,6 +371,93 @@
         if (line) appendLine(line.html, line.className);
     }
 
+    // ---- Alliances tab (owner, 2026-09-29) ----
+    // A second tab in the Game Log: the current pact, how each bot sees every
+    // other player (js/bot-diplomacy.js view()), this game's alliance talk and,
+    // with "Bots remember" on, what the elemental bots kept from earlier
+    // games. Tabs switch on pointerdown, and the tab bar is never rebuilt, so
+    // a bot acting mid-click cannot swallow the switch during training.
+    const ALLY_ID = 'game-log-alliances';
+    let allyTab = false, allyHistory = [], allyState = null, lastAllySig = null;
+    function initAllianceTab() {
+        const wrap = document.getElementById('game-log-body-wrap');
+        const content = document.getElementById(CONTENT_ID);
+        if (!wrap || !content || document.getElementById('game-log-tabs')) return !!wrap;
+        const tabs = document.createElement('div');
+        tabs.id = 'game-log-tabs';
+        tabs.innerHTML = '<button type="button" data-tab="log" class="gl-tab on">Log</button><button type="button" data-tab="ally" class="gl-tab">Alliances</button>';
+        const ally = document.createElement('div');
+        ally.id = ALLY_ID;
+        ally.style.display = 'none';
+        wrap.insertBefore(tabs, wrap.firstChild);
+        wrap.appendChild(ally);
+        tabs.addEventListener('pointerdown', (e) => {
+            const b = e.target.closest('[data-tab]');
+            if (!b) return;
+            e.preventDefault();
+            allyTab = b.dataset.tab === 'ally';
+            for (const t of tabs.querySelectorAll('.gl-tab')) t.classList.toggle('on', t === b);
+            wrap.classList.toggle('gl-ally-mode', allyTab);
+            ally.style.display = allyTab ? '' : 'none';
+            lastAllySig = null;
+            renderAlliances();
+            _fit();
+        });
+        const D = window.BotDiplomacy;
+        D?.onTalk?.(({ text }) => {
+            const S = D._state?.();
+            if (S !== allyState) { allyState = S; allyHistory = []; }
+            const turn = (typeof currentTurnNumber !== 'undefined' && currentTurnNumber) ? currentTurnNumber : (S?.turns ?? 0);
+            allyHistory.push({ turn, text });
+            if (allyHistory.length > 60) allyHistory.shift();
+        });
+        return true;
+    }
+    const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+    function feeling(r) {
+        const f = r.favor >= 0.1 ? 'likes' : r.favor <= -0.1 ? 'resents' : 'is neutral to';
+        const t = r.trust >= 0.1 ? ', trusts' : r.trust <= -0.1 ? ', distrusts' : '';
+        return f + t;
+    }
+    function renderAlliances() {
+        const el = document.getElementById(ALLY_ID);
+        const D = window.BotDiplomacy;
+        if (!el || !allyTab) return;
+        const S = D?._state?.();
+        if (S !== allyState) { allyState = S; allyHistory = []; }
+        const n = (typeof playerPositions !== 'undefined' && Array.isArray(playerPositions)) ? playerPositions.length : 0;
+        const on = !!D?.enabled?.();
+        const parts = [];
+        const pact = on ? D.pact?.() : null;
+        parts.push('<div class="gl-ally-h">Now</div>');
+        if (!on) parts.push('<div class="gl-ally-dim">Alliances run in bot training and in online games you host.</div>');
+        else if (pact) parts.push(`<div class="gl-ally-pact">${pact.kind === 'grudge' ? 'Grudge pact' : 'Pact against the leader'}: ${pact.members.map(playerSpan).join(', ')} against ${playerSpan(pact.target)} (${pact.turnsLeft} turns left)</div>`);
+        else parts.push('<div class="gl-ally-dim">No pact right now.</div>');
+        if (on) {
+            for (let o = 0; o < n; o++) {
+                if (!playerPositions[o] || !D.isBot?.(o)) continue;
+                const rows = D.view(o) || [];
+                if (!rows.length) continue;
+                const target = D.coalitionTarget?.(o);
+                const lines = rows.map(r => `<div class="gl-ally-row" style="color:${r.favor >= 0.1 ? '#8fe0a5' : r.favor <= -0.1 ? '#ff9a8a' : ''}">${feeling(r)} ${playerSpan(r.player)} <span class="gl-ally-dim">(favor ${fmt(r.favor)}, trust ${fmt(r.trust)}, push ${r.push.toFixed(1)})</span></div>`).join('');
+                parts.push(`<div class="gl-ally-bot">${playerSpan(o)}${target != null ? ` <span class="gl-ally-dim">wants to stop</span> ${playerSpan(target)}` : ''}${lines}</div>`);
+            }
+        }
+        parts.push('<div class="gl-ally-h">This game</div>');
+        if (!allyHistory.length) parts.push('<div class="gl-ally-dim">Nothing said yet.</div>');
+        else parts.push(allyHistory.slice(-25).reverse().map(h => `<div class="gl-ally-row"><span class="gl-ally-dim">T${h.turn}</span> ${esc(h.text).replace(/\{p(\d)\}/g, (m, k) => playerSpan(+k))}</div>`).join(''));
+        if (D?.remembers?.()) {
+            const names = window.BotElements?.NAMES || {};
+            const kept = (D.bonds?.() || []).filter(r => Math.abs(r.favor) + Math.abs(r.trust) >= 0.02).slice(0, 8);
+            parts.push('<div class="gl-ally-h">Remembered from earlier games</div>');
+            parts.push(kept.length ? kept.map(r => `<div class="gl-ally-row">${esc(names[r.from] || r.from)} ${feeling(r)} ${esc(names[r.to] || r.to)} <span class="gl-ally-dim">(${fmt(r.favor)}, ${fmt(r.trust)}, ${r.games} games)</span></div>`).join('') : '<div class="gl-ally-dim">Nothing yet.</div>');
+        }
+        const html = parts.join('');
+        if (html === lastAllySig) return; // unchanged: leave the DOM (and any scroll) alone
+        lastAllySig = html;
+        el.innerHTML = html;
+    }
+
     function init() {
         // Backfill anything already recorded (normally empty this early —
         // defensive only) before subscribing for live updates.
@@ -384,6 +471,9 @@
         // this is a poll rather than a hook off any single event.
         renderActiveBuffs();
         setInterval(renderActiveBuffs, 800);
+        // The Game Log panel is built by scroll-panels.js; add the tabs once it exists.
+        const tabTimer = setInterval(() => { if (initAllianceTab()) clearInterval(tabTimer); }, 500);
+        setInterval(renderAlliances, 1000);
     }
 
     if (document.readyState === 'loading') {

@@ -6515,6 +6515,10 @@ document.getElementById('undo-move').onclick = function() {
                         window._botTrainingPublic = true;
                         showTrainingPopup({ mode: 'hillclimb', phase: 'starting', explore: resumeSave ? !!resumeSave.runOpts?.explore : state.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
                         overlay.remove();
+                    } else {
+                        // Hermit runs: the corner popup shows at once too (it
+                        // used to wait for the first finished game, ~30 s).
+                        showTrainingPopup({ mode: state.method === 'hillclimb' || resumeSave ? 'hillclimb' : 'training', phase: 'starting', nPlayers: state.n, explore: state.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
                     }
                     try {
                         // Public "Train Bot" is hill-climb-only by definition.

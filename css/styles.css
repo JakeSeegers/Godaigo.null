@@ -827,6 +827,25 @@ body {
    (#game-log-content) without scrolling away with it — the wrapper itself
    never scrolls (.fsp-body's own overflow-y:hidden default is left alone),
    only #game-log-content does. */
+/* Game Log tabs: Log / Alliances (js/game-log-ui.js). */
+#game-log-tabs { display: flex; gap: 4px; flex-shrink: 0; margin-bottom: 6px; }
+#game-log-tabs .gl-tab {
+    font: inherit; font-size: 11px; padding: 2px 10px; border-radius: 5px; cursor: pointer;
+    border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary);
+}
+#game-log-tabs .gl-tab.on { color: var(--text-primary, #eee); border-color: var(--text-secondary); }
+#game-log-alliances {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    font-family: var(--font-terminal); font-size: 12px; line-height: 1.45;
+}
+.gl-ally-h { color: var(--text-secondary); font-weight: 600; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; margin: 6px 0 2px; }
+.gl-ally-bot { margin: 4px 0; }
+.gl-ally-row { padding-left: 8px; }
+.gl-ally-dim { color: var(--text-secondary); }
+.gl-ally-pact { color: #ffd479; }
+#game-log-body-wrap.gl-ally-mode #game-log-buffs,
+#game-log-body-wrap.gl-ally-mode #game-log-content { display: none !important; }
+
 #game-log-buffs {
     display: flex;
     flex-direction: column;
@@ -3152,6 +3171,34 @@ svg {
     background: var(--accent-gold, #d9b08c);
     border-color: var(--accent-gold, #d9b08c);
     color: #1a1a1a;
+}
+
+/* Bot training (js/bot-arena.js playMatch, not Spectate): the pop-ups bots
+   click through stay in the page but are invisible, so fast training does
+   not flash menus. */
+body.bot-training-quiet #response-window-overlay,
+body.bot-training-quiet #psychic-ransom-overlay,
+body.bot-training-quiet #scholars-insight-modal,
+body.bot-training-quiet #create-stone-modal,
+body.bot-training-quiet #quick-reflexes-modal,
+body.bot-training-quiet #water-transform-modal,
+body.bot-training-quiet #take-flight-player-modal,
+body.bot-training-quiet #arson-element-modal,
+body.bot-training-quiet #scroll-select-modal,
+body.bot-training-quiet #deck-select-modal,
+body.bot-training-quiet #element-select-modal,
+body.bot-training-quiet #opponent-select-modal,
+body.bot-training-quiet #plunder-player-modal,
+body.bot-training-quiet #excavate-teleport-modal,
+body.bot-training-quiet #transmute-modal,
+body.bot-training-quiet #end-turn-empty-ap-modal,
+body.bot-training-quiet #cascade-popup,
+body.bot-training-quiet #scroll-cancel-btn,
+body.bot-training-quiet #telekinesis-done-btn,
+body.bot-training-quiet .scroll-found-toast {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: none !important;
 }
 
 /* ── Floating emoji animation ───────────────────────────────────── */

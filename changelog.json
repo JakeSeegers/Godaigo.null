@@ -9,7 +9,8 @@
         "Bot emotes: the thinking emote is shorter, emotes clear as soon as a training game ends, and in fast training they show right away instead of late.",
         "New bot emote sentences: pact answers show a crown (against the leader) or a heart (a grudge), and many emotes are simpler and clearer.",
         "Bots now reach for a counter scroll earlier, once the leader has 4 elements.",
-        "Train Bot: new \"Bots remember\" option. The elemental bots keep some of their friendships and grudges from one training game to the next."
+        "Game Log has a new Alliances tab: current pacts, how each bot feels about everyone, and what they said this game.",
+        "Train Bot: new \"Bots remember\" option, no more menus flashing during training, and the progress window shows right away."
       ]
     },
     {
