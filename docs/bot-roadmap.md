@@ -338,6 +338,17 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   is gone across two fresh 15-game arena batches (0 occurrences), and the
   circuit breaker itself fired 7 times in one batch, correctly picking
   `placeStone`/`breakStone`/`cast`/`endTurn` over continuing to wander.
+  **No-backtrack rule (2026-09-29, owner's game 858).** Pacing was still
+  6% of bot turns (4-bot trace: 43 of 695). Two causes: the blocked-shrine
+  pull skipped only the shrine the bot already stood next to, so another
+  blocked shrine pulled it away and the first pulled it back (now: next to
+  one = stay and break it); and plan routes over free wind stones bouncing
+  between equal-cost hexes. Hard rule in bot.js `noBacktrack()` /
+  `turnSeen()`: within one turn a bot never moves back onto a hex it already
+  stood on until the board changes (stones, pool, elements, hand); applied
+  to greedy, search and MCTS roots and to plan steps. Not a weight, never
+  trained. After: 2 pacing turns in the same games, 2-player set unchanged
+  (23/24 wins).
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY

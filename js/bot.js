@@ -2510,6 +2510,28 @@
     // and could walk home) unless the same action wins for this bot. Only
     // runs while some opponent has all five, so it costs nothing earlier.
     // If every action would do it, keep them all (never leave the bot stuck).
+    // No pacing (2026-09-29, owner's game 858: a bot walked back and forth
+    // for three whole turns). Within one turn a bot never steps back onto a
+    // hex it already stood on, until something changes (a stone placed or
+    // broken, a cast, stones collected). A hard rule, not a weight, so
+    // training can never unlearn it. Falls back to every action when the
+    // rule would leave nothing.
+    function turnSeen(snap) {
+        const i = snap.turn.activePlayerIndex, self = snap.players[i];
+        if (i == null || !self) return null;
+        const m = mem(i);
+        const sig = `${m.ownTurns || 0}#${snap.stones.map(q => hexKey(q.x, q.y) + q.type).sort().join(';')}#${JSON.stringify(self.pool)}#${self.activated.length}#${(self.hand || []).length}`;
+        if (m.seenSig !== sig) { m.seenSig = sig; m.seen = new Set(); }
+        m.seen.add(hexKey(self.x, self.y));
+        return m.seen;
+    }
+    function noBacktrack(snap, acts) {
+        if (!acts.length || acts[0].type === 'placeTile') return acts;
+        const seen = turnSeen(snap);
+        if (!seen) return acts;
+        const kept = acts.filter(a => a.type !== 'move' || !seen.has(hexKey(a.x, a.y)));
+        return kept.length ? kept : acts;
+    }
     function kingmakerFilter(snap, acts) {
         const D = window.BotDiplomacy, sim = window.BotSim;
         if (!D?.enabled?.() || !sim || !acts.length || acts[0].type === 'placeTile') return acts;
@@ -2537,7 +2559,7 @@
         if (!sim) return null;
         const snap0 = window.BotState.snapshot();
         const meIdx = snap0.turn.activePlayerIndex;
-        const legal = kingmakerFilter(snap0, window.BotState.legalActions());
+        const legal = noBacktrack(snap0, kingmakerFilter(snap0, window.BotState.legalActions()));
         if (!legal.length || legal[0].type === 'placeTile') return null;
 
         const castable = legal.some(a => a.type === 'cast');
@@ -2843,7 +2865,7 @@
         for (let k = 0; k < K; k++) {
             const rng = mulberry32((baseSeed ^ Math.imul(k + 1, 2654435761)) >>> 0);
             const detSnap = determinize(realSnap, rng);
-            const legal = creditFilter(detSnap, sim.legalActions(detSnap));
+            const legal = noBacktrack(detSnap, creditFilter(detSnap, sim.legalActions(detSnap)));
             if (!legal.length || legal[0].type === 'placeTile') continue;
 
             const rootBreadth = Math.max(2, WEIGHTS.mctsRootBreadth | 0);
@@ -3302,7 +3324,7 @@
     function rankActions(fixationTarget, opts) {
         const withTrace = !!(opts && opts.withTrace);
         const snap = window.BotState.snapshot();
-        const legal = kingmakerFilter(snap, window.BotState.legalActions());
+        const legal = noBacktrack(snap, kingmakerFilter(snap, window.BotState.legalActions()));
         const scoreWithOptionalTrace = (a, ctx) => {
             const trace = withTrace ? {} : null;
             const score = scoreAction(a, snap, trace ? { ...ctx, trace } : ctx);
@@ -3381,14 +3403,18 @@
         {
             const breakCost = { void: 1, wind: 2, fire: 3, water: 4, earth: 5 };
             const haveType = new Set(ctx.shrines.filter(t => ctx.paths.get(t.id)?.length).map(t => t.shrineType));
-            let best = null;
+            let best = null, nextTo = false;
             for (const t of snap.tiles) {
                 if (!t.revealed || t.isPlayerTile || !ELEMENTS.includes(t.shrineType) || haveType.has(t.shrineType)) continue;
                 const st = snap.stones.find(q => Math.hypot(q.x - t.x, q.y - t.y) < 5);
                 if (!st) continue;
                 const val = shrineValue(snap, t.shrineType);
                 if (val <= 0) continue;
-                if (Math.hypot(self.x - t.x, self.y - t.y) < 40) continue; // already next to it
+                // Already next to one: that is the goal, stay and break it.
+                // (Skipping only this shrine let another blocked shrine pull
+                // the bot away, and one step later this one pulled it back:
+                // the pacing in the owner's game 858.)
+                if (Math.hypot(self.x - t.x, self.y - t.y) < 40) { nextTo = true; break; }
                 for (const h of window.BotState.hexGrid()) {
                     const d = Math.hypot(h.x - t.x, h.y - t.y);
                     if (d < 5 || d > 40 || snap.stones.some(q => Math.hypot(q.x - h.x, q.y - h.y) < 5)) continue;
@@ -3398,7 +3424,7 @@
                     if (!best || v > best.v) best = { v, path };
                 }
             }
-            if (best) { ctx.blockedShrinePath = best.path; ctx.blockedShrineValue = best.v; }
+            if (best && !nextTo) { ctx.blockedShrinePath = best.path; ctx.blockedShrineValue = best.v; }
         }
         // Alliances: harm the leader (breaking its fresh stones, camping).
         ctx.harm = harmContext(snap, self);
@@ -3733,6 +3759,10 @@
         if (planAction && planAction.type === 'move' && snap.turn.ap - (planAction.cost || 0) < 1 &&
             snap.stones.some(q => Math.hypot(q.x - planAction.x, q.y - planAction.y) < 5)) {
             log('Plan step would strand the pawn on a stone - scoring instead');
+            planAction = null;
+        }
+        if (planAction && planAction.type === 'move' && turnSeen(snap)?.has(hexKey(planAction.x, planAction.y))) {
+            log('Plan step goes back to a hex I already left this turn - scoring instead');
             planAction = null;
         }
         if (planAction) {
