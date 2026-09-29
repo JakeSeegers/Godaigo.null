@@ -239,6 +239,15 @@
         return () => window.JoytoneBridge?.setSuppressed(false);
     }
 
+    // Live speed switch (owner, 2026-09-29; training popup "Speed" button):
+    // watchable = normal bot pace and pauses, else Extreme. Sound and other
+    // muting stay as the run started. Reset at each run start.
+    let _liveVisual = null;
+    function setLiveSpeed(watchable) {
+        _liveVisual = !!watchable;
+        window.BotSystem.speedScale = watchable ? 1 : 0.1;
+    }
+
     function setWeights(table) {
         const W = window.BotSystem.WEIGHTS;
         for (const k of Object.keys(W)) delete W[k];
@@ -453,8 +462,10 @@
     // ----------------------------------------------------------------
     async function _playMatchOnce(weightsPerPlayer, opts = {}) {
         const nPlayers = weightsPerPlayer.length;
-        const visual = !!opts.visual;
-        const turnCap = opts.turnCap ?? (visual ? 300 : 200);
+        const visual0 = !!opts.visual;
+        const turnCap = opts.turnCap ?? (visual0 ? 300 : 200);
+        // Pacing follows the live speed switch (setLiveSpeed) when used.
+        const vis = () => _liveVisual ?? visual0;
         const seed = opts.seed ?? Math.floor(Math.random() * 1e9);
         const stuckTurns = {};
         for (let i = 0; i < nPlayers; i++) stuckTurns[i] = 0;
@@ -495,11 +506,11 @@
         if (typeof resetGameResources === 'function') resetGameResources();
         window.BotSystem.resetMemory();
         startGame(nPlayers);
-        await sleep(visual ? 300 : 30);
+        await sleep(vis() ? 300 : 30);
         placePlayerTilesSpread(nPlayers);
-        await sleep(visual ? 300 : 30);
+        await sleep(vis() ? 300 : 30);
         activePlayerIndex = 0;
-        if (visual) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it — the log needs it
+        if (visual0) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it — the log needs it
 
         // Every seat in a bot-arena game is a bot, so the "you're out of AP,
         // end turn?" modal (a human-click nudge — see showEndTurnPrompt's own
@@ -526,7 +537,7 @@
             // _saveRequested: Save & Quit stops the game at once; the caller
             // drops this unfinished game and replays it after a continue.
             for (let turn = 0; turn < turnCap && !_stopRequested && !_endEarlyRequested && !_saveRequested; turn++) {
-                if (visual) { try { currentTurnNumber = turn + 1; } catch (e) {} }
+                if (visual0) { try { currentTurnNumber = turn + 1; } catch (e) {} }
                 const idx = activePlayerIndex;
                 if (weightsPerPlayer[idx] !== undefined) setWeights(weightsPerPlayer[idx]);
                 refillAP();
@@ -605,7 +616,7 @@
                         log(`match seed ${seed}: stuck on turn ${turn} (${r.reason || 'endTurn did not advance activePlayerIndex'})`);
                         break;
                     }
-                    await sleep(visual ? 50 : 20);
+                    await sleep(vis() ? 50 : 20);
                 }
             }
         } finally {
@@ -779,6 +790,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        _liveVisual = null; // live speed switch starts from the run's own speed
         try {
             const result = await _playSeries(weightsA, weightsB, nGames, seed, { ...opts, visual });
             log('run complete:', JSON.stringify({
@@ -898,6 +910,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        _liveVisual = null; // live speed switch starts from the run's own speed
 
         // Every population member is tracked as {id, w, parentIds} so a UI
         // can show a stable roster across generations, not just a bare
@@ -1136,6 +1149,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        _liveVisual = null; // live speed switch starts from the run's own speed
 
         let champion = opts.champion ? { ...opts.champion } : { ...window.BotSystem.WEIGHTS };
         let championPuzzle; // puzzle score of the current champion (opts.puzzleCheck), computed on first use
@@ -1439,6 +1453,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        _liveVisual = null; // live speed switch starts from the run's own speed
 
         const perSize = [];
         let champFitness = 0, baseFitness = 0, champWins = 0, baseWins = 0, draws = 0, gameNo = 0;
@@ -1508,6 +1523,7 @@
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
         stopRequested: () => _stopRequested, // was stop() called for the run in progress (or the one that just ended)?
         endEarlyRequested,
+        setLiveSpeed,
         applyWeights: setWeights, // apply an {…} weight table to the LIVE WEIGHTS object in place
         seatFitness, sideFitness, // exposed for direct scoring verification, same as bot.js's evaluator
     };

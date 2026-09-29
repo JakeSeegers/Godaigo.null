@@ -4832,6 +4832,7 @@ document.getElementById('undo-move').onclick = function() {
 
                     <div style="display:flex;gap:6px;">
                         <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:12px;">End Early → Test Now</button>
+                        <button id="bt-popup-speed" title="Switch this run between Watchable (normal pace) and Extreme (fast). Sound stays as the run started." style="padding:4px 8px;background:#2d2d44;color:#eee;border:1px solid #666;border-radius:4px;cursor:pointer;font-size:12px;">Speed</button>
                         <button id="bt-popup-save" title="Stop now and keep this run. Continue it later from Train Bot (the game in progress is played again)." style="padding:4px 8px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:4px;cursor:pointer;font-size:12px;">Save &amp; Quit</button>
                         <button id="bt-popup-stop" style="padding:4px 8px;background:#442d2d;color:#eee;border:1px solid #755;border-radius:4px;cursor:pointer;font-size:12px;">Stop</button>
                     </div>
@@ -4850,6 +4851,16 @@ document.getElementById('undo-move').onclick = function() {
                     ev.currentTarget.disabled = true;
                     updateStatus('Ending training early - running the confirmation match against the starting weights with the best result so far…');
                 }
+            };
+            // Live speed switch (owner, 2026-09-29): Watchable <-> Extreme mid-run.
+            const speedBtn = el.querySelector('#bt-popup-speed');
+            const paintSpeed = () => { speedBtn.textContent = (window.BotSystem?.speedScale ?? 0) >= 1 ? 'Speed: Watchable' : 'Speed: Extreme'; };
+            paintSpeed();
+            setInterval(paintSpeed, 1000);
+            speedBtn.onclick = () => {
+                if (!window.BotArena?.isRunning?.() || !window.BotArena.setLiveSpeed) return;
+                window.BotArena.setLiveSpeed((window.BotSystem?.speedScale ?? 0) < 1);
+                paintSpeed();
             };
             el.querySelector('#bt-popup-save').onclick = (ev) => {
                 if (!window.BotArena?.isRunning()) return;
@@ -4980,8 +4991,9 @@ document.getElementById('undo-move').onclick = function() {
                 }
             } else {
                 const playersLabel = p.nPlayers === 'all' ? 'all sizes (2–5)' : `${p.nPlayers || 2} players`;
-                scenarioLine = `Training - ${playersLabel}, population ${p.popSize || '?'}`;
-                phaseLine = p.phase === 'confirming'
+                scenarioLine = p.popSize ? `Training - ${playersLabel}, population ${p.popSize}` : `Training - ${playersLabel}`;
+                phaseLine = p.phase === 'starting' ? 'Starting… (first game in progress)'
+                    : p.phase === 'confirming'
                     ? (p.nPlayers === 'all'
                         ? 'Confirming: champion vs. baseline at every size'
                         : 'Confirming: new champion vs. starting weights')
@@ -7873,8 +7885,11 @@ document.getElementById('undo-move').onclick = function() {
                     e.stopPropagation();
                     menu.style.display = (menu.style.display === 'none') ? 'flex' : 'none';
                 };
-                // Click elsewhere closes the menu.
+                // Click elsewhere closes the menu. Only a real click: bots
+                // "click" buttons from script (End Turn, scroll menus), which
+                // closed the menu at every bot turn in training (owner, 2026-09-29).
                 document.addEventListener('click', (e) => {
+                    if (!e.isTrusted) return;
                     if (menu && menu.style.display !== 'none' &&
                         e.target !== btn && !menu.contains(e.target)) {
                         menu.style.display = 'none';

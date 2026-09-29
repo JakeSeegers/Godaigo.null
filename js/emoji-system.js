@@ -568,7 +568,7 @@
 
         // Close on click outside
         document.addEventListener('click', (e) => {
-            if (!isPanelOpen) return;
+            if (!isPanelOpen || !e.isTrusted) return; // bots click from script: not a close
             const p = document.getElementById('emoji-panel');
             const b = document.getElementById('emoji-panel-btn');
             const lb = document.getElementById('emoji-lobby-btn');
