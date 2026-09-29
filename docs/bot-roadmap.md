@@ -391,6 +391,19 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   when the bot is one cast from winning itself. The wider plan search had
   cut Psychic answers 12 -> 0 (bots always had a plan, so the old greedy
   guard placement never ran); now 3, and 2-player 24/24 wins, ~41 turns.
+  **Travel shortcuts (2026-09-29, owner: "use Freedom, catacomb tiles and
+  Take Flight to move to good locations").** Every plan walk (to a cell, a
+  collect shrine, the anchor) goes through `travelStep()` -> `shortcut()`:
+  teleport now (catacomb, or any shrine centre under Freedom; from
+  legalActions), walk to a catacomb first then teleport, or cast Take Flight
+  on itself (2 AP, BotSim.castChoices landings), taken when it saves at least
+  2 AP. A plan's Take Flight cast does not end the plan. Greedy teleports score
+  TELEPORT_AP_VALUE (12) per AP saved toward the intention or home. Makes
+  plans reach far anchors. Test: 43 teleports in 6 four-bot games; Arson
+  casts 6 -> 9, Plunder 1 -> 3, Iron Stance answers 0 -> 6. The game's own
+  activate check (checkPatternForPlayer) is the same rule makePlan's board
+  table applies; not called directly because it logs every cell.
+  `BotSystem._shortcutStats`.
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY

@@ -1235,6 +1235,20 @@
 
             case 'teleport': {
                 let s = WEIGHTS.teleportBase;
+                // Toward my goal (the kept intention, or home): AP saved.
+                const goal = ctx.intent || (ctx.homePath && ctx.homePath.length ? ctx.homePath[ctx.homePath.length - 1] : null);
+                if (goal) {
+                    const self = me(snap);
+                    if (ctx.goalCost === undefined) {
+                        const p0 = window.BotState.findPath(self.x, self.y, goal.x, goal.y);
+                        ctx.goalCost = p0 && p0.length ? pathCost(p0) : Infinity;
+                    }
+                    const p1 = Math.hypot(a.x - goal.x, a.y - goal.y) < 5 ? [] : window.BotState.findPath(a.x, a.y, goal.x, goal.y);
+                    if (p1) {
+                        const saved = Math.min(10, ctx.goalCost - pathCost(p1));
+                        if (saved >= SHORTCUT_MIN_SAVE) s += TELEPORT_AP_VALUE * saved;
+                    }
+                }
                 if (ELEMENTS.includes(a.shrineType)) {
                     s += WEIGHTS.teleportShrineValue * shrineValue(snap, a.shrineType);
                 }
@@ -1947,7 +1961,77 @@
 
     // One walkable step toward any hex adjacent to `cell` (avoiding standing
     // on cells the plan still needs to fill). Returns a move action or null.
-    function stepTowardCell(self, cell, missing, ap) {
+    // Travel shortcuts (owner, 2026-09-29: "use Freedom, catacomb tiles and
+    // Take Flight to move to good locations"). For a target the bot is
+    // walking to, is there a faster way? (1) teleport now (standing on a
+    // catacomb, or on any shrine centre under Freedom), (2) walk to a
+    // catacomb first and teleport from there, (3) cast Take Flight on
+    // itself (2 AP) to land on another player's tile. Returns the first
+    // action of the best route when it saves at least 2 AP, else null.
+    const SHORTCUT_MIN_SAVE = 2;
+    const TELEPORT_AP_VALUE = 12;   // greedy teleport score per AP saved toward the goal
+    const _shortcutStats = { teleport: 0, gate: 0, flight: 0 }; // tests
+    function shortcut(snap, self, tx, ty, direct) {
+        if (!(direct > SHORTCUT_MIN_SAVE)) return null;
+        const costTo = (x, y) => {
+            if (Math.hypot(x - tx, y - ty) < 5) return 0;
+            const path = window.BotState.findPath(x, y, tx, ty);
+            return path && path.length ? pathCost(path) : Infinity;
+        };
+        const landings = snap.tiles.filter(t => t.revealed && ELEMENTS.includes(t.shrineType) &&
+            !snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5) &&
+            !snap.players.some(p => p && Math.hypot(p.x - t.x, p.y - t.y) < 5));
+        let best = null;
+        const offer = (total, action, kind) => {
+            if (total <= direct - SHORTCUT_MIN_SAVE && (!best || total < best.total)) best = { total, action, kind };
+        };
+        // (1) Teleport from here.
+        const legal = window.BotState.legalActions();
+        for (const a of legal) if (a.type === 'teleport') offer(costTo(a.x, a.y), a, 'teleport');
+        // (2) Walk to a catacomb, then teleport.
+        const onStone = snap.stones.some(q => Math.hypot(q.x - self.x, q.y - self.y) < 5);
+        if (!onStone && landings.length) {
+            const bestLand = gx => landings.reduce((m, t) => Math.hypot(t.x - gx.x, t.y - gx.y) < 5 ? m : Math.min(m, costTo(t.x, t.y)), Infinity);
+            for (const g of snap.tiles) {
+                if (!g.revealed || g.shrineType !== 'catacomb') continue;
+                if (Math.hypot(g.x - self.x, g.y - self.y) < 5) continue; // (1) covers standing on it
+                if (snap.stones.some(q => Math.hypot(q.x - g.x, q.y - g.y) < 5)) continue;
+                const path = window.BotState.findPath(self.x, self.y, g.x, g.y);
+                if (!path || !path.length) continue;
+                const cg = pathCost(path);
+                if (cg >= direct - SHORTCUT_MIN_SAVE) continue;
+                const step = path[0];
+                if (step.cost > snap.turn.ap) continue;
+                offer(cg + bestLand(g), { type: 'move', x: step.x, y: step.y, cost: step.cost }, 'gate');
+            }
+        }
+        // (3) Take Flight on myself, castable right here.
+        if (snap.turn.ap >= 2 && window.BotSim) {
+            const reach = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])];
+            if (reach.includes('WIND_SCROLL_4') && window.BotSim.checkPattern(snap, 'WIND_SCROLL_4', snap.turn.activePlayerIndex) &&
+                legal.some(a => a.type === 'cast' && a.scroll === 'WIND_SCROLL_4')) {
+                for (const c of window.BotSim.castChoices?.(snap, 'WIND_SCROLL_4') || []) {
+                    if (c.x == null) continue;
+                    offer(2 + costTo(c.x, c.y), { type: 'cast', scroll: 'WIND_SCROLL_4', choice: c }, 'flight');
+                }
+            }
+        }
+        if (!best) return null;
+        _shortcutStats[best.kind]++;
+        log(`Shortcut (${best.kind}): ${best.total} AP instead of ${direct}`);
+        return best.action;
+    }
+    // A walking step toward (tx, ty), or a shortcut when one saves AP.
+    function travelStep(snap, self, tx, ty, path) {
+        if (snap) {
+            const direct = path ? pathCost(path) : Infinity;
+            try { const sc = shortcut(snap, self, tx, ty, direct); if (sc) return sc; } catch (e) { log('Shortcut check failed: ' + e.message); }
+        }
+        if (path && path.length && path[0].cost <= snap?.turn?.ap) return { type: 'move', x: path[0].x, y: path[0].y, cost: path[0].cost };
+        return null;
+    }
+
+    function stepTowardCell(self, cell, missing, ap, snap) {
         const grid = window.BotState.hexGrid();
         let bestPath = null;
         for (const h of grid) {
@@ -1960,7 +2044,12 @@
             const path = window.BotState.findPath(self.x, self.y, h.x, h.y);
             if (!path || !path.length) continue;
             const cost = path.reduce((c, p) => c + p.cost, 0);
-            if (!bestPath || cost < bestPath.cost) bestPath = { cost, step: path[0] };
+            if (!bestPath || cost < bestPath.cost) bestPath = { cost, step: path[0], h, path };
+        }
+        if (bestPath && snap) {
+            const sc = travelStep(snap, self, bestPath.h.x, bestPath.h.y, bestPath.path);
+            if (sc && sc.type !== 'move') return sc;
+            if (sc && sc.type === 'move' && (sc.x !== bestPath.step.x || sc.y !== bestPath.step.y)) return sc;
         }
         if (bestPath && bestPath.step.cost <= ap) {
             return { type: 'move', x: bestPath.step.x, y: bestPath.step.y, cost: bestPath.step.cost };
@@ -1990,9 +2079,13 @@
             const path = window.BotState.findPath(self.x, self.y, t.x, t.y);
             if (!path || !path.length) continue;
             const cost = path.reduce((c, p) => c + p.cost, 0);
-            if (!best || cost < best.cost) best = { path, cost };
+            if (!best || cost < best.cost) best = { path, cost, t };
         }
         if (!best) return null;
+        {
+            const sc = travelStep(snap, self, best.t.x, best.t.y, best.path);
+            if (sc) return sc;
+        }
         if (snap.turn.ap > 0 && best.path[0].cost <= snap.turn.ap) {
             return { type: 'move', x: best.path[0].x, y: best.path[0].y, cost: best.path[0].cost };
         }
@@ -2064,7 +2157,7 @@
                     const ordered = [...fillableOrdered].sort((a, b) =>
                         Math.hypot(b.x - aPx.x, b.y - aPx.y) - Math.hypot(a.x - aPx.x, a.y - aPx.y));
                     for (const c of ordered) {
-                        const mv = stepTowardCell(self, c, missing, snap.turn.ap);
+                        const mv = stepTowardCell(self, c, missing, snap.turn.ap, snap);
                         if (mv) return mv;
                     }
                 }
@@ -2088,7 +2181,7 @@
             const b = window.BotState.legalActions().find(a => a.type === 'breakStone' && Math.hypot(a.x - anchorStone.x, a.y - anchorStone.y) < 5);
             if (b && (b.cost || 0) + 2 <= snap.turn.ap) return b;
             if (snap.turn.ap > 0) {
-                const mv = stepTowardCell(self, { x: aPx.x, y: aPx.y }, [], snap.turn.ap);
+                const mv = stepTowardCell(self, { x: aPx.x, y: aPx.y }, [], snap.turn.ap, snap);
                 if (mv) return mv;
             }
             return null;
@@ -2103,9 +2196,8 @@
         if (Math.hypot(self.x - aPx.x, self.y - aPx.y) >= 5) {
             if (snap.turn.ap > 0) {
                 const path = window.BotState.findPath(self.x, self.y, aPx.x, aPx.y);
-                if (path && path.length && path[0].cost <= snap.turn.ap) {
-                    return { type: 'move', x: path[0].x, y: path[0].y, cost: path[0].cost };
-                }
+                const step = travelStep(snap, self, aPx.x, aPx.y, path);
+                if (step) return step;
             }
             return null;
         }
@@ -4044,7 +4136,7 @@
                     noteDrawCast(idx, planAction.scroll);
                     _castsApplied++;
                     advanceCombo(idx, planAction);
-                    m.plan = null; // plan fulfilled
+                    if (m.plan && planAction.scroll === m.plan.scroll) m.plan = null; // plan fulfilled (not a Take Flight shortcut)
                 }
                 if (planAction.type === 'move') recordVisited(idx, planAction.x, planAction.y);
                 return planAction;
@@ -4583,6 +4675,7 @@
         _harmContext: harmContext, // tests
         _review,                    // tests: plan review counters
         _planStats,                 // tests: plans made / away from the pawn / stones reused / already finished
+        _shortcutStats,             // tests: teleport / walk-to-catacomb / Take Flight shortcuts taken
         _helpContext: helpContext, // tests
         // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.
         ELEMENT_THREAT, threatCount,
