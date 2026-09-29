@@ -244,11 +244,10 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   - Mason's Savvy: cast when the leader's route (home or nearest key shrine)
     passes within 5 hexes (castHarmWall 30); the earth wall placements
     themselves were already scored (tacticalContext, x push).
-  - Control the Current: cast next to the leader's fresh water stones of an
-    element it needs (castHarmCurrent 25); the driver turns those first.
+  - Control the Current against the leader: tried, removed 2026-09-29 (owner).
   Choices go through BotSim.castChoices, so search sees them too. Take
   Flight on the leader was left out: the target chooses where it lands.
-  Bot talk: scout, river, shove, wall, current intentions.
+  Bot talk: scout, river, shove, wall intentions.
 - Phrase edits (owner, 2026-09-29, from the Bot Phrases artifact
   https://claude.ai/artifact/JxnCXGR3jLPXVaGj2TGrHV, collection "phrases"):
   offer = bullseye ? colour; grudge ask = angry vein bullseye ? colour;
@@ -259,8 +258,7 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   = evil grin book; scout = laughing; river = hexagram; shove = chick; wall =
   rubble; watch = eyes; road = rainbow gift + partner colour. Fetching a
   counter (bot.js fetchTarget / BotSystem.fetchWanted) now also starts when
-  the leader to stop has 4 elements, not only one cast from winning. Owner
-  is unsure Control the Current harm is worth keeping.
+  the leader to stop has 4 elements, not only one cast from winning.
   Open question (owner): bots forget the element of a tile flipped face-down
   again (the snapshot masks it); a memory of seen tiles would fix that.
 

@@ -200,7 +200,6 @@
         // coalition target (push 2+), all × push.
         castHarmChoice:     40,  // × push: a cast aimed at the leader (hide / change / move it away, harmChoices)
         castHarmWall:       30,  // × push: Mason's Savvy while the leader's route is within 5 hexes (walls)
-        castHarmCurrent:    25,  // × push: Control the Current next to the leader's fresh water stones
         breakLeaderPattern: 25,  // break a stone the leader placed last round (element it still needs)
         moveToBreak:        25,  // ÷ (1 + path cost) toward such a stone, 3 AP away at most
         moveCamp:           60,  // ÷ (1 + path cost) toward a scarce shrine the leader needs
@@ -2930,18 +2929,10 @@
             const h = harmContext(snap, self);
             return h ? WEIGHTS.castHarmChoice * h.push * a.choice.harm : 0;
         }
-        if (a.scroll !== 'EARTH_SCROLL_3' && a.scroll !== 'WATER_SCROLL_5') return 0;
+        if (a.scroll !== 'EARTH_SCROLL_3') return 0;
         const h = harmContext(snap, self);
         if (!h) return 0;
         const lp = snap.players[h.L];
-        if (a.scroll === 'WATER_SCROLL_5') {
-            // Its fresh stones of elements it needs, water, next to me.
-            const near = [...h.stones].some(k => {
-                const st = snap.stones.find(q => hexKey(q.x, q.y) === k);
-                return st && st.type === 'water' && Math.hypot(st.x - self.x, st.y - self.y) < 40;
-            });
-            return near ? WEIGHTS.castHarmCurrent * h.push : 0;
-        }
         // Mason's Savvy: the leader's route (home with five, else its
         // nearest key shrine) passes within 5 hexes of me.
         const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === h.L);

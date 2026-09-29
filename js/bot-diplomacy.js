@@ -711,7 +711,6 @@
         river:   { sp: [45],         text: '{o} turns a shrine that {t} needs' },
         shove:   { sp: [80],         text: '{o} sends {t} far away' },
         wall:    { sp: [29],         text: '{o} builds a wall against {t}' },
-        current: { sp: [55, 40],     text: '{o} turns the water stones of {t}' },
         home:    { sp: [77, 88],     text: '{o} runs for home' },
         // Look-ahead (Calculating) and playouts (Counting): emote only, no
         // Game Log line, at most once every 2 rounds.

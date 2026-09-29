@@ -304,20 +304,7 @@
         const pools = (typeof stonePools !== 'undefined') ? stonePools : {};
         const targets = ['earth', 'fire', 'wind', 'void'].filter(el => (pools[el] || 0) > 0);
         if (!targets.length) return false;
-        // The leader's fresh water stones first (harm, owner 2026-09-28).
-        let pick = stones[0];
-        try {
-            const sn = snap(), me = sn.players[sm.casterIndex];
-            const h = me && window.BotSystem?._harmContext?.(sn, me);
-            const k = st => `${Math.round(st.x)},${Math.round(st.y)}`;
-            const hk = h ? new Set([...h.stones].map(x => x.split(',').slice(0, 2).map(v => Math.round(+v)).join(','))) : null;
-            const theirs = hk && stones.find(st => hk.has(k(st)));
-            if (theirs) {
-                pick = theirs;
-                window.BotDiplomacy?.intend?.(sm.casterIndex, 'current', h.L);
-            }
-        } catch (e) {}
-        sm.handleStoneClick(pick); // opens water-transform-modal synchronously
+        sm.handleStoneClick(stones[0]); // opens water-transform-modal synchronously
         const modal = document.getElementById('water-transform-modal');
         if (modal) {
             const order = [...rankedElements().filter(el => targets.includes(el)), ...targets];
