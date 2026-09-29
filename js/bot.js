@@ -147,6 +147,8 @@
                                  // freezes the bot in cul-de-sacs: every legal move increases
                                  // straight-line distance even when it's the only way out (observed:
                                  // 100% draws in 2-player arena games — both bots parked forever)
+        moveCommit:          0.35, // × the value of the goal chosen earlier (mem.intent):
+                                   // a rival goal must beat it by about a third to win
         moveRevisitPenalty: -60,  // ÷ steps-since-visited (see revisitPenalty()) — breaks
                                   // ties that would otherwise oscillate forever (e.g. two
                                   // hexes exactly equidistant from the only remaining
@@ -1140,7 +1142,7 @@
             case 'move': {
                 // Value = best shrine reachable via this step: worth ÷ remaining cost.
                 // ctx.paths caches Dijkstra results per target for this decision.
-                let best = 0;
+                let best = 0, bestT = null;
                 for (const t of ctx.shrines) {
                     const path = ctx.paths.get(t.id);
                     if (!path || !path.length) continue;
@@ -1148,8 +1150,11 @@
                     if (Math.hypot(first.x - a.x, first.y - a.y) >= 5) continue; // step isn't on this path
                     const remaining = path.reduce((c, p) => c + p.cost, 0);
                     const v = shrineValue(snap, t.shrineType) / (1 + remaining);
-                    if (v > best) best = v;
+                    if (v > best) { best = v; bestT = t; }
                 }
+                // Goals this step serves, for commitment (below).
+                const pulls = [];
+                const pull = (kind, path, v) => { if (v > 0 && path && path.length) { const e = path[path.length - 1]; pulls.push({ kind, key: `${kind}@${hexKey(e.x, e.y)}`, x: e.x, y: e.y, v }); } };
                 // Exploration: landing on an unrevealed tile flips it (scroll draw!).
                 // Primary signal is the real cheapest PATH to a hidden tile
                 // (ctx.explorePath) — the euclidean gradient is only a fallback,
@@ -1163,7 +1168,9 @@
                         const first = ctx.explorePath[0];
                         if (Math.hypot(first.x - a.x, first.y - a.y) < 5) {
                             const remaining = ctx.explorePath.reduce((c, p) => c + p.cost, 0);
-                            explore += contrib('moveExplorePath', 1 / (1 + remaining));
+                            const ev = contrib('moveExplorePath', 1 / (1 + remaining));
+                            explore += ev;
+                            pull('explore', ctx.explorePath, ev);
                         }
                     } else if (!onHidden) {
                         const distFrom = p => Math.min(...ctx.hiddenTiles.map(t => Math.hypot(t.x - p.x, t.y - p.y)));
@@ -1178,6 +1185,7 @@
                     if (Math.hypot(first.x - a.x, first.y - a.y) < 5) {
                         const remaining = ctx.homePath.reduce((c, p) => c + p.cost, 0);
                         home = contrib('moveReturnHome', 1 / (1 + remaining));
+                        pull('home', ctx.homePath, home);
                     }
                 }
                 // Fixation: only set (see findFixationTarget()) when the
@@ -1199,17 +1207,30 @@
                 }
                 if (ctx.responseReady) harm += contrib('leaveResponseReady', 1);
                 if (firstHop(ctx.blockedShrinePath, a)) {
-                    harm += contrib('moveBlockedShrine', WEIGHTS.moveShrineValue * ctx.blockedShrineValue);
+                    const bv = contrib('moveBlockedShrine', WEIGHTS.moveShrineValue * ctx.blockedShrineValue);
+                    harm += bv;
+                    pull('blocked', ctx.blockedShrinePath, bv);
                 }
                 if (ctx.harm) {
                     const push = ctx.harm.push;
-                    if (firstHop(ctx.campPath, a)) harm += contrib('moveCamp', push / (1 + pathCost(ctx.campPath)));
-                    if (firstHop(ctx.breakPath, a)) harm += contrib('moveToBreak', push / (1 + pathCost(ctx.breakPath)));
+                    if (firstHop(ctx.campPath, a)) { const cv = contrib('moveCamp', push / (1 + pathCost(ctx.campPath))); harm += cv; pull('camp', ctx.campPath, cv); }
+                    if (firstHop(ctx.breakPath, a)) { const kv = contrib('moveToBreak', push / (1 + pathCost(ctx.breakPath))); harm += kv; pull('break', ctx.breakPath, kv); }
                     if (ctx.harm.campHere) harm += contrib('campLeave', push);
                 }
                 const revisit = contrib('moveRevisitPenalty', revisitPenalty(ctx.recentPositions || [], a, 1));
-                return contrib('moveBase', 1) + contrib('moveShrineValue', best)
-                     + contrib('moveApPenalty', a.cost) + explore + revisit + home + fixation + harm;
+                const shrineV = contrib('moveShrineValue', best);
+                if (bestT) pulls.push({ kind: 'shrine', key: `shrine@${hexKey(bestT.x, bestT.y)}`, x: bestT.x, y: bestT.y, v: shrineV });
+                // Commitment (owner, 2026-09-29: "weigh a choice, then commit
+                // to it"): the goal the bot chose earlier (ctx.intent) counts
+                // moveCommit more, so a rival goal must beat it clearly, not
+                // by a hair, before the bot changes its mind.
+                let commit = 0;
+                const main = pulls.length ? pulls.reduce((x, y) => y.v > x.v ? y : x) : null;
+                const kept = ctx.intent && pulls.find(q => q.key === ctx.intent.key);
+                if (kept) commit = contrib('moveCommit', kept.v);
+                if (ctx.pulls) ctx.pulls.set(hexKey(a.x, a.y), kept || main);
+                return contrib('moveBase', 1) + shrineV
+                     + contrib('moveApPenalty', a.cost) + explore + revisit + home + fixation + harm + commit;
             }
 
             case 'teleport': {
@@ -1380,6 +1401,29 @@
     // Never reset — consumers (bot-arena.js's no-cast stall cap) read deltas,
     // so a fresh game just remembers its own starting value.
     let _castsApplied = 0;
+
+    // Intentions (owner, 2026-09-29): the goal a bot's last greedy move
+    // served (a shrine, a hidden tile, a blocked shrine, home, a camp or
+    // break spot) is kept across turns in mem.intent, and moveCommit makes
+    // it sticky (see scoreAction's move case). Dropped when reached, or
+    // after INTENT_TURNS own turns, so a bot takes a fresh look now and then.
+    const INTENT_TURNS = 6;
+    function currentIntent(snap, self) {
+        const m = mem(snap.turn.activePlayerIndex), I = m.intent;
+        if (!I) return null;
+        if ((m.ownTurns || 0) - I.turn > INTENT_TURNS || Math.hypot(self.x - I.x, self.y - I.y) < 5) { m.intent = null; return null; }
+        return I;
+    }
+    function noteIntent(idx, ranked, action) {
+        if (!action || action.type !== 'move' || !ranked?.pulls) return;
+        const g = ranked.pulls.get(hexKey(action.x, action.y));
+        if (!g) return;
+        const m = mem(idx);
+        if (!m.intent || m.intent.key !== g.key) {
+            m.intent = { key: g.key, kind: g.kind, x: g.x, y: g.y, turn: m.ownTurns || 0 };
+            m.intentSwitches = (m.intentSwitches || 0) + 1;
+        }
+    }
 
     const RECENT_POS_LIMIT = 6;
     function recordVisited(idx, x, y) {
@@ -3348,6 +3392,8 @@
             hiddenTiles: snap.tiles.filter(t => !t.revealed && !t.isPlayerTile),
             paths: new Map(),
             recentPositions: mem(snap.turn.activePlayerIndex).recentPositions,
+            intent: currentIntent(snap, self),
+            pulls: new Map(),
             homePath: null,
             unblock: makeUnblockCtx(snap),
         };
@@ -3472,6 +3518,7 @@
         }
         out.sort((x, y) => y.score - x.score);
         if (opts && opts.withCtx) out.ctx = ctx; // Bot Mind viewer: goals/paths
+        out.pulls = ctx.pulls;
         return out;
     }
 
@@ -3548,6 +3595,11 @@
             }
             case 'move': {
                 if (ctx) {
+                    const g = ctx.pulls?.get(hexKey(a.x, a.y));
+                    if (g && ctx.intent && g.key === ctx.intent.key) {
+                        const what = { shrine: 'a shrine', explore: 'a hidden tile', blocked: 'a blocked shrine', home: 'home', camp: 'a shrine the leader needs', break: "the leader's stones" }[g.kind] || 'my goal';
+                        return `Sticking with my goal: toward ${what}`;
+                    }
                     if (firstHop(ctx.homePath, a)) return `Toward home to win (${pathCost(ctx.homePath)} AP)`;
                     if (firstHop(ctx.blockedShrinePath, a)) return `Toward a blocked shrine I need, to break its stone (${pathCost(ctx.blockedShrinePath)} AP)`;
                     if (ctx.responseReady) return `Step (leaves a spot where a level 1 response is ready)`;
@@ -3923,6 +3975,7 @@
             const ranked = rankActions();
             if (!ranked.length) { log('No legal actions found'); return null; }
             choice = ranked[0];
+            noteIntent(idx, ranked, choice.action);
             if (_th) _th.mode = 'quick';
         }
 
@@ -3943,6 +3996,7 @@
                 : ((WEIGHTS.searchDepth | 0) > 0 && window.BotSim) ? searchPick() : null;
             const rankedRedo = redo ? null : rankActions();
             choice = redo || (rankedRedo && rankedRedo.length ? rankedRedo[0] : choice);
+            if (!redo && rankedRedo) noteIntent(idx, rankedRedo, choice.action);
         }
 
         const { action, score } = choice;

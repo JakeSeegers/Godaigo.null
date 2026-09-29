@@ -247,6 +247,8 @@ Order matters — later scripts depend on earlier ones.
                              decideResponse() (response-scroll respond/pass — both arena and real multiplayer,
                              wired from bot.js and bot-driver.js respectively)
 24. bot.js                 ← window.BotSystem — utility-scored bot + optional lookahead (WEIGHTS.searchDepth, default 0);
+                             No pacing: noBacktrack() (never back onto a hex left this turn until the board changes);
+                             intentions: mem.intent keeps the goal a move served, moveCommit makes it sticky.
                              Shift+R = one step, Shift+B = full turn; waitForQuiescence() tries BotEffects
                              before cancelling a selection it can't drive. Also owns mctsPick() (Stage 2 step
                              5 — determinized root-level UCT, WEIGHTS.mctsEnabled) and signalBrainMode()

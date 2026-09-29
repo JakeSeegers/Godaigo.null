@@ -349,6 +349,14 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   to greedy, search and MCTS roots and to plan steps. Not a weight, never
   trained. After: 2 pacing turns in the same games, 2-player set unchanged
   (23/24 wins).
+  **Intentions (2026-09-29, owner: "weigh a choice, then commit").** The goal
+  a bot's greedy move served (shrine, hidden tile, blocked shrine, home,
+  camp or break spot) is kept in `mem.intent` across turns; scoreAction adds
+  `moveCommit` (0.35, trainable) x that goal's pull, so a rival goal must beat
+  it by about a third. Dropped when reached or after `INTENT_TURNS` (6) own
+  turns. Bot Mind says "Sticking with my goal". 4-bot games 115 -> 94 turns
+  on average (same seeds), 2-player 23/24 wins. Pattern plans (makePlan)
+  already commit on their own. Next: attack and camp goals as intentions.
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY
