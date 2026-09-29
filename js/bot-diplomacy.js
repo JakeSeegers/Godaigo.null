@@ -779,6 +779,8 @@
         oneCastFromWin: (j, snap) => { try { return oneCastFromWin(snap || window.BotState.snapshot(), j); } catch (e) { return false; } },
         alertOn, intend,
         isBot: j => isBotSeat(j),
+        // Player j's progress on the diplomacy scale (an element about 200).
+        progressOf: (j, snap) => { try { const sn = snap || window.BotState.snapshot(); return sn.players[j] ? total(parts(sn, j, false, null)) : 0; } catch (e) { return 0; } },
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },

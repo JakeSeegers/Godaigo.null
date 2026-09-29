@@ -78,7 +78,9 @@
                 type,
             }, extra);
             log.push(entry);
-            if (log.length > MAX_ENTRIES) log.shift();
+            // Drop the oldest 1000 at once (shifting one per action moved the
+            // whole array every time once the log was full).
+            if (log.length > MAX_ENTRIES + 1000) log.splice(0, log.length - MAX_ENTRIES);
             for (const fn of listeners) {
                 try { fn(entry); } catch (e) { console.warn('⚠️ [ActionLog] onRecord listener failed:', e); }
             }

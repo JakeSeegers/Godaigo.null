@@ -281,8 +281,16 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
     AP to answer is kept.
   - Training games log gameStart / gameOver (winner, turns, end reason) in
     the action log (cap 20000), shown in the Game Log too.
-  Open question (owner): bots forget the element of a tile flipped face-down
-  again (the snapshot masks it); a memory of seen tiles would fix that.
+- Tile memory (owner, 2026-09-29): bots remember the element of a tile seen
+  face-up this game (bot-state.js rememberTiles, snapshot `known`).
+- Social weights are personality, not skill (owner, 2026-09-29): training
+  never changes the harm / help weights (bot.js SOCIAL_KEYS, pinSocial).
+  Per-bot personalities were dropped for now (owner: colours play unevenly,
+  it would muddy training).
+- Attack-cost log (2026-09-29): 'harmCost' entries in the action log during
+  training. First check, 4 four-bot games: 18 attacks, 15 moves toward a
+  harm target (cost to the attacker about 5 points, 60% were its best plain
+  move anyway) and 3 shrine holds (free).
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every

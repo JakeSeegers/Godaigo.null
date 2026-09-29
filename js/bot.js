@@ -395,12 +395,22 @@
                                   // up there
     };
 
+    // Social weights (harm the leader, help partners) are personality, not
+    // skill (owner, 2026-09-29): attacking is fun even when it does not win
+    // more, so training never changes them (bot-arena.js mutate / crossover
+    // skip them) and every loaded table uses the values here (pinSocial).
+    const SOCIAL_KEYS = ['castHarmChoice', 'castHarmWall', 'breakLeaderPattern', 'moveToBreak',
+        'moveCamp', 'campLeave', 'endTurnCamp', 'discardForAlly', 'placeAllyRoad'];
+    function pinSocial(W) {
+        for (const k of SOCIAL_KEYS) W[k] = DEFAULT_WEIGHTS[k];
+        return W;
+    }
     // Evolved weights (Stage 3a) override defaults without code edits
     let WEIGHTS = { ...DEFAULT_WEIGHTS };
     try {
         const saved = JSON.parse(localStorage.getItem('godaigo_bot_weights') || 'null');
         if (saved && typeof saved === 'object') {
-            WEIGHTS = { ...DEFAULT_WEIGHTS, ...saved };
+            WEIGHTS = pinSocial({ ...DEFAULT_WEIGHTS, ...saved });
             log('Loaded evolved weights from localStorage');
         }
     } catch (e) { /* corrupt save — keep defaults */ }
@@ -468,6 +478,7 @@
                 .limit(1);
             if (error || !data?.length || !data[0].weights || typeof data[0].weights !== 'object') return;
             Object.assign(WEIGHTS, data[0].weights);
+            pinSocial(WEIGHTS);
             // A champion without formula terms must not keep stale ones
             // from an older cached table.
             if (!('terms' in data[0].weights)) delete WEIGHTS.terms;
@@ -1331,6 +1342,7 @@
     }
     function resetAllMemory() {
         for (const k of Object.keys(_mem)) delete _mem[k];
+        for (const k of Object.keys(harmPending)) delete harmPending[k];
     }
 
     // Recent-move history — anti-oscillation tie-breaker. Two hexes can be
@@ -1875,8 +1887,10 @@
         const p = snap.players[forIndex];
         if (!p) return [];
         return snap.tiles.filter(t => {
-            if (!t.revealed || t.isPlayerTile || !ELEMENTS.includes(t.shrineType)) return false;
-            const el = t.shrineType;
+            // A face-down tile remembered as a shrine counts too: walking on
+            // reveals it (bot-state.js tile memory, 2026-09-29).
+            const el = t.revealed ? t.shrineType : t.known;
+            if (t.isPlayerTile || !ELEMENTS.includes(el)) return false;
             if ((p.pool[el] || 0) >= POOL_CAP || (snap.sourcePool[el] || 0) <= 0) return false;
             if (p.activated.includes(el) && el !== 'void') return false;
             if (snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5)) return false;
@@ -3066,6 +3080,64 @@
     //  - road: hexes on the way home of a partner with all five -> wind
     //    there helps. kingmakerFilter still stops any action that brings
     //    them within 5 AP of home, so the help stays small.
+    // Attack-cost log (owner, 2026-09-29): during training, every decision
+    // where the harm bonus changed the pick is written to the action log as
+    // 'harmCost': what the bot gave up (its best plain move minus the chosen
+    // move, both without the harm bonus), what the leader lost at once, and
+    // (on the bot's next turn) how the leader moved over that round. Answers
+    // "when is an attack worth it". Greedy ranking is used for both sides.
+    const HARM_KEYS = ['castHarmChoice', 'castHarmWall', 'breakLeaderPattern', 'moveToBreak', 'moveCamp', 'campLeave', 'endTurnCamp'];
+    const harmPending = {}; // seat -> entries waiting for the leader's next-round change
+    function harmLogOn() {
+        const A = window.BotArena;
+        return !!(A && (A.isEvolving?.() || A.isClimbing?.() || A.isRunning?.()) && window.ActionLog?.record && window.BotDiplomacy?.progressOf);
+    }
+    const actKey = a => JSON.stringify([a.type, a.x != null ? Math.round(a.x) : null, a.y != null ? Math.round(a.y) : null, a.scroll || null, a.stoneType || null, a.stoneId ?? null, a.choice ? JSON.stringify(a.choice) : null]);
+    function harmMeasure(snap, action, idx) {
+        const self = snap.players[idx];
+        const h = self ? harmContext(snap, self) : null;
+        if (!h) return null;
+        const withHarm = rankActions();
+        const saved = {};
+        for (const k of HARM_KEYS) { saved[k] = WEIGHTS[k]; WEIGHTS[k] = 0; }
+        let plain;
+        try { plain = rankActions(); } finally { for (const k of HARM_KEYS) WEIGHTS[k] = saved[k]; }
+        const key = actKey(action);
+        const mine = withHarm.find(r => actKey(r.action) === key), mineP = plain.find(r => actKey(r.action) === key);
+        if (!mine || !mineP || !plain.length) return null;
+        const harmPart = mine.score - mineP.score;
+        if (harmPart < 1) return null; // the harm bonus did not touch this move
+        const kind = action.type === 'breakStone' ? 'break' : action.type === 'endTurn' ? 'camp'
+            : action.type === 'move' || action.type === 'teleport' ? 'move'
+            : action.type === 'cast' ? ({ EARTH_SCROLL_4: 'scout', WATER_SCROLL_4: 'river', EARTH_SCROLL_2: 'shove', EARTH_SCROLL_3: 'wall' }[action.scroll] || 'cast') : action.type;
+        const D = window.BotDiplomacy;
+        return {
+            kind, actor: idx, target: h.L, push: +h.push.toFixed(2),
+            costOwn: +Math.max(0, plain[0].score - mineP.score).toFixed(1), harmPart: +harmPart.toFixed(1),
+            chosenWasBestPlain: actKey(plain[0].action) === key,
+            leaderActs: snap.players[h.L]?.activated?.length || 0, myActs: self.activated.length,
+            seats: snap.players.filter(Boolean).length,
+            leaderBefore: +D.progressOf(h.L, snap).toFixed(1),
+        };
+    }
+    function harmAfter(entry) {
+        if (!entry) return;
+        const D = window.BotDiplomacy;
+        entry.leaderLossNow = +(entry.leaderBefore - D.progressOf(entry.target)).toFixed(1);
+        (harmPending[entry.actor] ||= []).push(entry);
+    }
+    // On the bot's next own turn: the leader's change over the round, then log.
+    function harmFlush(idx) {
+        const list = harmPending[idx];
+        if (!list?.length) return;
+        const D = window.BotDiplomacy;
+        for (const e of list) {
+            e.leaderRoundChange = +(D.progressOf(e.target) - e.leaderBefore).toFixed(1);
+            try { window.ActionLog.record('harmCost', e, e.actor); } catch (err) {}
+        }
+        harmPending[idx] = [];
+    }
+
     // Intentions shown as bot emotes (owner, 2026-09-28): what a bot is up
     // to, said once it has done it (BotDiplomacy.intend rate-limits them).
     function announceIntent(snap, action, idx) {
@@ -3782,8 +3854,11 @@
                     : 'end turn';
         log(`Best action [${score.toFixed(1)}]: ${label}`);
 
+        let harmEntry = null;
+        if (harmLogOn()) { try { harmEntry = harmMeasure(snap, action, idx); } catch (e) { harmEntry = null; } }
         const res = window.BotState.applyAction(action);
         if (!res.ok) { log(`Action failed: ${res.reason}`); return null; }
+        if (harmEntry) { try { harmAfter(harmEntry); } catch (e) {} }
         announceIntent(snap, action, idx);
         // Episodic memory (js/bot-memory.js, optional — window.BotMemory may
         // not be loaded): record this decision if it swung the position
@@ -3927,6 +4002,7 @@
         if (_turnRunning) { log('Turn already running'); return; }
         _turnRunning = true;
         const startingPlayer = activePlayerIndex;
+        if (harmLogOn()) { try { harmFlush(startingPlayer); } catch (e) {} }
         const m = mem(startingPlayer);
         m.ownTurns = (m.ownTurns || 0) + 1; // combo timing (Phase 4)
         // Where the last turn ended: on a shrine centre = it collected there.
@@ -4123,6 +4199,7 @@
         waitForQuiescence,    // settle response windows / selection modes / cascades
         WEIGHTS,              // live tuning surface (Stage 3a evolves this)
         DEFAULT_WEIGHTS,
+        SOCIAL_KEYS, pinSocial,
         _harmContext: harmContext, // tests
         _helpContext: helpContext, // tests
         // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.

@@ -633,7 +633,7 @@
                 const t = snap.tiles.find(t => t.id === id);
                 if (t && !t.revealed && !t.isPlayerTile) {
                     t.revealed = true;
-                    t.shrineType = 'unknown'; // NEVER invent the hidden element
+                    t.shrineType = t.known || 'unknown'; // remembered, else NEVER invent the hidden element
                     drawScrollOnReveal(snap, snap.turn.activePlayerIndex, riverElementFor(snap, t.id));
                     simNotes(snap).notes.push(`revealed tile ${t.id} (element unknown; catacomb +1 AP not modelled)`);
                 }
@@ -1160,7 +1160,7 @@
                 if (d < best) { best = d; pick = t; }
             }
             pick.revealed = true;
-            pick.shrineType = 'unknown'; // NEVER invent the hidden element
+            pick.shrineType = pick.known || 'unknown'; // remembered, else NEVER invent the hidden element
             drawScrollOnReveal(snap, snap.turn.activePlayerIndex, riverElementFor(snap, pick.id));
             simNotes(snap).notes.push(`${label} revealed tile ${pick.id} (element unknown; catacomb +1 AP not modelled)`);
         } else {

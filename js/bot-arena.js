@@ -252,7 +252,9 @@
         const W = window.BotSystem.WEIGHTS;
         for (const k of Object.keys(W)) delete W[k];
         Object.assign(W, window.BotSystem.DEFAULT_WEIGHTS, table);
+        window.BotSystem.pinSocial?.(W); // social weights are personality, never trained
     }
+    const socialKey = k => (window.BotSystem?.SOCIAL_KEYS || []).includes(k);
 
     // Neutralize an in-progress tutorial before running ANY local bot game
     // (playMatch() calls this unconditionally, visual or muted — NOT just
@@ -855,6 +857,7 @@
             if (typeof out[k] !== 'number') continue;
             if (k === 'searchDepth' || k === 'searchBreadth' || k === 'searchHybrid' || k === 'searchKeepCasts' || k === 'searchCastExtraDepth') continue; // brain shape, not tuning
             if (k === 'mctsSamples' || k === 'mctsIterations' || k === 'mctsHorizon' || k === 'mctsExploration' || k === 'mctsRootBreadth' || k === 'mctsRolloutDepth' || k === 'mctsRolloutBreadth') continue; // brain shape, not tuning
+            if (socialKey(k)) continue; // personality, not tuning (owner, 2026-09-29)
             // Box-Muller gaussian × 20% of the weight's magnitude (min 1 so
             // zero-weights can still move off zero)
             const u1 = Math.max(rng(), 1e-9), u2 = rng();
@@ -880,6 +883,7 @@
             if (typeof out[k] !== 'number') continue;
             if (k === 'searchDepth' || k === 'searchBreadth' || k === 'searchHybrid' || k === 'searchKeepCasts' || k === 'searchCastExtraDepth') continue; // brain shape, not tuning
             if (k === 'mctsSamples' || k === 'mctsIterations' || k === 'mctsHorizon' || k === 'mctsExploration' || k === 'mctsRootBreadth' || k === 'mctsRolloutDepth' || k === 'mctsRolloutBreadth') continue; // brain shape, not tuning
+            if (socialKey(k)) continue; // personality, not tuning
             out[k] = rng() < 0.5 ? a[k] : b[k];
         }
         if (window.BotTerms && (a.terms || b.terms)) {

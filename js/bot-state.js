@@ -105,6 +105,17 @@
     // Hidden information is masked: unrevealed tiles report shrineType null,
     // and opponents' hands are reported as counts only.
     // ----------------------------------------------------------------
+    // Tile memory: the element of every tile seen face-up this game, by
+    // tile id. Public information (everyone saw it), so bots may use it.
+    // A new game builds a new placedTiles array: the memory starts over.
+    const seenTiles = new Map();
+    let seenFor = null;
+    function rememberTiles(tiles) {
+        if (tiles !== seenFor) { seenTiles.clear(); seenFor = tiles; }
+        for (const t of tiles) if (!t.flipped && !t.isPlayerTile && t.shrineType) seenTiles.set(t.id, t.shrineType);
+        return tiles;
+    }
+
     function snapshot() {
         const my = (typeof isMultiplayer !== 'undefined' && isMultiplayer &&
                     typeof myPlayerIndex !== 'undefined' && myPlayerIndex !== null)
@@ -141,7 +152,7 @@
             },
             sourcePool: { ...window.stonePools },
             commonArea: window.spellSystem?.getCommonAreaScrolls?.() || [], // shared, public, castable by anyone
-            tiles: placedTiles.map(t => ({
+            tiles: rememberTiles(placedTiles).map(t => ({
                 id: t.id,
                 x: +t.x.toFixed(1), y: +t.y.toFixed(1),
                 revealed: !t.flipped,
@@ -149,6 +160,9 @@
                 playerIndex: t.isPlayerTile ? (t.playerIndex ?? null) : null, // public — whose shrine
                 // MASKED when face-down — reading it would be cheating
                 shrineType: t.flipped ? null : t.shrineType,
+                // A face-down tile seen face-up earlier this game (owner,
+                // 2026-09-29: a human remembers a shrine flipped back over).
+                known: t.flipped && !t.isPlayerTile ? (seenTiles.get(t.id) ?? null) : null,
             })),
             stones: placedStones.map(s => ({ x: +s.x.toFixed(1), y: +s.y.toFixed(1), type: s.type })),
             players,
