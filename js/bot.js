@@ -1656,7 +1656,7 @@
         const { cursedCells, noCreditScrolls } = mem(snap.turn.activePlayerIndex);
         // All 5 elements activated — no cast adds win credit anymore; don't
         // start new builds, let move-scoring's homePath term walk the bot home
-        if (ELEMENTS.every(el => self.activated.includes(el))) return null;
+        if (!opts?.extra && ELEMENTS.every(el => self.activated.includes(el))) return null;
         const pHex = pixelToHex(self.x, self.y, TILE_SIZE);
         const grid = window.BotState.hexGrid();
         const collectible = collectibleShrines(snap);
@@ -1777,6 +1777,71 @@
         return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps,
                         side: best.side ? { scroll: best.side.scroll, cells: best.side.cells } : null } : null;
     }
+    // Take Flight as a travel plan (owner, 2026-09-29: "make them plan Take
+    // Flight patterns for travel"). When the bot's goal (its plan's centre,
+    // or home with all five elements) is far, build Take Flight nearby, fly
+    // (2 AP, landing on a tile another pawn stands on) and walk the rest,
+    // if that beats walking by TRAVEL_SAVE AP. The old plan resumes after
+    // the flight; a travel plan older than TRAVEL_TURNS own turns is given up.
+    const TF = 'WIND_SCROLL_4', TRAVEL_MIN = 6, TRAVEL_SAVE = 4, TRAVEL_TURNS = 4;
+    function travelGoal(snap, self, m) {
+        if (m.plan && !m.plan.travel) {
+            const a = hexToPixel(m.plan.anchor.q, m.plan.anchor.r, TILE_SIZE);
+            return { x: a.x, y: a.y };
+        }
+        if (!m.plan && ELEMENTS.every(el => self.activated.includes(el))) {
+            const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === snap.turn.activePlayerIndex);
+            if (home) return { x: home.x, y: home.y };
+        }
+        return null;
+    }
+    function flightLanding(snap, goal) {
+        let best = null;
+        for (const c of window.BotSim?.castChoices?.(snap, TF) || []) {
+            if (c.x == null) continue;
+            const path = Math.hypot(c.x - goal.x, c.y - goal.y) < 5 ? [] : window.BotState.findPath(c.x, c.y, goal.x, goal.y);
+            if (!path) continue;
+            const cost = pathCost(path);
+            if (!best || cost < best.cost) best = { choice: c, cost };
+        }
+        return best;
+    }
+    const _tw = k => { _shortcutStats.why[k] = (_shortcutStats.why[k] || 0) + 1; };
+    function reviewTravel(snap, idx, m, self) {
+        if (m.plan && m.plan.travel) {
+            if ((m.ownTurns || 0) - m.plan.madeTurn > TRAVEL_TURNS) {
+                log('Take Flight trip took too long - back to the old plan');
+                m.plan = m.plan.resume || null;
+            }
+            return true;
+        }
+        const reach = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])];
+        if (!reach.includes(TF) || m.noCreditScrolls?.has(TF)) { _tw('noScroll'); return false; }
+        const goal = travelGoal(snap, self, m);
+        if (!goal) { _tw('noGoal'); return false; }
+        const p0 = window.BotState.findPath(self.x, self.y, goal.x, goal.y);
+        const direct = p0 && p0.length ? pathCost(p0) : (Math.hypot(self.x - goal.x, self.y - goal.y) < 5 ? 0 : Infinity);
+        if (direct < TRAVEL_MIN) { _tw('near'); return false; }
+        const land = flightLanding(snap, goal);
+        if (!land) { _tw('noLanding'); return false; }
+        const def = window.SCROLL_DEFINITIONS?.[TF];
+        if (!def) return false;
+        const tp = makePlan(snap, { only: new Set([TF]), near: 3, extra: [{ name: TF, def, credit: 0 }] });
+        if (!tp) { _tw('noPattern'); return false; }
+        const missing = tp.cells.filter(c => !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5));
+        const need = {};
+        for (const c of missing) need[c.type] = (need[c.type] || 0) + 1;
+        let short = 0;
+        for (const [t, n] of Object.entries(need)) short += Math.max(0, n - (self.pool[t] || 0));
+        // Rough cost in AP: walk to the pattern, about 3 AP per stone still to
+        // collect, the 2 AP cast, then the walk from the landing hex.
+        const viaFlight = (tp.steps || 0) + 3 * short + 2 + land.cost;
+        if (viaFlight > direct - TRAVEL_SAVE) { _tw('notFaster'); return false; }
+        log(`Take Flight trip: ${viaFlight} AP instead of ${direct === Infinity ? 'no path' : direct}`);
+        m.plan = { ...tp, travel: true, goal, resume: m.plan || null, madeTurn: m.ownTurns || 0 };
+        _shortcutStats.flightPlans++;
+        return true;
+    }
     const SIDE_COUNTER_BONUS = 8;
     const GUARD_WAIT = 3, GUARD_REST = 3;
     const _planStats = { made: 0, away: 0, reused: 0, finished: 0, side: 0, sidePlaced: 0 }; // tests
@@ -1850,6 +1915,7 @@
                 }
             }
         }
+        if (reviewTravel(snap, idx, m, self)) return;
         const attacks = attackTools(snap, self);
         if (m.plan && m.plan.attack) {
             // Two own turns in a row without a reason, so a leader hovering
@@ -1970,7 +2036,7 @@
     // action of the best route when it saves at least 2 AP, else null.
     const SHORTCUT_MIN_SAVE = 2;
     const TELEPORT_AP_VALUE = 12;   // greedy teleport score per AP saved toward the goal
-    const _shortcutStats = { teleport: 0, gate: 0, flight: 0 }; // tests
+    const _shortcutStats = { teleport: 0, gate: 0, flight: 0, flightPlans: 0, flightCasts: 0, why: {} }; // tests
     function shortcut(snap, self, tx, ty, direct) {
         if (!(direct > SHORTCUT_MIN_SAVE)) return null;
         const costTo = (x, y) => {
@@ -2202,6 +2268,12 @@
             return null;
         }
         if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
+            if (plan.travel) {
+                const land = flightLanding(snap, plan.goal);
+                if (land) { _shortcutStats.flightCasts++; return { type: 'cast', scroll: plan.scroll, choice: land.choice }; }
+                m.plan = plan.resume || null;
+                return null;
+            }
             // A scroll with target choices (Arson, Plunder, ...): take the
             // best-scoring choice, so the existing targeting aims it.
             if (window.BotSim?.castChoices?.(snap, plan.scroll)?.length) {
@@ -4136,7 +4208,7 @@
                     noteDrawCast(idx, planAction.scroll);
                     _castsApplied++;
                     advanceCombo(idx, planAction);
-                    if (m.plan && planAction.scroll === m.plan.scroll) m.plan = null; // plan fulfilled (not a Take Flight shortcut)
+                    if (m.plan && planAction.scroll === m.plan.scroll) m.plan = m.plan.travel ? (m.plan.resume || null) : null; // plan fulfilled (a Take Flight trip resumes the old plan)
                 }
                 if (planAction.type === 'move') recordVisited(idx, planAction.x, planAction.y);
                 return planAction;

@@ -404,6 +404,18 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   activate check (checkPatternForPlayer) is the same rule makePlan's board
   table applies; not called directly because it logs every cell.
   `BotSystem._shortcutStats`.
+  **Take Flight trips (2026-09-29, owner: "plan Take Flight patterns for
+  travel").** reviewPlan -> `reviewTravel()`: goal = the plan's centre (or
+  home with all five); when it is at least TRAVEL_MIN (6) AP away and Take
+  Flight is in reach, a travel plan (makePlan `{only: TF, near: 3, extra}`)
+  is made if build (steps + 3 AP per stone to collect) + 2 AP cast + walk
+  from the best landing (flightLanding over BotSim.castChoices) beats walking
+  by TRAVEL_SAVE (4). The cast lands nearest the goal and the old plan
+  resumes (`plan.resume`); given up after TRAVEL_TURNS (4). Test (12 four-bot
+  games): 0 trips. Take Flight was in reach in few turns, and then the goal
+  was under 6 AP away 89 times (plans already pick near centres and use
+  catacombs) or flying was not faster 13 times. `_shortcutStats.why` counts
+  the reasons.
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY
