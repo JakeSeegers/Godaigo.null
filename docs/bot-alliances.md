@@ -289,6 +289,18 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
 - Camping a scarce shrine only when the leader is one cast from winning
   (2026-09-29; in the owner's 4-player game a bot camped a void shrine for
   most of the game and cast nothing).
+- Attack scrolls as build goals (owner, 2026-09-29, medium). An audit of
+  six 4-bot games showed attack scrolls were cast nearly every time they
+  were castable, but rarely got built: build planning (creditableSources)
+  only took scrolls giving a new element. Now, with a harm target at push
+  2+, Plunder (target has an active scroll for an element it needs), Arson
+  (it holds 2+ stones of such an element), Combust (2+ fresh stones) and
+  Take Flight (it has five and is near home) are build goals worth
+  WEIGHTS.attackBuildCredit = 0.6 elements (a social weight, never
+  trained); the plan's cast takes the best-scoring target choice. Audit
+  after: Arson casts 2 -> 9, Plunder 0 -> 1, Take Flight 4 -> 9, Combust 2
+  -> 2; bot turns 648 -> 932 (longer games, owner accepts: more dynamic).
+  24 seeded 2-player games: 2 draws (was 0), kept by the owner.
 - 2-player draws (2026-09-29; 24 seeded games, stall restarts off, 4 draws
   before, 1 after). Causes found by replaying them: (1) guard standoff, both
   one cast from winning kept AP for a counter and never cast: guardReserve

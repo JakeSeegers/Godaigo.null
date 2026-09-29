@@ -198,6 +198,7 @@
         breakStoneBase:      3,
         // Alliances (docs/bot-alliances.md, owner's harm list): against the
         // coalition target (push 2+), all × push.
+        attackBuildCredit:  0.6, // an attack scroll as a build goal, in elements (owner, 2026-09-29: medium)
         castHarmChoice:     40,  // × push: a cast aimed at the leader (hide / change / move it away, harmChoices)
         castHarmWall:       30,  // × push: Mason's Savvy while the leader's route is within 5 hexes (walls)
         breakLeaderPattern: 25,  // break a stone the leader placed last round (element it still needs)
@@ -402,7 +403,7 @@
     // skill (owner, 2026-09-29): attacking is fun even when it does not win
     // more, so training never changes them (bot-arena.js mutate / crossover
     // skip them) and every loaded table uses the values here (pinSocial).
-    const SOCIAL_KEYS = ['castHarmChoice', 'castHarmWall', 'breakLeaderPattern', 'moveToBreak',
+    const SOCIAL_KEYS = ['attackBuildCredit', 'castHarmChoice', 'castHarmWall', 'breakLeaderPattern', 'moveToBreak',
         'moveCamp', 'campLeave', 'endTurnCamp', 'discardForAlly', 'placeAllyRoad'];
     function pinSocial(W) {
         for (const k of SOCIAL_KEYS) W[k] = DEFAULT_WEIGHTS[k];
@@ -1487,6 +1488,43 @@
                 if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: 1, tool: true });
             }
         }
+        // Attack scrolls as build goals (owner, 2026-09-29): the audit found
+        // bots held Arson / Plunder / Combust for many turns but only built
+        // shapes that give a new element, so attacks were almost never ready.
+        // With a target at push 2+, an attack that would hurt it now is worth
+        // WEIGHTS.attackBuildCredit elements; the existing cast targeting
+        // aims it when the shape is done.
+        const attacks = attackTools(snap, self);
+        for (const name of sources) {
+            if (!attacks.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
+            const def = window.SCROLL_DEFINITIONS?.[name];
+            if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: WEIGHTS.attackBuildCredit, tool: true, attack: true });
+        }
+        return out;
+    }
+    // Attack scrolls that would hurt the harm target right now.
+    function attackTools(snap, self) {
+        const out = new Set();
+        if (!(WEIGHTS.attackBuildCredit > 0)) return out;
+        let h = null;
+        try { h = harmContext(snap, self); } catch (e) { return out; }
+        if (!h || h.push < 2) return out;
+        const lp = snap.players[h.L];
+        if (!lp) return out;
+        const needs = el => !lp.activated.includes(el);
+        if ((lp.active || []).some(sc => {
+            const d = window.SCROLL_DEFINITIONS?.[sc];
+            if (!d) return false;
+            const els = d.element === 'catacomb' ? (d.patterns?.[0] || []).map(c => c.type) : [d.element];
+            return els.some(needs);
+        })) out.add('CATACOMB_SCROLL_8');                                    // Plunder
+        if (ELEMENTS.some(el => needs(el) && (lp.pool[el] || 0) >= 2)) out.add('FIRE_SCROLL_5'); // Arson
+        if (h.stones.size >= 2) out.add('CATACOMB_SCROLL_10');               // Combust
+        if (ELEMENTS.every(el => lp.activated.includes(el))) {
+            let c = 99;
+            try { c = homeCost(snap, h.L); } catch (e) {}
+            if (c <= 8) out.add('WIND_SCROLL_4');                             // Take Flight
+        }
         return out;
     }
 
@@ -1816,6 +1854,12 @@
             return null;
         }
         if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
+            // A scroll with target choices (Arson, Plunder, ...): take the
+            // best-scoring choice, so the existing targeting aims it.
+            if (window.BotSim?.castChoices?.(snap, plan.scroll)?.length) {
+                const r = rankActions().find(x => x.action.type === 'cast' && x.action.scroll === plan.scroll);
+                if (r) return r.action;
+            }
             return { type: 'cast', scroll: plan.scroll };
         }
         return null;
@@ -2997,7 +3041,8 @@
         const need = ELEMENTS.filter(el => !self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0);
         if (!need.length) return null;
         const covered = new Set();
-        for (const { def } of creditableSources(snap, self, mem(ai).noCreditScrolls)) {
+        for (const { def, attack } of creditableSources(snap, self, mem(ai).noCreditScrolls)) {
+            if (attack) continue; // an attack scroll gives no needed element
             if (def.element === 'catacomb') for (const c of (def.patterns[0] || [])) covered.add(c.type);
             else covered.add(def.element);
         }
