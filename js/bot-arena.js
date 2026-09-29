@@ -510,6 +510,8 @@
         placePlayerTilesSpread(nPlayers);
         await sleep(vis() ? 300 : 30);
         activePlayerIndex = 0;
+        // Game boundaries in the action log, so a downloaded log shows who won.
+        try { window.ActionLog?.record?.('gameStart', { nPlayers, seed }, null); } catch (e) {}
         if (visual0) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it (the log needs it)
 
         // Every seat in a bot-arena game is a bot, so the "you're out of AP,
@@ -633,8 +635,13 @@
                 : result.turns >= turnCap ? 'turn_cap' : 'stopped';
         }
         // Round over: bot talk, emotes and the Bot Mind view go at once.
-        // Bots remember (Train Bot option): keep what this game taught first.
-        try { (window.BotDiplomacy?.roundOver || window.BotDiplomacy?.reset)?.(); } catch (e) {}
+        try {
+            const w = result.winner;
+            const name = w != null && typeof getPlayerColorName === 'function' ? getPlayerColorName(w) : null;
+            window.ActionLog?.record?.('gameOver', { winner: w, winnerName: name, turns: result.turns, endReason: result.endReason }, null);
+        } catch (e) {}
+        // Round over: bot talk, emotes and the Bot Mind view go at once.
+        try { window.BotDiplomacy?.reset?.(); } catch (e) {}
         return result;
     }
 

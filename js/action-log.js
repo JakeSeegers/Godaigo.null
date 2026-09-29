@@ -32,7 +32,8 @@
 (function () {
     'use strict';
 
-    const MAX_ENTRIES = 3000;
+    // 20000 (2026-09-29): training runs overflowed 3000 within one game.
+    const MAX_ENTRIES = 20000;
     const log = [];
 
     // Subscribers notified with each entry as it's recorded — js/game-log-ui.js

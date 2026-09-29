@@ -349,6 +349,14 @@
     }
 
     function handle(entry) {
+        // Training game boundaries (bot-arena.js).
+        if (entry.type === 'gameStart' || entry.type === 'gameOver') {
+            flushPendingMove();
+            lastHeaderTurn = null;
+            if (entry.type === 'gameStart') appendLine(`<b>New game (${esc(String(entry.nPlayers || ''))} players)</b>`, 'gl-talk');
+            else appendLine(`<b>Game over: ${entry.winner != null ? playerSpan(entry.winner) + ' wins' : 'no winner (' + esc(String(entry.endReason || '')) + ')'}${entry.turns ? `, ${entry.turns} turns` : ''}</b>`, 'gl-talk');
+            return;
+        }
         // Bot alliance talk (js/bot-diplomacy.js): may come from a bot whose
         // turn it is not, so it never opens a turn header. {pN} = player N.
         if (entry.type === 'botTalk') {
@@ -373,9 +381,7 @@
 
     // ---- Alliances tab (owner, 2026-09-29) ----
     // A second tab in the Game Log: the current pact, how each bot sees every
-    // other player (js/bot-diplomacy.js view()), this game's alliance talk and,
-    // with "Bots remember" on, what the elemental bots kept from earlier
-    // games. Tabs switch on pointerdown, and the tab bar is never rebuilt, so
+    // other player (js/bot-diplomacy.js view()), this game's alliance talk. Tabs switch on pointerdown, and the tab bar is never rebuilt, so
     // a bot acting mid-click cannot swallow the switch during training.
     const ALLY_ID = 'game-log-alliances';
     let allyTab = false, allyHistory = [], allyState = null, lastAllySig = null;
@@ -446,12 +452,6 @@
         parts.push('<div class="gl-ally-h">This game</div>');
         if (!allyHistory.length) parts.push('<div class="gl-ally-dim">Nothing said yet.</div>');
         else parts.push(allyHistory.slice(-25).reverse().map(h => `<div class="gl-ally-row"><span class="gl-ally-dim">T${h.turn}</span> ${esc(h.text).replace(/\{p(\d)\}/g, (m, k) => playerSpan(+k))}</div>`).join(''));
-        if (D?.remembers?.()) {
-            const names = window.BotElements?.NAMES || {};
-            const kept = (D.bonds?.() || []).filter(r => Math.abs(r.favor) + Math.abs(r.trust) >= 0.02).slice(0, 8);
-            parts.push('<div class="gl-ally-h">Remembered from earlier games</div>');
-            parts.push(kept.length ? kept.map(r => `<div class="gl-ally-row">${esc(names[r.from] || r.from)} ${feeling(r)} ${esc(names[r.to] || r.to)} <span class="gl-ally-dim">(${fmt(r.favor)}, ${fmt(r.trust)}, ${r.games} games)</span></div>`).join('') : '<div class="gl-ally-dim">Nothing yet.</div>');
-        }
         const html = parts.join('');
         if (html === lastAllySig) return; // unchanged: leave the DOM (and any scroll) alone
         lastAllySig = html;

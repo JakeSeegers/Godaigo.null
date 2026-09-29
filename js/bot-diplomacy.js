@@ -37,9 +37,11 @@
     const STEP_PX = 35;
 
     let S = fresh();
+    // "Bots remember" was tried and removed (2026-09-29): drop its saved data.
+    try { localStorage.removeItem('godaigo_bot_bonds'); } catch (e) {}
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
-                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, intents: {}, seeded: false, spoke: {}, thanked: {}, placed: {} };
+                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, rallied: {}, intents: {}, spoke: {}, thanked: {}, placed: {} };
     }
     // A new game or the end of a training round: forget everything, and take
     // every floating emote and queued sentence off the board at once.
@@ -147,7 +149,8 @@
         }
         return out;
     }
-    const DISRUPT = { ready: 1.5, shrines: 1.5, plan: 2, common: 2, path: 2 };
+    // Less touchy (2026-09-29): was x2 for plan / common / path.
+    const DISRUPT = { ready: 1.5, plan: 1.5, shrines: 1.25, common: 1.5, path: 1.5 };
     const sumParts = o => Object.values(o).reduce((a, b) => a + b, 0);
     // Which of my parts each hostile scroll can plausibly have hit.
     const HOSTILE_HITS = {
@@ -185,7 +188,6 @@
 
     // ---------------------------------------------------------------- memory
     function relOf(o, j) {
-        if (!S.seeded) ensureSeeded();
         const r = (S.rel[o] ||= {});
         return (r[j] ||= { favor: 0, trust: 0 });
     }
@@ -208,7 +210,6 @@
         const n = snap.players.length;
         if (S.seats && S.seats !== n) reset();
         S.seats = n;
-        if (!S.seeded) seedBonds(snap);
         const prevOk = S.prev && S.prev.length === n;
         const now = snap.players.map((p, j) => (p ? parts(snap, j, full, prevOk ? S.prev[j] : null) : null));
         const actor = S.lastActive;
@@ -220,13 +221,17 @@
             for (let o = 0; o < n; o++) {
                 if (o === actor || !now[o] || !isBotSeat(o)) continue;
                 const d = delta[o];
-                let df = 0;
+                let df = 0, deliberate = false;
                 if (Math.abs(d) >= MIN_DELTA) {
                     df = Math.max(-0.6, Math.min(0.4, d / SCALE));
                     if (actorGain > Math.abs(d)) df *= 0.5;                       // mostly served itself
                     const hitParts = HOSTILE_HITS[S.hostile?.id] || [];
                     const hostileHit = d < 0 && S.hostile?.actor === actor && hitParts.some(k => changes[o][k] < 0);
                     if (hostileHit) df = df * 1.5 - 0.05;                          // hostile scroll: intent
+                    // Aimed at me (2026-09-29): a hostile scroll that hit me, or my
+                    // own shape broken. Only this can count as a betrayal; other
+                    // losses are side effects (a shared shrine, a common scroll).
+                    deliberate = hostileHit || (d < 0 && ((changes[o].plan || 0) < 0 || (changes[o].ready || 0) < 0));
                 }
                 // Global view: they hurt someone who is ahead of me.
                 for (let v = 0; v < n; v++) {
@@ -234,7 +239,7 @@
                     if (threatOf(snap, o, v) >= 0.65) df += 0.05 * Math.min(1, -delta[v] / 200);
                 }
                 if (!df) continue;
-                dfs.push([o, df]);
+                dfs.push([o, df, deliberate]);
                 const r = relOf(o, actor);
                 r.favor = Math.max(-3, Math.min(3, r.favor + df));
                 if (Math.abs(df) >= 0.05) {
@@ -381,7 +386,6 @@
 
     function pressures(o) {
         if (!enabled()) return null;
-        if (!S.seeded) ensureSeeded();
         const key = `${S.turns}|${S.looks}`;
         const c = S.press[o];
         if (c && c.key === key) return c.arr;
@@ -626,18 +630,23 @@
             if (f <= bar && (X == null || f < relOf(o, X).favor)) X = j;
         }
         if (X == null) return;
-        // Not against a player already well behind me.
-        if (tracker(snap, X) < tracker(snap, o) - 1.5) return;
+        // Not against a player behind me, and not against the same player
+        // again within 3 rounds (2026-09-29: the table kept piling onto one
+        // player that was not winning, which only helped the leader).
+        if (tracker(snap, X) < tracker(snap, o) - 1) return;
+        if ((S.rallied[X] ?? -99) > S.turns - 3 * n) return;
         const others = live.filter(b => b !== o && b !== X && isBotSeat(b));
         if (!others.length) return;
         S.lastPactTurn = S.turns;
         S.asked[`${o}>${X}`] = S.turns;
+        S.rallied[X] = S.turns;
         say(o, [E.hurt, E.target, E.question, symbolOf(X, null)], `{p${o}} was hurt by {p${X}} and asks for help against them`);
         const members = new Set([o]);
         for (const b of others) {
             const fx = relOf(b, X).favor, r = relOf(b, o);
-            const score = -fx + 0.6 * (W.favor * r.favor + W.trust * r.trust) + 0.5 * (threatOf(snap, b, X) - 0.45);
-            const ok = score >= GRUDGE.accept && fx < 0.3;
+            // A threat to me too counts much more; a target behind me: no.
+            const score = -fx + 0.6 * (W.favor * r.favor + W.trust * r.trust) + 1.0 * (threatOf(snap, b, X) - 0.45);
+            const ok = score >= GRUDGE.accept && fx < 0.3 && tracker(snap, X) >= tracker(snap, b) - 0.75;
             if (ok) members.add(b);
             say(b, [ok ? E.accept : E.decline, E.grudgePact], `{p${b}} ${ok ? 'joins' : 'declines'} the pact against {p${X}}`);
         }
@@ -671,8 +680,11 @@
             P.committed.add(actor);
             say(actor, [E.commit, symbolOf(P.target, null)], `{p${actor}} strikes at {p${P.target}}`);
         }
-        for (const [v, df] of dfs) {
-            if (v === actor || !P.members.has(v) || df > -0.1) continue;
+        for (const [v, df, deliberate] of dfs) {
+            // Only harm aimed at the partner breaks a pact; side effects of
+            // hitting the shared target just cost a little favor (2026-09-29:
+            // nearly every pact ended in a false "betrayal").
+            if (v === actor || !P.members.has(v) || df > -0.1 || !deliberate) continue;
             const r = relOf(v, actor);
             r.trust = clampT(r.trust + PACT.brokenTrust);
             r.favor += PACT.brokenFavor;
@@ -739,85 +751,6 @@
         say(o, sprites, text, I.short ? { short: true } : undefined);
     }
 
-    // ---------------------------------------------------------------- long memory
-    // "Bots remember" (owner, 2026-09-29; Train Bot option, off by default,
-    // training only for now). The five elemental bots are the identities
-    // (seat colour -> element, js/bot-elements.js). Each game starts with the
-    // favor / trust each bot kept toward each other bot, and at the end 20%
-    // of how the game left them blends into what is kept (so one game
-    // cannot make a feud for life, and favor still decays within a game).
-    // Kept values are capped at +-0.6. Stored in this browser only
-    // (localStorage godaigo_bot_bonds), separate from real games.
-    const BONDS_KEY = 'godaigo_bot_bonds';
-    const BOND = { carry: 0.2, cap: 0.6 };
-    let remember = false;
-    function loadBonds() {
-        try { const b = JSON.parse(localStorage.getItem(BONDS_KEY) || '{}'); return b && typeof b === 'object' ? b : {}; } catch (e) { return {}; }
-    }
-    function saveBonds(b) { try { localStorage.setItem(BONDS_KEY, JSON.stringify(b)); } catch (e) {} }
-    function elementOf(j) {
-        let c = (typeof playerPositions !== 'undefined') ? playerPositions[j]?.color : null;
-        if (typeof c === 'string' && c.startsWith('#')) c = HEX_TO_COLOUR[c.toLowerCase()];
-        return window.BotElements?.COLOR_ELEMENT?.[c] || null;
-    }
-    function rememberOn() { return remember && arenaRunning(); }
-    // Load kept bonds the first time a relationship is read in a game (the
-    // first look can come after the first move in fast training).
-    function ensureSeeded() {
-        if (S.seeded || !rememberOn() || !gameActive()) return;
-        let snap;
-        try { snap = window.BotState.snapshot(); } catch (e) { return; }
-        if (snap?.players?.some(Boolean)) seedBonds(snap);
-    }
-    function seedBonds(snap) {
-        S.seeded = true;
-        if (!rememberOn()) return;
-        const b = loadBonds();
-        for (let o = 0; o < snap.players.length; o++) {
-            const eo = snap.players[o] && elementOf(o);
-            if (!eo) continue;
-            for (let j = 0; j < snap.players.length; j++) {
-                const ej = j !== o && snap.players[j] && elementOf(j);
-                const kept = ej && b[`${eo}>${ej}`];
-                if (!kept) continue;
-                const r = relOf(o, j);
-                r.favor = kept.favor || 0;
-                r.trust = kept.trust || 0;
-            }
-        }
-    }
-    function storeBonds() {
-        if (!rememberOn() || !S.seats || !S.seeded) return;
-        const b = loadBonds();
-        const cap = v => Math.max(-BOND.cap, Math.min(BOND.cap, v));
-        for (const o of Object.keys(S.rel)) {
-            const eo = elementOf(+o);
-            if (!eo) continue;
-            for (const j of Object.keys(S.rel[o])) {
-                const ej = elementOf(+j);
-                if (!ej || ej === eo) continue;
-                const key = `${eo}>${ej}`, old = b[key] || { favor: 0, trust: 0, games: 0 }, cur = S.rel[o][j];
-                b[key] = {
-                    favor: +cap(old.favor * (1 - BOND.carry) + cur.favor * BOND.carry).toFixed(3),
-                    trust: +cap(old.trust * (1 - BOND.carry) + cur.trust * BOND.carry).toFixed(3),
-                    games: (old.games || 0) + 1,
-                };
-            }
-        }
-        saveBonds(b);
-    }
-    // Kept relationships, strongest first: [{from, to, favor, trust, games}] (element names).
-    function bonds() {
-        const b = loadBonds();
-        return Object.entries(b).map(([k, v]) => { const [from, to] = k.split('>'); return { from, to, ...v }; })
-            .sort((x, y) => (Math.abs(y.favor) + Math.abs(y.trust)) - (Math.abs(x.favor) + Math.abs(x.trust)));
-    }
-    // A training game ended: keep what it taught, then forget the game.
-    function roundOver() {
-        try { storeBonds(); } catch (e) {}
-        reset();
-    }
-
     // ---------------------------------------------------------------- api
     // How bot `o` sees every other player right now.
     function view(o) {
@@ -844,11 +777,8 @@
         recentStones: (j, turns) => (S.placed[j] || []).filter(r => S.turns - r.turn <= turns),
         setTalkAlways: on => { talkAlways = !!on; },
         oneCastFromWin: (j, snap) => { try { return oneCastFromWin(snap || window.BotState.snapshot(), j); } catch (e) { return false; } },
-        alertOn, intend, roundOver, bonds,
+        alertOn, intend,
         isBot: j => isBotSeat(j),
-        setRemember: on => { remember = !!on; },
-        remembers: () => remember,
-        forgetBonds: () => { try { localStorage.removeItem(BONDS_KEY); } catch (e) {} },
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },

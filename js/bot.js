@@ -3106,7 +3106,15 @@
                 else if (mem(idx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap, self, action.scroll)) D.intend(idx, 'idea', null);
             }
             if (ELEMENTS.every(el => self.activated.includes(el))) D.intend(idx, 'home', null);
-            else if (guardWanted(snap)) D.intend(idx, 'watch', D.alertOn(idx, snap));
+            // Only when a counter is really ready: its pattern is formed and the
+            // AP to answer is kept (2026-09-29: 24 "watches" in a log, 0 counters).
+            else if (guardWanted(snap)) {
+                const res = guardReserve(snap, self);
+                const qr = window.spellSystem?.scrollEffects?.activeBuffs?.quickReflexes;
+                const ready = res > 0 || (qr && qr.playerIndex === idx && [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]
+                    .some(n => COUNTERS.has(n) && window.BotSim?.checkPattern(snap, n, idx)));
+                if (ready && snap.turn.ap - actionApCost(snap, action) >= res) D.intend(idx, 'watch', D.alertOn(idx, snap));
+            }
         } catch (e) {}
     }
     function helpContext(snap, self) {

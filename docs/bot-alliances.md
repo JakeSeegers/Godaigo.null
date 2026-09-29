@@ -259,16 +259,28 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   rubble; watch = eyes; road = rainbow gift + partner colour. Fetching a
   counter (bot.js fetchTarget / BotSystem.fetchWanted) now also starts when
   the leader to stop has 4 elements, not only one cast from winning.
-- Bots remember (owner, 2026-09-29): Train Bot option "Bots remember"
-  (off by default, training only, this browser only). Identities = the five
-  elemental bots (seat colour -> element). Each game is seeded with the kept
-  favor / trust between them (seedBonds, first look of the game); when a
-  training game ends (bot-arena.js -> BotDiplomacy.roundOver) 20% of the end
-  state blends into what is kept (storeBonds), capped at +-0.6, with a games
-  count. localStorage godaigo_bot_bonds; bonds() lists them, forgetBonds()
-  clears them; the Train Bot panel shows the strongest 8 and a Forget
-  button. Humans are not remembered. Next if it plays well: real games with
-  their own separate memory.
+- Bots remember (2026-09-29): elemental bots kept a share of favor / trust
+  between training games. It worked but was removed the same day (owner);
+  its localStorage key is cleared on load.
+- Fairer grudges (2026-09-29, from the owner's 5-bot training log: 25 pacts
+  in 82 rounds, 15 "betrayals", one middling player the target of ~12 grudge
+  pacts, 24 "watches" and no counter):
+  - Betrayal only for harm aimed at the partner (a hostile scroll that hit
+    it, or its own shape / ready pattern broken); side effects of striking
+    the shared target only cost a little favor.
+  - Less touchy: DISRUPT ready 1.5, plan 1.5, shrines 1.25, common 1.5,
+    path 1.5 (was 2 for plan / common / path).
+  - Check (4 four-bot games, same seeds): 0 betrayals (was about one per
+    pact), 3 grudge-pact joins, 16 leader-pact joins, 1 counter fired, 2
+    "watches"; every game logged its winner.
+  - Grudge pacts: not against a player 1+ elements (weighted) behind the
+    proposer; each player can be rallied against once per 3 rounds
+    (S.rallied); joiners weigh threat x1.0 (was 0.5) and decline a target
+    behind them.
+  - "watches the next cast" only when a counter pattern is formed and the
+    AP to answer is kept.
+  - Training games log gameStart / gameOver (winner, turns, end reason) in
+    the action log (cap 20000), shown in the Game Log too.
   Open question (owner): bots forget the element of a tile flipped face-down
   again (the snapshot masks it); a memory of seen tiles would fix that.
 
