@@ -8,7 +8,7 @@
       "changes": [
         "Bot emotes: the thinking emote is shorter, emotes clear as soon as a training game ends, and in fast training they show right away instead of late.",
         "New bot emote sentences: pact answers show a crown (against the leader) or a heart (a grudge), and many emotes are simpler and clearer.",
-        "Steadier bot alliances: only a real attack counts as betrayal, bots stop ganging up on players who are behind, reach for a counter scroll earlier, and remember shrines flipped face-down.",
+        "Steadier bots: only a real attack counts as betrayal, no ganging up on players who are behind, earlier counter scrolls, they remember flipped shrines, and 2 player games get stuck less.",
         "Game Log has a new Alliances tab: current pacts, how each bot feels about everyone, and what they said this game.",
         "Train Bot: a Speed button to switch between Watchable and Extreme mid-run, and no more menus flashing during training."
       ]

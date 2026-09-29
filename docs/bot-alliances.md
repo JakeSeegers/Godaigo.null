@@ -287,6 +287,16 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   never changes the harm / help weights (bot.js SOCIAL_KEYS, pinSocial).
   Per-bot personalities were dropped for now (owner: colours play unevenly,
   it would muddy training).
+- 2-player draws (2026-09-29; 24 seeded games, stall restarts off, 4 draws
+  before, 1 after). Causes found by replaying them: (1) guard standoff, both
+  one cast from winning kept AP for a counter and never cast: guardReserve
+  is 0 when the bot is itself one cast from winning; (2) a cast countered or
+  cancelled banned that scroll for the whole game (noCreditScrolls): now for
+  5 own turns (noCreditAt); (3) a bot ahead kept breaking a trailing
+  opponent's stones: in 2-player games harmContext only targets an opponent
+  level or ahead (weighted, 0.25 slack). Owner's habit added: l1WaitVoid 30,
+  end the turn on a void shrine with a needed level 1 response ready there
+  (half for building its pattern there), collecting void while waiting.
 - Attack-cost log (2026-09-29): 'harmCost' entries in the action log during
   training. First check, 4 four-bot games: 18 attacks, 15 moves toward a
   harm target (cost to the attacker about 5 points, 60% were its best plain

@@ -247,6 +247,9 @@
         discardResponseOnly: 25, // level-1 scrolls are response-only: dead weight once
                                  // their element is won or dead (a needed one is kept:
                                  // a response activates its element)
+        l1WaitVoid:         30,  // owner's habit (2026-09-29): wait for a level 1 response on a void
+                                 // shrine, collecting void (AP) meanwhile: ending the turn there with a
+                                 // needed level 1 ready (half for building its pattern there)
         leaveResponseReady: -40, // moving off a spot where a needed level 1's pattern
                                  // is complete (ready to respond to the next cast)
         moveBlockedShrine:  1,   // × the shrine walk value, toward a needed shrine whose
@@ -608,8 +611,13 @@
         const postSelf = me(window.BotState.snapshot());
         if (!postSelf) return;
         if (!expected.some(e => postSelf.activated.includes(e))) {
-            mem(idx).noCreditScrolls.add(scrollName);
-            log(`Cast ${scrollName} granted no win credit (effect cancelled?) - blacklisting for this game`);
+            const m = mem(idx);
+            m.noCreditScrolls.add(scrollName);
+            // Only for 5 own turns (2026-09-29): a cast countered by Iron
+            // Stance / Psychic also gives no credit, and a scroll banned for
+            // good left a bot with the only scroll it needed unusable (a draw).
+            (m.noCreditAt ||= new Map()).set(scrollName, m.ownTurns || 0);
+            log(`Cast ${scrollName} granted no win credit (effect cancelled or countered?) - skipping it for 5 turns`);
         }
     }
 
@@ -1106,6 +1114,10 @@
                     s = WEIGHTS.placeBase + WEIGHTS.placeProgress * (a.progress || 0);
                     const guardCounter = COUNTERS.has(a.scroll) && guardWanted(snap);
                     s += (hasWinCredit(snap, a.scroll) || guardCounter) ? WEIGHTS.placeUnactivated : WEIGHTS.placeNoCredit;
+                    // A needed level 1 built while standing on a void shrine: wait there.
+                    const ldef = window.SCROLL_DEFINITIONS?.[a.scroll];
+                    if (ldef?.level === 1 && ctx.onShrine?.shrineType === 'void' &&
+                        (guardCounter || !self.activated.includes(ldef.element))) s += WEIGHTS.l1WaitVoid * 0.5;
                 } else {
                     // Tactical placement (Stage 4, scroll:null — see
                     // bot-state.js): no pattern value at all; only worth
@@ -1237,6 +1249,7 @@
                        + shrineValue(snap, ctx.onShrine.shrineType)) * Math.pow(0.5, again);
                 }
                 if (snap.turn.ap <= 1) s += contrib('endTurnLowAp', 1);
+                if (ctx.responseReady && ctx.onShrine?.shrineType === 'void') s += contrib('l1WaitVoid', 1);
                 if (ctx.harm?.campHere) s += contrib('endTurnCamp', ctx.harm.push);
                 return s;
             }
@@ -2843,6 +2856,9 @@
         const lp = L != null ? snap.players[L] : null;
         if (!lp) return null;
         let push = (D.pressures(ai) || [])[L] || 1;
+        // Two players: only when the opponent is level or ahead (2026-09-29:
+        // a bot ahead kept breaking a trailing opponent's stones, a draw).
+        if (duel && threatCount(lp.activated) < threatCount(self.activated) - 0.25) return null;
         if (duel) push = Math.max(push, 2);
         // From any clear leader (push 1.5, owner 2026-09-28: engage early);
         // every harm score is multiplied by push, so early harm stays small.
@@ -3009,6 +3025,9 @@
     function guardReserve(snap, self) {
         if (!guardWanted(snap)) return 0;
         const ai = snap.turn.activePlayerIndex;
+        // One cast from winning myself: race, do not sit on the AP
+        // (2026-09-29: two such bots guarded each other until the turn cap).
+        if (window.BotDiplomacy?.oneCastFromWin?.(ai, snap)) return 0;
         const ready = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]
             .some(n => COUNTERS.has(n) && window.BotSim?.checkPattern(snap, n, ai));
         if (!ready) return 0;
@@ -4005,6 +4024,9 @@
         if (harmLogOn()) { try { harmFlush(startingPlayer); } catch (e) {} }
         const m = mem(startingPlayer);
         m.ownTurns = (m.ownTurns || 0) + 1; // combo timing (Phase 4)
+        if (m.noCreditAt) for (const [n, t] of m.noCreditAt) {
+            if (m.ownTurns - t >= 5) { m.noCreditScrolls.delete(n); m.noCreditAt.delete(n); }
+        }
         // Where the last turn ended: on a shrine centre = it collected there.
         // Counts turns in a row at the same shrine (endTurn scoring halves
         // each repeat).
