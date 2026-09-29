@@ -1584,11 +1584,7 @@
         })) out.add('CATACOMB_SCROLL_8');                                    // Plunder
         if (ELEMENTS.some(el => needs(el) && (lp.pool[el] || 0) >= 2)) out.add('FIRE_SCROLL_5'); // Arson
         if (h.stones.size >= 2) out.add('CATACOMB_SCROLL_10');               // Combust
-        if (ELEMENTS.every(el => lp.activated.includes(el))) {
-            let c = 99;
-            try { c = homeCost(snap, h.L); } catch (e) {}
-            if (c <= 8) out.add('WIND_SCROLL_4');                             // Take Flight
-        }
+        try { if (takeFlightHarm(snap, h.L) >= 0.3) out.add('WIND_SCROLL_4'); } catch (e) {} // Take Flight
         return out;
     }
 
@@ -3419,12 +3415,17 @@
         return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
     }
     function harmChoices(snap, name) {
-        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4'].includes(name)) return [];
+        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4'].includes(name)) return [];
         const self = snap.players[snap.turn.activePlayerIndex];
         const h = self ? harmContext(snap, self) : null;
         if (!h) return [];
         const lp = snap.players[h.L];
         const out = [];
+        if (name === 'WIND_SCROLL_4') {
+            const f = takeFlightHarm(snap, h.L);
+            if (f >= 0.3) out.push({ target: h.L, harm: f });
+            return out;
+        }
         if (name === 'EARTH_SCROLL_4') {
             // Face-down, no stones or pawns, and clearly closer to the leader
             // than to me (the leader would explore it next).
@@ -3441,6 +3442,31 @@
             for (const t of keyShrines(snap, lp).slice(0, 2)) out.push({ tileId: t.id, element: el, harm: 0.6 });
         }
         return out;
+    }
+    // Take Flight on an opponent (owner, 2026-09-29: "the idea for Take
+    // Flight is to manipulate the movements of opponents"). They choose where
+    // to land (BotSim.takeFlightLandingFor, the same pick the game's driver
+    // makes for them), but only on a tile another pawn stands on, so it can
+    // throw them off: a runner with five elements gets further from home, a
+    // player on a ready pattern cannot cast there next turn, a player on a
+    // shrine centre does not collect there. 0 = not worth it.
+    function takeFlightHarm(snap, L) {
+        const lp = snap.players[L];
+        const d = lp && window.BotSim?.takeFlightLandingFor?.(snap, lp);
+        if (!d || Math.hypot(d.x - lp.x, d.y - lp.y) < 5) return 0;
+        let harm = 0;
+        if (ELEMENTS.every(el => lp.activated.includes(el))) {
+            const moved = { ...snap, players: snap.players.map((q, j) => j === L ? { ...q, x: d.x, y: d.y } : q) };
+            let before = 0, after = 0;
+            try { before = homeCost(snap, L); after = homeCost(moved, L); } catch (e) { return 0; }
+            if (after - before >= 2) harm = Math.max(harm, Math.min(1.5, (after - before) / 4));
+        }
+        // Standing on a pattern it can cast from (public: its active area).
+        if ((lp.active || []).some(n => window.BotSim?.checkPattern(snap, n, L))) harm = Math.max(harm, 1);
+        // Standing on an elemental shrine centre: it would collect there.
+        const shrine = snap.tiles.find(t => t.revealed && ELEMENTS.includes(t.shrineType) && Math.hypot(t.x - lp.x, t.y - lp.y) < 5);
+        if (shrine && Math.hypot(d.x - lp.x, d.y - lp.y) > 70) harm = Math.max(harm, 0.6);
+        return harm;
     }
     // Harm bonus for a cast (greedy and the search root).
     function harmCastBonus(snap, self, a) {
@@ -3922,7 +3948,7 @@
                 if (c && a.scroll === 'FIRE_SCROLL_5') return `Cast ${n}: burn one of ${who(c.target)}'s ${c.element} stones`;
                 if (c && a.scroll === 'CATACOMB_SCROLL_8') return `Cast ${n}: send ${who(c.target)}'s ${scrollName(c.scroll)} to the common area`;
                 if (c && a.scroll === 'VOID_SCROLL_5') return `Cast ${n}: draw ${c.element} stones`;
-                if (c && a.scroll === 'WIND_SCROLL_4') return `Cast ${n}: fly to another player's tile`;
+                if (c && a.scroll === 'WIND_SCROLL_4') return c.target != null ? `Cast ${n}: move ${who(c.target)} away (they pick where on another player's tile)` : `Cast ${n}: fly to another player's tile`;
                 if (c && a.scroll === 'EARTH_SCROLL_2') return `Cast ${n}: swap a nearby tile with a tile worth having close`;
                 if (c && a.scroll === 'VOID_SCROLL_2') return `Cast ${n}: move a tile next to this one`;
                 if (c && c.tileId == null) {

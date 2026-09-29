@@ -416,6 +416,19 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   was under 6 AP away 89 times (plans already pick near centres and use
   catacombs) or flying was not faster 13 times. `_shortcutStats.why` counts
   the reasons.
+  **Take Flight on opponents (2026-09-29, owner: "the idea for Take Flight
+  is to manipulate the movements of opponents").** Before, the driver always
+  picked self (except when stuck), so "Take Flight on the leader" flew the
+  caster. Now harmChoices offers `{target: L, harm}` from `takeFlightHarm()`:
+  the target lands where THEY choose (BotSim.takeFlightLandingFor, the same
+  pick the driver makes for them; online a human picks, a bot seat is
+  answered by bot-driver.js), so value = what they lose: home cost +2 AP or
+  more for a runner with five (harm up to 1.5), standing on a ready pattern
+  (1), on a shrine centre (0.6). attackTools lists Take Flight when that is
+  0.3 or more. bot-sim simEffectTakeFlight moves the target for choice.target;
+  bot-effects picks that player's button. Test (6 four-bot games): Take
+  Flight casts 4 -> 8, 4 aimed at the leader, 3 threw it 6-10 hexes off a
+  shrine centre. 2-player unchanged.
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY

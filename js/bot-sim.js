@@ -1046,46 +1046,42 @@
         });
     }
 
+    // Where player v lands when Take Flight moves them and THEY choose (the
+    // rule for an opponent target, and the bot's own default): the landing
+    // nearest their next objective, home with all 5 elements, else the
+    // nearest face-down tile. Mirrors bot-effects.js _bestTakeFlightDestination.
+    function takeFlightLandingFor(snap, v) {
+        const candidates = takeFlightCandidates(snap, v);
+        if (!candidates.length) return null;
+        let goal = null;
+        if (ELEMENTS.every(el => v.activated.includes(el))) {
+            goal = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === v.index);
+        } else {
+            const hidden = snap.tiles.filter(t => !t.revealed && !t.isPlayerTile);
+            goal = hidden.length
+                ? hidden.reduce((a, b) => (!a || dist(v.x, v.y, b.x, b.y) < dist(v.x, v.y, a.x, a.y)) ? b : a, null)
+                : null;
+        }
+        return goal
+            ? candidates.reduce((a, b) => (!a || dist(goal.x, goal.y, b.x, b.y) < dist(goal.x, goal.y, a.x, a.y)) ? b : a, null)
+            : candidates[0];
+    }
+
     function simEffectTakeFlight(snap, p, choice) {
+        // Aimed at an opponent (owner, 2026-09-29: Take Flight is for moving
+        // opponents): they are moved, and they pick where to land.
+        if (choice && choice.target != null && choice.target !== p.index) {
+            const v = snap.players[choice.target];
+            const d = v ? takeFlightLandingFor(snap, v) : null;
+            if (d) { v.x = d.x; v.y = d.y; }
+            return;
+        }
         if (choice && choice.x != null) {
             const hit = takeFlightCandidates(snap, p).find(h => dist(h.x, h.y, choice.x, choice.y) < HEX_NEAR);
             if (hit) { p.x = hit.x; p.y = hit.y; return; }
         }
-        const g = grid(snap);
-        const occupiedTileIds = new Set();
-        for (const pl of snap.players) {
-            if (!pl || pl.index === p.index) continue;
-            const hex = g.find(h => dist(h.x, h.y, pl.x, pl.y) < HEX_NEAR);
-            if (hex) for (const id of hex.tileIds) occupiedTileIds.add(id);
-        }
-        if (!occupiedTileIds.size) return; // real flow bails, nothing to do
-
-        const candidates = g.filter(h => {
-            if (!h.tileIds.some(id => occupiedTileIds.has(id))) return false;
-            if (h.tileIds.some(id => {
-                const t = snap.tiles.find(tt => tt.id === id);
-                return t && (t.isPlayerTile || !t.revealed);
-            })) return false;
-            if (stoneAt(snap, h.x, h.y)) return false;
-            if (snap.players.some(pl => pl && dist(pl.x, pl.y, h.x, h.y) < HEX_NEAR)) return false;
-            return true;
-        });
-        if (!candidates.length) return;
-
-        let goal = null;
-        if (ELEMENTS.every(el => p.activated.includes(el))) {
-            goal = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === p.index);
-        } else {
-            const hidden = snap.tiles.filter(t => !t.revealed && !t.isPlayerTile);
-            goal = hidden.length
-                ? hidden.reduce((a, b) => (!a || dist(p.x, p.y, b.x, b.y) < dist(p.x, p.y, a.x, a.y)) ? b : a, null)
-                : null;
-        }
-        const dest = goal
-            ? candidates.reduce((a, b) => (!a || dist(goal.x, goal.y, b.x, b.y) < dist(goal.x, goal.y, a.x, a.y)) ? b : a, null)
-            : candidates[0];
-
-        p.x = dest.x; p.y = dest.y;
+        const dest = takeFlightLandingFor(snap, p);
+        if (dest) { p.x = dest.x; p.y = dest.y; }
     }
 
     // Refreshing Thought (WATER_SCROLL_2): draw the top catacomb-deck
@@ -2431,7 +2427,7 @@
         simulate, legalActions, isTerminal, winner,
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
         stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
-        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, isUnknownScroll, unknownScrollElement,
+        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, isUnknownScroll, unknownScrollElement,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');
 })();

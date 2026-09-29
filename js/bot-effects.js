@@ -868,11 +868,10 @@
 
     // ----------------------------------------------------------------
     // Take Flight (WIND_SCROLL_4) — two steps:
-    //   1. take-flight-player-modal: pick a target. v1 ALWAYS targets
-    //      SELF — the scroll always stays in the caster's active area
-    //      regardless of target (no hand-vs-active tradeoff to weigh), but
-    //      opponent-targeting is still skipped in v1: modeling "is it worth
-    //      spending this to reposition an opponent" is out of scope for v1.
+    //   1. take-flight-player-modal: pick a target. An opponent when the
+    //      cast's choice says so (bot.js harmChoices / takeFlightHarm,
+    //      2026-09-29: move the leader off a shrine, a ready pattern or its
+    //      road home), a blocker when stuck (stuckTools), else self.
     //   2. Drag-drop: NOT a selectionMode.handleXClick() — the real drop
     //      handler (game-ui.js) does double duty: it moves the pawn itself
     //      (placePlayer() for self, movePlayerVisually() for an opponent)
@@ -902,7 +901,13 @@
         const off = st?.stuck && st.occupiers?.length
             ? buttons.find(b => b.dataset.playerIndex != null && st.occupiers.includes(Number(b.dataset.playerIndex)))
             : null;
-        const btn = off || buttons.find(b => b.textContent.includes('(you)'));
+        // A cast aimed at an opponent (bot.js harmChoices, choice.target):
+        // move them. Peek only, driveTakeFlightDrag takes the choice.
+        const pc = pendingChoice && pendingChoice.scrollId === 'WIND_SCROLL_4' ? pendingChoice.choice : null;
+        const aimed = pc && pc.target != null
+            ? buttons.find(b => b.dataset.playerIndex != null && Number(b.dataset.playerIndex) === pc.target)
+            : null;
+        const btn = aimed || off || buttons.find(b => b.textContent.includes('(you)'));
         if (!btn) return false;
         btn.click();
         return true;
