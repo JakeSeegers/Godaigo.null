@@ -356,7 +356,18 @@ Feature summary (see `scoreAction()` in bot.js for the authoritative list):
   it by about a third. Dropped when reached or after `INTENT_TURNS` (6) own
   turns. Bot Mind says "Sticking with my goal". 4-bot games 115 -> 94 turns
   on average (same seeds), 2-player 23/24 wins. Pattern plans (makePlan)
-  already commit on their own. Next: attack and camp goals as intentions.
+  already commit on their own.
+  **Attack plans (2026-09-29).** `reviewPlan()` once per own turn: a
+  building plan gives way to an attack plan (makePlan `{only: attackTools,
+  near: 4}`, anchors up to 4 steps away, a step costing like a missing stone)
+  only when it scores more than the current plan x (1 + moveCommit); an
+  attack plan is dropped after 2 own turns with no target it would hurt.
+  Attack build credit now grows with push squared (x4 against a leader who
+  can win next turn). Audit (6 four-bot games): attack plans were already
+  kept until cast or until the scroll was taken; the real gap is having the
+  right attack scroll in reach (3 of 341 turn reviews). Level-1 counters
+  are built only in guard mode (alertOn), so Iron Stance was almost never
+  built; Psychic answered 12 of 12 chances. `BotSystem._review` = counters.
   **FIXED — the within-turn oscillation was a hybrid over-trigger.** A
   related but distinct *within-turn* oscillation surfaced in the same
   batches: hybrid search stayed engaged for an entire turn whenever ANY

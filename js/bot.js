@@ -1538,11 +1538,16 @@
         // With a target at push 2+, an attack that would hurt it now is worth
         // WEIGHTS.attackBuildCredit elements; the existing cast targeting
         // aims it when the shape is done.
+        // Urgency (2026-09-29 audit: bots kept building their own shape for
+        // 39 turns while the leader walked home past a Take Flight): the
+        // credit grows with push squared, so against a leader who can win
+        // next turn (push 4: x4) an attack is worth more than a new element.
         const attacks = attackTools(snap, self);
+        const urgency = Math.min(4, Math.max(1, ((attacks.push || 2) / 2) ** 2));
         for (const name of sources) {
             if (!attacks.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
             const def = window.SCROLL_DEFINITIONS?.[name];
-            if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: WEIGHTS.attackBuildCredit, tool: true, attack: true });
+            if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: WEIGHTS.attackBuildCredit * urgency, tool: true, attack: true });
         }
         return out;
     }
@@ -1555,6 +1560,7 @@
         if (!h || h.push < 2) return out;
         const lp = snap.players[h.L];
         if (!lp) return out;
+        out.push = h.push;
         const needs = el => !lp.activated.includes(el);
         if ((lp.active || []).some(sc => {
             const d = window.SCROLL_DEFINITIONS?.[sc];
@@ -1625,7 +1631,7 @@
         return Object.keys(deficit).every(t => collectible.some(s => s.shrineType === t));
     }
 
-    function makePlan(snap) {
+    function makePlan(snap, opts) {
         const self = me(snap);
         if (!self || !self.hand) return null;
         const { cursedCells, noCreditScrolls } = mem(snap.turn.activePlayerIndex);
@@ -1636,9 +1642,22 @@
         const grid = window.BotState.hexGrid();
         const collectible = collectibleShrines(snap);
         let best = null;
-        for (const { name, def, credit } of creditableSources(snap, self, noCreditScrolls)) {
-            for (const variant of def.patterns) {
-                const v = viablePatternAt(snap, self, variant, pHex, grid, cursedCells);
+        // opts.near: also try anchors up to that many steps away (attack
+        // plans, reviewPlan), a step costing like a missing stone.
+        const anchors = [{ hex: pHex, steps: 0 }];
+        if (opts?.near) {
+            for (const h of grid) {
+                const d = Math.hypot(h.x - self.x, h.y - self.y);
+                if (d < 5 || d > opts.near * 35 + 5) continue;
+                if (typeof isPositionOnFlippedTile === 'function' && isPositionOnFlippedTile(h.x, h.y, grid)) continue;
+                if (typeof isPositionOnPlayerTile === 'function' && isPositionOnPlayerTile(h.x, h.y, grid)) continue;
+                anchors.push({ hex: pixelToHex(h.x, h.y, TILE_SIZE), steps: Math.round(d / 35) });
+            }
+        }
+        for (const { name, def, credit, attack } of creditableSources(snap, self, noCreditScrolls)) {
+            if (opts?.only && !opts.only.has(name)) continue;
+            for (const variant of def.patterns) for (const { hex: anchorHex, steps } of anchors) {
+                const v = viablePatternAt(snap, self, variant, anchorHex, grid, cursedCells);
                 if (!v) continue;
                 const totalDeficit = Object.values(v.deficit).reduce((a, b) => a + b, 0);
                 // Missing stone types are fine — planNextAction() routes
@@ -1651,11 +1670,54 @@
                 // collecting is discounted (slower, riskier) but still far
                 // better than no plan at all — WEIGHTS.planDeficitPenalty is
                 // negative, same sign convention as moveApPenalty etc.
-                const score = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit;
-                if (!best || score > best.score) best = { score, scroll: name, anchor: pHex, cells: v.cells };
+                const score = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * (totalDeficit + steps);
+                if (!best || score > best.score) best = { score, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps };
             }
         }
-        return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells } : null;
+        return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps } : null;
+    }
+    // Plan review (owner, 2026-09-29: attacks as multi-turn intentions). Once
+    // per own turn: an attack plan that is no longer worth it (the leader is
+    // no longer a danger it can hurt) is dropped; a building plan gives way
+    // to an attack plan only when the attack is clearly better (moveCommit
+    // margin, the same "change my mind" bar as movement goals).
+    function planScoreNow(snap, plan) {
+        const self = me(snap);
+        const missing = plan.cells.filter(c => !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5));
+        const need = {};
+        for (const c of missing) need[c.type] = (need[c.type] || 0) + 1;
+        let deficit = 0;
+        for (const [t, n] of Object.entries(need)) deficit += Math.max(0, n - (self?.pool?.[t] || 0));
+        return (plan.cells.length - missing.length) * 10 + (plan.credit || 1) * 20 + WEIGHTS.planDeficitPenalty * (deficit + (plan.steps || 0));
+    }
+    const _review = { calls: 0, withAttacks: 0, noAlt: 0, kept: 0, switched: 0, dropped: 0, byScroll: {} }; // tests
+    function reviewPlan(snap, idx) {
+        const m = mem(idx);
+        if (m.planReviewTurn === m.ownTurns) return;
+        m.planReviewTurn = m.ownTurns;
+        const self = me(snap);
+        if (!self) return;
+        const attacks = attackTools(snap, self);
+        if (m.plan && m.plan.attack) {
+            // Two own turns in a row without a reason, so a leader hovering
+            // at the danger line does not flip the plan on and off.
+            m.attackIdle = attacks.has(m.plan.scroll) ? 0 : (m.attackIdle || 0) + 1;
+            if (m.attackIdle >= 2) { log(`Attack plan ${m.plan.scroll} no longer needed - dropping it`); m.plan = null; m.attackIdle = 0; }
+            return;
+        }
+        _review.calls++;
+        const reach = new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]);
+        if (![...attacks].some(n => reach.has(n))) return;
+        _review.withAttacks++;
+        for (const n of attacks) if (reach.has(n)) _review.byScroll[n] = (_review.byScroll[n] || 0) + 1;
+        const alt = makePlan(snap, { only: attacks, near: 4 });
+        if (!alt) { _review.noAlt++; return; }
+        const cur = m.plan ? planScoreNow(snap, m.plan) : 0;
+        if (planScoreNow(snap, alt) > cur * (1 + (WEIGHTS.moveCommit || 0))) {
+            log(`Switching to attack plan ${alt.scroll}${m.plan ? ` (was ${m.plan.scroll})` : ''}`);
+            m.plan = alt;
+            _review.switched++;
+        } else _review.kept++;
     }
 
     // ----------------------------------------------------------------
@@ -3801,6 +3863,7 @@
 
         // The pattern plan takes priority: it's the only way multi-hex
         // patterns ever complete under the adjacent-only placement rule
+        try { reviewPlan(snap, idx); } catch (e) { log('Plan review failed: ' + e.message); }
         if (!m.plan || !planValid(snap)) {
             m.plan = makePlan(snap);
             if (m.plan) log(`New plan: build ${m.plan.scroll} anchored at hex (${m.plan.anchor.q},${m.plan.anchor.r})`);
@@ -4368,6 +4431,7 @@
         DEFAULT_WEIGHTS,
         SOCIAL_KEYS, pinSocial,
         _harmContext: harmContext, // tests
+        _review,                    // tests: plan review counters
         _helpContext: helpContext, // tests
         // Guard mode for the active bot (bot-state.js / bot-effects.js): an opponent is one cast from winning.
         ELEMENT_THREAT, threatCount,
