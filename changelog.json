@@ -6,7 +6,9 @@
       "date": "2026-09-29",
       "title": "Clearer bot emotes",
       "changes": [
-        "Bot emotes: the thinking emote is shorter, emotes clear as soon as a training game ends, and in fast training they show right away instead of late."
+        "Bot emotes: the thinking emote is shorter, emotes clear as soon as a training game ends, and in fast training they show right away instead of late.",
+        "New bot emote sentences: pact answers show a crown (against the leader) or a heart (a grudge), and many emotes are simpler and clearer.",
+        "Bots now reach for a counter scroll earlier, once the leader has 4 elements."
       ]
     },
     {

@@ -488,7 +488,7 @@
         const modal = document.getElementById('scholars-insight-modal');
         if (!modal) return false;
         const heading = modal.querySelector('h3')?.textContent || '';
-        const guard = !!window.BotSystem?.guardWanted?.();
+        const guard = !!(window.BotSystem?.fetchWanted?.() || window.BotSystem?.guardWanted?.());
         if (heading.includes('Choose a Deck')) {
             if (guard) {
                 takeChoice('VOID_SCROLL_4');
@@ -662,7 +662,7 @@
         if (!modal) return false;
         // Guard mode (bot.js guardWanted): fetch a counter, Psychic (void)
         // first, then Iron Stance (earth).
-        if (window.BotSystem?.guardWanted?.()) {
+        if (window.BotSystem?.fetchWanted?.() || window.BotSystem?.guardWanted?.()) {
             const order = ['void', 'earth', ...rankedElements().filter(e => e !== 'void' && e !== 'earth')];
             takeChoice('CATACOMB_SCROLL_9');
             return !!clickBestElement(modal, order);

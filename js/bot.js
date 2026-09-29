@@ -1446,7 +1446,7 @@
             if (o.def.element === 'catacomb') for (const c of (o.def.patterns[0] || [])) covered.add(c.type);
             else covered.add(o.def.element);
         }
-        if (guardWanted(snap) && !counterInReach(snap, self)) {
+        if (fetchTarget(snap) != null && !counterInReach(snap, self)) {
             for (const name of sources) {
                 if (!GUARD_FETCH.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
                 if (drawOnCooldown(snap.turn.activePlayerIndex, name)) continue;
@@ -3018,8 +3018,22 @@
         }
         return 0;
     }
+    // Who to fetch a counter against: the player one cast from winning, or
+    // earlier (owner, 2026-09-29) the leader to stop once it has 4 elements.
+    function fetchTarget(snap) {
+        const D = window.BotDiplomacy;
+        if (!D?.enabled?.()) return null;
+        const ai = snap.turn.activePlayerIndex;
+        try {
+            const a = D.alertOn(ai, snap);
+            if (a != null) return a;
+            const live = snap.players.map((q, j) => q ? j : -1).filter(j => j >= 0);
+            const L = live.length === 2 ? live.find(j => j !== ai) : D.coalitionTarget(ai);
+            return L != null && (snap.players[L]?.activated?.length || 0) >= 4 ? L : null;
+        } catch (e) { return null; }
+    }
     function guardFetchHelps(snap, self, scroll) {
-        return GUARD_FETCH.has(scroll) && guardWanted(snap) && !counterInReach(snap, self);
+        return GUARD_FETCH.has(scroll) && fetchTarget(snap) != null && !counterInReach(snap, self);
     }
     // Cooldown: the same scroll-drawing spell at most once per 3 own turns
     // (one bot cast Scholar's Insight 696 times when the draws never helped).
@@ -3086,13 +3100,18 @@
                 }
             } else if (action.type === 'placeStone' && action.stoneType === 'wind') {
                 const hp = helpContext(snap, self);
-                if (hp?.road.has(hexKey(action.x, action.y))) D.intend(idx, 'road', null);
+                if (hp?.road.has(hexKey(action.x, action.y))) {
+                    // The partner running home (all five).
+                    const P = D.pact?.();
+                    const to = (P?.members || []).find(m => m !== idx && snap.players[m] && ELEMENTS.every(el => snap.players[m].activated.includes(el)));
+                    D.intend(idx, 'road', to ?? null);
+                }
             } else if (action.type === 'cast' && (action.choice?.harm || (action.scroll === 'EARTH_SCROLL_3' && harmCastBonus(snap, self, action) > 0))) {
                 const h = harmContext(snap, self);
                 const kind = { EARTH_SCROLL_4: 'scout', WATER_SCROLL_4: 'river', EARTH_SCROLL_2: 'shove', EARTH_SCROLL_3: 'wall' }[action.scroll];
                 if (h && kind) D.intend(idx, kind, h.L);
             } else if (action.type === 'cast') {
-                if (GUARD_FETCH.has(action.scroll) && guardWanted(snap)) D.intend(idx, 'fetch', D.alertOn(idx, snap));
+                if (GUARD_FETCH.has(action.scroll) && fetchTarget(snap) != null) D.intend(idx, 'fetch', fetchTarget(snap));
                 else if (mem(idx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap, self, action.scroll)) D.intend(idx, 'idea', null);
             }
             if (ELEMENTS.every(el => self.activated.includes(el))) D.intend(idx, 'home', null);
@@ -4113,6 +4132,8 @@
         // Bot i's current build plan (read-only view for bot-diplomacy.js).
         planOf: i => { const pl = _mem[i]?.plan; return pl ? { scroll: pl.scroll, cells: pl.cells } : null; },
         guardWanted: () => { try { return guardWanted(window.BotState.snapshot()); } catch (e) { return false; } },
+        // A counter is worth fetching now (bot-effects.js Quick Reflexes / Scholar's Insight picks).
+        fetchWanted: () => { try { const sn = window.BotState.snapshot(); const me = sn.players[sn.turn.activePlayerIndex]; return !!me && fetchTarget(sn) != null && !counterInReach(sn, me); } catch (e) { return false; } },
         // bot-effects.js targets: { needScroll, blockedTiles, occupiers, stuck } for the active bot
         stuckTools: () => {
             try {

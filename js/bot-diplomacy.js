@@ -438,9 +438,14 @@
     // Emote sentences (owner's vocabulary, docs/bot-alliances.md): what, then
     // who. Cells of images/emotes/pipoya-emotes.png (js/emoji-system.js).
     const E = {
-        warning: 0, question: 1, bread: 59, accept: 85, decline: 32, withdraw: 86, thanks: 12,
-        commit: [37, 47, 70],          // Twinkle, Chomp, Hammer (at random)
-        grudge: [28, 9, 21],           // Rage Spikes, Broken Heart, Angry Vein (at random)
+        // Owner's phrase edits (2026-09-29, Bot Phrases page).
+        warning: 0, question: 1, target: 15, accept: 85, decline: 32, withdraw: 86, thanks: 30,
+        commit: 47,                    // Chomp
+        hurt: 21,                      // Angry Vein (asks for help)
+        betrayed: 9,                   // Broken Heart
+        grudge: 18,                    // Tangled
+        leaderPact: 79, grudgePact: 8, // Crown / Heart after accept or decline: which kind of pact
+        pactEnds: '15x',               // Bullseye with an X
         leader: 79,                    // Crown
         colour: { green: 99, blue: 97, red: 96, yellow: 98, purple: 19 },
     };
@@ -578,7 +583,7 @@
         for (let b = 0; b < n; b++) if (b !== o && b !== L && snap.players[b] && isBotSeat(b)) others.push(b);
         if (!others.length) return;
         S.lastPactTurn = S.turns;
-        say(o, [E.bread, E.question, symbolOf(L, L)], `{p${o}} offers a pact against {p${L}}`);
+        say(o, [E.target, E.question, symbolOf(L, null)], `{p${o}} offers a pact against {p${L}}`);
         const members = new Set([o]);
         for (const b of others) {
             const r = relOf(b, o);
@@ -587,7 +592,7 @@
             // had not picked the same target yet, unless it likes the target.
             const ok = (coalitionTarget(b) === L && mine > -0.5) || (mine >= GRUDGE.friend && relOf(b, L).favor < 0.3);
             if (ok) members.add(b);
-            say(b, [ok ? E.accept : E.decline], `{p${b}} ${ok ? 'accepts' : 'declines'}`);
+            say(b, [ok ? E.accept : E.decline, E.leaderPact], `{p${b}} ${ok ? 'joins' : 'declines'} the pact against the leader`);
         }
         if (members.size < 2) return;
         S.pact = { kind: 'leader', target: L, members, committed: new Set(), turnsLeft: n + 1 };
@@ -624,14 +629,14 @@
         if (!others.length) return;
         S.lastPactTurn = S.turns;
         S.asked[`${o}>${X}`] = S.turns;
-        say(o, [E.grudge, E.bread, E.question, symbolOf(X, null)], `{p${o}} was hurt by {p${X}} and asks for help against them`);
+        say(o, [E.hurt, E.target, E.question, symbolOf(X, null)], `{p${o}} was hurt by {p${X}} and asks for help against them`);
         const members = new Set([o]);
         for (const b of others) {
             const fx = relOf(b, X).favor, r = relOf(b, o);
             const score = -fx + 0.6 * (W.favor * r.favor + W.trust * r.trust) + 0.5 * (threatOf(snap, b, X) - 0.45);
             const ok = score >= GRUDGE.accept && fx < 0.3;
             if (ok) members.add(b);
-            say(b, [ok ? E.accept : E.decline], `{p${b}} ${ok ? 'accepts' : 'declines'}`);
+            say(b, [ok ? E.accept : E.decline, E.grudgePact], `{p${b}} ${ok ? 'joins' : 'declines'} the pact against {p${X}}`);
         }
         if (members.size < 2) return;
         S.pact = { kind: 'grudge', target: X, members, committed: new Set(), turnsLeft: n + 1 };
@@ -648,8 +653,7 @@
             r.favor += 0.05;
         }
         if (kept.length >= 2) {
-            tellListeners(kept[0], `The pact against {p${P.target}} ends`);
-            if (visible()) window.ActionLog?.record?.('botTalk', { text: `The pact against {p${P.target}} ends` }, kept[0]);
+            say(kept[0], [E.pactEnds, symbolOf(P.target, null)], `The pact against {p${P.target}} ends`);
         }
         S.pact = null;
         S.lastPactTurn = S.turns; // the next offer waits two rounds from here
@@ -662,7 +666,7 @@
         const t = changes[P.target];
         if (t && Object.values(t).reduce((a, b) => a + b, 0) <= -20 && !P.committed.has(actor)) {
             P.committed.add(actor);
-            say(actor, [E.commit, symbolOf(P.target, P.target)], `{p${actor}} strikes at {p${P.target}}`);
+            say(actor, [E.commit, symbolOf(P.target, null)], `{p${actor}} strikes at {p${P.target}}`);
         }
         for (const [v, df] of dfs) {
             if (v === actor || !P.members.has(v) || df > -0.1) continue;
@@ -670,7 +674,7 @@
             r.trust = clampT(r.trust + PACT.brokenTrust);
             r.favor += PACT.brokenFavor;
             P.members.delete(actor);
-            say(v, [E.grudge, symbolOf(actor, null)], `{p${v}} was betrayed by {p${actor}}`);
+            say(v, [E.betrayed, symbolOf(actor, null)], `{p${v}} was betrayed by {p${actor}}`);
             break;
         }
     }
@@ -696,17 +700,17 @@
     // number of elements the target has.
     const INTENT = {
         break:   { sp: [70, 40],     text: '{o} breaks the new stones of {t}' },
-        camp:    { sp: [87, 68],     text: '{o} holds a shrine that {t} needs' },
+        camp:    { sp: [36, 68],     text: '{o} holds a shrine that {t} needs' },
         gift:    { sp: [76, 68],     text: '{o} leaves a scroll for {t}' },
-        road:    { sp: [57, 88],     text: '{o} lays a wind road for a partner' },
+        road:    { sp: [57, 76],     text: '{o} lays a wind road for {t}' },
         fetch:   { sp: [68, 15],     text: '{o} looks for a counter to {t}' },
-        watch:   { sp: [24, 31],     text: '{o} watches the next cast of {t}' },
+        watch:   { sp: [31],         text: '{o} watches the next cast of {t}' },
         counter: { sp: [43],         text: '{o} counters {t}' },
         idea:    { sp: [16],         text: '{o} has an idea' },
-        scout:   { sp: [5, 45],      text: '{o} reveals a tile before {t} can' },
-        river:   { sp: [55, 18],     text: '{o} turns a shrine that {t} needs' },
-        shove:   { sp: [7, 29],      text: '{o} sends {t} far away' },
-        wall:    { sp: [29, 87],     text: '{o} builds a wall against {t}' },
+        scout:   { sp: [33],         text: '{o} reveals a tile before {t} can' },
+        river:   { sp: [45],         text: '{o} turns a shrine that {t} needs' },
+        shove:   { sp: [80],         text: '{o} sends {t} far away' },
+        wall:    { sp: [29],         text: '{o} builds a wall against {t}' },
         current: { sp: [55, 40],     text: '{o} turns the water stones of {t}' },
         home:    { sp: [77, 88],     text: '{o} runs for home' },
         // Look-ahead (Calculating) and playouts (Counting): emote only, no

@@ -161,10 +161,12 @@
 
     // Pixel emote sprite: a 3-frame animation cut from the Pipoya sheet
     // (css .px-emote). `scale` is the size multiple of the 32 px frame.
+    // index may be "15x": that emote with a red X over it (bot talk: a pact ends).
     function spriteHtml(index, scale) {
-        const n = Number(index);
+        const crossed = typeof index === 'string' && /^\d+x$/.test(index);
+        const n = Number(crossed ? index.slice(0, -1) : index);
         if (!Number.isInteger(n) || n < 0 || n > 99) return '';
-        return `<span class="px-emote" style="--x:${(n % 10) * 96}px;--y:${Math.floor(n / 10) * 32}px;--s:${scale || 1.5}"></span>`;
+        return `<span class="px-emote${crossed ? ' px-crossed' : ''}" style="--x:${(n % 10) * 96}px;--y:${Math.floor(n / 10) * 32}px;--s:${scale || 1.5}"></span>`;
     }
 
     // The emoji itself as HTML: sprite for pixel emotes, text otherwise.
