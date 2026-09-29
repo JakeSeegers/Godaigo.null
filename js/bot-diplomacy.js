@@ -39,7 +39,7 @@
     let S = fresh();
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
-                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, intents: {}, spoke: {}, thanked: {}, placed: {} };
+                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, intents: {}, seeded: false, spoke: {}, thanked: {}, placed: {} };
     }
     // A new game or the end of a training round: forget everything, and take
     // every floating emote and queued sentence off the board at once.
@@ -207,6 +207,7 @@
         const n = snap.players.length;
         if (S.seats && S.seats !== n) reset();
         S.seats = n;
+        if (!S.seeded) seedBonds(snap);
         const prevOk = S.prev && S.prev.length === n;
         const now = snap.players.map((p, j) => (p ? parts(snap, j, full, prevOk ? S.prev[j] : null) : null));
         const actor = S.lastActive;
@@ -736,6 +737,77 @@
         say(o, sprites, text, I.short ? { short: true } : undefined);
     }
 
+    // ---------------------------------------------------------------- long memory
+    // "Bots remember" (owner, 2026-09-29; Train Bot option, off by default,
+    // training only for now). The five elemental bots are the identities
+    // (seat colour -> element, js/bot-elements.js). Each game starts with the
+    // favor / trust each bot kept toward each other bot, and at the end 20%
+    // of how the game left them blends into what is kept (so one game
+    // cannot make a feud for life, and favor still decays within a game).
+    // Kept values are capped at +-0.6. Stored in this browser only
+    // (localStorage godaigo_bot_bonds), separate from real games.
+    const BONDS_KEY = 'godaigo_bot_bonds';
+    const BOND = { carry: 0.2, cap: 0.6 };
+    let remember = false;
+    function loadBonds() {
+        try { const b = JSON.parse(localStorage.getItem(BONDS_KEY) || '{}'); return b && typeof b === 'object' ? b : {}; } catch (e) { return {}; }
+    }
+    function saveBonds(b) { try { localStorage.setItem(BONDS_KEY, JSON.stringify(b)); } catch (e) {} }
+    function elementOf(j) {
+        let c = (typeof playerPositions !== 'undefined') ? playerPositions[j]?.color : null;
+        if (typeof c === 'string' && c.startsWith('#')) c = HEX_TO_COLOUR[c.toLowerCase()];
+        return window.BotElements?.COLOR_ELEMENT?.[c] || null;
+    }
+    function rememberOn() { return remember && arenaRunning(); }
+    function seedBonds(snap) {
+        S.seeded = true;
+        if (!rememberOn()) return;
+        const b = loadBonds();
+        for (let o = 0; o < snap.players.length; o++) {
+            const eo = snap.players[o] && elementOf(o);
+            if (!eo) continue;
+            for (let j = 0; j < snap.players.length; j++) {
+                const ej = j !== o && snap.players[j] && elementOf(j);
+                const kept = ej && b[`${eo}>${ej}`];
+                if (!kept) continue;
+                const r = relOf(o, j);
+                r.favor = kept.favor || 0;
+                r.trust = kept.trust || 0;
+            }
+        }
+    }
+    function storeBonds() {
+        if (!rememberOn() || !S.seats || !S.seeded) return;
+        const b = loadBonds();
+        const cap = v => Math.max(-BOND.cap, Math.min(BOND.cap, v));
+        for (const o of Object.keys(S.rel)) {
+            const eo = elementOf(+o);
+            if (!eo) continue;
+            for (const j of Object.keys(S.rel[o])) {
+                const ej = elementOf(+j);
+                if (!ej || ej === eo) continue;
+                const key = `${eo}>${ej}`, old = b[key] || { favor: 0, trust: 0, games: 0 }, cur = S.rel[o][j];
+                b[key] = {
+                    favor: +cap(old.favor * (1 - BOND.carry) + cur.favor * BOND.carry).toFixed(3),
+                    trust: +cap(old.trust * (1 - BOND.carry) + cur.trust * BOND.carry).toFixed(3),
+                    games: (old.games || 0) + 1,
+                };
+            }
+        }
+        saveBonds(b);
+    }
+    // Kept relationships, strongest first: [{from, to, favor, trust, games}] (element names).
+    function bonds() {
+        const b = loadBonds();
+        return Object.entries(b).map(([k, v]) => { const [from, to] = k.split('>'); return { from, to, ...v }; })
+            .sort((x, y) => (Math.abs(y.favor) + Math.abs(y.trust)) - (Math.abs(x.favor) + Math.abs(x.trust)));
+    }
+    // A training game ended: keep what it taught, then forget the game.
+    function roundOver() {
+        try { storeBonds(); } catch (e) {}
+        reset();
+    }
+
     // ---------------------------------------------------------------- api
     // How bot `o` sees every other player right now.
     function view(o) {
@@ -762,7 +834,10 @@
         recentStones: (j, turns) => (S.placed[j] || []).filter(r => S.turns - r.turn <= turns),
         setTalkAlways: on => { talkAlways = !!on; },
         oneCastFromWin: (j, snap) => { try { return oneCastFromWin(snap || window.BotState.snapshot(), j); } catch (e) { return false; } },
-        alertOn, intend,
+        alertOn, intend, roundOver, bonds,
+        setRemember: on => { remember = !!on; },
+        remembers: () => remember,
+        forgetBonds: () => { try { localStorage.removeItem(BONDS_KEY); } catch (e) {} },
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },

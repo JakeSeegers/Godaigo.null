@@ -259,6 +259,16 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   rubble; watch = eyes; road = rainbow gift + partner colour. Fetching a
   counter (bot.js fetchTarget / BotSystem.fetchWanted) now also starts when
   the leader to stop has 4 elements, not only one cast from winning.
+- Bots remember (owner, 2026-09-29): Train Bot option "Bots remember"
+  (off by default, training only, this browser only). Identities = the five
+  elemental bots (seat colour -> element). Each game is seeded with the kept
+  favor / trust between them (seedBonds, first look of the game); when a
+  training game ends (bot-arena.js -> BotDiplomacy.roundOver) 20% of the end
+  state blends into what is kept (storeBonds), capped at +-0.6, with a games
+  count. localStorage godaigo_bot_bonds; bonds() lists them, forgetBonds()
+  clears them; the Train Bot panel shows the strongest 8 and a Forget
+  button. Humans are not remembered. Next if it plays well: real games with
+  their own separate memory.
   Open question (owner): bots forget the element of a tile flipped face-down
   again (the snapshot masks it); a memory of seen tiles would fix that.
 

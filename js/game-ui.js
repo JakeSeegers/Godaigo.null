@@ -5934,7 +5934,7 @@ document.getElementById('undo-move').onclick = function() {
         (function initBotTrainingPanel() {
             let clickCount = 0;
             let clickTimer = null;
-            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, talk: true, _public: false };
+            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, talk: true, remember: false, _public: false };
 
             // Weight groupings mirror the section comments in bot.js's
             // DEFAULT_WEIGHTS — used purely for the drill-down diagram, so
@@ -6188,6 +6188,46 @@ document.getElementById('undo-move').onclick = function() {
                     { value: false, text: 'Hide', title: 'No emotes over the pawns at Extreme speed (a little faster). The training window still lists what they said.' },
                 ], () => state.talk, (v) => { state.talk = v; window.BotDiplomacy?.setTalkInTraining?.(v); },
                     'Bots warn each other, make pacts and hold grudges with emotes. Watchable speed always shows them. Show also keeps them on at Extreme speed; the training window lists what was said either way.');
+
+                // Bots remember (owner, 2026-09-29): the five elemental bots
+                // keep a little of their friendships and grudges from game to
+                // game (js/bot-diplomacy.js long memory). Training only.
+                makeChoiceRow('Bots remember:', [
+                    { value: false, text: 'Off', title: 'Every game starts fresh: no friends, no grudges.' },
+                    { value: true, text: 'On', title: 'Each game starts with the friendships and grudges the elemental bots built in earlier training games (a fifth of each game is kept, capped).' },
+                ], () => state.remember, (v) => { state.remember = v; window.BotDiplomacy?.setRemember?.(v); renderBonds(); },
+                    'The five elemental bots (Terran Sentinel, Tidewarden, Emberkin, Galewalker, The Void Knight) remember how the others treated them. Each training game starts where the last ones left off, and a fifth of what happens in it is kept. Only in training, only in this browser. Forget clears it.');
+                const bondsBox = document.createElement('div');
+                bondsBox.style.cssText = 'font-size:11px;color:#bbb;line-height:1.5;';
+                controls.appendChild(bondsBox);
+                function renderBonds() {
+                    const D = window.BotDiplomacy, names = window.BotElements?.NAMES || {};
+                    const list = (D?.bonds?.() || []).filter(r => Math.abs(r.favor) + Math.abs(r.trust) >= 0.02).slice(0, 8);
+                    bondsBox.innerHTML = '';
+                    if (!state.remember && !list.length) { bondsBox.style.display = 'none'; return; }
+                    bondsBox.style.display = 'block';
+                    const head = document.createElement('div');
+                    head.style.cssText = 'display:flex;gap:8px;align-items:center;color:#aaa;';
+                    head.textContent = list.length ? 'What the bots remember:' : 'The bots remember nothing yet.';
+                    if (list.length) {
+                        const forget = document.createElement('button');
+                        forget.textContent = 'Forget';
+                        forget.title = 'Clear every friendship and grudge the bots kept';
+                        forget.style.cssText = 'padding:2px 8px;border-radius:5px;border:1px solid #555;background:#2d2d44;color:#eee;font-size:11px;cursor:pointer;';
+                        forget.onclick = () => { if (startBtnRef.disabled) return; D?.forgetBonds?.(); renderBonds(); };
+                        head.appendChild(forget);
+                    }
+                    bondsBox.appendChild(head);
+                    for (const r of list) {
+                        const line = document.createElement('div');
+                        const feel = r.favor >= 0.05 ? 'likes' : r.favor <= -0.05 ? 'resents' : 'is neutral to';
+                        const trust = r.trust >= 0.05 ? ', trusts' : r.trust <= -0.05 ? ', distrusts' : '';
+                        line.textContent = `${names[r.from] || r.from} ${feel} ${names[r.to] || r.to}${trust} (favor ${r.favor >= 0 ? '+' : ''}${r.favor.toFixed(2)}, trust ${r.trust >= 0 ? '+' : ''}${r.trust.toFixed(2)}, ${r.games} games)`;
+                        line.style.color = r.favor >= 0.05 ? '#8fe0a5' : r.favor <= -0.05 ? '#ff9a8a' : '#bbb';
+                        bondsBox.appendChild(line);
+                    }
+                }
+                renderBonds();
 
                 const progressText = document.createElement('div');
                 progressText.style.cssText = 'font-size:11px;color:#aaa;white-space:pre-line;display:none;';
@@ -6465,6 +6505,7 @@ document.getElementById('undo-move').onclick = function() {
                     resetInsights();
                     renderRoster();
                     startTrainTalk(state.talk);
+                    window.BotDiplomacy?.setRemember?.(!!state.remember);
                     // Public mode: collapse to the corner progress popup right
                     // away — the modal's own body has nothing extra to show for
                     // a hill-climb run (the roster is evolve-only). Re-arm the
@@ -6546,6 +6587,7 @@ document.getElementById('undo-move').onclick = function() {
                         startBtn.disabled = false;
                         continueBtn.disabled = false;
                         refreshContinue();
+                        try { renderBonds(); } catch (e) {}
                         startBtn.textContent = 'Start Training';
                         hideTrainingPopup();
                         showLeaveTrainingButton();
