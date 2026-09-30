@@ -132,6 +132,11 @@ reach/beat it from here.
   on the tube's top edges (the stuck-coin push covers it, check the frame cap count stays 0). Draw the tube (gold
   walls) and the chest under it; steering a coin into the tube = aim at the tube centre from higher up. Copy the
   sim to supabase/functions/pot-drop and redeploy; _settle_pot_drop needs no change (slot -1 = treasure).
+  PAUSED by the owner mid-tuning. Work so far: planning/pot-tube-wip.patch (git apply; sim VERSION 2 with
+  the tube + a sweep mode in tools/plinko-tune.mjs). Findings: a plain tube is too easy (3-5% per coin); a tube
+  centred under the last-row peg at x 90 (x 83, w 14) gives h 47 = 1.5%, h 48 = 0.95% but coins wedge between
+  peg and rim (16 of 80 drops hit the frame cap), h 51 = 0.2%. Next try: w 13 at h 46-47, or a stronger
+  stuck-coin push. Nothing live changed.
 - **2026-09-30: The pot drop (plinko)** (owner idea: "use the actual physics code to calculate if there's a win").
   The pot is no longer a hidden random() roll: sql/pot-plinko.sql (migration pot_plinko) records a pot_drops row
   (seed, coins = pot / 10, max 70) from finish_match; edge fn supabase/functions/pot-drop runs js/plinko-sim.js
