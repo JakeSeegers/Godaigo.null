@@ -343,15 +343,78 @@ function _renderFeatures(content) {
     const max = R ? R.MAX_SLOTS : 3;
     const price = R ? R.SLOT_PRICE : 700;
     const full = slots >= max;
+    const phrases = R ? R.GIFT_PHRASES : [];
     content.innerHTML = `
+        <div class="gami-feature">
+            <div class="gami-feature-title">Send a gift</div>
+            <div class="gami-feature-desc">A gift costs <b>100g</b>. The player gets a surprise <b>25 to 100g</b>; the rest goes into the pot.
+                Each player can get one gift a day.</div>
+            <input class="gami-gift-name" placeholder="Player name" maxlength="40" list="gami-gift-names" autocomplete="off">
+            <datalist id="gami-gift-names"></datalist>
+            <select class="gami-gift-phrase">${phrases.map((t, i) => `<option value="${i}">${_esc(t)}</option>`).join('')}</select>
+            <button class="gami-shop-buy-btn gami-feature-buy gami-gift-send" onclick="_gami_sendGift()">Send gift (100g)</button>
+            <div class="gami-gift-result"></div>
+        </div>
+        <div class="gami-feature gami-pot">
+            <div class="gami-feature-title">The pot: <span class="gami-pot-amount">...</span></div>
+            <div class="gami-feature-desc gami-pot-desc">When a game with 2 or more players (not guests) ends, the pot may pay out. Everyone in that game gets an equal share.</div>
+        </div>
         <div class="gami-feature">
             <div class="gami-feature-title">Badge slot</div>
             <div class="gami-feature-desc">Show one more badge next to your name (in games, the waiting room and the leaderboard).
                 You have <b>${slots} / ${max}</b> slots. Pick the badges in Profile > Badges.</div>
             <button class="gami-shop-buy-btn gami-feature-buy" ${full ? 'disabled' : ''} onclick="_gami_buyBadgeSlot()">
                 ${full ? 'All slots owned' : `Buy for ${price}g`}</button>
-            <div class="gami-feature-gold">You have ${prof.gold ?? 0}g</div>
-        </div>`;
+        </div>
+        <div class="gami-feature-gold">You have ${prof.gold ?? 0}g</div>`;
+    _gami_fillPot(content);
+    _gami_fillGiftNames(content);
+}
+
+async function _gami_fillPot(content) {
+    const pot = await window.Rewards?.getPot?.();
+    const amt = content.querySelector('.gami-pot-amount');
+    const desc = content.querySelector('.gami-pot-desc');
+    if (!pot || !amt) return;
+    amt.textContent = `${pot.amount}g`;
+    const pct = Math.round((pot.chance || 0) * 100);
+    const state = pot.paid_today ? 'It already paid out today; next chance tomorrow (UTC).'
+        : pot.amount < pot.min ? `It can pay out once it holds at least ${pot.min}g.`
+        : `Chance per game: ${pct}% (1% for every 10g in the pot, at most 50%). Pays out once a day.`;
+    desc.innerHTML = `When a game with 2 or more players (not guests) ends, the pot may pay out. Everyone in that game gets an equal share. ${_esc(state)}`;
+}
+
+// Suggest friends and recent players (js/social.js) in the name box.
+async function _gami_fillGiftNames(content) {
+    const list = content.querySelector('#gami-gift-names');
+    if (!list) return;
+    const names = new Set();
+    try {
+        const [f, r] = await Promise.all([supabase.rpc('my_friends'), supabase.rpc('my_recent_players')]);
+        (f.data || []).forEach(x => x.name && names.add(x.name));
+        (r.data || []).forEach(x => x.name && names.add(x.name));
+    } catch (e) {}
+    list.innerHTML = [...names].filter(n => !/^Guest[A-Z0-9]{6}$/.test(n)).map(n => `<option value="${_esc(n)}">`).join('');
+}
+
+async function _gami_sendGift() {
+    const content = document.getElementById('gami-content');
+    const R = window.Rewards;
+    if (!content || !R) return;
+    const name = content.querySelector('.gami-gift-name').value.trim();
+    const phrase = parseInt(content.querySelector('.gami-gift-phrase').value, 10) || 0;
+    const out = content.querySelector('.gami-gift-result');
+    if (!name) { out.textContent = 'Type a player name first.'; return; }
+    if (!window.confirm(`Send a gift to ${name} for 100g?`)) return;
+    const btn = content.querySelector('.gami-gift-send');
+    btn.disabled = true;
+    const res = await R.sendGift(name, phrase);
+    btn.disabled = false;
+    if (!res.ok) { out.textContent = res.msg; return; }
+    _renderFeatures(content);
+    const out2 = content.querySelector('.gami-gift-result');
+    if (out2) out2.textContent = `Sent! ${res.to} got ${res.received}g, and ${res.toPot}g went into the pot.`;
+    window.gami?.notify(`Gift sent to ${res.to}`, 0, 'gold');
 }
 
 async function _gami_buyBadgeSlot() {

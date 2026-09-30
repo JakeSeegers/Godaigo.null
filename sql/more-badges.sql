@@ -193,6 +193,9 @@ on conflict (id) do update set name = excluded.name, description = excluded.desc
   image = excluded.image, criteria = excluded.criteria, gold_reward = excluded.gold_reward, rarity = excluded.rarity;
 
 -- Give everyone the new badges they already earned.
+-- WARNING: this loop also triggered 'first_time' badges (First Victory) for everyone,
+-- because it passes a fake activity type. Fixed by sql/undo-wrong-first-victory.sql.
+-- Never backfill this way again: call the specific criteria checks instead.
 do $$
 declare u uuid;
 begin

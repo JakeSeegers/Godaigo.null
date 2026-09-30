@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: Gifts and the pot** (owner). sql/gifts-pot.sql (migrations gifts_pot, pot_fill_chance, pot_fill_chance_cap50): send_gift
+  (100g, receiver 25-100g, rest to the pot, 1 gift received per UTC day, no guests), pot paid from finish_match (real
+  human game, >= 100g, once per UTC day, chance 1% per 10g in the pot, max 50%; an earlier login-based chance was replaced), Hermit add-to-pot, badges Generous
+  and Jackpot, animated gift / pot pop-ups, Shop > Features gift form. Also fixed my own backfill bug from the 9-badge
+  update (31 wrong First Victory badges + 25g removed; sql/undo-wrong-first-victory.sql).
 - **2026-09-30: 9 new badges** (owner). sql/more-badges.sql (migration more_badges, backfilled: TheHermit got Bot
   Breaker): Scroll Master (all 35 scrolls; response scrolls now logged from response-window.js playerResponds), Bot
   Breaker/Slayer/Bane/Machine's End (10/20/50/100 bots in paid wins, not last_standing), People's Champion (10 wins

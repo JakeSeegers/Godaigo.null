@@ -135,12 +135,35 @@
         return it ? it.name : id;
     }
 
+    // Count a number up from 0 in an element ("12g" ... "90g").
+    function countUp(el, to, ms) {
+        if (!el) return;
+        const t0 = performance.now();
+        const step = (t) => {
+            const f = Math.min(1, (t - t0) / ms);
+            el.textContent = `${Math.round(to * (1 - Math.pow(1 - f, 3)))}g`;
+            if (f < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }
+
+    // kind: 'hermit' (Hermit reward), 'gift' (from a player), 'pot' (pot share).
+    const KIND = {
+        hermit: { from: 'A gift from The Hermit', icon: null, cls: '' },
+        gift:   { from: 'A gift!', icon: 'px-generous.png', cls: 'rn-kind-gift' },
+        pot:    { from: 'The pot paid out!', icon: 'px-jackpot.png', cls: 'rn-kind-pot' },
+    };
+
     function showNotice(n) {
         return new Promise(resolve => {
+            const k = KIND[n.kind] || KIND.hermit;
             const wrap = document.createElement('div');
             wrap.className = 'reward-notice-overlay';
             const parts = [];
-            if (n.gold > 0) parts.push(`<div class="rn-line"><b>${n.gold}g</b> gold</div>`);
+            if (n.gold > 0) {
+                const label = n.kind === 'pot' ? 'your share' : 'gold';
+                parts.push(`<div class="rn-line rn-gold"><b class="rn-count">0g</b> ${label}</div>`);
+            }
             if (n.badge_id) {
                 const b = catalog.get(n.badge_id);
                 parts.push(`<div class="rn-line rn-badge">${iconHtml(n.badge_id, 'rn-badge-img')}<div><b>${esc(b?.name || n.badge_id)}</b> badge<br><small>Show it next to your name: Profile > Badges.</small></div></div>`);
@@ -150,18 +173,57 @@
                 const prev = it ? (window.cosmeticsSystem?.previewHtml?.(it, 15) || '') : '';
                 parts.push(`<div class="rn-line rn-item">${prev}<div><b>${esc(itemName(id))}</b><br><small>Equip it with the C button in a game.</small></div></div>`);
             });
+            const anim = k.icon ? `<div class="rn-anim"><img class="rn-anim-icon" src="images/badges/${k.icon}" alt="">${n.kind === 'pot' ? '<div class="rn-coins"><i></i><i></i><i></i><i></i><i></i><i></i></div>' : '<div class="rn-sparks"><i></i><i></i><i></i><i></i></div>'}</div>` : '';
             wrap.innerHTML = `
-                <div class="reward-notice" role="dialog" aria-label="Reward">
-                    <div class="rn-from">A gift from The Hermit</div>
+                <div class="reward-notice ${k.cls}" role="dialog" aria-label="Reward">
+                    ${anim}
+                    <div class="rn-from">${esc(k.from)}</div>
                     <div class="rn-title">${esc(n.title || 'You got a reward!')}</div>
                     ${n.message ? `<div class="rn-message">${esc(n.message).replace(/\n/g, '<br>')}</div>` : ''}
+                    ${n.kind === 'pot' ? '<div class="rn-splitting">Splitting the pot...</div>' : ''}
                     <div class="rn-rewards">${parts.join('')}</div>
                     <button class="rn-ok">Nice!</button>
                 </div>`;
             document.body.appendChild(wrap);
             try { window.SoundSystem?.play?.('wincondition', 0.6); } catch (e) {}
+            // The icon plays first (gift bounces open, chest shakes and bursts), then the gold counts up.
+            const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            const delay = k.icon && !reduce ? (n.kind === 'pot' ? 1300 : 800) : 0;
+            setTimeout(() => {
+                wrap.querySelector('.rn-splitting')?.classList.add('done');
+                const c = wrap.querySelector('.rn-count');
+                if (c) reduce ? (c.textContent = `${n.gold}g`) : countUp(c, n.gold, 900);
+            }, delay);
             wrap.querySelector('.rn-ok').onclick = () => { wrap.remove(); resolve(); };
         });
+    }
+
+    // ── Gifts and the pot (sql/gifts-pot.sql) ───────────────────
+    // Must match _gift_phrases() on the server (1-based index there).
+    const GIFT_PHRASES = ['For you!', 'Good game!', 'Thanks!', 'Well played!', 'Have fun!', 'You earned it!', 'Welcome!'];
+    const GIFT_COST = 100;
+
+    async function getPot() {
+        try { const { data } = await supabase.rpc('get_pot'); return data || null; } catch (e) { return null; }
+    }
+
+    async function sendGift(name, phraseIndex) {
+        const prof = gami()?.profile;
+        if (!prof) return { ok: false, msg: 'Not logged in' };
+        if ((prof.gold || 0) < GIFT_COST) return { ok: false, msg: `A gift costs ${GIFT_COST}g (you have ${prof.gold || 0}g)` };
+        const { data, error } = await supabase.rpc('send_gift', { p_to: String(name || '').trim(), p_phrase: phraseIndex + 1 });
+        if (error) {
+            const m = error.message || '';
+            const msg = /no such player/.test(m) ? 'No player with that name.'
+                : /yourself/.test(m) ? 'You cannot send a gift to yourself.'
+                : /guests/.test(m) ? 'Guest accounts cannot get gifts.'
+                : /already got a gift/.test(m) ? 'That player already got a gift today. Try again tomorrow.'
+                : /enough gold/.test(m) ? 'Not enough gold.'
+                : 'Could not send the gift.';
+            return { ok: false, msg };
+        }
+        if (typeof data?.gold === 'number') prof.gold = data.gold;
+        return { ok: true, to: data.to, received: data.received, toPot: data.to_pot };
     }
 
     // ── Sign-up events ──────────────────────────────────────────
@@ -235,5 +297,6 @@
         loadCatalog, catalog: () => catalog, isSpecial, iconHtml, badgesHtml, shownFor,
         slots, SLOT_PRICE, MAX_SLOTS, showBadge, hideBadge, buySlot,
         checkNotices, afterGameOver, refreshBounties, bountyFor: (room) => bountyRooms.get(room) || null,
+        GIFT_PHRASES, GIFT_COST, getPot, sendGift, showNotice,
     };
 })();

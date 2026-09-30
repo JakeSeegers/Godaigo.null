@@ -81,6 +81,13 @@
                 </div>
 
                 <div class="hr-section">
+                    <div class="hr-label">The pot: <span class="hr-pot-amt">...</span></div>
+                    <div class="hr-hint">Add gold to the pot (new gold, not taken from you). It pays out at the end of a human game (see Shop > Features).</div>
+                    <div class="hr-row"><span>Gold</span><input class="hr-pot-add" type="number" min="1" max="100000" value="200"></div>
+                    <button class="hr-pot-btn">Add to pot</button>
+                </div>
+
+                <div class="hr-section">
                     <div class="hr-label">Games now <button class="hr-refresh" title="Refresh">↻</button></div>
                     <div class="hr-rooms">Loading...</div>
                 </div>
@@ -100,10 +107,27 @@
         });
         q('.hr-event-btn').onclick = startEvent;
         q('.hr-bounty-btn').onclick = () => roomTarget && setBounty(roomTarget.id);
-        q('.hr-refresh').onclick = () => { renderRooms(); renderEvents(); };
+        q('.hr-refresh').onclick = () => { renderRooms(); renderEvents(); renderPot(); };
+        q('.hr-pot-btn').onclick = addToPot;
         if (roomTarget) q('.hr-room-name').textContent = roomTarget.label || `Room ${roomTarget.id}`;
         renderEvents();
         renderRooms();
+        renderPot();
+    }
+
+    async function renderPot() {
+        const el = panel?.querySelector('.hr-pot-amt');
+        const pot = await window.Rewards?.getPot?.();
+        if (el && pot) el.textContent = `${pot.amount}g${pot.paid_today ? ' (paid out today)' : ''}, chance ${Math.round((pot.chance || 0) * 100)}% per game (1% per 10g, max 50%)`;
+    }
+
+    async function addToPot() {
+        const amt = Math.max(1, Math.min(100000, parseInt(panel.querySelector('.hr-pot-add').value, 10) || 0));
+        if (!window.confirm(`Add ${amt}g to the pot?`)) return;
+        const { error } = await supabase.rpc('hermit_add_to_pot', { p_amount: amt });
+        if (error) { toast('Could not add: ' + error.message); return; }
+        toast(`Added ${amt}g to the pot.`);
+        renderPot();
     }
 
     // Read the form. Creates / updates the chosen special badge on the server.

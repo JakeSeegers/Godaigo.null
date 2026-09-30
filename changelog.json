@@ -6,10 +6,10 @@
       "date": "2026-09-30",
       "title": "Bots team up",
       "changes": [
-        "Pacts now have roles: a scholar hunts for Take Flight or Mason's Savvy, a partner helps build its shape, one bot stands guard with a counter, and others block where the leader can land. The Game Log's Alliances tab shows each bot's role.",
-        "Bots now stop a player who is one cast from winning: they break a stone of the shape or stand on it.",
+        "Pacts now have roles: a scholar hunts for Take Flight or Mason's Savvy, a partner helps build its shape, one bot stands guard with a counter, and others block where the leader can land. Bots also stop a player who is one cast from winning.",
         "Online games pause for everyone when a player's connection drops, and the host can pause at any time. After a minute the host can wait or remove the player. A refresh asks before you leave.",
-        "Badges: new pixel-art pictures and 9 new ones to earn (cast every scroll, beat 10 to 100 bots, win 10 games against players, a win in under 10 turns, own every emoji or shop item). Show them by your name from Profile > Badges; buy more slots in Shop > Features.",
+        "Badges: new pixel-art pictures and 11 new ones to earn (cast every scroll, beat 10 to 100 bots, win 10 games against players, a win in under 10 turns, own every emoji or shop item, send 10 gifts, win the pot). Show them by your name from Profile > Badges; buy more slots in Shop > Features.",
+        "New: send a gift from Shop > Features (100g, the player gets 25 to 100g, the rest fills the pot). The fuller the pot, the more likely it pays out to everyone in a finished game with 2 or more players (once a day).",
         "Small fixes and polish: watch for special rewards from The Hermit, bots thank you only for real help, the game uses less power in a background tab, and the Lotus Leaf pawn base is gone from the shop."
       ]
     },
