@@ -595,10 +595,19 @@
         // --- Public game browser ---
 
         let browserRefreshInterval = null;
+        // The cleanup RPCs are server writes. Every lobby tab ran them every 5 s,
+        // so a crowd of idle lobby tabs (a stream night) meant a steady write
+        // load. The server only removes players after minutes, so every 30 s is enough.
+        const BROWSER_CLEANUP_MS = 30 * 1000;
+        let lastBrowserCleanup = 0;
 
         async function refreshGameBrowser() {
-            // Sweep stale players via server-side RPC (client DELETE is blocked by RLS)
-            await supabase.rpc('cleanup_inactive_players');
+            const doCleanup = Date.now() - lastBrowserCleanup >= BROWSER_CLEANUP_MS;
+            if (doCleanup) {
+                lastBrowserCleanup = Date.now();
+                // Sweep stale players via server-side RPC (client DELETE is blocked by RLS)
+                await supabase.rpc('cleanup_inactive_players');
+            }
 
             const { data: rooms } = await supabase
                 .from('game_room')
@@ -634,7 +643,7 @@
             });
 
             // Auto-delete ghost rooms via RPC (client DELETE blocked by RLS)
-            supabase.rpc('cleanup_ghost_rooms').then(() => {
+            if (doCleanup) supabase.rpc('cleanup_ghost_rooms').then(() => {
                 const ghostCount = rooms.filter(r => !counts[r.id]).length;
                 if (ghostCount) console.log('🗑️ Cleaned up', ghostCount, 'empty ghost room(s)');
             });
@@ -671,8 +680,13 @@
 
         function startBrowserRefresh() {
             stopBrowserRefresh();
-            browserRefreshInterval = setInterval(refreshGameBrowser, 5000);
+            // A hidden tab (for example behind OBS) does not need the list.
+            browserRefreshInterval = setInterval(() => { if (!document.hidden) refreshGameBrowser(); }, 5000);
         }
+        // Coming back to the tab: show a fresh list at once.
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && browserRefreshInterval) refreshGameBrowser();
+        });
         function stopBrowserRefresh() {
             clearInterval(browserRefreshInterval);
             browserRefreshInterval = null;

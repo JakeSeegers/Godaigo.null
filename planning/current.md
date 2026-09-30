@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: Background-tab savings for stream night** (owner). Lobby game list skips its 5 s refresh while
+  the tab is hidden and runs the two cleanup RPCs (`cleanup_inactive_players`, `cleanup_ghost_rooms`) at most every
+  30 s instead of every 5 s. Pawn cosmetics timers, the placement-tile overlay poll and the Game Log buffs /
+  Alliances polls also pause while the tab is hidden. Network traffic was already small (turn-based broadcasts,
+  batched match recording).
 - **2026-09-27 (11): Bot alliances Phase 3: talk + pacts** (owner). See docs/bot-alliances.md "Phases". Tested in
   3-player games: warnings, offers, accepts, withdrawals, pact ends, thanks; player symbols (hex colours mapped);
   Game Log lines on time; screenshot shows emotes over pawns. Not yet seen in a test: Commit (strike), betrayal,

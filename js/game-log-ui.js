@@ -470,10 +470,11 @@
         // Active Buffs strip: see renderActiveBuffs()'s own comment for why
         // this is a poll rather than a hook off any single event.
         renderActiveBuffs();
-        setInterval(renderActiveBuffs, 800);
+        // Hidden tab: skip the redraw; the next tick after coming back catches up.
+        setInterval(() => { if (!document.hidden) renderActiveBuffs(); }, 800);
         // The Game Log panel is built by scroll-panels.js; add the tabs once it exists.
         const tabTimer = setInterval(() => { if (initAllianceTab()) clearInterval(tabTimer); }, 500);
-        setInterval(renderAlliances, 1000);
+        setInterval(() => { if (!document.hidden) renderAlliances(); }, 1000);
     }
 
     if (document.readyState === 'loading') {

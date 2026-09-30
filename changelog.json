@@ -9,7 +9,8 @@
         "Pacts now have roles: a scholar hunts for Take Flight or Mason's Savvy, a partner helps build its shape, one bot stands guard with a counter, and others block where the leader can land.",
         "Bots now stop a player who is one cast from winning: they break a stone of the shape or stand on it.",
         "The Game Log's Alliances tab shows each bot's role in a pact.",
-        "Bots no longer thank a player for just revealing a tile or walking by; thanks are for real help."
+        "Bots no longer thank a player for just revealing a tile or walking by; thanks are for real help.",
+        "The game uses less computer power and network when its tab is in the background, which helps if you stream."
       ]
     },
     {

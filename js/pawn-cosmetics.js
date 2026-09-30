@@ -198,8 +198,13 @@
         });
     }
 
-    setInterval(refresh, 500);
-    setInterval(watchMoves, 50);
+    // Paused while the tab is hidden (saves CPU for streamers running OBS).
+    // Forget old positions then, so coming back does not spawn one big trail.
+    setInterval(() => { if (!document.hidden) refresh(); }, 500);
+    setInterval(() => {
+        if (document.hidden) { last.clear(); return; }
+        watchMoves();
+    }, 50);
 
     // ── Shop preview: a small pawn with the item on it ───────────
     function previewSvg(id) {

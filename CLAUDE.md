@@ -211,7 +211,7 @@ Order matters — later scripts depend on earlier ones.
                              loadNameColors/styleForUser/seatNameHtml colour every player's name in the waiting
                              room, opponent panel, HUD turn display, Game Log and leaderboard.
 20b. pawn-cosmetics.js     ← window.PawnCosmetics: draws bought pawn rims / bases / trails (sql/pawn-cosmetics.sql,
-                             items = cosmetics-system.js PAWN_ITEMS, equip_pawn). No game hooks: every 500 ms it
+                             items = cosmetics-system.js PAWN_ITEMS, equip_pawn). No game hooks: every 500 ms (paused while the tab is hidden) it
                              (re)decorates pawns in playerPositions whose items changed, every 50 ms it turns
                              pawn position changes into fading trail particles (layer .pawn-trail-layer). Never
                              covers the pawn fill; fits between the pawn (r 8) and element symbols (r 15).

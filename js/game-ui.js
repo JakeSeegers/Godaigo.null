@@ -57,7 +57,7 @@
 
             // Placement-tile overlay: no button, so poll rather than hook
             // every code path that could change phase/turn state.
-            setInterval(updatePlacementTileOverlay, 300);
+            setInterval(() => { if (!document.hidden) updatePlacementTileOverlay(); }, 300);
         }
 
         // Placement-tile overlay: auto-shown only during the local player's
