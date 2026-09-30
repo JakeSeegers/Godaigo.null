@@ -121,6 +121,9 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: Cloudflare build repo fixed** (owner). Workers Builds still pointed at `JakeSeegers/Godaigo.Elements`
+  (now the redirect repo, branch `main`) after the rename, so the site stopped at version 2026-09-30.1347.
+  Reconnected to `Godaigo.null` / `fixes/all-consolidated`. This docs commit starts the first build from it.
 - **2026-09-30: Refresh guard + reconnect grace** (owner, before a stream). Part A: "Leave site?" during a live
   online game. Part B: presence drops are hidden for 5 s, no last-player-standing win until 60 s, host turn timeout
   paused for a reconnecting active player, scroll sync requested on reconnect. NOT done (Part C, after the stream):
