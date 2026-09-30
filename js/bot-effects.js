@@ -476,7 +476,15 @@
         if (!modal) return false;
         const heading = modal.querySelector('h3')?.textContent || '';
         const guard = !!(window.BotSystem?.fetchWanted?.() || window.BotSystem?.guardWanted?.());
+        // The pact's scholar fetches the pact's attack scroll (Take Flight
+        // from the wind deck, Mason's Savvy from the earth deck).
+        const want = window.BotSystem?.scholarWanted?.();
+        const wantDef = want ? window.SCROLL_DEFINITIONS?.[want] : null;
         if (heading.includes('Choose a Deck')) {
+            if (wantDef) {
+                takeChoice('VOID_SCROLL_4');
+                return !!clickBestElement(modal, [wantDef.element, ...rankedScrollElements().filter(e => e !== wantDef.element)]);
+            }
             if (guard) {
                 takeChoice('VOID_SCROLL_4');
                 return !!clickBestElement(modal, ['void', 'earth', ...rankedScrollElements().filter(e => e !== 'void' && e !== 'earth')]);
@@ -493,6 +501,7 @@
         let best = null, bestScore = -Infinity;
         for (const card of cards) {
             const name = card.firstElementChild?.textContent || '';
+            if (wantDef && name === wantDef.name) { best = card; break; }
             if (guard && (name === 'Psychic' || name === 'Iron Stance')) { best = card; break; }
             const score = pickScore(scrollIdByDisplayName(name, deckEl));
             if (score > bestScore) { bestScore = score; best = card; }
@@ -589,7 +598,9 @@
     //      modal and moves on, same as any other multi-step flow here.
     // ----------------------------------------------------------------
     function driveInspiringDraughtDeck(modal) {
-        const ranked = withChoice('WATER_SCROLL_3', rankedScrollElements());
+        const want = window.SCROLL_DEFINITIONS?.[window.BotSystem?.scholarWanted?.()];
+        let ranked = withChoice('WATER_SCROLL_3', rankedScrollElements());
+        if (want) ranked = [want.element, ...ranked.filter(e => e !== want.element)]; // the pact's scroll
         for (const el of ranked) {
             const label = el.charAt(0).toUpperCase() + el.slice(1);
             const btn = [...modal.querySelectorAll('button')].find(b => !b.disabled && b.textContent.startsWith(label));
@@ -609,7 +620,9 @@
         if (!buttons.length) return false;
         if (!window.BotSystem?.scrollPickScore) { pickWeakestButton(buttons).click(); return true; }
         let worst = buttons[0], worstScore = Infinity;
+        const want = window.SCROLL_DEFINITIONS?.[window.BotSystem?.scholarWanted?.()];
         for (const b of buttons) {
+            if (want && b.textContent === want.name) continue; // keep the pact's scroll
             const score = pickScore(scrollIdByDisplayName(b.textContent, null));
             if (score < worstScore) { worstScore = score; worst = b; }
         }

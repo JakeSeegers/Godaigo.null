@@ -598,55 +598,89 @@
     }
 
     // Pact roles (owner, 2026-09-30: "bots can work together to pull off an
-    // attack"). Recomputed at every turn change while a pact holds:
-    //   racer   the member furthest ahead keeps playing for its own win, so
-    //           the pact does not just hand the game to a third player;
-    //   thrower a member with Take Flight in reach, to throw the target;
-    //   guard   one member at a time keeps Iron Stance / Psychic ready,
-    //           handed on after ROLE_GUARD_ROUNDS rounds (a partner with a
-    //           counter takes over, so nobody falls behind for long);
-    //   blocker the rest stand on tiles far from the target's goal, since
-    //           Take Flight can only land the target on a tile another pawn
-    //           stands on (bot.js blockSpot).
-    // Members may read each other's hands for this (partners share plans).
+    // attack"; roles set by the owner the same day). Recomputed at every turn
+    // change while a pact holds:
+    //   scholar  gets the pact's attack scroll (Take Flight with 4+ pawns on
+    //            the table, else Mason's Savvy, or whichever a member already
+    //            holds) with Scholar's Insight / Inspiring Draught, keeps it
+    //            and casts it, or hands it to a partner standing on its shape;
+    //   builder  when the scholar holds the scroll but has no shape for it,
+    //            gathers stones and builds it next to the scholar (stones
+    //            belong to nobody, the scholar walks on);
+    //   guard    essential: one member keeps Iron Stance / Psychic ready,
+    //            handed on after ROLE_GUARD_ROUNDS rounds. With only two
+    //            members (a table of three) the builder guards when the target
+    //            is one cast from winning (bot.js guardWanted);
+    //   racer    only with 4+ members and a player outside the pact who
+    //            would profit: the member furthest ahead keeps racing;
+    //   extras   help build (Mason's Savvy) or take far posts so Take Flight
+    //            lands the target badly (blocker, bot.js blockSpot).
+    // Members may read each other's hands (partners share plans).
     const ROLE_GUARD_ROUNDS = 2;
     const COUNTER_SCROLLS = ['EARTH_SCROLL_1', 'VOID_SCROLL_1'];
-    function inReach(j, name) {
+    const TF = 'WIND_SCROLL_4', MASON = 'EARTH_SCROLL_3';
+    const SEARCH_SCROLLS = ['VOID_SCROLL_4', 'WATER_SCROLL_3'];
+    function inHand(j, name) {
         const ps = window.spellSystem?.playerScrolls?.[j];
-        const common = window.spellSystem?.commonArea;
-        return !!(ps && (ps.hand?.has?.(name) || ps.active?.has?.(name))) ||
-               !!(common && Object.values(common).includes(name)); // {element: scroll}
+        return !!(ps && (ps.hand?.has?.(name) || ps.active?.has?.(name)));
     }
+    function inCommon(name) {
+        const common = window.spellSystem?.commonArea;
+        return !!(common && Object.values(common).includes(name)); // {element: scroll}
+    }
+    function inReach(j, name) { return inHand(j, name) || inCommon(name); }
     let rolesOn = true; // setRoles(false): tests (roles on vs off)
     function assignRoles() {
         const P = S.pact;
         if (!P || P.members.size < 2) return;
-        if (!rolesOn) { P.roles = {}; P.guard = null; return; }
+        if (!rolesOn) { P.roles = {}; P.guard = null; P.goal = null; return; }
         const snap = window.BotState.snapshot();
         const members = [...P.members].filter(j => snap.players[j]);
         if (members.length < 2) return;
+        const live = snap.players.map((q, j) => q ? j : -1).filter(j => j >= 0);
+        const outsiders = live.filter(j => j !== P.target && !P.members.has(j));
         const old = P.roles || {};
         const roles = {};
-        const racer = members.reduce((a, b) => tracker(snap, b) > tracker(snap, a) ? b : a);
-        roles[racer] = 'racer';
-        const rest = members.filter(j => j !== racer);
-        const thrower = rest.find(j => inReach(j, 'WIND_SCROLL_4'));
-        if (thrower != null) roles[thrower] = 'thrower';
-        const guards = rest.filter(j => j !== thrower && COUNTER_SCROLLS.some(n => inReach(j, n)));
-        let guard = P.guard && guards.includes(P.guard.who) ? P.guard.who : null;
-        if (guard != null && S.turns - P.guard.since >= ROLE_GUARD_ROUNDS * (S.seats || seatCount() || 1)) {
-            const next = guards.find(j => j !== guard);
-            if (next != null) guard = next;
+        const free = () => members.filter(j => !roles[j]);
+        // The attack scroll: one a member already holds, else by table size.
+        const held = [TF, MASON].find(n => members.some(j => inHand(j, n)));
+        const goal = held || (live.length >= 4 ? TF : MASON);
+        P.goal = goal;
+        // Racer first (it must be the one furthest ahead), only when needed.
+        if (members.length >= 4 && outsiders.length) {
+            const racer = members.reduce((a, b) => tracker(snap, b) > tracker(snap, a) ? b : a);
+            roles[racer] = 'racer';
         }
-        if (guard == null && guards.length) guard = guards[0];
-        if (guard != null) {
-            if (!P.guard || P.guard.who !== guard) P.guard = { who: guard, since: S.turns };
-            roles[guard] = 'guard';
+        // Scholar: holds the scroll, else a search scroll, else the one furthest behind.
+        const byBehind = list => list.slice().sort((a, b) => tracker(snap, a) - tracker(snap, b));
+        let scholar = free().find(j => inHand(j, goal)) ?? free().find(j => SEARCH_SCROLLS.some(n => inReach(j, n)));
+        if (scholar == null) scholar = byBehind(free())[0];
+        roles[scholar] = 'scholar';
+        // Guard (with 3+ members): a member with a counter, rotating.
+        if (members.length >= 3) {
+            const cands = free().filter(j => COUNTER_SCROLLS.some(n => inReach(j, n)));
+            let guard = P.guard && free().includes(P.guard.who) ? P.guard.who : null;
+            if (guard != null && S.turns - P.guard.since >= ROLE_GUARD_ROUNDS * (S.seats || seatCount() || 1)) {
+                const next = cands.find(j => j !== guard);
+                if (next != null) guard = next;
+            }
+            if (guard == null) guard = cands[0] ?? byBehind(free())[0];
+            if (guard != null) {
+                if (!P.guard || P.guard.who !== guard) P.guard = { who: guard, since: S.turns };
+                roles[guard] = 'guard';
+            }
         } else P.guard = null;
-        for (const j of rest) if (!roles[j]) roles[j] = 'blocker';
+        // Middle ground (2026-09-30, after the first version tied up every
+        // member): the scholar builds its own shape; a builder only steps in
+        // when the scholar is stuck (bot.js reviewBuilder). With Take Flight
+        // and 3+ members the rest are blockers; else the nearest is builder.
+        const sp = snap.players[scholar];
+        const near = free().sort((a, b) => Math.hypot(snap.players[a].x - sp.x, snap.players[a].y - sp.y) - Math.hypot(snap.players[b].x - sp.x, snap.players[b].y - sp.y));
+        if (near.length && (goal !== TF || members.length === 2)) roles[near[0]] = 'builder';
+        for (const j of free()) roles[j] = goal === TF ? 'blocker' : 'builder';
         P.roles = roles;
         for (const j of members) if (old[j] !== roles[j]) {
-            const kind = { racer: 'roleRace', thrower: 'roleThrow', guard: 'roleGuard', blocker: 'roleBlock' }[roles[j]];
+            const kind = { racer: 'roleRace', scholar: goal === TF ? 'roleScholarTF' : 'roleScholarMason', guard: 'roleGuard', builder: 'roleBuild', blocker: 'roleBlock' }[roles[j]];
             if (kind) intend(j, kind, P.target);
         }
     }
@@ -814,7 +848,9 @@
         home:    { sp: [77, 88],     text: '{o} runs for home' },
         // Pact roles (assignRoles).
         roleRace:  { sp: [77],       text: '{o} keeps racing while the others stop {t}', rounds: 3 },
-        roleThrow: { sp: [80],       text: '{o} gets ready to send {t} away', rounds: 3 },
+        roleScholarTF:    { sp: [16, 80], text: '{o} looks for Take Flight to send {t} away', rounds: 3 },
+        roleScholarMason: { sp: [16, 29], text: "{o} looks for Mason's Savvy to wall in {t}", rounds: 3 },
+        roleBuild: { sp: [70],       text: '{o} builds the shape for the attack on {t}', rounds: 3 },
         roleGuard: { sp: [31],       text: '{o} stands guard against {t}', rounds: 3 },
         roleBlock: { sp: [29],       text: '{o} takes a far post so {t} lands badly', rounds: 3 },
         // Look-ahead (Calculating) and playouts (Counting): emote only, no
@@ -874,7 +910,7 @@
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },
-        pact: () => S.pact ? { kind: S.pact.kind, target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft, roles: { ...(S.pact.roles || {}) } } : null,
+        pact: () => S.pact ? { kind: S.pact.kind, target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft, roles: { ...(S.pact.roles || {}) }, goal: S.pact.goal || null } : null,
         roleOf, roleHolder,
         setRoles: on => { rolesOn = !!on; },
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },

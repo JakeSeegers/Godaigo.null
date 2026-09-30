@@ -1560,12 +1560,31 @@
         // next turn (push 4: x4) an attack is worth more than a new element.
         const attacks = attackTools(snap, self);
         const urgency = Math.min(4, Math.max(1, ((attacks.push || 2) / 2) ** 2));
+        // The pact's scholar without the pact's scroll: Scholar's Insight /
+        // Inspiring Draught are worth building to fetch it.
+        const want = scholarWants(snap);
+        if (want) for (const name of sources) {
+            if (!SCHOLAR_SEARCH.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
+            const def = window.SCROLL_DEFINITIONS?.[name];
+            if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: WEIGHTS.attackBuildCredit * urgency, tool: true, attack: true });
+        }
         for (const name of sources) {
             if (!attacks.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
             const def = window.SCROLL_DEFINITIONS?.[name];
             if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: WEIGHTS.attackBuildCredit * urgency, tool: true, attack: true });
         }
         return out;
+    }
+    // The pact's attack scroll the scholar still has to fetch, or null.
+    const SCHOLAR_SEARCH = new Set(['VOID_SCROLL_4', 'WATER_SCROLL_3']);
+    function scholarWants(snap) {
+        const D = window.BotDiplomacy, ai = snap.turn.activePlayerIndex;
+        if (D?.roleOf?.(ai) !== 'scholar') return null;
+        const goal = D.pact?.()?.goal;
+        const p = snap.players[ai];
+        if (!goal || !p) return null;
+        const reach = [...(p.hand || []), ...(p.active || []), ...(snap.commonArea || [])];
+        return reach.includes(goal) ? null : goal;
     }
     // Attack scrolls that would hurt the harm target right now.
     function attackTools(snap, self) {
@@ -1587,9 +1606,10 @@
         if (ELEMENTS.some(el => needs(el) && (lp.pool[el] || 0) >= 2)) out.add('FIRE_SCROLL_5'); // Arson
         if (h.stones.size >= 2) out.add('CATACOMB_SCROLL_10');               // Combust
         try { if (takeFlightHarm(snap, h.L) >= 0.3) out.add('WIND_SCROLL_4'); } catch (e) {} // Take Flight
-        // The pact's thrower gets Take Flight ready early; the blockers shape
-        // where the target can land (blockSpot).
-        if (window.BotDiplomacy?.roleOf?.(snap.turn.activePlayerIndex) === 'thrower') out.add('WIND_SCROLL_4');
+        // The pact's scholar builds the pact's attack scroll early (Take
+        // Flight: the blockers shape where the target lands, blockSpot).
+        const D = window.BotDiplomacy;
+        if (D?.roleOf?.(snap.turn.activePlayerIndex) === 'scholar' && D.pact?.()?.goal) out.add(D.pact().goal);
         return out;
     }
 
@@ -1703,11 +1723,16 @@
             return { cells, placed, deficit };
         };
         const reach = opts?.near ?? PLAN_REACH;
-        const anchors = [{ hex: pHex, steps: 0 }];
+        const anchors = opts?.around ? [] : [{ hex: pHex, steps: 0 }];
         for (const [k, t] of table) {
             if (!t.ok) continue;
             const d = Math.hypot(t.x - self.x, t.y - self.y);
             if (d < 5 || d > reach * 35 + 5) continue;
+            // opts.around {x, y, r}: only centres within r steps of that
+            // point (a builder building next to its pact's scholar).
+            if (opts?.around && Math.hypot(t.x - opts.around.x, t.y - opts.around.y) > opts.around.r * 35 + 5) continue;
+            // Never a centre with a pawn on it (the caster must stand there).
+            if (opts?.around && snap.players.some(q => q && Math.hypot(q.x - t.x, q.y - t.y) < 5)) continue;
             const [q, r] = k.split(',').map(Number);
             anchors.push({ hex: { q, r }, steps: Math.round(d / 35) });
         }
@@ -1843,6 +1868,124 @@
         _shortcutStats.flightPlans++;
         return true;
     }
+    // Builder (pact role, owner 2026-09-30): build the pact's attack scroll
+    // shape within BUILD_NEAR steps of the scholar, who walks on and casts it
+    // (or is handed the scroll). The builder never casts it; its plan ends
+    // when the shape is done. Given up after BUILD_TURNS own turns.
+    const BUILD_NEAR = 3, BUILD_TURNS = 6;
+    function reviewBuilder(snap, idx, m, self) {
+        const D = window.BotDiplomacy;
+        const role = D?.roleOf?.(idx), pact = D?.pact?.();
+        if (m.plan && m.plan.forPartner) {
+            if (role !== 'builder' || !pact || pact.goal !== m.plan.scroll || (m.ownTurns || 0) - m.plan.madeTurn > BUILD_TURNS) {
+                log('Stopped building for my partner'); m.plan = null;
+            }
+            return !!m.plan;
+        }
+        if (role !== 'builder' || !pact?.goal) return false;
+        const scholar = Object.entries(pact.roles || {}).find(([, r]) => r === 'scholar');
+        const sp = scholar ? snap.players[Number(scholar[0])] : null;
+        // Only when the scholar is stuck: it holds the scroll but is not
+        // building its shape itself.
+        const si = scholar ? Number(scholar[0]) : -1;
+        const sps = window.spellSystem?.playerScrolls?.[si];
+        const holds = !!(sps && (sps.hand?.has?.(pact.goal) || sps.active?.has?.(pact.goal)));
+        if (!holds || _mem[si]?.plan?.scroll === pact.goal) return false;
+        const def = window.SCROLL_DEFINITIONS?.[pact.goal];
+        if (!sp || !def) return false;
+        const plan = makePlan(snap, { only: new Set([pact.goal]), near: PLAN_REACH, around: { x: sp.x, y: sp.y, r: BUILD_NEAR },
+            extra: [{ name: pact.goal, def, credit: 1.5 }] });
+        if (!plan || plan.cells.every(c => placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5))) return false;
+        log(`Building ${pact.goal} next to my partner`);
+        m.plan = { ...plan, forPartner: true, madeTurn: m.ownTurns || 0, side: null };
+        _review.builds = (_review.builds || 0) + 1;
+        return true;
+    }
+    // Scholar hands the pact's scroll over (owner, 2026-09-30: "keeps it, or
+    // gives it, whatever is best for the pact"): a partner stands on a
+    // finished shape for it, plays before the target, and the scholar cannot
+    // cast it this turn itself: discard it to the common area for them.
+    function giveScroll(snap, idx) {
+        const D = window.BotDiplomacy;
+        if (D?.roleOf?.(idx) !== 'scholar') return null;
+        const pact = D.pact?.(), goal = pact?.goal;
+        const self = snap.players[idx];
+        if (!goal || !self) return null;
+        const from = (self.hand || []).includes(goal) ? 'hand' : (self.active || []).includes(goal) ? 'active' : null;
+        if (!from || !window.BotSim) return null;
+        if (window.BotSim.checkPattern(snap, goal, idx)) return null; // I can cast it here
+        const n = snap.players.length;
+        const order = [];
+        for (let k = 1; k < n; k++) order.push((idx + k) % n);
+        const targetAt = order.indexOf(pact.target);
+        const partner = pact.members.find(j => j !== idx && order.indexOf(j) >= 0 && (targetAt < 0 || order.indexOf(j) < targetAt) &&
+            window.BotSim.checkPattern(snap, goal, j));
+        if (partner == null) return null;
+        const legal = window.BotState.legalActions().find(a => a.type === 'discardScroll' && a.scroll === goal && a.from === from);
+        if (!legal) return null;
+        log(`Handing ${goal} to my partner, who stands on its shape`);
+        _review.gives = (_review.gives || 0) + 1;
+        return legal;
+    }
+    // Block a winning cast (owner's game, 2026-09-30). Someone is one cast
+    // from winning and a finished shape they could cast is in their reach
+    // (winSpots): the cheapest block this bot can finish THIS turn wins over
+    // any plan: stand on the shape's centre (the caster must stand there),
+    // or walk next to one of its stones and break it. Any bot, in a pact or
+    // not; not when it is one cast from winning itself (then it races).
+    const BREAK_AP = { void: 1, wind: 2, fire: 3, water: 4, earth: 5 };
+    function reviewBlockWin(snap, idx, m, self) {
+        const D = window.BotDiplomacy;
+        const L = D?.alertOn?.(idx, snap);
+        if (L == null || D.oneCastFromWin?.(idx, snap)) return false;
+        const ws = winSpots(snap, L);
+        if (!ws.anchors.length) return false;
+        const ap = snap.turn.ap;
+        let best = null;
+        const cost = (x, y) => {
+            if (Math.hypot(self.x - x, self.y - y) < 5) return 0;
+            const p = window.BotState.findPath(self.x, self.y, x, y);
+            return p && p.length ? pathCost(p) : Infinity;
+        };
+        for (const a of ws.anchors) {
+            if (snap.players.some((q, j) => q && j !== idx && Math.hypot(q.x - a.x, q.y - a.y) < 5)) continue;
+            const c = cost(a.x, a.y);
+            if (c <= ap && (!best || c < best.c)) best = { c, kind: 'stand', x: a.x, y: a.y };
+        }
+        const grid = window.BotState.hexGrid();
+        for (const k of ws.stones) {
+            const st = snap.stones.find(q => hexKey(q.x, q.y) === k);
+            if (!st) continue;
+            const bc = BREAK_AP[st.type] || 3;
+            for (const h of grid) {
+                const d = Math.hypot(h.x - st.x, h.y - st.y);
+                if (d < 5 || d > 40) continue;
+                if (snap.stones.some(q => Math.hypot(q.x - h.x, q.y - h.y) < 5)) continue;
+                if (snap.players.some((q, j) => q && j !== idx && Math.hypot(q.x - h.x, q.y - h.y) < 5)) continue;
+                const c = cost(h.x, h.y) + bc;
+                if (c <= ap && (!best || c < best.c)) best = { c, kind: 'break', x: h.x, y: h.y, stone: { x: st.x, y: st.y } };
+            }
+        }
+        if (!best) return false;
+        log(`Blocking the winning cast of player ${L}: ${best.kind} (${best.c} AP)`);
+        m.plan = { blockWin: true, kind: best.kind, x: best.x, y: best.y, stone: best.stone || null, target: L, resume: m.plan || null,
+                   scroll: null, cells: [], anchor: pixelToHex(best.x, best.y, TILE_SIZE) };
+        _review.blockPlans = (_review.blockPlans || 0) + 1;
+        try { D.intend?.(idx, best.kind === 'break' ? 'break' : 'camp', L); } catch (e) {}
+        return true;
+    }
+    function blockWinStep(snap, self, plan, m) {
+        if (plan.kind === 'break') {
+            const b = window.BotState.legalActions().find(a => a.type === 'breakStone' && Math.hypot(a.x - plan.stone.x, a.y - plan.stone.y) < 5);
+            if (b) { m.plan = plan.resume || null; _review.blockBreaks = (_review.blockBreaks || 0) + 1; return b; }
+            if (!snap.stones.some(q => Math.hypot(q.x - plan.stone.x, q.y - plan.stone.y) < 5)) { m.plan = plan.resume || null; return null; }
+        } else if (Math.hypot(self.x - plan.x, self.y - plan.y) < 5) {
+            if (!plan.counted) { _review.blockStands = (_review.blockStands || 0) + 1; plan.counted = true; }
+            return { type: 'endTurn' }; // stay on the centre
+        }
+        const path = window.BotState.findPath(self.x, self.y, plan.x, plan.y);
+        return travelStep(snap, self, plan.x, plan.y, path);
+    }
     const SIDE_COUNTER_BONUS = 8;
     const GUARD_WAIT = 3, GUARD_REST = 3;
     const _planStats = { made: 0, away: 0, reused: 0, finished: 0, side: 0, sidePlaced: 0 }; // tests
@@ -1884,6 +2027,8 @@
         m.planReviewTurn = m.ownTurns;
         const self = me(snap);
         if (!self) return;
+        if (m.plan && m.plan.blockWin) m.plan = m.plan.resume || null; // re-checked every turn
+        if (reviewBlockWin(snap, idx, m, self)) return;
         // Guard post (2026-09-29): someone is one cast from winning and no
         // counter is ready: build Iron Stance or Psychic nearby, then stand on
         // it with the AP kept (planNextAction ends the turn there). Not when
@@ -1922,6 +2067,7 @@
             }
         }
         if (reviewTravel(snap, idx, m, self)) return;
+        if (reviewBuilder(snap, idx, m, self)) return;
         const attacks = attackTools(snap, self);
         if (m.plan && m.plan.attack) {
             // Two own turns in a row without a reason, so a leader hovering
@@ -2000,9 +2146,10 @@
     function planValid(snap) {
         const plan = mem(snap.turn.activePlayerIndex).plan;
         if (!plan) return false;
+        if (plan.blockWin) return true;
         const self = me(snap);
         if (!self) return false;
-        const holding = (self.hand || []).includes(plan.scroll) || self.active.includes(plan.scroll) ||
+        const holding = plan.forPartner || (self.hand || []).includes(plan.scroll) || self.active.includes(plan.scroll) ||
                         (snap.commonArea || []).includes(plan.scroll); // common-area scrolls are castable too
         if (!holding) return false;
         // Cells were on the board when the plan was MADE (viablePatternAt
@@ -2170,6 +2317,7 @@
         if (!m.plan || !planValid(snap)) { m.plan = null; return null; }
         const plan = m.plan;
         const self = me(snap);
+        if (plan.blockWin) return blockWinStep(snap, self, plan, m);
         const missing = plan.cells.filter(c =>
             !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5));
 
@@ -2241,6 +2389,31 @@
             return null; // out of AP / unreachable / uncollectible — generic scoring takes over
         }
 
+        // Built for a partner. If the scholar can walk onto it by its next
+        // turn, step aside; else stand on the centre and wait for the scroll
+        // (the scholar hands it over, giveScroll), then cast it.
+        if (plan.forPartner) {
+            if (!plan.doneLogged) { log('Shape built for my partner'); _review.built = (_review.built || 0) + 1; plan.doneLogged = true; }
+            const ac = hexToPixel(plan.anchor.q, plan.anchor.r, TILE_SIZE);
+            const D = window.BotDiplomacy;
+            const sEntry = Object.entries(D?.pact?.()?.roles || {}).find(([, r]) => r === 'scholar');
+            const sp = sEntry ? snap.players[Number(sEntry[0])] : null;
+            const sPath = sp ? window.BotState.findPath(sp.x, sp.y, ac.x, ac.y) : null;
+            const sCost = sp && Math.hypot(sp.x - ac.x, sp.y - ac.y) < 5 ? 0 : (sPath && sPath.length ? pathCost(sPath) : Infinity);
+            const sps = sEntry ? window.spellSystem?.playerScrolls?.[Number(sEntry[0])] : null;
+            const sHolds = !!(sps && (sps.hand?.has?.(plan.scroll) || sps.active?.has?.(plan.scroll)));
+            if (sCost <= 5 || !sHolds) { m.plan = null; return null; }
+            const reachG = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])].includes(plan.scroll);
+            if (Math.hypot(self.x - ac.x, self.y - ac.y) < 5) {
+                if (reachG && snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
+                    const r = rankActions().find(x => x.action.type === 'cast' && x.action.scroll === plan.scroll);
+                    if (r) { _review.partnerCasts = (_review.partnerCasts || 0) + 1; m.plan = null; return r.action; }
+                }
+                return { type: 'endTurn' };
+            }
+            const path = window.BotState.findPath(self.x, self.y, ac.x, ac.y);
+            return travelStep(snap, self, ac.x, ac.y, path);
+        }
         // Shape complete → return to the anchor and cast
         const sideNow = sideStep(snap, self, plan, []);
         if (sideNow) return sideNow;
@@ -2274,6 +2447,15 @@
             return null;
         }
         if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
+            if (plan.scroll === TF && !plan.travel && plan.attack) {
+                let L = window.BotDiplomacy?.pact?.()?.target;
+                if (L == null) { try { L = harmContext(snap, self)?.L; } catch (e) { L = null; } }
+                const hurt = L != null ? takeFlightHarm(snap, L) : 0;
+                if (hurt < 0.3) return null; // wait on the shape until the throw hurts
+                if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
+                    return { type: 'cast', scroll: plan.scroll, choice: { target: L, harm: hurt } }; // throw the target, not myself
+                }
+            }
             if (plan.travel) {
                 const land = flightLanding(snap, plan.goal);
                 if (land) { _shortcutStats.flightCasts++; return { type: 'cast', scroll: plan.scroll, choice: land.choice }; }
@@ -3372,7 +3554,8 @@
         // Racer rule (owner, 2026-09-30): the pact member furthest ahead
         // keeps playing for its own win; it only joins in when the target
         // can win next turn.
-        if (D.roleOf?.(ai) === 'racer' && push < 4) return null;
+        // Also when the target is one cast from winning (owner's game 2026-09-30).
+        if (D.roleOf?.(ai) === 'racer' && push < 4 && D.alertOn?.(ai, snap) !== L) return null;
         const need = ELEMENTS.filter(el => !lp.activated.includes(el));
         const seats = snap.players.filter(Boolean).length;
         const stones = new Set();
@@ -3395,7 +3578,69 @@
             if (snap.players.some((q, j) => q && j !== ai && Math.hypot(q.x - t.x, q.y - t.y) < 5)) continue;
             camps.push(t);
         }
+        // Block the winning cast (owner's game, 2026-09-30: the leader needed
+        // only Create from the common area and walked onto a finished void
+        // shape a bot had built earlier; a pact bot next to it did nothing).
+        // Every finished shape the leader could cast for its missing element
+        // within a turn's walk: break one of its stones, or stand on its
+        // centre (the caster must stand there).
+        if (campOk) {
+            try {
+                const ws = winSpots(snap, L);
+                for (const k of ws.stones) stones.add(k);
+                for (const a of ws.anchors) {
+                    if (Math.hypot(self.x - a.x, self.y - a.y) < 5) { campHere = campHere || a; continue; }
+                    if (snap.players.some((q, j) => q && j !== ai && Math.hypot(q.x - a.x, q.y - a.y) < 5)) continue;
+                    camps.push(a);
+                }
+            } catch (e) {}
+        }
         return { L, push, stones, camps, campHere };
+    }
+    const _winSpotCache = { key: null, val: null };
+    function winSpots(snap, L) {
+        const lp = snap.players[L];
+        const out = { stones: new Set(), anchors: [] };
+        if (!lp) return out;
+        const missing = ELEMENTS.filter(el => !lp.activated.includes(el));
+        const defs = window.SCROLL_DEFINITIONS || {};
+        const covers = (n) => {
+            const d = defs[n];
+            if (!d || d.level === 1 || !Array.isArray(d.patterns)) return false;
+            if (d.element === 'catacomb') return (d.patterns[0] || []).some(c => missing.includes(c.type));
+            return missing.includes(d.element);
+        };
+        // What the leader could cast: common area and active area (public),
+        // and any scroll of an element it holds in hand (hand names are hidden).
+        const names = new Set([...(snap.commonArea || []), ...(lp.active || [])].filter(covers));
+        for (const el of lp.handElements || []) {
+            for (const [n, d] of Object.entries(defs)) if (d.element === el && covers(n)) names.add(n);
+        }
+        if (!names.size) return out;
+        const key = `${L}|${[...names].sort().join(',')}|${Math.round(lp.x)},${Math.round(lp.y)}|${snap.stones.map(q => `${Math.round(q.x)},${Math.round(q.y)}${q.type}`).sort().join(';')}`;
+        if (_winSpotCache.key === key) return _winSpotCache.val;
+        const at = new Map(snap.stones.map(q => [`${Math.round(q.x)},${Math.round(q.y)}`, q]));
+        const stoneAt = (x, y) => at.get(`${Math.round(x)},${Math.round(y)}`);
+        const seen = new Set();
+        for (const h of window.BotState.hexGrid()) {
+            if (Math.hypot(h.x - lp.x, h.y - lp.y) > 7 * 35 + 5) continue;
+            const a = pixelToHex(h.x, h.y, TILE_SIZE);
+            for (const n of names) for (const variant of defs[n].patterns) {
+                const cells = variant.map(req => { const px = hexToPixel(a.q + req.q, a.r + req.r, TILE_SIZE); return { x: px.x, y: px.y, type: req.type }; });
+                if (!cells.every(c => stoneAt(c.x, c.y)?.type === c.type)) continue;
+                if (stoneAt(h.x, h.y)) continue; // nobody can stand on the centre
+                const hk = hexKey(h.x, h.y);
+                if (seen.has(hk)) continue;
+                const path = Math.hypot(h.x - lp.x, h.y - lp.y) < 5 ? [] : window.BotState.findPath(lp.x, lp.y, h.x, h.y);
+                if (!path || pathCost(path) > 6) continue;
+                seen.add(hk);
+                out.anchors.push({ x: h.x, y: h.y, shrineType: 'pattern', scroll: n });
+                for (const c of cells) out.stones.add(hexKey(stoneAt(c.x, c.y).x, stoneAt(c.x, c.y).y));
+            }
+        }
+        _winSpotCache.key = key; _winSpotCache.val = out;
+        if (out.anchors.length) _review.winSpots = (_review.winSpots || 0) + 1;
+        return out;
     }
 
     // More ways to hurt the leader (owner, 2026-09-28), as cast choices
@@ -3460,13 +3705,13 @@
     // Blocker post (pact role, owner 2026-09-30): Take Flight can only land
     // the target on a tile another pawn stands on, and the target picks the
     // landing nearest its goal. A blocker stands on a tile far from that goal
-    // (and never offers a close one), so when the pact's thrower casts, every
-    // landing is bad. Only while the pact has a thrower and the target has 4+
+    // (and never offers a close one), so when the pact's scholar casts, every
+    // landing is bad. Only while the pact's scroll is Take Flight and the target has 4+
     // elements (home is its goal soon). Chosen once per own turn.
     const BLOCK_PULL = 45, BLOCK_STAY = 25;
     function blockSpot(snap, self) {
         const D = window.BotDiplomacy, ai = snap.turn.activePlayerIndex;
-        if (D?.roleOf?.(ai) !== 'blocker' || D.roleHolder?.('thrower') == null) return null;
+        if (D?.roleOf?.(ai) !== 'blocker' || D.pact?.()?.goal !== 'WIND_SCROLL_4') return null;
         const m = mem(ai);
         if (m.block && m.block.turn === m.ownTurns) return m.block.spot;
         m.block = { turn: m.ownTurns, spot: null };
@@ -4189,7 +4434,11 @@
                 const last = ctx.explorePath[ctx.explorePath.length - 1];
                 g = pick('explore', 'Hidden tile (new scroll)', ctx.explorePath, last.x, last.y);
             }
-            if (!g && th.mode === 'plan' && m.plan) {
+            if (!g && th.mode === 'plan' && m.plan?.blockWin) {
+                g = { kind: 'plan', label: m.plan.kind === 'break' ? 'Break a stone of the shape the leader would win with' : 'Stand on the centre of the shape the leader would win with',
+                    x: m.plan.x, y: m.plan.y, cost: 0, path: [{ x: self.x, y: self.y }, { x: act.x ?? self.x, y: act.y ?? self.y }] };
+            }
+            if (!g && th.mode === 'plan' && m.plan && m.plan.cells.length) {
                 const cx = m.plan.cells.reduce((a, c) => a + c.x, 0) / m.plan.cells.length;
                 const cy = m.plan.cells.reduce((a, c) => a + c.y, 0) / m.plan.cells.length;
                 g = { kind: 'plan', label: `Build site for ${scrollName(m.plan.scroll)}`, x: cx, y: cy, cost: 0,
@@ -4272,6 +4521,10 @@
 
         // The pattern plan takes priority: it's the only way multi-hex
         // patterns ever complete under the adjacent-only placement rule
+        try {
+            const give = giveScroll(snap, idx);
+            if (give) { const r = window.BotState.applyAction(give); if (r.ok) return give; }
+        } catch (e) { log('Hand-over failed: ' + e.message); }
         try { reviewPlan(snap, idx); } catch (e) { log('Plan review failed: ' + e.message); }
         if (!m.plan || !planValid(snap)) {
             m.plan = makePlan(snap);
@@ -4841,6 +5094,7 @@
         SOCIAL_KEYS, pinSocial,
         _harmContext: harmContext, // tests
         _review,                    // tests: plan review counters
+        _winSpots: (snap, L) => winSpots(snap, L), // tests: finished shapes the leader could win with
         _planStats,                 // tests: plans made / away from the pawn / stones reused / already finished
         _shortcutStats,             // tests: teleport / walk-to-catacomb / Take Flight shortcuts taken
         _helpContext: helpContext, // tests
@@ -4851,6 +5105,8 @@
         planOf: i => { const pl = _mem[i]?.plan; return pl ? { scroll: pl.scroll, cells: pl.cells } : null; },
         guardWanted: () => { try { return guardWanted(window.BotState.snapshot()); } catch (e) { return false; } },
         // A counter is worth fetching now (bot-effects.js Quick Reflexes / Scholar's Insight picks).
+        // The pact scroll the active bot (a scholar) should fetch, or null.
+        scholarWanted: () => { try { return scholarWants(window.BotState.snapshot()); } catch (e) { return null; } },
         fetchWanted: () => { try { const sn = window.BotState.snapshot(); const me = sn.players[sn.turn.activePlayerIndex]; return !!me && fetchTarget(sn) != null && !counterInReach(sn, me); } catch (e) { return false; } },
         // bot-effects.js targets: { needScroll, blockedTiles, occupiers, stuck } for the active bot
         stuckTools: () => {

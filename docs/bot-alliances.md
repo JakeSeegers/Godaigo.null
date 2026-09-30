@@ -375,3 +375,41 @@ or pattern (placeStone / cast), a shorter path or road (a wind stone / cast), a
 usable common scroll (discardScroll / cast), a shrine I need freed (move /
 cast). Harm is counted as before. Test (3 four-bot games): thanks 20 -> 10,
 none for a path any more.
+
+## Roles, version 2 (2026-09-30, owner's roles, middle ground)
+
+Replaces thrower with the owner's scholar / builder (assignRoles in
+bot-diplomacy.js; goal = Take Flight with 4+ pawns, else Mason's Savvy, or the
+one a member already holds):
+- **scholar**: fetches the goal with Scholar's Insight / Inspiring Draught
+  (bot-effects picks the goal's deck and card, BotSystem.scholarWanted; the
+  search scrolls become build goals), builds the goal's shape itself
+  (attackTools), throws Take Flight at the target only when takeFlightHarm >=
+  0.3 (the throw targets the leader, not itself). Hands the scroll over
+  (giveScroll: discard to the common area) when a partner stands on a finished
+  shape, plays before the target, and the scholar cannot cast it this turn.
+- **builder** (2 members, or Mason's Savvy): only when the scholar holds the
+  scroll but is not building it (reviewBuilder): builds the shape within 3
+  steps of the scholar (makePlan `around`); then steps aside, or stands on the
+  centre and waits for the scroll when the scholar is far (then casts it).
+- **guard** (3+ members, essential), **racer** (4+ members and a player outside
+  the pact), **blocker** (the rest, Take Flight): as before. The racer also
+  helps when the target is one cast from winning.
+
+A first version where the builder always built for the scholar tied every
+member up: at 4 players the leader won 5-6 of 8 (roles off 3, first roles 2).
+The middle ground: 2 of 8.
+
+## Block a winning cast (2026-09-30)
+
+Owner's game: the leader needed only Create from the common area, on a finished
+void shape a bot had built; a pact bot next to it did nothing (harm only knew
+the leader's own recent stones, and plans skip scoring). bot.js `winSpots(snap,
+L)`: every finished shape of a scroll the leader could cast for a missing
+element (common + active area, and every scroll of an element in its hand)
+whose centre is free and within 6 AP of the leader. `reviewBlockWin` (first in
+reviewPlan, any bot, not when itself one cast from winning): the cheapest block
+it can finish this turn becomes the plan: stand on the centre (end the turn
+there) or walk next to a stone and break it. Also added to harmContext stones /
+camps. Test (8 four-bot games): 28 block plans, 8 breaks, 20 stands. Leader
+wins over two seeds: 7/16 vs 6/16 for the previous version (noise).

@@ -437,7 +437,7 @@
         const pact = on ? D.pact?.() : null;
         parts.push('<div class="gl-ally-h">Now</div>');
         if (!on) parts.push('<div class="gl-ally-dim">Alliances run in bot training and in online games you host.</div>');
-        else if (pact) parts.push(`<div class="gl-ally-pact">${pact.kind === 'grudge' ? 'Grudge pact' : 'Pact against the leader'}: ${pact.members.map(j => playerSpan(j) + (pact.roles?.[j] ? ` (${{ racer: 'racer', thrower: 'thrower', guard: 'guard', blocker: 'blocker' }[pact.roles[j]] || pact.roles[j]})` : '')).join(', ')} against ${playerSpan(pact.target)} (${pact.turnsLeft} turns left)</div>`);
+        else if (pact) parts.push(`<div class="gl-ally-pact">${pact.kind === 'grudge' ? 'Grudge pact' : 'Pact against the leader'}: ${pact.members.map(j => playerSpan(j) + (pact.roles?.[j] ? ` (${{ racer: 'racer', scholar: 'scholar', builder: 'builder', guard: 'guard', blocker: 'blocker' }[pact.roles[j]] || pact.roles[j]})` : '')).join(', ')} against ${playerSpan(pact.target)} (${pact.turnsLeft} turns left)</div>`);
         else parts.push('<div class="gl-ally-dim">No pact right now.</div>');
         if (on) {
             for (let o = 0; o < n; o++) {

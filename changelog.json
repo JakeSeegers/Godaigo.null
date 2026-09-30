@@ -6,7 +6,8 @@
       "date": "2026-09-30",
       "title": "Bots team up",
       "changes": [
-        "Pacts now have roles: one bot keeps racing, one stands guard with a counter, and the others team up to throw the leader with Take Flight.",
+        "Pacts now have roles: a scholar hunts for Take Flight or Mason's Savvy, a partner helps build its shape, one bot stands guard with a counter, and others block where the leader can land.",
+        "Bots now stop a player who is one cast from winning: they break a stone of the shape or stand on it.",
         "The Game Log's Alliances tab shows each bot's role in a pact.",
         "Bots no longer thank a player for just revealing a tile or walking by; thanks are for real help."
       ]
