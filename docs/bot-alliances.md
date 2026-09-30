@@ -363,3 +363,15 @@ Roles show as emotes + Game Log lines (INTENT roleRace / roleThrow / roleGuard
 / roleBlock) and in the Alliances tab. `setRoles(false)` for tests.
 Test (8 four-bot games, same seeds, roles on / off): leader still won 2 / 3,
 Take Flight aimed at the leader 7 / 2, counter answers 10 / 4, 105 / 108 turns.
+
+## Help needs a cause (2026-09-30)
+
+Owner's game 859: bots thanked each other, and the owner, from the first round,
+mostly because a revealed tile gave them a shorter path to a shrine.
+`blameable(now, prev, acts)` now counts a positive change only when the player
+whose turn it is did something this turn that could cause it (S.turnActs, reset
+at every turn change, filled from the Action Log entries): a stone in my shape
+or pattern (placeStone / cast), a shorter path or road (a wind stone / cast), a
+usable common scroll (discardScroll / cast), a shrine I need freed (move /
+cast). Harm is counted as before. Test (3 four-bot games): thanks 20 -> 10,
+none for a path any more.

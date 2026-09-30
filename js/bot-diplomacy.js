@@ -136,12 +136,28 @@
     // The part of a change another player can cause: nobody can activate my
     // elements or hand me stones (those are always my own doing, even when
     // they land on someone else's turn), but they can take stones away.
-    function blameable(now, prev) {
+    // Help only counts when the other player's action could have caused it
+    // (owner's game 859, 2026-09-30: bots thanked each other, and the owner
+    // for just ending a turn, from the first round). A shorter path because
+    // someone revealed a tile or walked, or a bot's own gain landing on the
+    // next player's turn, is not help. Harm is still counted from any look.
+    // Checked against everything the player did this turn (S.turnActs; the
+    // path is only measured when a turn ends).
+    const HELP_CAUSES = {
+        plan: ['placeStone', 'cast_execute'],        // a stone in my shape
+        ready: ['placeStone', 'cast_execute'],       // a stone that forms my pattern
+        path: ['windStone', 'cast_execute'],         // a wind stone on my way
+        road: ['windStone', 'cast_execute'],
+        common: ['discardScroll', 'cast_execute'],   // a scroll I can use, given
+        shrines: ['move', 'cast_execute'],           // stepped off a shrine I need
+    };
+    function blameable(now, prev, acts) {
         const out = {};
         for (const k of Object.keys(now)) {
             let c = now[k] - (prev?.[k] || 0);
             if (k === 'elements') c = 0;
             if (k === 'stones' && c > 0) c = 0;
+            if (c > 0 && !(HELP_CAUSES[k] || []).some(a => acts?.has(a))) c = 0;
             if (k === 'path' && !(now._pathOk && prev?._pathOk)) c = 0;
             // Disruption hurts more than it measures (bots are touchy).
             if (c < 0) c *= (DISRUPT[k] || 1);
@@ -214,7 +230,7 @@
         const now = snap.players.map((p, j) => (p ? parts(snap, j, full, prevOk ? S.prev[j] : null) : null));
         const actor = S.lastActive;
         if (S.prev && actor != null && S.prev.length === n) {
-            const changes = now.map((pt, j) => (pt && S.prev[j]) ? blameable(pt, S.prev[j]) : null);
+            const changes = now.map((pt, j) => (pt && S.prev[j]) ? blameable(pt, S.prev[j], S.turnActs) : null);
             const delta = changes.map(c => (c ? sumParts(c) : 0));
             const actorGain = (now[actor] && S.prev[actor]) ? total(now[actor]) - total(S.prev[actor]) : 0;
             const dfs = [];
@@ -268,6 +284,7 @@
         }
         S.lastActive = newActive;
         S.hostile = null;
+        S.turnActs = new Set();
         S.turns++;
         try { pactStep(newActive); } catch (e) { console.warn('[BotDiplomacy] pact step failed', e); }
     }
@@ -296,6 +313,10 @@
         if (e.type === 'cast_execute' && HOSTILE.has(e.scrollName)) {
             const def = window.SCROLL_DEFINITIONS?.[e.scrollName];
             S.hostile = { actor: e.playerIndex ?? e.player, id: e.scrollName, name: def?.name || e.scrollName };
+        }
+        if (e.type !== 'endTurn' && e.type !== 'botTalk') {
+            (S.turnActs ||= new Set()).add(e.type);
+            if (e.type === 'placeStone' && e.stoneType === 'wind') S.turnActs.add('windStone');
         }
         observe(e.type === 'endTurn');
     }

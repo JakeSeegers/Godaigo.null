@@ -7,7 +7,8 @@
       "title": "Bots team up",
       "changes": [
         "Pacts now have roles: one bot keeps racing, one stands guard with a counter, and the others team up to throw the leader with Take Flight.",
-        "The Game Log's Alliances tab shows each bot's role in a pact."
+        "The Game Log's Alliances tab shows each bot's role in a pact.",
+        "Bots no longer thank a player for just revealing a tile or walking by; thanks are for real help."
       ]
     },
     {
