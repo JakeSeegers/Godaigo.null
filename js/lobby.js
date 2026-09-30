@@ -677,9 +677,9 @@
                 const bounty = window.Rewards?.bountyFor?.(r.id);
                 return `
                 <div class="game-room-card" onclick="joinPublicGame(${r.id})">
-                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">🎁 Reward</span>` : ''}</div>
+                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">${window.emojiSystem?.spriteHtml?.(76, 0.6) || ''}Reward</span>` : ''}</div>
                     <div class="game-room-count">${counts[r.id]} / 5</div>
-                    ${hermit ? `<button class="game-room-reward-btn" title="Put a reward on this game" onclick="event.stopPropagation(); window.HermitRewards?.openForRoom(${r.id}, ${_esc(JSON.stringify(r.host_name || 'Room ' + r.id))})">🎁</button>` : ''}
+                    ${hermit ? `<button class="game-room-reward-btn" title="Put a reward on this game" onclick="event.stopPropagation(); window.HermitRewards?.openForRoom(${r.id}, ${_esc(JSON.stringify(r.host_name || 'Room ' + r.id))})">${window.emojiSystem?.spriteHtml?.(76, 0.7) || 'Reward'}</button>` : ''}
                     <button class="game-room-join-btn">Join</button>
                 </div>`;
             }).join('');
@@ -1167,6 +1167,7 @@
             console.log('Game over for winner index:', winnerPlayerIndex, 'Type:', winType);
             _pageLeaveAllowed = true; // the game is over: no "Leave site?" question any more
             window.GamePause?.reset(); // nothing to wait for any more
+            window.PotPlinko?.onGameOver(); // the pot drop, when this game qualifies
             window.Rewards?.afterGameOver(); // a Hermit bounty is paid with the win
 
             // Witness report: this browser checks the winner against its own

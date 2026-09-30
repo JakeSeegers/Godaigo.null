@@ -606,6 +606,7 @@
         showEmojiOverPawn,
         clearAll,
         displayHtml,
+        spriteHtml,
         reloadInventory: loadInventory,
         getItems()     { return EMOJI_ITEMS; },
         getTiers()     { return EMOJI_TIERS; },

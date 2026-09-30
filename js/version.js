@@ -17,13 +17,13 @@
 //   * in a waiting room: a banner with a Reload button (reloading on its own
 //     would pull the player out of the room).
 //   * in a game, tutorial or replay: nothing until the game is over.
-window.GAME_VERSION = '2026-09-30.2052';
+window.GAME_VERSION = '2026-09-30.2130';
 
 (function () {
     const CHECK_MS = 2 * 60 * 1000;
     const RELOAD_KEY = 'godaigo_update_reload';
     // Loaded on demand (asset-preloader.js LazyScripts); refresh them too.
-    const EXTRA_FILES = ['index.html', 'js/tutorial-mode.js', 'js/bot-arena.js', 'changelog.json'];
+    const EXTRA_FILES = ['index.html', 'js/tutorial-mode.js', 'js/bot-arena.js', 'js/plinko-sim.js', 'changelog.json'];
 
     let checking = false;
     let latest = null;   // newer version seen on the server, if any

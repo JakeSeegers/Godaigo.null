@@ -243,6 +243,12 @@ Order matters — later scripts depend on earlier ones.
                              (title, message, gold, badge from images/badges/badges.json, items incl. hidden ones) for a sign-up
                              event (first N real accounts, hermit_start_signup_event) or a game bounty (hermit_set_bounty).
                              Lists events (winners, Stop) and all current games (hermit_list_rooms).
+20f. pot-plinko.js        ← window.PotPlinko: the pot drop at game over (lobby.js showGameOverToAll -> onGameOver). Polls
+                             get_pot_drop(room); pending -> calls edge fn pot-drop; done -> lazy-loads 'matter'
+                             (js/vendor/matter.min.js) + 'plinko-sim' (js/plinko-sim.js, shared with the edge function)
+                             and replays the drop on a canvas (Gold Coin P73 coins, Treasure Chest P75). A dry run first;
+                             coins that would land elsewhere are steered to the server's slots. Rewards.checkNotices waits
+                             while busy(). preview(seed, coins) for testing. tools/plinko-tune.mjs = odds + determinism.
 21. bot-state.js           ← window.BotState — game-state snapshot / legal actions / apply (no strategy)
 22. bot-sim.js             ← window.BotSim — pure forward model (simulate / legalActions / isTerminal) + validate() harness
 22b. bot-terms.js         ← window.BotTerms: formula terms = extra bot senses as plain data (WEIGHTS.terms:
@@ -343,8 +349,8 @@ Order matters — later scripts depend on earlier ones.
                              chosen order to localStorage and exports it as JSON for hardcoding back in
 30. asset-preloader.js     ← window.AssetPreloader — background-loads in-game art + sounds after the intro;
                              shows a loading bar over the board if a match starts before it's done
-                             Also window.LazyScripts.load('tutorial'|'bot-arena'): loads #18/#26 on idle after
-                             the preload, or on demand from their entry points (Tutorial button, Train Bot,
+                             Also window.LazyScripts.load('tutorial'|'bot-arena'|'matter'|'plinko-sim'): loads #18/#26 on idle after
+                             the preload ('matter' / 'plinko-sim' only on demand, onDemand), or on demand from their entry points (Tutorial button, Train Bot,
                              cheat/bot-training panels, bot-driver.js per-bot weights) — await it before
                              touching window.TutorialMode / window.BotArena from any NEW entry point.
 ```
@@ -404,7 +410,8 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `hermit_events` / `hermit_event_winners` | hermit-rewards.js, rewards.js | Sign-up events: the first `max_winners` real (not `Guest` + 6 chars) accounts made after `started_at` get the reward via `claim_signup_events()`. RLS on, no client policies; hermit RPCs `hermit_start_signup_event`, `hermit_stop_event`, `hermit_list_events` (sql/hermit-rewards.sql). |
 | `game_bounties` | hermit-rewards.js, rewards.js | Hermit reward on a room (`room_id` pk): paid once to the winner by `_pay_game_win` -> `_pay_bounty`. `hermit_set_bounty` / `hermit_clear_bounty` / `hermit_list_rooms`; public `list_bounties()` (unpaid only). |
 | `reward_notices` | rewards.js | One row per reward given, shown as a pop-up: `my_reward_notices()`, `mark_reward_notice_seen(id)`. `kind` = hermit (`_grant_reward`) / gift / pot, picks the pop-up animation. |
-| `gifts` / `game_pot` / `pot_payouts` | rewards.js, gamification-ui.js (Shop > Features), hermit-rewards.js | Gifts: `send_gift(name, phrase 1-7)` costs 100g, receiver gets random 25-100g, rest to `game_pot` (one row); one gift received per UTC day (unique index), no guests, not yourself, set phrases only (`_gift_phrases()`). Pot: `finish_match` -> `_maybe_pay_pot` (real finished game, not last_standing, >= 2 non-guest humans, >= 6 turns, pot >= 100g, chance `_pot_chance()` = pot / 1000, at most 0.5 (1% per 10g), once per UTC day via `pot_payouts.paid_on` unique) splits it evenly. Public `get_pot()`, hermit `hermit_add_to_pot(n)`. Badges generous (10 `gift_sent`) and jackpot (`pot_won`). sql/gifts-pot.sql. |
+| `pot_drops` | pot-plinko.js, edge fn pot-drop | The pot drop (sql/pot-plinko.sql): one row per qualifying match (seed, coins = `_pot_coins(pot)` = pot / 10 max 70, users to pay, status pending/done, slots per coin (-1 = treasure), hit_coin, won, share, sim_version). Edge function `pot-drop` (service role; POST {room}) runs js/plinko-sim.js (copy in the function folder) with Matter.js 0.19.0 and calls `_settle_pot_drop(id, slots, version)` (service role only) which pays like before; it also settles up to 5 stale pending drops. Players read it with `get_pot_drop(room)` (players of that match, last 10 min). `_pot_chance()` = 1 - 0.99^coins (display only). RLS on, no client policies. |
+| `gifts` / `game_pot` / `pot_payouts` | rewards.js, gamification-ui.js (Shop > Features), hermit-rewards.js | Gifts: `send_gift(name, phrase 1-7)` costs 100g, receiver gets random 25-100g, rest to `game_pot` (one row); one gift received per UTC day (unique index), no guests, not yourself, set phrases only (`_gift_phrases()`). Pot: `finish_match` -> `_maybe_pay_pot` (real finished game, not last_standing, >= 2 non-guest humans, >= 6 turns, pot >= 100g, pot not paid today) records a `pot_drops` row (see next row); a win splits it evenly, once per UTC day via `pot_payouts.paid_on` unique. Public `get_pot()`, hermit `hermit_add_to_pot(n)`. Badges generous (10 `gift_sent`) and jackpot (`pot_won`). sql/gifts-pot.sql. |
 | `account_recovery` | edge fn account-recovery | Optional recovery email per account (+ verified flag, confirm token hash). RLS on, NO client policies; client only uses RPCs `my_recovery_email()` / `remove_my_recovery_email()`. `sql/account-recovery.sql` |
 | `mailing_list` | lobby.js register form, account-recovery.js settings | Opt-in for human-written news emails (max once a month, sent by hand). RLS on, no client policies: `set_mailing_list(bool)`, `my_mailing_list()`, hermit-only `hermit_mailing_list()` (opted in AND confirmed recovery email; address from `account_recovery`). sql/mailing-list.sql |
 | `recovery_email_log` | edge fn account-recovery | One row per email sent, for rate limits (2/account/hour, 3/address/day, 90/day total). Server only. |

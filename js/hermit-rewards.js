@@ -1,5 +1,5 @@
 // hermit-rewards.js: Hermit-only "Rewards" panel (Hermit menu > Rewards, and
-// the 🎁 button on lobby room cards). Server: sql/hermit-rewards.sql.
+// the Gift emote button on lobby room cards). Server: sql/hermit-rewards.sql.
 //
 // One reward form (title, message, gold, badge, items) is used for:
 //   * Sign-up event: "the first N people to make a real (non-guest)
@@ -15,6 +15,7 @@
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const isHermit = () => typeof window.isHermit === 'function' && window.isHermit();
     const toast = (m) => window.gami?.notify?.(m, 0, 'gold');
+    const gift = (s) => window.emojiSystem?.spriteHtml?.(76, s) || '';   // Pipoya Gift emote
 
     let manifest = null;
     async function loadManifest() {
@@ -118,7 +119,7 @@
     async function renderPot() {
         const el = panel?.querySelector('.hr-pot-amt');
         const pot = await window.Rewards?.getPot?.();
-        if (el && pot) el.textContent = `${pot.amount}g${pot.paid_today ? ' (paid out today)' : ''}, chance ${Math.round((pot.chance || 0) * 100)}% per game (1% per 10g, max 50%)`;
+        if (el && pot) el.textContent = `${pot.amount}g${pot.paid_today ? ' (paid out today)' : ''}, ${pot.coins} coins, about ${Math.round((pot.chance || 0) * 100)}% per game (a coin per 10g, max 70)`;
     }
 
     async function addToPot() {
@@ -217,8 +218,8 @@
                 <div><b>#${r.id}</b> ${esc(r.host_name || '')} <span class="hr-status">${esc(r.status)}${r.is_private ? ', private' : ''}</span></div>
                 <div class="hr-players">${(r.players || []).map(esc).join(', ')}</div>
                 ${r.bounty_winner ? `<div class="hr-paid">Reward won by ${esc(r.bounty_winner)}</div>`
-                  : r.bounty_title !== null ? `<div class="hr-bounty">🎁 ${esc(r.bounty_title || 'Reward')} ${r.bounty_gold ? r.bounty_gold + 'g' : ''} ${esc(r.bounty_badge || '')}</div>` : ''}
-                <button data-set="${r.id}">🎁 Put reward</button>
+                  : r.bounty_title !== null ? `<div class="hr-bounty">${gift(0.6)}${esc(r.bounty_title || 'Reward')} ${r.bounty_gold ? r.bounty_gold + 'g' : ''} ${esc(r.bounty_badge || '')}</div>` : ''}
+                <button data-set="${r.id}">${gift(0.6)}Put reward</button>
                 ${r.bounty_title !== null && !r.bounty_winner ? `<button data-clear="${r.id}">Remove</button>` : ''}
             </div>`).join('') || '<div class="hr-hint">No games right now.</div>';
         box.querySelectorAll('[data-set]').forEach(b => b.onclick = () => setBounty(Number(b.dataset.set)));

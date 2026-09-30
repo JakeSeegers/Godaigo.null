@@ -111,6 +111,8 @@
     let showing = false;
     async function checkNotices() {
         if (!signedIn() || showing) return;
+        // The pot drop is on screen: its pop-up comes after (pot-plinko.js calls this when done).
+        if (window.PotPlinko?.busy?.()) return;
         let rows = [];
         try {
             const { data, error } = await supabase.rpc('my_reward_notices');
@@ -257,9 +259,9 @@
             await loadCatalog();
             const what = [b.gold ? `${b.gold}g` : '', b.badge_id ? `the ${catalog.get(b.badge_id)?.name || 'special'} badge` : '',
                           b.has_items ? 'secret items' : ''].filter(Boolean).join(', ');
-            const msg = `🎁 The Hermit put a reward on this game${b.title ? ` ("${b.title}")` : ''}${what ? `: ${what}` : ''}. Win it!`;
+            const msg = `The Hermit put a reward on this game${b.title ? ` ("${b.title}")` : ''}${what ? `: ${what}` : ''}. Win it!`;
             try { updateStatus(msg); } catch (e) {}
-            gami()?.notify?.(msg, 0, 'gold');
+            gami()?.notify?.((window.emojiSystem?.spriteHtml?.(76, 0.8) || '') + esc(msg), 0, 'gold');
         } catch (e) {}
     }
 

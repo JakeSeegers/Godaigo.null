@@ -4732,3 +4732,16 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
 @media (prefers-reduced-motion: reduce) {
   .rn-kind-gift .rn-anim-icon, .rn-kind-pot .rn-anim-icon, .reward-notice .rn-sparks i, .reward-notice .rn-coins i, .reward-notice .rn-splitting { animation: none; }
 }
+
+/* Pot drop at game over (js/pot-plinko.js) */
+#pot-plinko { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; background: rgba(8, 6, 14, 0.72); }
+#pot-plinko .pp-panel { background: #1d1829; border: 2px solid #ffd54a; border-radius: 10px; padding: 12px 14px; max-width: calc(100vw - 32px); color: #f3ead2; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
+#pot-plinko .pp-head { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 17px; }
+#pot-plinko .pp-sub { font-size: 12px; opacity: 0.8; margin: 2px 0 8px; }
+#pot-plinko .pp-canvas { display: block; margin: 0 auto; border-radius: 6px; image-rendering: pixelated; }
+#pot-plinko .pp-status { min-height: 26px; margin-top: 8px; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+#pot-plinko .pp-status.pp-win { color: #ffd54a; font-weight: bold; }
+#pot-plinko .pp-buttons { display: flex; justify-content: center; }
+#pot-plinko .pp-buttons button { margin-top: 6px; padding: 5px 16px; cursor: pointer; }
+.game-room-bounty .px-emote, #hermit-rewards-panel .px-emote, .gami-toast .px-emote { margin-right: 3px; }
+.game-room-reward-btn { line-height: 0; }

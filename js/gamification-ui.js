@@ -380,8 +380,8 @@ async function _gami_fillPot(content) {
     const pct = Math.round((pot.chance || 0) * 100);
     const state = pot.paid_today ? 'It already paid out today; next chance tomorrow (UTC).'
         : pot.amount < pot.min ? `It can pay out once it holds at least ${pot.min}g.`
-        : `Chance per game: ${pct}% (1% for every 10g in the pot, at most 50%). Pays out once a day.`;
-    desc.innerHTML = `When a game with 2 or more players (not guests) ends, the pot may pay out. Everyone in that game gets an equal share. ${_esc(state)}`;
+        : `Right now that is ${pot.coins} coins, about a ${pct}% chance per game. Pays out once a day.`;
+    desc.innerHTML = `When a game with 2 or more players (not guests) ends, the pot drops: every 10g is a coin (at most 70) falling through a board of pegs. Each coin has about a 1 in 100 chance to fall into the treasure. One coin in, and everyone in that game gets an equal share. ${_esc(state)}`;
 }
 
 // Suggest friends and recent players (js/social.js) in the name box.

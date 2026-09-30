@@ -194,6 +194,9 @@
     const LAZY = {
         'tutorial':  { src: 'js/tutorial-mode.js', global: 'TutorialMode' },
         'bot-arena': { src: 'js/bot-arena.js',     global: 'BotArena' },
+        // The pot drop at game over (js/pot-plinko.js). Only loaded when a drop happens.
+        'matter':     { src: 'js/vendor/matter.min.js', global: 'Matter',    onDemand: true },
+        'plinko-sim': { src: 'js/plinko-sim.js',        global: 'PlinkoSim', onDemand: true },
     };
 
     function load(name) {
@@ -217,7 +220,7 @@
     }
 
     function loadAllWhenIdle() {
-        const go = () => Object.keys(LAZY).forEach(n => load(n).catch(err => console.warn(err.message)));
+        const go = () => Object.keys(LAZY).filter(n => !LAZY[n].onDemand).forEach(n => load(n).catch(err => console.warn(err.message)));
         if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 3000 });
         else setTimeout(go, 1000);
     }

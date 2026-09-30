@@ -121,6 +121,15 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: The pot drop (plinko)** (owner idea: "use the actual physics code to calculate if there's a win").
+  The pot is no longer a hidden random() roll: sql/pot-plinko.sql (migration pot_plinko) records a pot_drops row
+  (seed, coins = pot / 10, max 70) from finish_match; edge fn supabase/functions/pot-drop runs js/plinko-sim.js
+  (Matter.js 0.19.0, vendored in js/vendor/) and settles/pays; js/pot-plinko.js replays it for every player at
+  game over. Checked: same slots in Node, Chromium and Deno; odds measured (tools/plinko-tune.mjs) 10 coins 10.5%,
+  30 = 29%, 50 = 43%, 70 = 55%. Coins bump into each other, which keeps each coin close to a separate 1% try (with
+  coins passing through each other the coins followed the same lanes and 100 coins only won 15%). Also: the 🎁
+  emojis are now the Pipoya Gift emote (sprite 76; Gold Coin 73, Treasure Chest 75). Not yet seen in a real online
+  game: check the edge function logs after the first real pot drop.
 - **2026-09-30: Gifts and the pot** (owner). sql/gifts-pot.sql (migrations gifts_pot, pot_fill_chance, pot_fill_chance_cap50): send_gift
   (100g, receiver 25-100g, rest to the pot, 1 gift received per UTC day, no guests), pot paid from finish_match (real
   human game, >= 100g, once per UTC day, chance 1% per 10g in the pot, max 50%; an earlier login-based chance was replaced), Hermit add-to-pot, badges Generous

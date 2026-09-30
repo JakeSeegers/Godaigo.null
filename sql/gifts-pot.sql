@@ -14,6 +14,8 @@
 --   Chance (migration pot_fill_chance_cap50): _pot_chance() = pot / 1000, at most
 --   0.5: 1% per 10g, 100g = 10%, 500g or more = 50%. get_pot() returns it.
 --   (Replaced pot_dynamic_chance, which used 2 / accounts active today.)
+--   REPLACED by sql/pot-plinko.sql (migration pot_plinko): the pot is now decided by a
+--   physics drop (pot_drops + edge function pot-drop), not random().
 -- hermit_add_to_pot(amount): the Hermit adds (new) gold to the pot.
 -- Badges: generous (send 10 gifts, activity 'gift_sent') and jackpot (win the
 --   pot, activity 'pot_won'); both use the existing criteria types.
