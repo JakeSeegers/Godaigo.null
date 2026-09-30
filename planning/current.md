@@ -121,9 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
-- **2026-09-30: Pause on drop + host Pause button** (owner), branch `feature/pause-on-drop`, NOT merged: goes
-  live after the stream. js/game-pause.js (see js/INDEX.md, docs/network-resilience.md). Needs a real 2-browser
-  online test before merging into fixes/all-consolidated.
+- **2026-09-30: Pause on drop + host Pause button** (owner). js/game-pause.js (see js/INDEX.md,
+  docs/network-resilience.md). Built on `feature/pause-on-drop`, merged live the same day on the owner's call
+  (no preview available to test first). Needs a real 2-browser online test; if broken, roll back in Cloudflare
+  (godaigo > Deployments / Version History) to the 2026-09-30.1414 version.
 - **2026-09-30: Cloudflare build repo fixed** (owner). Workers Builds still pointed at `JakeSeegers/Godaigo.Elements`
   (now the redirect repo, branch `main`) after the rename, so the site stopped at version 2026-09-30.1347.
   Reconnected to `Godaigo.null` / `fixes/all-consolidated`. This docs commit starts the first build from it.

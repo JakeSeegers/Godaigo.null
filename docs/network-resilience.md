@@ -4,8 +4,8 @@ Goal: a network drop, a refresh or a closed tab should not end a game or put
 the boards out of sync. Short problems stay hidden. Long problems give the
 host a clear choice.
 
-Status: Parts A and B are live (2026-09-30). "Pause on drop" (below) is built on branch
-`feature/pause-on-drop` (js/game-pause.js), to go live after the 2026-09-30 stream. It replaces
+Status: Parts A and B are live (2026-09-30). "Pause on drop" (below) is live (js/game-pause.js, merged 2026-09-30 from
+`feature/pause-on-drop`). It replaces
 Phase 1 and the Wait / Kick part of Phase 2. Phase 2 rejoin-after-refresh and Phase 3 are still plans.
 
 ---
