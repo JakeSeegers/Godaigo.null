@@ -129,6 +129,7 @@ reach/beat it from here.
   paused for a reconnecting active player, scroll sync requested on reconnect. NOT done (Part C, after the stream):
   keep the seat on refresh and rebuild the board from match_moves (replay engine) + fingerprint check, host
   Wait / Kick dialog, re-sending board moves missed during a drop.
+  Full plan: docs/network-resilience.md (phases, owner decisions D1-D5, test plan).
 - **2026-09-30: Background-tab savings for stream night** (owner). Lobby game list skips its 5 s refresh while
   the tab is hidden and runs the two cleanup RPCs (`cleanup_inactive_players`, `cleanup_ghost_rooms`) at most every
   30 s instead of every 5 s. Pawn cosmetics timers, the placement-tile overlay poll and the Game Log buffs /
