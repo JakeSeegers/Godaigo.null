@@ -1159,6 +1159,7 @@
         function showGameOverToAll(winnerPlayerIndex, winType = 'scrolls') {
             console.log('Game over for winner index:', winnerPlayerIndex, 'Type:', winType);
             _pageLeaveAllowed = true; // the game is over: no "Leave site?" question any more
+            window.GamePause?.reset(); // nothing to wait for any more
 
             // Witness report: this browser checks the winner against its own
             // board and tells the server (js/match-witness.js). Once per game.
@@ -1453,6 +1454,8 @@
                             if (room && room.status === 'playing') {
                                 const leftPlayer = allPlayersData.find(p => p.id === payload.old.id);
                                 const playerName = leftPlayer ? getPlayerColorName(leftPlayer.player_index) : 'A player';
+                                // Their seat is gone: stop waiting for them (game-pause.js).
+                                if (leftPlayer) window.GamePause?.forget(leftPlayer.player_index);
                                 updateStatus(`${playerName} left the game`);
 
                                 // Check if I'm the only player left (scoped to this room)
@@ -2359,59 +2362,6 @@
             _scrollSyncTicksSinceBroadcast = 0;
         }
 
-        // ── Reconnect grace (see the presence handlers in setupGameBroadcast) ──
-        const RECONNECT_NOTICE_MS = 5 * 1000;  // shorter drops are never shown
-        const RECONNECT_GRACE_MS = 60 * 1000;  // then "last player standing" may apply
-        const _reconnecting = new Map();       // playerIndex -> { since, shown, noticeTimer, graceTimer }
-
-        function _presentIndices() {
-            try {
-                return Object.values(gameChannel?.presenceState() || {}).flat().map(s => s.playerIndex);
-            } catch (e) { return []; }
-        }
-
-        function _startReconnectGrace(idx) {
-            if (_reconnecting.has(idx)) return;
-            const entry = { since: Date.now(), shown: false, noticeTimer: null, graceTimer: null };
-            _reconnecting.set(idx, entry);
-            entry.noticeTimer = setTimeout(() => {
-                if (_reconnecting.get(idx) !== entry || !isMultiplayer) return;
-                entry.shown = true;
-                updateStatus(`${getPlayerColorName(idx)} lost connection - waiting for them to reconnect...`);
-            }, RECONNECT_NOTICE_MS);
-            entry.graceTimer = setTimeout(() => {
-                if (_reconnecting.get(idx) !== entry) return;
-                _endReconnectGrace(idx, false);
-                // Game already over (or we are leaving): nothing to decide.
-                if (!isMultiplayer || !currentGameId || _pageLeaveAllowed) return;
-                if (_presentIndices().includes(idx)) return; // came back without a join event
-                const othersStillConnected = _presentIndices().filter(i => i !== myPlayerIndex);
-                if (othersStillConnected.length === 0 && myPlayerIndex !== null && myPlayerIndex !== undefined) {
-                    handleGameOver(myPlayerIndex, 'last_standing');
-                } else {
-                    updateStatus(`${getPlayerColorName(idx)} disconnected`);
-                }
-            }, RECONNECT_GRACE_MS);
-        }
-
-        // back = true: the player is connected again.
-        function _endReconnectGrace(idx, back) {
-            const entry = _reconnecting.get(idx);
-            if (!entry) return;
-            clearTimeout(entry.noticeTimer);
-            clearTimeout(entry.graceTimer);
-            _reconnecting.delete(idx);
-            if (!back) return;
-            // Host: the turn timer did not run for them while they were away.
-            if (isHost && typeof activePlayerIndex !== 'undefined' && activePlayerIndex === idx && turnStartedAtMs) {
-                turnStartedAtMs += Date.now() - entry.since;
-            }
-            if (entry.shown) updateStatus(`${getPlayerColorName(idx)} is back`);
-        }
-
-        // game-core.js checkTurnTimeout(): no timeout for a player who is reconnecting.
-        window.isPlayerReconnecting = (idx) => _reconnecting.has(idx);
-
         // isReconnectAttempt: true only when THIS function's own auto-reconnect
         // (below, in the subscribe() status callback) is rebuilding a dropped
         // channel — every other caller is a genuine fresh join, which should
@@ -2431,9 +2381,16 @@
                 }
             });
 
+            // Pause on drop (js/game-pause.js): knows this channel's handlers
+            // so missed messages can be replayed through them after a drop.
+            window.GamePause?.attach(gameChannel);
+
             // Match recording (host only): every message from the others.
+            // gp-* are pause control messages, never recorded.
             gameChannel.on('broadcast', { event: '*' }, (msg) => {
                 const p = msg?.payload;
+                if (String(msg?.event || '').startsWith('gp-')) return;
+                window.GamePause?.note(msg?.event, p);
                 window.MatchRecorder?.record(msg?.event, p,
                     typeof p?.playerIndex === 'number' ? p.playerIndex : null);
             });
@@ -4056,27 +4013,26 @@
                 showGameOverToAll(payload.winnerIndex, payload.winType || 'scrolls');
             });
 
-            // Presence: a WebSocket leave event means a player's connection
-            // dropped. Grace period (2026-09-30, stream night): a short drop
-            // stays hidden, and a win by "last player standing" only happens
-            // if the player is still gone after RECONNECT_GRACE_MS. Before, a
-            // 2-second Wi-Fi blip in a 2-player game handed the other player
-            // an instant win. A player who really left (their seat is deleted)
-            // is still handled at once by the players DELETE handler.
+            // Presence: a leave event means a player's connection dropped.
+            // js/game-pause.js pauses the game for everyone until they are back
+            // (short drops stay hidden), and after 60 s asks what to do
+            // (Wait / Kick, or Claim win when nobody else is left). Before
+            // 2026-09-30 a 2-second Wi-Fi blip in a 2-player game handed the
+            // other player an instant win. A player who really left (their
+            // seat is deleted) is still handled at once by the players DELETE
+            // handler.
             gameChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
                 if (!isMultiplayer || !currentGameId) return;
                 leftPresences.forEach(p => {
                     if (p.playerIndex === myPlayerIndex) return; // ignore our own leave echo
-                    const isOurGame = allPlayersData.some(ap => ap.player_index === p.playerIndex);
-                    if (!isOurGame) return;
-                    console.log('Presence: player', p.playerIndex, 'connection dropped, waiting for reconnect');
-                    _startReconnectGrace(p.playerIndex);
+                    console.log('Presence: player', p.playerIndex, 'connection dropped');
+                    window.GamePause?.peerLeft(p.playerIndex);
                 });
             });
             gameChannel.on('presence', { event: 'join' }, ({ newPresences }) => {
                 (newPresences || []).forEach(p => {
                     if (p.playerIndex === myPlayerIndex) return;
-                    _endReconnectGrace(p.playerIndex, true);
+                    window.GamePause?.peerJoined(p.playerIndex);
                 });
             });
 
@@ -4098,6 +4054,11 @@
                     if (isReconnectAttempt && !isHost && myPlayerIndex !== null && myPlayerIndex !== undefined) {
                         broadcastGameAction('scroll-state-sync-request', { playerIndex: myPlayerIndex });
                     }
+                    // Catch up on what we missed (game-pause.js). Give presence
+                    // a moment to sync first, so we know who can answer.
+                    const again = !!isReconnectAttempt || !!thisChannel.__subscribedBefore;
+                    thisChannel.__subscribedBefore = true;
+                    setTimeout(() => { if (gameChannel === thisChannel) window.GamePause?.selfUp(again); }, 1500);
                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                     console.warn('⚠️ Game broadcast channel status:', status);
                     // Only react if this callback still belongs to the CURRENTLY
@@ -4111,13 +4072,13 @@
                     // that's already being rebuilt. Also covers a deliberate leave
                     // (gameChannel set to null or reassigned elsewhere) for free.
                     if (!isMultiplayer || gameChannel !== thisChannel) return;
-                    if (_gameChannelReconnectAttempts >= 5) {
-                        updateStatus('⚠️ Lost connection to the game and couldn\'t reconnect. Your view may be out of sync - try refreshing.');
-                        return;
-                    }
+                    // The game is paused for everyone until we are back
+                    // (game-pause.js), so keep trying (every 30 s at most)
+                    // instead of giving up after 5 tries.
+                    window.GamePause?.selfDown();
                     const delay = Math.min(30000, 2000 * Math.pow(2, _gameChannelReconnectAttempts));
                     _gameChannelReconnectAttempts++;
-                    updateStatus(`⚠️ Connection to game dropped - reconnecting (attempt ${_gameChannelReconnectAttempts})…`);
+                    updateStatus(`⚠️ Connection to game dropped - reconnecting (attempt ${_gameChannelReconnectAttempts})...`);
                     setTimeout(() => {
                         if (!isMultiplayer || gameChannel !== thisChannel) return;
                         setupGameBroadcast(true);
@@ -4284,6 +4245,9 @@
             // treats this as fire-and-forget (matches the rest of this codebase's
             // broadcast usage), but a failed send is exactly the kind of thing that
             // should move the connection badge instead of vanishing into the void.
+            // Message id + recent history for catch-up after a drop (game-pause.js).
+            window.GamePause?.stamp(event, payload);
+
             const sendResult = gameChannel.send({
                 type: 'broadcast',
                 event: event,

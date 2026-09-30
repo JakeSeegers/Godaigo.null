@@ -4,7 +4,9 @@ Goal: a network drop, a refresh or a closed tab should not end a game or put
 the boards out of sync. Short problems stay hidden. Long problems give the
 host a clear choice.
 
-Status: Parts A and B are live (2026-09-30). Everything below "Phase 1" is a plan.
+Status: Parts A and B are live (2026-09-30). "Pause on drop" (below) is built on branch
+`feature/pause-on-drop` (js/game-pause.js), to go live after the 2026-09-30 stream. It replaces
+Phase 1 and the Wait / Kick part of Phase 2. Phase 2 rejoin-after-refresh and Phase 3 are still plans.
 
 ---
 
@@ -27,6 +29,33 @@ that player (only scrolls catch up). After a refresh, **the seat is gone** and
 there is no way back into the game.
 
 ---
+
+## Pause on drop (built, owner idea 2026-09-30)
+
+Only the active player changes the board, so freezing the game while anyone is
+disconnected means there is almost nothing to catch up. js/game-pause.js:
+
+- Pause reasons: another player's presence leave, my own channel error, the host's
+  Pause button (HUD, host only; Resume in the HUD or on the overlay).
+- While paused: a clear overlay takes clicks and keys; text shows after 5 s (own
+  drop 2 s, host pause at once). Bots and the host turn timeout wait. Every client
+  adds the paused time back to `turnStartedAtMs`.
+- Catch-up for the moves made before the others noticed the drop (up to ~30 s):
+  message ids + a 150-message history on every client, `gp-resync-request` ->
+  lowest present seat answers with the missed messages and its fingerprint ->
+  replayed through the channel handlers -> fingerprints compared (retries) ->
+  `gp-resync-done` unpauses the others (fallback 10 s after they are back).
+- After 60 s: host sees Wait / Kick; if the host is the one gone, the others see
+  Wait / Continue without them; the last human sees Wait / Claim win. Wait asks
+  again after 2 min.
+- The own channel now keeps retrying (every 30 s at most) instead of giving up after 5.
+- Decisions taken: D1 = pause, D5 = block input.
+- Known limit: response-window countdowns (15 s) keep running during a pause.
+- Tested with a two-page Playwright harness (fake channel over BroadcastChannel):
+  missed moves arrive, fingerprints match, clock extended, host pause, all three
+  60 s panels. Not yet tested in a real online game.
+
+The Phase 1 text below is the older, larger plan, kept for reference.
 
 ## Phase 1: catch up after a short drop (medium, client only)
 

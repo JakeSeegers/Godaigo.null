@@ -4787,6 +4787,9 @@
     const tick = ms => sleep(Math.max(0, ms * (window.BotSystem?.speedScale ?? 1)));
 
     async function waitForQuiescence() {
+        // Online game paused (game-pause.js: a player dropped, or the host
+        // paused): the bot waits too. Never true in the arena.
+        while (window.isGamePaused?.()) await sleep(250);
         const deadline = Date.now() + 25000;
         while (Date.now() < deadline) {
             // Let a playing effect (fire burning stones, ~1.7 s) finish first:

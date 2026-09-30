@@ -144,6 +144,12 @@ Order matters — later scripts depend on earlier ones.
                              (multiplayer-state.js sets window.__godaigoRecoveryLink before the client
                              consumes the hash).
 17. lobby.js               ← Auth, room management, startGame() (depends on game-core)
+17a. game-pause.js         ← window.GamePause / isGamePaused(): pauses an online game for everyone while a player's
+                             connection is down or the host pressed the HUD Pause button. Overlay blocks input,
+                             bots + turn timeout wait, paused time given back. Catch-up after a drop: `_mid` on
+                             every game message, gp-resync-request / -moves / -done + fingerprint check. After 60 s:
+                             Wait / Kick (host), Continue without them (host gone), Claim win (last human).
+                             docs/network-resilience.md.
 17b. match-recorder.js     ← window.MatchRecorder: HOST-only recording of every online game's broadcast
                              messages to Supabase (`matches` + `match_moves`, sql/match-recording.sql).
                              Hooks in lobby.js: broadcastGameAction (own/bot sends; channel is self:false),

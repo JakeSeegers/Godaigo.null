@@ -5753,6 +5753,9 @@ function clearPlayerPath() {
                 return;
             }
 
+            // Paused (game-pause.js): keep showing the last value.
+            if (window.isGamePaused?.()) return;
+
             const now = Date.now();
             const elapsed = now - (turnStartedAtMs || now);
             const timeRemaining = gameInactivityTimeout - elapsed;
@@ -5859,9 +5862,9 @@ function clearPlayerPath() {
             // off a host-side connectivity blip is exactly the kind of confusing,
             // seemingly-random breakage this exists to prevent.
             if (window.ConnectionMonitor && !window.ConnectionMonitor.isWorkable()) return;
-            // The active player's connection dropped a moment ago (lobby.js
-            // reconnect grace): their clock pauses until they are back.
-            if (window.isPlayerReconnecting?.(activePlayerIndex)) return;
+            // Game paused (a player's connection dropped, or the host paused):
+            // no timeouts. game-pause.js gives the paused time back.
+            if (window.isGamePaused?.()) return;
 
             const now = Date.now();
             const elapsed = now - (turnStartedAtMs || now);
