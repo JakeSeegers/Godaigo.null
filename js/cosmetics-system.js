@@ -61,7 +61,6 @@
         { id: 'pawn_rim_gold',     slot: 'rim',   group: 'Pawn rims',   name: 'Gold Rim',     cost: 100 },
         { id: 'pawn_rim_silver',   slot: 'rim',   group: 'Pawn rims',   name: 'Silver Rim',   cost: 100 },
         { id: 'pawn_rim_runes',    slot: 'rim',   group: 'Pawn rims',   name: 'Rune Ring',    cost: 150 },
-        { id: 'pawn_base_lotus',   slot: 'base',  group: 'Pawn bases',  name: 'Lotus Leaf',   cost: 125 },
         { id: 'pawn_base_plinth',  slot: 'base',  group: 'Pawn bases',  name: 'Stone Plinth', cost: 125 },
         { id: 'pawn_trail_ink',    slot: 'trail', group: 'Pawn trails', name: 'Ink',          cost: 150 },
         { id: 'pawn_trail_embers', slot: 'trail', group: 'Pawn trails', name: 'Embers',       cost: 150 },

@@ -68,18 +68,9 @@
     // ── Bases ────────────────────────────────────────────────────
     function makeBase(id, r) {
         const g = el('g', { class: 'pawn-cos pawn-cos-base', 'pointer-events': 'none' });
-        const R = r * (id === 'pawn_base_lotus' ? 1.7 : 1.5);
-        if (id === 'pawn_base_lotus') {
-            // Lily pad with a notch, slightly below the pawn like it floats on it.
-            const a1 = -Math.PI / 2 + 0.3, a2 = -Math.PI / 2 - 0.3, dy = 3;
-            const d = `M0,${dy} L${(R * Math.cos(a1)).toFixed(2)},${(R * Math.sin(a1) + dy).toFixed(2)} ` +
-                      `A${R},${R} 0 1 1 ${(R * Math.cos(a2)).toFixed(2)},${(R * Math.sin(a2) + dy).toFixed(2)} Z`;
-            el('path', { d, fill: '#3f8a4a', stroke: '#1d4a25', 'stroke-width': 0.8 }, g);
-            [0.6, 1.4, 2.2, 3.0, 3.8, 4.6].forEach(a => {
-                el('line', { x1: 0, y1: dy, x2: (R * 0.85 * Math.cos(a)).toFixed(2), y2: (R * 0.85 * Math.sin(a) + dy).toFixed(2),
-                    stroke: '#6cbf6a', 'stroke-width': 0.4, opacity: 0.7 }, g);
-            });
-        } else if (id === 'pawn_base_plinth') {
+        const R = r * 1.5;
+        // Lotus Leaf base removed (owner, 2026-09-30; sql/remove-lotus.sql).
+        if (id === 'pawn_base_plinth') {
             el('polygon', { points: hexPoints(R, 2.2), fill: '#4a4740' }, g);
             el('polygon', { points: hexPoints(R, 0.6), fill: '#9b978c', stroke: '#4a4740', 'stroke-width': 0.8 }, g);
             el('polygon', { points: hexPoints(R * 0.78, 0.6), fill: 'none', stroke: '#c4c0b4', 'stroke-width': 0.5 }, g);

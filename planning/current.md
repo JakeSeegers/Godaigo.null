@@ -121,6 +121,8 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: Lotus Leaf pawn base removed** (owner). Nobody owned it. Out of PAWN_ITEMS, pawn-cosmetics.js makeBase and
+  cosmetic_price (sql/remove-lotus.sql, migration remove_lotus).
 - **2026-09-30: Hermit rewards** (owner, for the stream). sql/hermit-rewards.sql (applied as migration hermit_rewards,
   tested in rolled-back transactions), js/rewards.js, js/hermit-rewards.js, images/badges/ (plunge.png + badges.json).
   Sign-up events (first N real accounts), game bounties (paid with the win in _pay_game_win), reward pop-ups, special
