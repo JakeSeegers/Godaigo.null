@@ -171,10 +171,11 @@ function _renderCosmetics(content) {
     const cs = window.cosmeticsSystem;
     if (!cs) { content.innerHTML = '<div class="gami-loading">Cosmetics not loaded.</div>'; return; }
 
-    const items    = cs.getItems();
     const data     = cs.getData();
     const equipped = data.equipped || {};
     const owned    = data.owned || [];
+    // Secret items (Hermit rewards, no price) only show to players who own them.
+    const items    = cs.getItems().filter(i => !i.hidden || owned.includes(i.id));
     const gold     = window.gami?.profile?.gold || 0;
 
     content.innerHTML = `
