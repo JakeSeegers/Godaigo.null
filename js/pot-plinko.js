@@ -110,16 +110,17 @@
 
         // Dry run: where would each coin land here? Steer the ones that differ.
         const local = S.simulate({ seed: Number(drop.seed), coins, Matter: M });
+        const T = S.TUBE, tubeMid = T.x + T.w / 2, tubeTop = S.FLOOR_Y - T.h;
         const targetX = slots.map((s, i) => {
             if (local.slots[i] === s) return null;
-            return s === -1 ? S.TREASURE_X + S.TREASURE_W / 2 : s * S.SLOT_W + S.SLOT_W / 2;
+            return s === -1 ? tubeMid : s * S.SLOT_W + S.SLOT_W / 2;
         });
         const steered = targetX.filter(x => x !== null).length;
         if (steered) console.info(`[pot-plinko] steering ${steered} coin(s) to the server's slots`);
 
         const sim = S.create({ seed: Number(drop.seed), coins, Matter: M });
         const pegs = sim.pegs;
-        const chestX = S.TREASURE_X + S.TREASURE_W / 2, chestY = S.FLOOR_Y + 30;
+        const chestX = tubeMid, chestY = S.FLOOR_Y + 30;
         const hitCoin = drop.hit_coin;
 
         const box = document.createElement('div');
@@ -156,7 +157,9 @@
         function coinX(c) {
             const b = c.body, tx = targetX[c.i];
             if (tx === null || tx === undefined) return b.position.x;
-            const k = Math.max(0, Math.min(1, (b.position.y - (S.FLOOR_Y - 90)) / 90));
+            // Steer in the 80 units above the tube's top, so a coin enters (or misses)
+            // the tube from above and never passes through a wall.
+            const k = Math.max(0, Math.min(1, (b.position.y - (tubeTop - 80)) / 80));
             return b.position.x + (tx - b.position.x) * k;
         }
 
@@ -174,8 +177,14 @@
             ctx.fillRect(0, S.FLOOR_Y, S.W, 4);
             ctx.fillStyle = '#3b3456';
             for (let x = S.SLOT_W; x < S.W; x += S.SLOT_W) ctx.fillRect(x - 0.5, S.FLOOR_Y - 10, 1, 10);
+            // The treasure tube: dark inside, gold walls, open at the bottom onto the chest.
+            ctx.fillStyle = '#15121f';
+            ctx.fillRect(T.x, S.FLOOR_Y - 1, T.w, 6);
+            ctx.fillStyle = 'rgba(255, 213, 74, 0.08)';
+            ctx.fillRect(T.x, tubeTop, T.w, T.h);
             ctx.fillStyle = '#ffd54a';
-            ctx.fillRect(S.TREASURE_X, S.FLOOR_Y - 2, S.TREASURE_W, 8);
+            ctx.fillRect(T.x - T.t, tubeTop, T.t, T.h + 4);
+            ctx.fillRect(T.x + T.w, tubeTop, T.t, T.h + 4);
             const bump = chestBump > 0 ? Math.sin(chestBump * 0.4) * 4 : 0;
             drawEmote(ctx, img, CHEST, chestX, chestY - Math.abs(bump), 44, Math.floor(t / 12));
             for (const c of sim.coins) {

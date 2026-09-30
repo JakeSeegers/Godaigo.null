@@ -5,8 +5,11 @@
 //
 // Rule: each 10g in the pot is a coin (at most 70). The coins fall through a
 // board of fixed pegs, with a scattered layer of random pegs on top that the
-// seed places. A coin that crosses the floor inside the narrow treasure slot
-// is a hit; one hit and the pot pays out.
+// seed places. Under the pegs stands the treasure tube: two walls, just wider
+// than a coin. A coin has to come in at the right angle to drop in; a coin that
+// hits the rim bounces away. A coin that reaches the bottom of the tube is a
+// hit (it falls onto the chest); one hit and the pot pays out. (VERSION 1 used
+// a thin gap in the floor instead, which was hard to see.)
 //
 // Kept deterministic across JavaScript engines on purpose:
 //   * no Math.random: all randomness comes from mulberry32(seed);
@@ -17,24 +20,28 @@
 // The server's recorded landing slots are the truth; the browser replays the
 // same simulation and pot-plinko.js only nudges a coin if a slot ever differs.
 //
-// Treasure slot width was tuned with tools/plinko-tune.mjs so one coin lands in
-// it about 1 time in 100 (see TUNING below). Coins bump into each other, which
-// keeps each coin close to its own separate try. Measured (VERSION 1, 1000 drops
-// each): 10 coins win 10.5%, 30 coins 29%, 50 coins 43%, 70 coins 55%.
+// The tube was tuned with tools/plinko-tune.mjs so one coin gets in about 1
+// time in 100 (see TUNING below). Coins bump into each other, which keeps each
+// coin close to its own separate try. Measured (VERSION 2, 500 drops each):
+// 0.96% per coin, no stuck coins; a drop of 10 coins wins 7%, 30 coins 26%,
+// 50 coins 44%, 70 coins 54%.
 // Changing the board changes the odds: bump VERSION and re-run the tuning.
 (function (root) {
     'use strict';
 
-    const VERSION = 1;
+    const VERSION = 2;
 
     // Board, in world units (the canvas scales it).
     const W = 360, H = 560;
     const PEG_R = 4, RAND_PEG_R = 5, COIN_R = 6;
     const ROWS = 9, ROW_Y0 = 170, ROW_DY = 36, COL_DX = 36;
-    const FLOOR_Y = ROW_Y0 + (ROWS - 1) * ROW_DY + 34;   // 486
+    const FLOOR_Y = ROW_Y0 + (ROWS - 1) * ROW_DY + 60;   // 518
     const SLOT_W = 30;                                   // 12 normal slots
-    // TUNING (tools/plinko-tune.mjs, VERSION 1): treasure slot position and width.
-    const TREASURE_X = 84, TREASURE_W = 4.75;
+    // TUNING (tools/plinko-tune.mjs, VERSION 2): the treasure tube. x = left
+    // inner edge, w = inside width (a coin is 12), h = wall height above the
+    // floor, t = wall thickness. Its top sits just under a peg, so a coin must
+    // come in at an angle around that peg.
+    const TUBE = { x: 83.5, w: 13, h: 47, t: 3 };   // under the last-row peg at x 90
     const RAND_PEGS = 7;
     const DROP_EVERY = 5;          // frames between coins
     const MAX_COINS = 70;
@@ -64,10 +71,14 @@
         return M.Body.create(Object.assign({ position: { x, y }, vertices: verts }, options));
     }
 
-    // Slot for a floor crossing at x: -1 = treasure, else 0..11.
+    // Normal slot (0..11) for a floor crossing at x. The treasure (-1) is only
+    // ever a coin that reached the floor inside the tube (see step()).
     function slotAt(x) {
-        if (x >= TREASURE_X && x < TREASURE_X + TREASURE_W) return -1;
         return Math.max(0, Math.min(Math.floor(W / SLOT_W) - 1, Math.floor(x / SLOT_W)));
+    }
+
+    function inTube(x, tube) {
+        return x > tube.x && x < tube.x + tube.w;
     }
 
     // The board layout for a seed (also used by the browser to draw it).
@@ -90,9 +101,11 @@
         return { pegs, rnd };
     }
 
-    // Build a stepping simulation. opts: { seed, coins, Matter }.
+    // Build a stepping simulation. opts: { seed, coins, Matter, tube? } (tube:
+    // only tools/plinko-tune.mjs passes one, to try other sizes).
     function create(opts) {
         const M = opts.Matter;
+        const tube = Object.assign({}, TUBE, opts.tube || {});
         const seed = (opts.seed >>> 0);
         const total = Math.max(0, Math.min(MAX_COINS, opts.coins | 0));
         const { pegs, rnd } = layout(seed);
@@ -102,20 +115,25 @@
         const statics = pegs.map(p => roundBody(M, p.x, p.y, p.r, { isStatic: true, restitution: 0.5, friction: 0 }));
         statics.push(M.Bodies.rectangle(-10, H / 2, 20, H * 2, { isStatic: true }));
         statics.push(M.Bodies.rectangle(W + 10, H / 2, 20, H * 2, { isStatic: true }));
+        // The tube walls (Bodies.rectangle uses no sin/cos). They reach a little
+        // below the floor line so a coin inside cannot slip out at the bottom.
+        const wallY = FLOOR_Y - tube.h / 2 + 10, wallH = tube.h + 20;
+        statics.push(M.Bodies.rectangle(tube.x - tube.t / 2, wallY, tube.t, wallH, { isStatic: true, restitution: 0.5, friction: 0 }));
+        statics.push(M.Bodies.rectangle(tube.x + tube.w + tube.t / 2, wallY, tube.t, wallH, { isStatic: true, restitution: 0.5, friction: 0 }));
         M.Composite.add(world, statics);
 
         // Drop positions, from the seed.
         const drops = [];
         for (let i = 0; i < total; i++) drops.push(W / 2 - 60 + Math.floor(rnd() * 120) + rnd());
 
-        const coins = [];          // { body, i, lx, ly }
+        const coins = [];          // { body, i, lx, ly, stuck }
         const slots = new Array(total).fill(null);
         const landX = new Array(total).fill(null);
         let frame = 0, dropped = 0, landed = 0;
         const maxFrames = total * DROP_EVERY + 1800;
 
         function land(c, x) {
-            slots[c.i] = slotAt(x);
+            slots[c.i] = (c.body.position.y >= FLOOR_Y && inTube(x, tube)) ? -1 : slotAt(x);
             landX[c.i] = x;
             landed++;
             M.Composite.remove(world, c.body);
@@ -138,12 +156,18 @@
                 if (!c.body) continue;
                 const b = c.body;
                 if (b.position.y >= FLOOR_Y) { land(c, b.position.x); continue; }
-                // A coin balanced on a peg (moved less than 1 unit in 30 frames) gets a
-                // small sideways push, left or right by coin index.
+                // A coin balanced on a peg or wedged at the tube rim (moved less than
+                // 1 unit in 30 frames) gets a push: up and sideways, the side switching
+                // each time (starting side by coin index), a bit harder each time.
                 if (frame % 30 === 0) {
                     if (c.lx !== undefined) {
                         const dx = b.position.x - c.lx, dy = b.position.y - c.ly;
-                        if (dx * dx + dy * dy < 1) M.Body.setVelocity(b, { x: (c.i % 2 ? 1.2 : -1.2), y: -0.5 });
+                        if (dx * dx + dy * dy < 1) {
+                            c.stuck = (c.stuck || 0) + 1;
+                            const side = ((c.i + c.stuck) % 2) ? 1 : -1;
+                            const k = Math.min(3, c.stuck);
+                            M.Body.setVelocity(b, { x: side * (1.2 + 0.6 * k), y: -0.5 - 0.5 * k });
+                        }
                     }
                     c.lx = b.position.x; c.ly = b.position.y;
                 }
@@ -161,7 +185,7 @@
             return { version: VERSION, slots: slots.slice(), hit: hit >= 0 ? hit : null, frames: frame, landX: landX.slice() };
         }
 
-        return { engine, pegs, coins, slots, step, result, get frame() { return frame; }, total };
+        return { engine, pegs, coins, slots, step, result, tube, get frame() { return frame; }, total };
     }
 
     // Run to the end. Returns { version, slots, hit, frames, landX }.
@@ -172,8 +196,8 @@
     }
 
     const api = {
-        VERSION, W, H, FLOOR_Y, SLOT_W, TREASURE_X, TREASURE_W, COIN_R, MAX_COINS, DROP_EVERY,
-        layout, slotAt, create, simulate, mulberry32,
+        VERSION, W, H, FLOOR_Y, SLOT_W, TUBE, COIN_R, MAX_COINS, DROP_EVERY,
+        layout, slotAt, inTube, create, simulate, mulberry32,
     };
     root.PlinkoSim = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

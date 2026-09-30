@@ -121,22 +121,16 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
-- **TODO (next): make a pot-drop win easy to see** (owner, after the Hermit demo). Today a hit = the coin CENTRE
-  crosses the floor (y 486) with x in 84..88.75; a 12-wide coin can touch the yellow mark and not count, or count
-  while it looks like a miss, and coins vanish at the floor. Owner's idea (chosen): a narrow TUBE over the
-  treasure. Two thin static walls (Bodies.rectangle, no trig) standing up from the floor, inner width just over a
-  coin (about 13-14), tall enough (about 40-60) that only a coin coming in at the right angle drops in; coins that
-  hit the lip bounce off. Win = a coin reaches the bottom of the tube; it then drops onto the chest (drawn below
-  the tube), so what you see is the rule. Other coins still land on the floor as now. Tune the tube width, height
-  and x so a coin has about 1% (tools/plinko-tune.mjs, bump PlinkoSim VERSION to 2); make sure coins cannot rest
-  on the tube's top edges (the stuck-coin push covers it, check the frame cap count stays 0). Draw the tube (gold
-  walls) and the chest under it; steering a coin into the tube = aim at the tube centre from higher up. Copy the
-  sim to supabase/functions/pot-drop and redeploy; _settle_pot_drop needs no change (slot -1 = treasure).
-  PAUSED by the owner mid-tuning. Work so far: planning/pot-tube-wip.patch (git apply; sim VERSION 2 with
-  the tube + a sweep mode in tools/plinko-tune.mjs). Findings: a plain tube is too easy (3-5% per coin); a tube
-  centred under the last-row peg at x 90 (x 83, w 14) gives h 47 = 1.5%, h 48 = 0.95% but coins wedge between
-  peg and rim (16 of 80 drops hit the frame cap), h 51 = 0.2%. Next try: w 13 at h 46-47, or a stronger
-  stuck-coin push. Nothing live changed.
+- **2026-09-30: Pot drop v2, the treasure tube** (owner's idea, after the Hermit demo showed hits were hard to
+  see). js/plinko-sim.js VERSION 2: the thin floor gap is gone; a tube (x 83.5, inner width 13 = coin + 1,
+  height 47, walls 3) stands under the last-row peg at x 90, so a coin must come in at an angle around that peg.
+  Hit = a coin reaches the floor inside the tube (slot -1); it falls onto the chest. Stuck push is now up and
+  sideways, alternating and stronger each time (coins wedged between the peg and the rim at taller tubes).
+  Measured over 500 drops: 0.96% per coin, 0 stuck drops; 10 coins win 7%, 30 = 26%, 50 = 44%, 70 = 54%.
+  Tuning notes: a plain tube anywhere is 3-5% per coin; under the peg, height is the knob (46 = 2%, 48 = 0.95%
+  but wedges, 51 = 0.2%). tools/plinko-tune.mjs has a sweep mode (XS / WS / HS env). Node, Chromium and Deno
+  give the same slots; edge function pot-drop redeployed (version 2). pot-plinko.js draws the tube and steers
+  coins from 80 units above the tube top.
 - **2026-09-30: The pot drop (plinko)** (owner idea: "use the actual physics code to calculate if there's a win").
   The pot is no longer a hidden random() roll: sql/pot-plinko.sql (migration pot_plinko) records a pot_drops row
   (seed, coins = pot / 10, max 70) from finish_match; edge fn supabase/functions/pot-drop runs js/plinko-sim.js
