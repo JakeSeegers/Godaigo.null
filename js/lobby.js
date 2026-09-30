@@ -670,12 +670,19 @@
                 return;
             }
 
-            list.innerHTML = liveRooms.map(r => `
+            // Hermit rewards on rooms (js/rewards.js, sql/hermit-rewards.sql).
+            await window.Rewards?.refreshBounties?.();
+            const hermit = typeof window.isHermit === 'function' && window.isHermit();
+            list.innerHTML = liveRooms.map(r => {
+                const bounty = window.Rewards?.bountyFor?.(r.id);
+                return `
                 <div class="game-room-card" onclick="joinPublicGame(${r.id})">
-                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}</div>
+                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">🎁 Reward</span>` : ''}</div>
                     <div class="game-room-count">${counts[r.id]} / 5</div>
+                    ${hermit ? `<button class="game-room-reward-btn" title="Put a reward on this game" onclick="event.stopPropagation(); window.HermitRewards?.openForRoom(${r.id}, ${_esc(JSON.stringify(r.host_name || 'Room ' + r.id))})">🎁</button>` : ''}
                     <button class="game-room-join-btn">Join</button>
-                </div>`).join('');
+                </div>`;
+            }).join('');
         }
 
         function startBrowserRefresh() {
@@ -1160,6 +1167,7 @@
             console.log('Game over for winner index:', winnerPlayerIndex, 'Type:', winType);
             _pageLeaveAllowed = true; // the game is over: no "Leave site?" question any more
             window.GamePause?.reset(); // nothing to wait for any more
+            window.Rewards?.afterGameOver(); // a Hermit bounty is paid with the win
 
             // Witness report: this browser checks the winner against its own
             // board and tells the server (js/match-witness.js). Once per game.
@@ -1616,7 +1624,7 @@
 
                     return `
                         <div class="pp-player-row${isMe ? ' is-me' : ''}">
-                            <span><span${p.user_id ? ` class="player-card-link" data-player-card="${p.user_id}" title="View player"` : ''} style="${nameStyle}">${typeof displayUsername === 'function' ? displayUsername(p.username) : p.username}</span>${hostLabel}${meLabel}</span>
+                            <span><span${p.user_id ? ` class="player-card-link" data-player-card="${p.user_id}" title="View player"` : ''} style="${nameStyle}">${typeof displayUsername === 'function' ? displayUsername(p.username) : p.username}</span>${p.user_id ? (window.Rewards?.badgesHtml(window.Rewards.shownFor(p.user_id)) || '') : ''}${hostLabel}${meLabel}</span>
                             <span class="${readyClass}" style="font-size: 20px;">${readyIcon}</span>
                         </div>
                     `;

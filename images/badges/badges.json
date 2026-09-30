@@ -1,0 +1,6 @@
+{
+  "_readme": "Special badges the Hermit can give out (Hermit menu > Rewards). To add one: put a square PNG (128x128, transparent background) in images/badges/, add a line here, push. The id must be unique and never change (players keep it). Shown next to player names when they pick it.",
+  "badges": [
+    { "id": "plunge", "name": "The Plunge", "file": "plunge.png", "description": "Won the Plunge game on stream (2026-09-30)." }
+  ]
+}

@@ -10,7 +10,7 @@
 // Two windows share this modal: Profile (stats, badges, board, settings)
 // and Shop (everything you can buy). A tab id picks its window.
 const GAMI_PROFILE_TABS = [['profile', 'Stats'], ['badges', 'Badges'], ['leaderboard', 'Board'], ['settings', 'Settings']];
-const GAMI_SHOP_TABS    = [['cosmetics', 'Names and Pawns'], ['emojis', 'Emojis']];
+const GAMI_SHOP_TABS    = [['cosmetics', 'Names and Pawns'], ['emojis', 'Emojis'], ['features', 'Features']];
 function _gami_isShopTab(tab) { return GAMI_SHOP_TABS.some(([id]) => id === tab); }
 
 /** Toggle the profile panel open / closed, optionally landing on a given tab
@@ -89,6 +89,7 @@ async function gami_switchTab(tab) {
         if      (tab === 'profile')     await _renderProfile(content);
         else if (tab === 'cosmetics')        _renderCosmetics(content);
         else if (tab === 'emojis')           _renderEmojis(content);
+        else if (tab === 'features')         _renderFeatures(content);
         else if (tab === 'badges')      await _renderBadges(content);
         else if (tab === 'settings')         _renderSettings(content);
         else                            await _renderLeaderboard(content);
@@ -288,21 +289,77 @@ function _renderEmojis(content) {
 
 async function _renderBadges(content) {
     const badges = await window.gami.getBadgesWithStatus();
-    if (!badges.length) {
+    await window.Rewards?.loadCatalog?.();
+    const R = window.Rewards;
+    // Special (Hermit) badges only show once you have them.
+    const list = badges.filter(b => b.earned || !R?.isSpecial(b));
+    if (!list.length) {
         content.innerHTML = '<div class="gami-loading">No badges available.</div>';
         return;
     }
+    const shown = R ? R.shownFor(window.gami.userId) : [];
+    const slots = R ? R.slots() : 1;
 
-    const cards = badges.map(b => `
-        <div class="gami-badge-card ${b.earned ? 'earned' : 'locked'}" title="${_esc(b.description)}">
-            <div class="gami-badge-icon">${b.earned ? b.icon : '?'}</div>
+    const cards = list.map(b => {
+        const icon = b.earned ? (b.image && R ? R.iconHtml(b.id, 'gami-badge-img') : b.icon) : '?';
+        const isShown = shown.includes(b.id);
+        const btn = b.earned && R
+            ? `<button class="gami-badge-show ${isShown ? 'on' : ''}" onclick="_gami_toggleBadge('${_esc(b.id)}')">${isShown ? '✓ By my name' : 'Show by my name'}</button>`
+            : '';
+        return `
+        <div class="gami-badge-card ${b.earned ? 'earned' : 'locked'}${isShown ? ' shown' : ''}" title="${_esc(b.description)}">
+            <div class="gami-badge-icon">${icon}</div>
             <div class="gami-badge-name">${_esc(b.name)}</div>
             <div class="gami-badge-desc">${_esc(b.description)}</div>
             ${b.gold_reward ? `<div class="gami-badge-reward">+${b.gold_reward}g</div>` : ''}
-        </div>
-    `).join('');
+            ${btn}
+        </div>`;
+    }).join('');
 
-    content.innerHTML = `<div class="gami-badges-grid">${cards}</div>`;
+    const head = R ? `
+        <div class="gami-badge-slots">
+            Badges by your name: <b>${shown.length} / ${slots}</b> slots used.
+            ${slots < R.MAX_SLOTS ? `<button class="gami-link-btn" onclick="gami_openShop('features')">Get more slots</button>` : ''}
+        </div>` : '';
+    content.innerHTML = head + `<div class="gami-badges-grid">${cards}</div>`;
+}
+
+async function _gami_toggleBadge(id) {
+    const R = window.Rewards;
+    if (!R) return;
+    const on = R.shownFor(window.gami.userId).includes(id);
+    await (on ? R.hideBadge(id) : R.showBadge(id));
+    const content = document.getElementById('gami-content');
+    if (content) _renderBadges(content);
+}
+
+// ── Features tab (Shop) ──────────────────────────────────────
+
+function _renderFeatures(content) {
+    const R = window.Rewards;
+    const prof = window.gami?.profile || {};
+    const slots = R ? R.slots() : 1;
+    const max = R ? R.MAX_SLOTS : 3;
+    const price = R ? R.SLOT_PRICE : 700;
+    const full = slots >= max;
+    content.innerHTML = `
+        <div class="gami-feature">
+            <div class="gami-feature-title">Badge slot</div>
+            <div class="gami-feature-desc">Show one more badge next to your name (in games, the waiting room and the leaderboard).
+                You have <b>${slots} / ${max}</b> slots. Pick the badges in Profile > Badges.</div>
+            <button class="gami-shop-buy-btn gami-feature-buy" ${full ? 'disabled' : ''} onclick="_gami_buyBadgeSlot()">
+                ${full ? 'All slots owned' : `Buy for ${price}g`}</button>
+            <div class="gami-feature-gold">You have ${prof.gold ?? 0}g</div>
+        </div>`;
+}
+
+async function _gami_buyBadgeSlot() {
+    const R = window.Rewards;
+    if (!R) return;
+    const res = await R.buySlot();
+    window.gami?.notify(res.ok ? 'New badge slot! Pick a badge in Profile > Badges.' : res.msg, 0, 'gold');
+    const content = document.getElementById('gami-content');
+    if (content) _renderFeatures(content);
 }
 
 // ── Train Bot (public) ───────────────────────────────────────
@@ -351,10 +408,11 @@ async function _gami_fetchLadder(limit) {
     const userIds = [...new Set(rows.filter(r => r.entity_type === 'player').map(r => r.user_id))];
     const botIds = rows.filter(r => r.entity_type === 'bot').map(r => r.bot_id);
     const [profRes, botRes] = await Promise.all([
-        userIds.length ? supabase.from('user_profiles').select('user_id, display_name, name_color').in('user_id', userIds) : Promise.resolve({ data: [] }),
+        userIds.length ? supabase.from('user_profiles').select('user_id, display_name, name_color, shown_badges').in('user_id', userIds) : Promise.resolve({ data: [] }),
         botIds.length ? supabase.from('deployed_bots').select('id, nickname, owner, is_active').in('id', botIds) : Promise.resolve({ data: [] }),
     ]);
     const profs = new Map((profRes.data || []).map(p => [p.user_id, p]));
+    if ((profRes.data || []).some(p => p.shown_badges?.length)) await window.Rewards?.loadCatalog?.();
     const bots = new Map((botRes.data || []).map(b => [b.id, b]));
     const ownerIds = [...new Set((botRes.data || []).map(b => b.owner).filter(Boolean))];
     let owners = new Map();
@@ -380,7 +438,7 @@ async function _gami_fetchLadder(limit) {
         }
         const prof = profs.get(r.user_id);
         return { rank: r.rank, isBot: false, isMe: r.user_id === me, userId: r.user_id, name: prof?.display_name || 'Unknown',
-                 nameColor: prof?.name_color || null, active: true };
+                 nameColor: prof?.name_color || null, badges: prof?.shown_badges || [], active: true };
     }).filter(Boolean);
 }
 
@@ -400,7 +458,7 @@ function _gami_ladderRowsHTML(rows, hideBots) {
         return `
         <div class="gami-lb-row ${r.isMe ? 'gami-lb-me' : ''}"${r.isBot ? ` style="cursor:pointer;" title="View this bot's elemental attributes" onclick="_gami_showBotPetals(${r.botId})"` : ''}>
             <span class="gami-lb-rank">#${r.rank}</span>
-            <span class="gami-lb-name"><span${!r.isBot && r.userId ? ` class="player-card-link" data-player-card="${_esc(r.userId)}" title="View player"` : ''} style="${r.nameColor ? (window.cosmeticsSystem?.getNameColorStyle(r.nameColor) || '') : ''}">${_esc(r.name)}</span>${tag}</span>
+            <span class="gami-lb-name"><span${!r.isBot && r.userId ? ` class="player-card-link" data-player-card="${_esc(r.userId)}" title="View player"` : ''} style="${r.nameColor ? (window.cosmeticsSystem?.getNameColorStyle(r.nameColor) || '') : ''}">${_esc(r.name)}</span>${r.badges?.length ? (window.Rewards?.badgesHtml(r.badges) || '') : ''}${tag}</span>
         </div>`;
     }).join('');
 }

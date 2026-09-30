@@ -121,6 +121,12 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: Hermit rewards** (owner, for the stream). sql/hermit-rewards.sql (applied as migration hermit_rewards,
+  tested in rolled-back transactions), js/rewards.js, js/hermit-rewards.js, images/badges/ (plunge.png + badges.json).
+  Sign-up events (first N real accounts), game bounties (paid with the win in _pay_game_win), reward pop-ups, special
+  image badges, badge slots (1 free, 700g each, max 3, Shop > Features), hidden reward-only pawn items
+  pawn_rim_plunger (#9d2c2e) and pawn_trail_wetfeet (footprints). UI tested with a fake Supabase in Playwright; not yet
+  tested signed in on the live site.
 - **2026-09-30: Pause on drop + host Pause button** (owner). js/game-pause.js (see js/INDEX.md,
   docs/network-resilience.md). Built on `feature/pause-on-drop`, merged live the same day on the owner's call
   (no preview available to test first). Needs a real 2-browser online test; if broken, roll back in Cloudflare

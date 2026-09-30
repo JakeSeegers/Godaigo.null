@@ -233,6 +233,16 @@ Order matters — later scripts depend on earlier ones.
                              normal Return to Lobby reload runs, then resumeIntents() -> window.playAgainRoom(bots,
                              startNow = no humans) + send_game_invite to each. Invites also pop up on the game-over
                              screen (Join -> reload -> joinPublicGame). sql/friends.sql + sql/recent-players.sql.
+20d. rewards.js           ← window.Rewards: Hermit rewards, player side (sql/hermit-rewards.sql). Badge catalog (special badges:
+                             criteria.type "special", picture images/badges/<badges.image>), badgesHtml() icons next to names
+                             (cosmetics-system seatNameHtml, lobby waiting room, leaderboard; user_profiles.shown_badges),
+                             claim_signup_events() after sign-in, reward pop-ups (my_reward_notices every 30 s + after game over),
+                             badge slots (set_shown_badges, buy_badge_slot 700g, max 3; Profile > Badges, Shop > Features),
+                             "reward on this game" status line + 🎁 on lobby room cards (list_bounties).
+20e. hermit-rewards.js    ← window.HermitRewards: Hermit menu "Rewards" panel + 🎁 button on lobby room cards. One reward form
+                             (title, message, gold, badge from images/badges/badges.json, items incl. hidden ones) for a sign-up
+                             event (first N real accounts, hermit_start_signup_event) or a game bounty (hermit_set_bounty).
+                             Lists events (winners, Stop) and all current games (hermit_list_rooms).
 21. bot-state.js           ← window.BotState — game-state snapshot / legal actions / apply (no strategy)
 22. bot-sim.js             ← window.BotSim — pure forward model (simulate / legalActions / isTerminal) + validate() harness
 22b. bot-terms.js         ← window.BotTerms: formula terms = extra bot senses as plain data (WEIGHTS.terms:
@@ -390,7 +400,10 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `game_rewards` | claim_game_win() | One XP claim per (room, player), `status` paid/pending (pending = waiting for a witness); also the 4-per-hour win-claim limit. Server only. |
 | `match_reports` | match-witness.js | Game-over witness report per (room, reporter): winner seen, confirms, activated, at_shrine, fingerprint. A non-confirming witness sets `matches.disputed`. Written only via `report_game_result`. |
 | `match_fingerprints` | match-witness.js | Board fingerprint per (room, turn, reporter). A mismatch bumps `matches.desync_count`. Written only via `report_fingerprint`. 30-day cleanup. |
-| `badges` | gamification-ui.js | Badge ownership |
+| `badges` | gamification-ui.js, rewards.js | Badge definitions; ownership = `user_profiles.badges_earned`. `image` = file in images/badges/ for special badges (criteria `{"type":"special"}`, only given by Hermit rewards, `hermit_upsert_badge`). `user_profiles.badge_slots` (1-3) / `shown_badges` via `buy_badge_slot` (700g) / `set_shown_badges` (sql/hermit-rewards.sql). |
+| `hermit_events` / `hermit_event_winners` | hermit-rewards.js, rewards.js | Sign-up events: the first `max_winners` real (not `Guest` + 6 chars) accounts made after `started_at` get the reward via `claim_signup_events()`. RLS on, no client policies; hermit RPCs `hermit_start_signup_event`, `hermit_stop_event`, `hermit_list_events` (sql/hermit-rewards.sql). |
+| `game_bounties` | hermit-rewards.js, rewards.js | Hermit reward on a room (`room_id` pk): paid once to the winner by `_pay_game_win` -> `_pay_bounty`. `hermit_set_bounty` / `hermit_clear_bounty` / `hermit_list_rooms`; public `list_bounties()` (unpaid only). |
+| `reward_notices` | rewards.js | One row per reward given (`_grant_reward`), shown as a pop-up: `my_reward_notices()`, `mark_reward_notice_seen(id)`. |
 | `account_recovery` | edge fn account-recovery | Optional recovery email per account (+ verified flag, confirm token hash). RLS on, NO client policies; client only uses RPCs `my_recovery_email()` / `remove_my_recovery_email()`. `sql/account-recovery.sql` |
 | `mailing_list` | lobby.js register form, account-recovery.js settings | Opt-in for human-written news emails (max once a month, sent by hand). RLS on, no client policies: `set_mailing_list(bool)`, `my_mailing_list()`, hermit-only `hermit_mailing_list()` (opted in AND confirmed recovery email; address from `account_recovery`). sql/mailing-list.sql |
 | `recovery_email_log` | edge fn account-recovery | One row per email sent, for rate limits (2/account/hour, 3/address/day, 90/day total). Server only. |

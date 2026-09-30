@@ -68,6 +68,10 @@
         { id: 'pawn_trail_drops',  slot: 'trail', group: 'Pawn trails', name: 'Water Drops',  cost: 150 },
         { id: 'pawn_trail_leaves', slot: 'trail', group: 'Pawn trails', name: 'Leaves',       cost: 150 },
         { id: 'pawn_trail_void',   slot: 'trail', group: 'Pawn trails', name: 'Void Sparks',  cost: 150 },
+        // Hidden: not sold, only given as Hermit rewards (sql/hermit-rewards.sql).
+        // Shown in the panel only to players who own them.
+        { id: 'pawn_rim_plunger',   slot: 'rim',   group: 'Special', name: 'Plunger Ring',   cost: null, hidden: true },
+        { id: 'pawn_trail_wetfeet', slot: 'trail', group: 'Special', name: 'Wet Footprints', cost: null, hidden: true },
     ];
     const ALL_ITEMS = NAME_COLORS.concat(PAWN_ITEMS);
     const slotOf = (item) => item.slot || 'namecolor';
@@ -100,7 +104,7 @@
 
     async function purchaseItem(id) {
         const item = ALL_ITEMS.find(i => i.id === id);
-        if (!item) return { ok: false, msg: 'Item not found' };
+        if (!item || item.hidden) return { ok: false, msg: 'Item not found' };
         if (!getUserId() || !window.gami?.profile) return { ok: false, msg: 'Not logged in' };
 
         const data = loadData();
@@ -187,11 +191,12 @@
         if (!ids.length) return false;
         try {
             const { data, error } = await supabase.from('user_profiles')
-                .select('user_id, name_color, pawn_rim, pawn_base, pawn_trail').in('user_id', ids);
+                .select('user_id, name_color, pawn_rim, pawn_base, pawn_trail, shown_badges').in('user_id', ids);
             if (error) return false;
             ids.forEach(id => nameColorCache.set(id, {}));
             (data || []).forEach(r => nameColorCache.set(r.user_id, r));
-            return (data || []).some(r => r.name_color || r.pawn_rim || r.pawn_base || r.pawn_trail);
+            if ((data || []).some(r => r.shown_badges?.length)) await window.Rewards?.loadCatalog?.();
+            return (data || []).some(r => r.name_color || r.pawn_rim || r.pawn_base || r.pawn_trail || r.shown_badges?.length);
         } catch (e) { return false; }
     }
 
@@ -234,9 +239,11 @@
         const m = String(text).match(/^(.*) (\([^()]*\))$/);
         // Real accounts open their player card when clicked (js/social.js).
         const card = row?.user_id ? ` class="player-card-link" data-player-card="${escHtml(row.user_id)}"` : '';
-        if (!m) return card ? `<span${card}>${escHtml(text)}</span>` : escHtml(text);
-        if (!style && !card) return escHtml(text);
-        return `<span${card} style="${style}">${escHtml(m[1])}</span> ${escHtml(m[2])}`;
+        // Badges the player chose to show (js/rewards.js).
+        const badges = row?.user_id ? (window.Rewards?.badgesHtml(window.Rewards.shownFor(row.user_id)) || '') : '';
+        if (!m) return (card ? `<span${card}>${escHtml(text)}</span>` : escHtml(text)) + badges;
+        if (!style && !card) return escHtml(text) + badges;
+        return `<span${card} style="${style}">${escHtml(m[1])}</span>${badges} ${escHtml(m[2])}`;
     }
 
     // ── Panel UI ──────────────────────────────────────────────
@@ -269,8 +276,9 @@
         const body = document.getElementById('cos-body');
         if (!body) return;
 
-        body.innerHTML = ALL_ITEMS.map((item, n) => {
-            const heading = (n === 0 || ALL_ITEMS[n - 1].group !== item.group)
+        const items = ALL_ITEMS.filter(i => !i.hidden || data.owned.includes(i.id));
+        body.innerHTML = items.map((item, n) => {
+            const heading = (n === 0 || items[n - 1].group !== item.group)
                 ? `<div class="cos-group">${item.group}</div>` : '';
             const owned      = data.owned.includes(item.id);
             const isEquipped = data.equipped[slotOf(item)] === item.id;
@@ -340,6 +348,7 @@
         slotOf,
         previewHtml,
         pawnStyleForSeat,
+        shownBadgesFor: (uid) => nameColorCache.get(uid)?.shown_badges || [],
         getData:    loadData,
     };
 

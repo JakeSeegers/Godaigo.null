@@ -7806,6 +7806,9 @@ document.getElementById('undo-move').onclick = function() {
                 menu.appendChild(makeItem('Formula Lab (new bot senses)', () => {
                     if (window.FormulaLab) window.FormulaLab.open();
                 }));
+                menu.appendChild(makeItem('Rewards: sign-up events, game rewards', () => {
+                    window.HermitRewards?.open();
+                }));
                 menu.appendChild(makeItem('Manage Profiles', openProfileAdmin));
                 menu.appendChild(makeItem('Game Logs', openGameLogsPanel));
                 menu.appendChild(makeItem('Board Rotation', openBoardRotationPanel));
