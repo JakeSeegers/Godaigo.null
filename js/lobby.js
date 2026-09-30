@@ -1158,6 +1158,7 @@
         // Show game over notification to all players
         function showGameOverToAll(winnerPlayerIndex, winType = 'scrolls') {
             console.log('Game over for winner index:', winnerPlayerIndex, 'Type:', winType);
+            _pageLeaveAllowed = true; // the game is over: no "Leave site?" question any more
 
             // Witness report: this browser checks the winner against its own
             // board and tells the server (js/match-witness.js). Once per game.
@@ -1260,6 +1261,7 @@
                 } catch (err) {
                     console.error('Post-game cleanup error:', err);
                 }
+                _pageLeaveAllowed = true;
                 window.location.reload();
             };
             // Play Again Together (js/social.js): same people and bots in a new
@@ -1429,6 +1431,7 @@
                             alert('You were kicked from the game (timeout). The page will refresh.');
 
                             // Reload the page to return to a clean state
+                            _pageLeaveAllowed = true;
                             setTimeout(() => {
                                 window.location.reload();
                             }, 500);
@@ -2238,7 +2241,28 @@
                 keepalive: true
             });
         }
-        window.addEventListener('beforeunload', _cleanupOnUnload);
+        // Refresh guard (2026-09-30): during a live online game, a refresh or
+        // tab close asks "Leave site?" first, because leaving gives up the seat
+        // for good. The seat cleanup then waits for pagehide, which only fires
+        // when the page really goes (cancelling the question keeps the seat).
+        // The game's own reloads (kick, game over, leave) set _pageLeaveAllowed.
+        let _pageLeaveAllowed = false;
+        window.allowPageLeave = () => { _pageLeaveAllowed = true; };
+        function _inLiveOnlineGame() {
+            try {
+                if (_pageLeaveAllowed || window.Replay?.state) return false;
+                return !!(isMultiplayer && myPlayerId && currentGameId &&
+                    document.getElementById('game-layout')?.classList.contains('active'));
+            } catch (e) { return false; }
+        }
+        window.addEventListener('beforeunload', (e) => {
+            if (_inLiveOnlineGame()) {
+                e.preventDefault();
+                e.returnValue = ''; // older Chrome needs this to show the question
+                return '';
+            }
+            _cleanupOnUnload();
+        });
         window.addEventListener('pagehide', _cleanupOnUnload);
 
         // Auto-refresh player list when tab becomes visible again
@@ -2334,6 +2358,59 @@
             _lastBroadcastScrollSnapshot = null;
             _scrollSyncTicksSinceBroadcast = 0;
         }
+
+        // ── Reconnect grace (see the presence handlers in setupGameBroadcast) ──
+        const RECONNECT_NOTICE_MS = 5 * 1000;  // shorter drops are never shown
+        const RECONNECT_GRACE_MS = 60 * 1000;  // then "last player standing" may apply
+        const _reconnecting = new Map();       // playerIndex -> { since, shown, noticeTimer, graceTimer }
+
+        function _presentIndices() {
+            try {
+                return Object.values(gameChannel?.presenceState() || {}).flat().map(s => s.playerIndex);
+            } catch (e) { return []; }
+        }
+
+        function _startReconnectGrace(idx) {
+            if (_reconnecting.has(idx)) return;
+            const entry = { since: Date.now(), shown: false, noticeTimer: null, graceTimer: null };
+            _reconnecting.set(idx, entry);
+            entry.noticeTimer = setTimeout(() => {
+                if (_reconnecting.get(idx) !== entry || !isMultiplayer) return;
+                entry.shown = true;
+                updateStatus(`${getPlayerColorName(idx)} lost connection - waiting for them to reconnect...`);
+            }, RECONNECT_NOTICE_MS);
+            entry.graceTimer = setTimeout(() => {
+                if (_reconnecting.get(idx) !== entry) return;
+                _endReconnectGrace(idx, false);
+                // Game already over (or we are leaving): nothing to decide.
+                if (!isMultiplayer || !currentGameId || _pageLeaveAllowed) return;
+                if (_presentIndices().includes(idx)) return; // came back without a join event
+                const othersStillConnected = _presentIndices().filter(i => i !== myPlayerIndex);
+                if (othersStillConnected.length === 0 && myPlayerIndex !== null && myPlayerIndex !== undefined) {
+                    handleGameOver(myPlayerIndex, 'last_standing');
+                } else {
+                    updateStatus(`${getPlayerColorName(idx)} disconnected`);
+                }
+            }, RECONNECT_GRACE_MS);
+        }
+
+        // back = true: the player is connected again.
+        function _endReconnectGrace(idx, back) {
+            const entry = _reconnecting.get(idx);
+            if (!entry) return;
+            clearTimeout(entry.noticeTimer);
+            clearTimeout(entry.graceTimer);
+            _reconnecting.delete(idx);
+            if (!back) return;
+            // Host: the turn timer did not run for them while they were away.
+            if (isHost && typeof activePlayerIndex !== 'undefined' && activePlayerIndex === idx && turnStartedAtMs) {
+                turnStartedAtMs += Date.now() - entry.since;
+            }
+            if (entry.shown) updateStatus(`${getPlayerColorName(idx)} is back`);
+        }
+
+        // game-core.js checkTurnTimeout(): no timeout for a player who is reconnecting.
+        window.isPlayerReconnecting = (idx) => _reconnecting.has(idx);
 
         // isReconnectAttempt: true only when THIS function's own auto-reconnect
         // (below, in the subscribe() status callback) is rebuilding a dropped
@@ -3979,24 +4056,27 @@
                 showGameOverToAll(payload.winnerIndex, payload.winType || 'scrolls');
             });
 
-            // Presence: detect disconnects instantly via WebSocket leave events.
-            // More reliable than DB polling — fires as soon as the connection drops.
+            // Presence: a WebSocket leave event means a player's connection
+            // dropped. Grace period (2026-09-30, stream night): a short drop
+            // stays hidden, and a win by "last player standing" only happens
+            // if the player is still gone after RECONNECT_GRACE_MS. Before, a
+            // 2-second Wi-Fi blip in a 2-player game handed the other player
+            // an instant win. A player who really left (their seat is deleted)
+            // is still handled at once by the players DELETE handler.
             gameChannel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
                 if (!isMultiplayer || !currentGameId) return;
                 leftPresences.forEach(p => {
                     if (p.playerIndex === myPlayerIndex) return; // ignore our own leave echo
                     const isOurGame = allPlayersData.some(ap => ap.player_index === p.playerIndex);
                     if (!isOurGame) return;
-                    console.log('Presence: player', p.playerIndex, 'disconnected');
-                    const state = gameChannel.presenceState();
-                    const connectedIndices = Object.values(state).flat().map(s => s.playerIndex);
-                    const othersStillConnected = connectedIndices.filter(i => i !== myPlayerIndex);
-                    if (othersStillConnected.length === 0 && myPlayerIndex !== null && myPlayerIndex !== undefined) {
-                        handleGameOver(myPlayerIndex, 'last_standing');
-                    } else {
-                        const playerName = getPlayerColorName(p.playerIndex);
-                        updateStatus(`${playerName} disconnected`);
-                    }
+                    console.log('Presence: player', p.playerIndex, 'connection dropped, waiting for reconnect');
+                    _startReconnectGrace(p.playerIndex);
+                });
+            });
+            gameChannel.on('presence', { event: 'join' }, ({ newPresences }) => {
+                (newPresences || []).forEach(p => {
+                    if (p.playerIndex === myPlayerIndex) return;
+                    _endReconnectGrace(p.playerIndex, true);
                 });
             });
 
@@ -4013,6 +4093,11 @@
                     console.log('Connected to game broadcast channel');
                     _gameChannelReconnectAttempts = 0;
                     gameChannel.track({ playerIndex: myPlayerIndex, playerId: myPlayerId });
+                    // Back after a drop: ask the host for the scroll state at once
+                    // (the host also re-sends it every few seconds anyway).
+                    if (isReconnectAttempt && !isHost && myPlayerIndex !== null && myPlayerIndex !== undefined) {
+                        broadcastGameAction('scroll-state-sync-request', { playerIndex: myPlayerIndex });
+                    }
                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                     console.warn('⚠️ Game broadcast channel status:', status);
                     // Only react if this callback still belongs to the CURRENTLY

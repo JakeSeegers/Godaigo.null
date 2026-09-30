@@ -5859,6 +5859,9 @@ function clearPlayerPath() {
             // off a host-side connectivity blip is exactly the kind of confusing,
             // seemingly-random breakage this exists to prevent.
             if (window.ConnectionMonitor && !window.ConnectionMonitor.isWorkable()) return;
+            // The active player's connection dropped a moment ago (lobby.js
+            // reconnect grace): their clock pauses until they are back.
+            if (window.isPlayerReconnecting?.(activePlayerIndex)) return;
 
             const now = Date.now();
             const elapsed = now - (turnStartedAtMs || now);
