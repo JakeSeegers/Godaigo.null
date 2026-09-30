@@ -121,6 +121,13 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **TODO (next): make a pot-drop win easy to see** (owner, after the Hermit demo). Today a hit = the coin CENTRE
+  crosses the floor (y 486) with x in 84..88.75; a 12-wide coin can touch the yellow mark and not count, or count
+  while it looks like a miss, and coins vanish at the floor. Fix: real divider walls under the pegs (bins wider
+  than a coin, coins settle in them), win = a coin at rest in the treasure bin; keep about 1% per coin by moving
+  the treasure bin to the edge and/or a gate peg (re-tune tools/plinko-tune.mjs, VERSION 2); draw dividers + gold
+  treasure bin, coins stay visible; copy the sim to supabase/functions/pot-drop and redeploy. Full plan:
+  the session plan "Pot drop: make a treasure hit easy to see".
 - **2026-09-30: The pot drop (plinko)** (owner idea: "use the actual physics code to calculate if there's a win").
   The pot is no longer a hidden random() roll: sql/pot-plinko.sql (migration pot_plinko) records a pot_drops row
   (seed, coins = pot / 10, max 70) from finish_match; edge fn supabase/functions/pot-drop runs js/plinko-sim.js
