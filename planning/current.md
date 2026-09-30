@@ -123,11 +123,15 @@ reach/beat it from here.
 ## Last Committed Work
 - **TODO (next): make a pot-drop win easy to see** (owner, after the Hermit demo). Today a hit = the coin CENTRE
   crosses the floor (y 486) with x in 84..88.75; a 12-wide coin can touch the yellow mark and not count, or count
-  while it looks like a miss, and coins vanish at the floor. Fix: real divider walls under the pegs (bins wider
-  than a coin, coins settle in them), win = a coin at rest in the treasure bin; keep about 1% per coin by moving
-  the treasure bin to the edge and/or a gate peg (re-tune tools/plinko-tune.mjs, VERSION 2); draw dividers + gold
-  treasure bin, coins stay visible; copy the sim to supabase/functions/pot-drop and redeploy. Full plan:
-  the session plan "Pot drop: make a treasure hit easy to see".
+  while it looks like a miss, and coins vanish at the floor. Owner's idea (chosen): a narrow TUBE over the
+  treasure. Two thin static walls (Bodies.rectangle, no trig) standing up from the floor, inner width just over a
+  coin (about 13-14), tall enough (about 40-60) that only a coin coming in at the right angle drops in; coins that
+  hit the lip bounce off. Win = a coin reaches the bottom of the tube; it then drops onto the chest (drawn below
+  the tube), so what you see is the rule. Other coins still land on the floor as now. Tune the tube width, height
+  and x so a coin has about 1% (tools/plinko-tune.mjs, bump PlinkoSim VERSION to 2); make sure coins cannot rest
+  on the tube's top edges (the stuck-coin push covers it, check the frame cap count stays 0). Draw the tube (gold
+  walls) and the chest under it; steering a coin into the tube = aim at the tube centre from higher up. Copy the
+  sim to supabase/functions/pot-drop and redeploy; _settle_pot_drop needs no change (slot -1 = treasure).
 - **2026-09-30: The pot drop (plinko)** (owner idea: "use the actual physics code to calculate if there's a win").
   The pot is no longer a hidden random() roll: sql/pot-plinko.sql (migration pot_plinko) records a pot_drops row
   (seed, coins = pot / 10, max 70) from finish_match; edge fn supabase/functions/pot-drop runs js/plinko-sim.js
