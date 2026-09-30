@@ -143,7 +143,7 @@ expected submitters during arbitration — they're only excluded from the
 bluff branch (they decide deterministically, not performatively).
 
 ### Bot submissions never tear down the host's own window
-playerPasses()/playerResponds() close THIS screen's modal + countdown only
+playerPasses()/playerResponds() close THIS screen's modal + countdown only (playerResponds also logs a local human's response as a scroll cast via gami.onScrollCast, for the Scroll Master badge)
 when the submitter is the local human (localResponderIndex()), and
 checkAllPlayersResponded() only swaps in the "waiting for others" spinner
 once the local human has submitted. Without these gates, the host's client

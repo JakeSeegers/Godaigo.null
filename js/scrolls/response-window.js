@@ -918,6 +918,14 @@ class ResponseWindowSystem {
         this.spendPlayerAP(myIndex, cost);
         console.log(`  Spent ${cost} AP for response`);
 
+        // Badges (sql/more-badges.sql "Scroll Master"): a response scroll played by
+        // the human at this screen counts as a cast. Normal casts are logged through
+        // window.logScrollEvent('cast_execute'); responses never went through it.
+        if (myIndex === this.localResponderIndex() && !this.isBotPlayer(myIndex) &&
+            !window.isTutorialMode && !window.BotArena?.isRunning?.() && !window.Replay?.state) {
+            try { window.gami?.onScrollCast?.(scrollInfo.name); } catch (e) {}
+        }
+
         // Add response to stack
         this.responseStack.push({
             scrollData: {

@@ -121,6 +121,13 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: 9 new badges** (owner). sql/more-badges.sql (migration more_badges, backfilled: TheHermit got Bot
+  Breaker): Scroll Master (all 35 scrolls; response scrolls now logged from response-window.js playerResponds), Bot
+  Breaker/Slayer/Bane/Machine's End (10/20/50/100 bots in paid wins, not last_standing), People's Champion (10 wins
+  with another human), Lightning Win (real win in < 10 own turns), Emote Collector, Fashionista. Icons px-*.png (sheet
+  positions: scroll_master 18,7; bots 13,14 / 53,14 / 53,15 / 72,12; peoples_champion 65,1; emote_collector 59,5;
+  fashionista 130,11; lightning_win 64,0). Note: scroll_cast rows are client-written, so Scroll Master (like the old
+  scroll badges) trusts the client.
 - **2026-09-30: Pixel-art achievement badges** (owner). 8 icons from Raven Fantasy Icons (Clockwork Raven, open license;
   full sheet 32x32.png on branch main) cut to images/badges/px-*.png, badges.image set on the server (migration
   badge_pixel_icons), drawn pixelated (css), Credits line added. Sheet positions (row, col): first_steps 135,3;
