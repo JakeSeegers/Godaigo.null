@@ -19,6 +19,7 @@
             items: [
                 { what: 'Popup Emotes Pack (pixel emotes)', by: 'Pipoya', link: 'https://pipoya.itch.io/' },
                 { what: 'Paper UI System (menus and panels)', by: 'Humble Pixel', link: 'https://humblepixel.itch.io/' },
+                { what: 'Raven Fantasy Icons (achievement badges)', by: 'Clockwork Raven', link: 'https://clockworkraven.itch.io/raven-fantasy-icons' },
             ],
         },
         {

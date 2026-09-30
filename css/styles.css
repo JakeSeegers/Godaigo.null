@@ -4688,3 +4688,6 @@ label, .hud-ap-label, .hud-ap-value {
 #hermit-rewards-panel .hr-paid { color: #9fe0a0; }
 #hermit-rewards-panel .hr-item, #hermit-rewards-panel summary, #hermit-rewards-panel button, #hermit-rewards-panel .hr-row { font-size: 13px; }
 #hermit-rewards-panel .hr-x { background: none; border: 1px solid #444; color: #ccc; padding: 1px 7px; font-size: 13px; }
+
+/* Pixel-art badges (images/badges/px-*.png, 32x32 from Raven Fantasy Icons): keep them sharp. */
+img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[src*="/px-"] { image-rendering: pixelated; }

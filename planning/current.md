@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: Pixel-art achievement badges** (owner). 8 icons from Raven Fantasy Icons (Clockwork Raven, open license;
+  full sheet 32x32.png on branch main) cut to images/badges/px-*.png, badges.image set on the server (migration
+  badge_pixel_icons), drawn pixelated (css), Credits line added. Sheet positions (row, col): first_steps 135,3;
+  first_victory 2,8; scroll_apprentice 18,8; scroll_adept 6,1; veteran 45,0; champion 8,2; master 65,2; dedicated 62,0.
 - **2026-09-30: Old test + guest accounts merged into TheHermit** (owner). 7 accounts deleted (jake2, JakeS, JakeS1,
   JakeS2, Jakeon, Guest58TA7A, GuestLXNE3T); TheHermit got +7325 XP, +2440 gold, ladder rank 1. sql/merge-test-accounts.sql.
 - **2026-09-30: Lotus Leaf pawn base removed** (owner). Nobody owned it. Out of PAWN_ITEMS, pawn-cosmetics.js makeBase and
