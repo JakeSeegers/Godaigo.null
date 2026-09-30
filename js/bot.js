@@ -1217,6 +1217,8 @@
                     if (firstHop(ctx.breakPath, a)) { const kv = contrib('moveToBreak', push / (1 + pathCost(ctx.breakPath))); harm += kv; pull('break', ctx.breakPath, kv); }
                     if (ctx.harm.campHere) harm += contrib('campLeave', push);
                 }
+                if (firstHop(ctx.blockPath, a)) { const bv = BLOCK_PULL / (1 + pathCost(ctx.blockPath)); harm += bv; pull('block', ctx.blockPath, bv); }
+                if (ctx.atBlock) harm -= BLOCK_STAY;
                 const revisit = contrib('moveRevisitPenalty', revisitPenalty(ctx.recentPositions || [], a, 1));
                 const shrineV = contrib('moveShrineValue', best);
                 if (bestT) pulls.push({ kind: 'shrine', key: `shrine@${hexKey(bestT.x, bestT.y)}`, x: bestT.x, y: bestT.y, v: shrineV });
@@ -1585,6 +1587,9 @@
         if (ELEMENTS.some(el => needs(el) && (lp.pool[el] || 0) >= 2)) out.add('FIRE_SCROLL_5'); // Arson
         if (h.stones.size >= 2) out.add('CATACOMB_SCROLL_10');               // Combust
         try { if (takeFlightHarm(snap, h.L) >= 0.3) out.add('WIND_SCROLL_4'); } catch (e) {} // Take Flight
+        // The pact's thrower gets Take Flight ready early; the blockers shape
+        // where the target can land (blockSpot).
+        if (window.BotDiplomacy?.roleOf?.(snap.turn.activePlayerIndex) === 'thrower') out.add('WIND_SCROLL_4');
         return out;
     }
 
@@ -1884,19 +1889,24 @@
         // it with the AP kept (planNextAction ends the turn there). Not when
         // this bot is one cast from winning itself: then it races.
         const D = window.BotDiplomacy;
-        const guard = guardWanted(snap) && !D?.oneCastFromWin?.(idx, snap);
+        // Pact roles: the pact's guard stands guard from the start of the
+        // pact; its partners leave guarding to it (one guard at a time).
+        const role = D?.roleOf?.(idx);
+        const partnerGuards = role && role !== 'guard' && D.roleHolder?.('guard') != null;
+        const guard = ((guardWanted(snap) && !partnerGuards) || role === 'guard') && !D?.oneCastFromWin?.(idx, snap);
         if (m.plan && m.plan.guard) {
             // At most GUARD_WAIT own turns on the post, then GUARD_REST turns
             // of own progress (two guards facing each other stalled before).
+            // The pact guard stays while it holds the role (it rotates).
             const waited = m.plan.waitFrom != null ? (m.ownTurns || 0) - m.plan.waitFrom : 0;
-            if (!guard || waited >= GUARD_WAIT) {
+            if (!guard || (role !== 'guard' && waited >= GUARD_WAIT)) {
                 log(guard ? 'Guarded long enough - back to my own plan' : 'Guard no longer needed - dropping the counter plan');
                 m.plan = null;
                 m.guardRestUntil = (m.ownTurns || 0) + GUARD_REST;
             }
             return;
         }
-        if (guard && !guardReserve(snap, self) && (m.ownTurns || 0) >= (m.guardRestUntil || 0)) {
+        if (guard && !guardReady(snap, self) && (role === 'guard' || (m.ownTurns || 0) >= (m.guardRestUntil || 0))) {
             const inReach = new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]);
             const counters = [...COUNTERS].filter(n => inReach.has(n) && window.SCROLL_DEFINITIONS?.[n]);
             if (counters.length) {
@@ -3359,6 +3369,10 @@
         // From any clear leader (push 1.5, owner 2026-09-28: engage early);
         // every harm score is multiplied by push, so early harm stays small.
         if (push < 1.5) return null;
+        // Racer rule (owner, 2026-09-30): the pact member furthest ahead
+        // keeps playing for its own win; it only joins in when the target
+        // can win next turn.
+        if (D.roleOf?.(ai) === 'racer' && push < 4) return null;
         const need = ELEMENTS.filter(el => !lp.activated.includes(el));
         const seats = snap.players.filter(Boolean).length;
         const stones = new Set();
@@ -3442,6 +3456,45 @@
             for (const t of keyShrines(snap, lp).slice(0, 2)) out.push({ tileId: t.id, element: el, harm: 0.6 });
         }
         return out;
+    }
+    // Blocker post (pact role, owner 2026-09-30): Take Flight can only land
+    // the target on a tile another pawn stands on, and the target picks the
+    // landing nearest its goal. A blocker stands on a tile far from that goal
+    // (and never offers a close one), so when the pact's thrower casts, every
+    // landing is bad. Only while the pact has a thrower and the target has 4+
+    // elements (home is its goal soon). Chosen once per own turn.
+    const BLOCK_PULL = 45, BLOCK_STAY = 25;
+    function blockSpot(snap, self) {
+        const D = window.BotDiplomacy, ai = snap.turn.activePlayerIndex;
+        if (D?.roleOf?.(ai) !== 'blocker' || D.roleHolder?.('thrower') == null) return null;
+        const m = mem(ai);
+        if (m.block && m.block.turn === m.ownTurns) return m.block.spot;
+        m.block = { turn: m.ownTurns, spot: null };
+        const L = D.pact()?.target;
+        const lp = L != null ? snap.players[L] : null;
+        if (!lp || lp.activated.length < 4 || !window.BotSim?.takeFlightLandingFor) return null;
+        const flownCost = sn => {
+            const d = window.BotSim.takeFlightLandingFor(sn, sn.players[L]);
+            if (!d) return 0;
+            const moved = { ...sn, players: sn.players.map((q, j) => j === L ? { ...q, x: d.x, y: d.y } : q) };
+            try { return homeCost(moved, L); } catch (e) { return 0; }
+        };
+        const base = flownCost(snap);
+        let best = null;
+        for (const t of snap.tiles) {
+            if (!t.revealed || t.isPlayerTile) continue;
+            if (snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5)) continue;
+            if (snap.players.some(q => q && Math.hypot(q.x - t.x, q.y - t.y) < 5)) continue;
+            const path = window.BotState.findPath(self.x, self.y, t.x, t.y);
+            if (!path || !path.length) continue;
+            const walk = pathCost(path);
+            if (walk > 6) continue;
+            const sn2 = { ...snap, players: snap.players.map((q, j) => j === ai ? { ...q, x: t.x, y: t.y } : q) };
+            const v = flownCost(sn2) - 0.25 * walk;
+            if (!best || v > best.v) best = { v, x: t.x, y: t.y };
+        }
+        if (best && best.v >= base + 2) m.block.spot = { x: best.x, y: best.y };
+        return m.block.spot;
     }
     // Take Flight on an opponent (owner, 2026-09-29: "the idea for Take
     // Flight is to manipulate the movements of opponents"). They choose where
@@ -3536,6 +3589,7 @@
     function guardWanted(snap) {
         const D = window.BotDiplomacy;
         if (!D?.enabled?.() || !D.alertOn) return false;
+        if (D.roleOf?.(snap.turn.activePlayerIndex) === 'guard') return true; // the pact's guard
         try { return D.alertOn(snap.turn.activePlayerIndex, snap) != null; } catch (e) { return false; }
     }
     function counterInReach(snap, self) {
@@ -3543,6 +3597,12 @@
     }
     // Guard mode and a counter pattern complete where the bot stands: the AP
     // it must keep for the response (2, or 0 under its own Quick Reflexes).
+    // A counter pattern complete where the bot stands.
+    function guardReady(snap, self) {
+        const ai = snap.turn.activePlayerIndex;
+        return [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]
+            .some(n => COUNTERS.has(n) && window.BotSim?.checkPattern(snap, n, ai));
+    }
     function guardReserve(snap, self) {
         if (!guardWanted(snap)) return 0;
         const ai = snap.turn.activePlayerIndex;
@@ -3902,6 +3962,14 @@
             }
             if (best) ctx.breakPath = best.path;
         }
+        ctx.blockPath = null; ctx.atBlock = false;
+        try {
+            const bs = blockSpot(snap, self);
+            if (bs) {
+                if (Math.hypot(bs.x - self.x, bs.y - self.y) < 5) ctx.atBlock = true;
+                else { const bp = window.BotState.findPath(self.x, self.y, bs.x, bs.y); if (bp && bp.length) ctx.blockPath = bp; }
+            }
+        } catch (e) { ctx.blockPath = null; }
         ctx.fixationPath = null;
         if (fixationTarget) {
             const path = window.BotState.findPath(self.x, self.y, fixationTarget.x, fixationTarget.y);
@@ -3999,7 +4067,7 @@
                 if (ctx) {
                     const g = ctx.pulls?.get(hexKey(a.x, a.y));
                     if (g && ctx.intent && g.key === ctx.intent.key) {
-                        const what = { shrine: 'a shrine', explore: 'a hidden tile', blocked: 'a blocked shrine', home: 'home', camp: 'a shrine the leader needs', break: "the leader's stones" }[g.kind] || 'my goal';
+                        const what = { shrine: 'a shrine', explore: 'a hidden tile', blocked: 'a blocked shrine', home: 'home', camp: 'a shrine the leader needs', break: "the leader's stones", block: 'my far post for the pact' }[g.kind] || 'my goal';
                         return `Sticking with my goal: toward ${what}`;
                     }
                     if (firstHop(ctx.homePath, a)) return `Toward home to win (${pathCost(ctx.homePath)} AP)`;
@@ -4009,6 +4077,7 @@
                     if (firstHop(ctx.breakPath, a)) return `Toward the leader's new stones to break them (${pathCost(ctx.breakPath)} AP)`;
                     if (ctx.harm?.campHere) return `Step (leaves the shrine the leader needs)`;
                     if (firstHop(ctx.fixationPath, a)) return `Toward a new build site (${pathCost(ctx.fixationPath)} AP)`;
+                    if (firstHop(ctx.blockPath, a)) return `Toward a far post, so the pact's Take Flight lands the leader badly (${pathCost(ctx.blockPath)} AP)`;
                     for (const t of ctx.shrines || []) {
                         const path = ctx.paths?.get(t.id);
                         if (firstHop(path, a)) return `Toward ${t.shrineType} shrine (${pathCost(path)} AP)`;

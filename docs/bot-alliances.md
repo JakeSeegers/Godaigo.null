@@ -336,3 +336,30 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
 - Personalities: yes, one per elemental bot (phase 4).
 - Human bias: mild (about half a tracker step).
 - Emote vocabulary: see "Pacts and talk" above.
+
+## Pact roles (2026-09-30)
+
+Owner: "bots can work together to pull off an attack". bot-diplomacy.js
+`assignRoles()` runs at every turn change while a pact holds (bots only; members
+may read each other's hands, partners share plans):
+
+- **racer**: the member furthest ahead (tracker). bot.js harmContext returns
+  null for it unless the target can win next turn (push 4), so it builds no
+  attacks and keeps playing for its own win.
+- **thrower**: a member with Take Flight in reach. attackTools always lists
+  Take Flight for it, so it builds the pattern early; the cast on the target
+  still needs takeFlightHarm >= 0.3.
+- **guard**: one member with Iron Stance / Psychic in reach; guardWanted() is
+  true for it, so it builds a counter and waits on it (reviewPlan guard post,
+  no GUARD_WAIT limit while it holds the role). Handed to a partner with a
+  counter after ROLE_GUARD_ROUNDS (2) rounds. Partners do not guard meanwhile.
+- **blocker**: everyone else. `blockSpot()` (once per own turn, only with a
+  thrower and a target with 4+ elements): the free tile centre within 6 AP
+  that makes the target's Take Flight landing (it picks nearest its home,
+  on a tile another pawn stands on) the furthest from home, if 2+ AP worse
+  for it than now. Move pull BLOCK_PULL 45, -25 for leaving the post.
+
+Roles show as emotes + Game Log lines (INTENT roleRace / roleThrow / roleGuard
+/ roleBlock) and in the Alliances tab. `setRoles(false)` for tests.
+Test (8 four-bot games, same seeds, roles on / off): leader still won 2 / 3,
+Take Flight aimed at the leader 7 / 2, counter answers 10 / 4, 105 / 108 turns.

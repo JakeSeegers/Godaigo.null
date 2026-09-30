@@ -573,6 +573,67 @@
             if (urgent || S.turns - S.lastPactTurn >= PACT.gapTurns * (S.seats || 1)) propose(active);
             if (!S.pact && S.turns - S.lastPactTurn >= GRUDGE.gapTurns * (S.seats || 1)) proposeGrudge(active);
         }
+        if (S.pact) { try { assignRoles(); } catch (e) { console.warn('[BotDiplomacy] roles failed', e); } }
+    }
+
+    // Pact roles (owner, 2026-09-30: "bots can work together to pull off an
+    // attack"). Recomputed at every turn change while a pact holds:
+    //   racer   the member furthest ahead keeps playing for its own win, so
+    //           the pact does not just hand the game to a third player;
+    //   thrower a member with Take Flight in reach, to throw the target;
+    //   guard   one member at a time keeps Iron Stance / Psychic ready,
+    //           handed on after ROLE_GUARD_ROUNDS rounds (a partner with a
+    //           counter takes over, so nobody falls behind for long);
+    //   blocker the rest stand on tiles far from the target's goal, since
+    //           Take Flight can only land the target on a tile another pawn
+    //           stands on (bot.js blockSpot).
+    // Members may read each other's hands for this (partners share plans).
+    const ROLE_GUARD_ROUNDS = 2;
+    const COUNTER_SCROLLS = ['EARTH_SCROLL_1', 'VOID_SCROLL_1'];
+    function inReach(j, name) {
+        const ps = window.spellSystem?.playerScrolls?.[j];
+        const common = window.spellSystem?.commonArea;
+        return !!(ps && (ps.hand?.has?.(name) || ps.active?.has?.(name))) ||
+               !!(common && Object.values(common).includes(name)); // {element: scroll}
+    }
+    let rolesOn = true; // setRoles(false): tests (roles on vs off)
+    function assignRoles() {
+        const P = S.pact;
+        if (!P || P.members.size < 2) return;
+        if (!rolesOn) { P.roles = {}; P.guard = null; return; }
+        const snap = window.BotState.snapshot();
+        const members = [...P.members].filter(j => snap.players[j]);
+        if (members.length < 2) return;
+        const old = P.roles || {};
+        const roles = {};
+        const racer = members.reduce((a, b) => tracker(snap, b) > tracker(snap, a) ? b : a);
+        roles[racer] = 'racer';
+        const rest = members.filter(j => j !== racer);
+        const thrower = rest.find(j => inReach(j, 'WIND_SCROLL_4'));
+        if (thrower != null) roles[thrower] = 'thrower';
+        const guards = rest.filter(j => j !== thrower && COUNTER_SCROLLS.some(n => inReach(j, n)));
+        let guard = P.guard && guards.includes(P.guard.who) ? P.guard.who : null;
+        if (guard != null && S.turns - P.guard.since >= ROLE_GUARD_ROUNDS * (S.seats || seatCount() || 1)) {
+            const next = guards.find(j => j !== guard);
+            if (next != null) guard = next;
+        }
+        if (guard == null && guards.length) guard = guards[0];
+        if (guard != null) {
+            if (!P.guard || P.guard.who !== guard) P.guard = { who: guard, since: S.turns };
+            roles[guard] = 'guard';
+        } else P.guard = null;
+        for (const j of rest) if (!roles[j]) roles[j] = 'blocker';
+        P.roles = roles;
+        for (const j of members) if (old[j] !== roles[j]) {
+            const kind = { racer: 'roleRace', thrower: 'roleThrow', guard: 'roleGuard', blocker: 'roleBlock' }[roles[j]];
+            if (kind) intend(j, kind, P.target);
+        }
+    }
+    function roleOf(o) { return S.pact && S.pact.members.has(o) ? (S.pact.roles?.[o] || null) : null; }
+    function roleHolder(role) {
+        if (!S.pact?.roles) return null;
+        const e = Object.entries(S.pact.roles).find(([, r]) => r === role);
+        return e ? Number(e[0]) : null;
     }
     function clampT(v) { return Math.max(-1, Math.min(1, v)); }
     function propose(o) {
@@ -730,6 +791,11 @@
         shove:   { sp: [80],         text: '{o} sends {t} far away' },
         wall:    { sp: [29],         text: '{o} builds a wall against {t}' },
         home:    { sp: [77, 88],     text: '{o} runs for home' },
+        // Pact roles (assignRoles).
+        roleRace:  { sp: [77],       text: '{o} keeps racing while the others stop {t}', rounds: 3 },
+        roleThrow: { sp: [80],       text: '{o} gets ready to send {t} away', rounds: 3 },
+        roleGuard: { sp: [31],       text: '{o} stands guard against {t}', rounds: 3 },
+        roleBlock: { sp: [29],       text: '{o} takes a far post so {t} lands badly', rounds: 3 },
         // Look-ahead (Calculating) and playouts (Counting): emote only, no
         // Game Log line, at most once every 2 rounds.
         think:   { sp: [51],         text: null, rounds: 2, short: true },
@@ -787,7 +853,9 @@
         setTalkInTraining: on => { talkInTraining = !!on; },
         talkInTraining: () => talkInTraining,
         onTalk: fn => { talkListeners.push(fn); return () => { const i = talkListeners.indexOf(fn); if (i >= 0) talkListeners.splice(i, 1); }; },
-        pact: () => S.pact ? { kind: S.pact.kind, target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft } : null,
+        pact: () => S.pact ? { kind: S.pact.kind, target: S.pact.target, members: [...S.pact.members], turnsLeft: S.pact.turnsLeft, roles: { ...(S.pact.roles || {}) } } : null,
+        roleOf, roleHolder,
+        setRoles: on => { rolesOn = !!on; },
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },
     };
 })();
