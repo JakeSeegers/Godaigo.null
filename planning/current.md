@@ -121,6 +121,8 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-09-30: Old test + guest accounts merged into TheHermit** (owner). 7 accounts deleted (jake2, JakeS, JakeS1,
+  JakeS2, Jakeon, Guest58TA7A, GuestLXNE3T); TheHermit got +7325 XP, +2440 gold, ladder rank 1. sql/merge-test-accounts.sql.
 - **2026-09-30: Lotus Leaf pawn base removed** (owner). Nobody owned it. Out of PAWN_ITEMS, pawn-cosmetics.js makeBase and
   cosmetic_price (sql/remove-lotus.sql, migration remove_lotus).
 - **2026-09-30: Hermit rewards** (owner, for the stream). sql/hermit-rewards.sql (applied as migration hermit_rewards,
