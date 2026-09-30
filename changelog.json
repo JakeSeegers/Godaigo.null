@@ -2,6 +2,15 @@
   "_readme": "Player-facing release notes, newest first, shown by the Change Log button in the lobby. Rules (full text: HOUSE RULES #2 in CLAUDE.md): at most ONE entry per day, id = date. If today's entry exists, rewrite it as one summary of the whole day; do not add a second entry. At most 5 lines per entry. Only list changes players will notice; group small fixes into one 'Small fixes and polish' line. Simple English, no file names, no em dashes.",
   "entries": [
     {
+      "id": "2026-09-30",
+      "date": "2026-09-30",
+      "title": "Bots team up",
+      "changes": [
+        "Pacts now have roles: one bot keeps racing, one stands guard with a counter, and the others team up to throw the leader with Take Flight.",
+        "The Game Log's Alliances tab shows each bot's role in a pact."
+      ]
+    },
+    {
       "id": "2026-09-29",
       "date": "2026-09-29",
       "title": "Clearer bot emotes",
@@ -9,7 +18,7 @@
         "Bot emotes: the thinking emote is shorter, emotes clear as soon as a training game ends, and in fast training they show right away instead of late.",
         "New bot emote sentences: pact answers show a crown (against the leader) or a heart (a grudge), and many emotes are simpler and clearer.",
         "Smarter bots: they build on stones already on the board, travel by catacomb and Freedom, stick to their goals, team up against any clear leader, and set up attacks and counters (Iron Stance, Psychic) against a leader about to win.",
-        "Pacts now have roles: one bot keeps racing, one stands guard with a counter, and the others team up to throw the leader with Take Flight. The Game Log's new Alliances tab shows pacts, roles and what bots said.",
+        "Game Log has a new Alliances tab: current pacts, how each bot feels about everyone, and what they said this game.",
         "Train Bot: a Speed button to switch between Watchable and Extreme mid-run, and no more menus flashing during training."
       ]
     },
