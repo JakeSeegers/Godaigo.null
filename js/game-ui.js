@@ -7809,6 +7809,13 @@ document.getElementById('undo-move').onclick = function() {
                 menu.appendChild(makeItem('Rewards: sign-up events, game rewards', () => {
                     window.HermitRewards?.open();
                 }));
+                menu.appendChild(makeItem('Pot Drop demo (plinko)', () => {
+                    // Local only: runs the same physics as the real pot, pays nothing.
+                    const n = parseInt(window.prompt('How many coins? (1-70, one coin = 10g)', '30'), 10);
+                    if (!n) return;
+                    const seed = Math.floor(Math.random() * 4294967296);
+                    window.PotPlinko?.preview(seed, Math.max(1, Math.min(70, n)));
+                }));
                 menu.appendChild(makeItem('Manage Profiles', openProfileAdmin));
                 menu.appendChild(makeItem('Game Logs', openGameLogsPanel));
                 menu.appendChild(makeItem('Board Rotation', openBoardRotationPanel));

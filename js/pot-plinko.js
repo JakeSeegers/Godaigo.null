@@ -272,6 +272,7 @@
     async function preview(seed, coins, won) {
         await Promise.all([window.LazyScripts.load('matter'), window.LazyScripts.load('plinko-sim')]);
         const r = window.PlinkoSim.simulate({ seed, coins, Matter: window.Matter });
+        console.info(`[pot-plinko] preview seed ${seed}, ${coins} coins`);
         return show({ id: -1, seed, coins, pot_amount: coins * 10, slots: r.slots, hit_coin: r.hit,
                       won: won ?? r.hit !== null, share: coins * 5, pot_now: coins * 10 });
     }
