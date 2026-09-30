@@ -309,6 +309,7 @@
         if (busy) return;
         if (!gameActive()) { handledPlacement.clear(); lastDrivenTurnKey = null; return; }
         if (!iAmDriver()) return;
+        if (window.isGamePaused?.()) return; // game-pause.js: wait with the others
 
         const bots = botIndexSet();
         if (!bots.size || !bots.has(activePlayerIndex)) return;
