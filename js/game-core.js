@@ -2923,6 +2923,19 @@
             const centerY = boardSvg.clientHeight / 2;
             viewport.setAttribute('transform',
                 `translate(${centerX}, ${centerY}) rotate(${viewportRotation}) translate(${viewportX - centerX}, ${viewportY - centerY}) scale(${viewportScale})`);
+            if (viewportRotation !== _leveledRotation) levelPlayerTileSymbols();
+        }
+
+        // Keeps the element row on every player tile level on screen (earth on
+        // the left) when the map is turned: turns each row back around the
+        // tile's center by the map's rotation.
+        let _leveledRotation = 0;
+        function levelPlayerTileSymbols() {
+            _leveledRotation = viewportRotation;
+            document.querySelectorAll('.player-tile-element-symbols').forEach(g => {
+                if (viewportRotation) g.setAttribute('transform', `rotate(${-viewportRotation})`);
+                else g.removeAttribute('transform');
+            });
         }
 
         // Hermit-only board rotation tool (js/game-ui.js's openBoardRotationPanel):
@@ -3193,6 +3206,27 @@
                 points.push(`${x},${y}`);
             }
             return points.join(' ');
+        }
+
+        // Outer edge of a tile (13 hexes + 6 half hexes, createTileGroup), as
+        // one path: every polygon edge not shared with another polygon.
+        function playerTileOutlinePath(s) {
+            const key = (x, y) => `${Math.round(x * 10)},${Math.round(y * 10)}`;
+            const edges = new Map();
+            createTileGroup(s, 0, false).querySelectorAll('polygon').forEach(poly => {
+                const v = poly.getAttribute('points').trim().split(/\s+/).map(pt => pt.split(',').map(Number));
+                for (let i = 0; i < v.length; i++) {
+                    const p1 = v[i], p2 = v[(i + 1) % v.length];
+                    const k = [key(...p1), key(...p2)].sort().join('|');
+                    const e = edges.get(k);
+                    if (e) e.n++; else edges.set(k, { n: 1, p1, p2 });
+                }
+            });
+            let d = '';
+            edges.forEach(e => {
+                if (e.n === 1) d += `M${e.p1[0].toFixed(2)},${e.p1[1].toFixed(2)}L${e.p2[0].toFixed(2)},${e.p2[1].toFixed(2)}`;
+            });
+            return d;
         }
 
         function createTrapezoidPoints(cx, cy, s, direction) {
@@ -4544,9 +4578,18 @@
                 tintOverlay.setAttribute('cy', 0);
                 tintOverlay.setAttribute('r', TILE_SIZE * 2); // Cover the whole tile
                 tintOverlay.setAttribute('fill', assignedColor);
-                tintOverlay.setAttribute('opacity', '0.15'); // Light tint
+                tintOverlay.setAttribute('opacity', '0.38'); // owner 2026-10-01: was 0.15, too faint
                 tintOverlay.setAttribute('pointer-events', 'none'); // Don't interfere with clicks
                 tileGroup.appendChild(tintOverlay);
+
+                // Border around the whole tile in the player's color (owner 2026-10-01)
+                const border = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                border.setAttribute('class', 'player-tile-border');
+                border.setAttribute('d', playerTileOutlinePath(TILE_SIZE));
+                if (rotation) border.setAttribute('transform', `rotate(${rotation * 60})`);
+                border.setAttribute('stroke', assignedColor);
+                border.setAttribute('pointer-events', 'none');
+                tileGroup.appendChild(border);
 
                 // Store the player index for later use
                 tilePlayerIndex = playerIndex;
@@ -4652,6 +4695,13 @@
             });
 
             updateTileClasses();
+
+            // Player tile: draw its element row (empty rings) right away. Next
+            // tick, after callers have fixed the tile's playerIndex.
+            if (isPlayerTile) {
+                const placed = placedTiles[placedTiles.length - 1];
+                setTimeout(() => { try { if (placed.element.isConnected) updatePlayerElementSymbols(placed.playerIndex); } catch (e) {} }, 0);
+            }
 
             // A re-placed REVEALED elemental tile (Telekinesis move, or a
             // snap-back from an invalid Telekinesis drag) is rebuilt here
@@ -6546,43 +6596,45 @@ function clearPlayerPath() {
             const playerScrollData = spellSystem.playerScrolls[playerIndex];
             if (!playerScrollData) return;
             
-            const activatedElements = Array.from(playerScrollData.activated);
-            
-            if (activatedElements.length === 0) return;
+            const activated = playerScrollData.activated;
+            const activatedElements = Array.from(activated);
 
-            // Arrange symbols in a tight pentagon pattern inside the tile's center hex
-            // Keep radius well within TILE_SIZE (20) so symbols never bleed outside the tile
-            const radius = TILE_SIZE * 0.75; // ~15 units — inside the center hex (r=20)
-            const angleStep = (Math.PI * 2) / 5;
+            // One row, always earth, water, fire, wind, void from left to right
+            // (owner 2026-10-01; was a pentagon around the pawn). Below the
+            // center hex so the pawn never covers it. Not-yet-won elements are
+            // faint empty rings so the order is always clear. The group is kept
+            // level when the map is turned (updateViewport).
             const elementOrder = ['earth', 'water', 'fire', 'wind', 'void'];
-
-            activatedElements.forEach(element => {
-                const index = elementOrder.indexOf(element);
-                const angle = angleStep * index - Math.PI / 2; // Start at top
-                const x = Math.cos(angle) * radius;
-                const y = Math.sin(angle) * radius;
+            const R = 7.5, GAP = 17, ROW_Y = TILE_SIZE * 1.5;
+            elementOrder.forEach((element, index) => {
+                const x = (index - 2) * GAP;
+                const y = ROW_Y;
+                const won = activated.has(element);
 
                 // Outline ring so the pip is visible against any background
                 const symbolBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 symbolBg.setAttribute('cx', x);
                 symbolBg.setAttribute('cy', y);
-                symbolBg.setAttribute('r', '9');
-                symbolBg.setAttribute('fill', '#000');
+                symbolBg.setAttribute('r', R);
+                symbolBg.setAttribute('fill', won ? '#000' : 'rgba(0,0,0,0.35)');
                 symbolBg.setAttribute('stroke', STONE_TYPES[element].color);
-                symbolBg.setAttribute('stroke-width', '1.5');
+                symbolBg.setAttribute('stroke-width', won ? '1.5' : '1');
+                if (!won) symbolBg.setAttribute('stroke-opacity', '0.45');
                 symbolsGroup.appendChild(symbolBg);
+                if (!won) return;
 
                 // Element image (screen blend so black bg is transparent)
                 const imgEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
                 imgEl.setAttribute('href', STONE_TYPES[element].img);
-                imgEl.setAttribute('x', x - 9);
-                imgEl.setAttribute('y', y - 9);
-                imgEl.setAttribute('width', '18');
-                imgEl.setAttribute('height', '18');
-                imgEl.setAttribute('clip-path', `circle(9px at center)`);
+                imgEl.setAttribute('x', x - R);
+                imgEl.setAttribute('y', y - R);
+                imgEl.setAttribute('width', R * 2);
+                imgEl.setAttribute('height', R * 2);
+                imgEl.setAttribute('clip-path', `circle(${R}px at center)`);
                 imgEl.style.mixBlendMode = 'screen';
                 symbolsGroup.appendChild(imgEl);
             });
+            levelPlayerTileSymbols();
 
             console.log(`🎨 Updated player ${playerIndex}'s TILE with ${activatedElements.length} element symbol(s): ${activatedElements.join(', ')}`);
 

@@ -4755,3 +4755,11 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
     border-color: #c4a6ff;
 }
 .ap-pip:not(.void) + .ap-pip.void { margin-left: 4px; }
+
+/* Player tile border in the player's color (game-core.js placeTile) */
+.player-tile-border {
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-opacity: 0.95;
+}

@@ -137,6 +137,11 @@ reach/beat it from here.
   light tan #eadfc8. Your own Hand panel still shows the colors. ScrollLook.elementOf now accepts a bare
   lowercase element ('catacomb', 'earth'); it returned nothing before, which also blanked the inventory
   group label icons.
+  Player shrine (owner): tint circle opacity 0.15 -> 0.38; .player-tile-border path in the player's
+  color (playerTileOutlinePath: unshared edges of createTileGroup's polygons); element symbols are one row
+  below the center hex, always earth, water, fire, wind, void left to right, empty faint rings for elements
+  not won yet (drawn as soon as the tile is placed); levelPlayerTileSymbols() keeps the row level when the
+  map is turned (called from updateViewport when viewportRotation changed).
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also
