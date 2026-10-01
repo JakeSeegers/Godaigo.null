@@ -1566,12 +1566,13 @@
     //      tracking it would never change a search's evaluation anyway.
     function simEffectSacrificialPyre(snap, p) {
         const hand = p.hand || [];
-        // No Level I on your own turn (owner rule, mirrors enterScrollSacrificeMode)
-        const eligible = hand.filter(name => {
+        // Hand or active area, no Level I on your own turn, never Pyre itself
+        // (owner rules, mirrors ScrollEffects.sacrificeCandidates)
+        const eligible = [...hand, ...(p.active || [])].filter(name => {
             const d = window.SCROLL_DEFINITIONS?.[name];
-            return d && d.level !== 1;
+            return d && d.level !== 1 && name !== 'FIRE_SCROLL_3';
         });
-        if (!eligible.length) return; // real flow bails — nothing sacrificeable
+        if (!eligible.length) return; // real flow bails: nothing sacrificeable
 
         let chosen = eligible[0];
         let chosenLevel = window.SCROLL_DEFINITIONS?.[chosen]?.level ?? Infinity;
@@ -1583,6 +1584,8 @@
 
         const hi = p.hand.indexOf(chosen);
         if (hi !== -1) { p.hand.splice(hi, 1); p.handCount--; }
+        const ai = (p.active || []).indexOf(chosen);
+        if (ai !== -1) { p.active.splice(ai, 1); p.activeCount--; }
         if (!snap.commonArea) snap.commonArea = [];
         snap.commonArea = snap.commonArea.filter(name =>
             window.SCROLL_DEFINITIONS?.[name]?.element !== def.element);

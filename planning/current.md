@@ -177,6 +177,11 @@ reach/beat it from here.
   bot-sim.js simEffectSacrificialPyre), not by the response/counter flags. Pyre also still gave the
   sacrificed scroll's level in free stones (not from the source): removed there and in bot-sim.js.
   Likely the source of the +2 water +2 void the undo fuzz test saw.
+  Pyre may also take a scroll from the ACTIVE area (owner): ScrollEffects.sacrificeCandidates(ps) =
+  hand + active, above Level I, not Pyre itself (used by execute + enterScrollSacrificeMode; same list
+  in the executeSpell guard and bot-sim.js); the response-turn picker (response-window.js
+  canPlayerRespond reactionOptions) offers Level I from hand + active, respondWithSacrificialPyre
+  removes from both and no longer grants stones.
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also

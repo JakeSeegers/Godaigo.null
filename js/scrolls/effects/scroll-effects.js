@@ -864,7 +864,7 @@ const ScrollEffects = {
          */
         FIRE_SCROLL_3: {
             name: 'Sacrificial Pyre',
-            description: 'Activate any scroll in your hand (ignoring pattern). The scroll goes to the common area.',
+            description: 'Activate any scroll in your hand or active area (ignoring pattern). The scroll goes to the common area. Level I scrolls only as a response, never on your own turn.',
             isCounter: false,
             priority: 3,
 
@@ -881,9 +881,9 @@ const ScrollEffects = {
                 const playerScrolls = system.spellSystem
                     ? system.spellSystem.playerScrolls?.[casterIndex]
                     : null;
-                if (!playerScrolls || playerScrolls.hand.size === 0) {
-                    console.log(`🔥 Sacrificial Pyre: no scrolls in hand - cancelling`);
-                    if (typeof updateStatus === 'function') updateStatus('No scrolls in hand to sacrifice!');
+                if (!playerScrolls || system.sacrificeCandidates(playerScrolls).length === 0) {
+                    console.log(`🔥 Sacrificial Pyre: nothing to sacrifice - cancelling`);
+                    if (typeof updateStatus === 'function') updateStatus('No scroll to sacrifice! (hand or active area, above Level I)');
                     // cancelled: true prevents win-condition tracking in applyScrollEffects
                     return { success: false, requiresSelection: false, cancelled: true, message: 'No scrolls to sacrifice!' };
                 }
@@ -4169,6 +4169,14 @@ const ScrollEffects = {
     // Reflect/Psychic-chained cast still signals completion (and lets the
     // next queued reflect/psychic run) even on an early "nothing to
     // sacrifice" return, not just after a real selection.
+    // Scrolls Sacrificial Pyre may activate on its caster's own turn: hand
+    // and active area (owner, 2026-10-01), above Level I (Level I only as a
+    // response on another player's turn), never Pyre itself.
+    sacrificeCandidates(playerScrolls) {
+        return [...(playerScrolls?.hand || []), ...(playerScrolls?.active || [])]
+            .filter(s => s !== 'FIRE_SCROLL_3' && (this.spellSystem?.patterns?.[s]?.level ?? 2) !== 1);
+    },
+
     enterScrollSacrificeMode(casterIndex, onComplete) {
         const self = this;
 
@@ -4208,16 +4216,16 @@ const ScrollEffects = {
         // another player's response window (see
         // ResponseWindowSystem.showSacrificialPyreResponsePicker). Checked by
         // level, not by the response/counter flags, so every Level I counts.
-        const scrollArray = Array.from(playerScrolls.hand).filter(s =>
-            (this.spellSystem?.patterns?.[s]?.level ?? 2) !== 1);
+        const scrollArray = this.sacrificeCandidates(playerScrolls);
         if (scrollArray.length === 0) {
             updateStatus('No scroll to sacrifice! Level I scrolls can only be activated with Sacrificial Pyre as a response on another player\'s turn.');
             if (typeof onComplete === 'function') onComplete();
             return;
         }
         this.showScrollSelectionModal(scrollArray, 'Select a scroll to sacrifice and activate:', (selectedScroll) => {
-            // Remove from hand
+            // Remove from hand or active area (Pyre can use either)
             playerScrolls.hand.delete(selectedScroll);
+            playerScrolls.active.delete(selectedScroll);
 
             // Add to common area (not discard) using proper method
             if (this.spellSystem.discardToCommonArea) {

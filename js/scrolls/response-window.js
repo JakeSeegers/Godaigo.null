@@ -227,7 +227,7 @@ class ResponseWindowSystem {
         }
 
         // Sacrificial Pyre (FIRE_SCROLL_3): "Activate any scroll in your hand
-        // (ignoring pattern)." If the player can cast Pyre itself (own pattern
+        // or active area (ignoring pattern)." If the player can cast Pyre itself (own pattern
         // formed, sitting in active/common, affordable) and has a Level I
         // response/counter scroll sitting in hand, offer Pyre as a special
         // response option — picking it lets them activate that hand scroll as
@@ -239,7 +239,8 @@ class ResponseWindowSystem {
             const pyreDef = this.spellSystem.patterns[SACRIFICIAL_PYRE];
             const pyreCost = this.spellSystem?.getSpellCost ? this.spellSystem.getSpellCost(pyreDef, playerIndex) : 2;
             if (pyreDef && playerAP >= pyreCost) {
-                const reactionOptions = [...(playerScrolls.hand || new Set())].filter(s => {
+                // Hand or active area (owner, 2026-10-01)
+                const reactionOptions = [...(playerScrolls.hand || new Set()), ...(playerScrolls.active || new Set())].filter(s => {
                     const d = this.spellSystem.patterns[s];
                     return d && (d.canCounter === 'any' || d.isResponse === true);
                 });
@@ -1004,7 +1005,7 @@ class ResponseWindowSystem {
         // private id keeps this picker invisible to that sweep entirely.
         se.showScrollSelectionModal(
             pyreScrollInfo.reactionOptions,
-            'Sacrificial Pyre: choose a Level I scroll from your hand to activate as your response (pattern ignored):',
+            'Sacrificial Pyre: choose a Level I scroll from your hand or active area to activate as your response (pattern ignored):',
             (chosenScrollName) => {
                 this.sacrificialPyrePicking = false;
                 this.respondWithSacrificialPyre(pyreScrollInfo, chosenScrollName, responderIndexOverride);
@@ -1037,6 +1038,7 @@ class ResponseWindowSystem {
         const pScrolls = this.spellSystem.playerScrolls[myIndex];
         if (pScrolls) {
             pScrolls.hand.delete(chosenScrollName);
+            pScrolls.active.delete(chosenScrollName);
         }
         if (this.spellSystem.discardToCommonArea) {
             this.spellSystem.discardToCommonArea(chosenScrollName);
@@ -1049,18 +1051,8 @@ class ResponseWindowSystem {
         this.spendPlayerAP(myIndex, pyreScrollInfo.cost);
         console.log(`  Spent ${pyreScrollInfo.cost} AP for Sacrificial Pyre response`);
 
-        // Base stone reward for the sacrificed scroll — same conversion value
-        // as the main-phase flow (enterScrollSacrificeMode). Level I scrolls
-        // are never catacomb, so this is always the single-element case.
-        const pools = typeof playerPools !== 'undefined' ? playerPools : [];
-        const poolCaps = typeof playerPoolCapacity !== 'undefined' ? playerPoolCapacity : {};
-        if (pools[myIndex] && poolCaps) {
-            pools[myIndex][chosenDef.element] = Math.min(
-                poolCaps[chosenDef.element] || 5,
-                (pools[myIndex][chosenDef.element] || 0) + chosenDef.level
-            );
-        }
-        if (typeof updateStoneCount === 'function') updateStoneCount(chosenDef.element);
+        // No stone reward for the sacrificed scroll: the old "cast gives
+        // stones" test rule was removed (owner, 2026-10-01).
 
         // Using Sacrificial Pyre itself activates fire for the responder — this
         // flow bypasses the normal executeSpell/applyScrollEffects pipeline for
@@ -1089,7 +1081,7 @@ class ResponseWindowSystem {
             // clicking through this picker (no bot AI drives Sacrificial Pyre yet),
             // so force this through even if this client happens to be impersonating
             // an unrelated bot's turn right now.
-            const show = () => updateStatus(`Sacrificial Pyre! Activated ${chosenDef.name} as your response (+${chosenDef.level} ${chosenDef.element} stones).`);
+            const show = () => updateStatus(`Sacrificial Pyre! Activated ${chosenDef.name} as your response.`);
             if (typeof window !== 'undefined' && typeof window.withStatusActor === 'function') {
                 window.withStatusActor(myIndex, show);
             } else {

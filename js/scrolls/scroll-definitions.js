@@ -79,7 +79,7 @@ const WATER_SCROLL_EFFECTS = {
 const FIRE_SCROLL_EFFECTS = {
     1: { name: 'Unbidden Lamplight', description: 'Response: Send the triggering scroll to your hand after it resolves (scroll still resolves).', isResponse: true, oncePerTurn: true },
     2: { name: 'Burning Motivation', description: 'Until end of turn, gain 2 AP for each stone you place. Stacks if activated multiple times.' },
-    3: { name: 'Sacrificial Pyre', description: 'Activate any scroll in your hand (ignoring pattern). The scroll goes to the common area.' },
+    3: { name: 'Sacrificial Pyre', description: 'Activate any scroll in your hand or active area (ignoring pattern). The scroll goes to the common area. Level I scrolls only as a response, never on your own turn.' },
     4: { name: 'Transmute', description: 'Discard any number of stones or scrolls to regain 2 AP each.' },
     5: { name: 'Arson', description: 'Destroy one elemental stone from an opponent\'s pool. Move Arson to the common area.' }
 };
