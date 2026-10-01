@@ -389,6 +389,8 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `window.TutorialMode` | tutorial-mode.js | game-core (hooks), index.html (button) |
 | `window.SCROLL_DEFINITIONS` | scroll-definitions.js | game-core, scroll-effects |
 | `window.gami` | gamification.js | lobby, gamification-ui |
+| `window.ScrollLook` | game-core.js | opponent panel, scroll-panels, response-window, game-log-ui (catacomb = both element colors) |
+| `window.PlayerFlash` | game-ui.js | click a pawn / player shrine / Opponent Status card: all three glow in that player's color |
 
 ---
 

@@ -121,6 +121,17 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-01: Opponent Status panel + catacomb look (player feedback).** (1) The panel was hard to
+  read: cards are now labelled rows (Won n/5 with the 5 element symbols lit, Stones, Hand n with each
+  scroll's element, Active chips with icon + name, hover = preview). (2) Your own Hand count stayed at 0:
+  the panel only refreshed on network messages, stone changes and turn changes; updateScrollCount() now
+  calls window.scheduleOpponentPanelRefresh(). (3) The catacomb symbol was invisible: Catacomb.webp is
+  black and .element-icon-sm uses mix-blend-mode: screen. window.ScrollLook (game-core.js) draws it as a
+  CSS mask filled with the scroll's two element colors, and catacomb scrolls use both colors everywhere
+  (opponent panel, Hand/Active/Common cards and previews, scroll popup, response window, Game Log)
+  instead of void-like purple (#9b59b6; --catacomb-color is now the tan stone color). (4) New
+  window.PlayerFlash: click a pawn, player shrine or Opponent Status card -> all three glow in that
+  player's color for 1.3 s. css/components.css also has old .opponent-* rules but is not loaded anywhere.
 - **2026-10-01: Match 43 review (4 humans, room 871) and fixes.** Found: (1) source pools were never
   synced (shrine collection only changed the collector's board), and casts sent their full element list
   even when the caster's empty-source rule refused it; responses/counters had no rule at all -> earth

@@ -66,6 +66,12 @@
     function elColor(element) {
         return ELEMENT_COLOR_VAR[element] || 'var(--text-primary)';
     }
+    // A scroll name's color: a catacomb scroll shows both of its element
+    // colors (window.ScrollLook, game-core.js).
+    function scrollStyle(scrollName) {
+        if (elementOf(scrollName) === 'catacomb' && window.ScrollLook) return window.ScrollLook.textStyle(scrollName);
+        return 'color:' + elColor(elementOf(scrollName));
+    }
     function playerColorHex(playerIndex) {
         try {
             if (typeof allPlayersData !== 'undefined' && Array.isArray(allPlayersData)) {
@@ -265,7 +271,7 @@
             }
             case 'cast_execute': {
                 return {
-                    html: `Cast <span style="color:${elColor(entry.element)}">${esc(scrollDisplayName(entry.scrollName))}</span>`,
+                    html: `Cast <span style="${entry.scrollName ? scrollStyle(entry.scrollName) : 'color:' + elColor(entry.element)}">${esc(scrollDisplayName(entry.scrollName))}</span>`,
                     className: 'gl-cast',
                 };
             }
@@ -273,7 +279,7 @@
                 if (entry.success === false) return null;
                 const text = entry.message || `${scrollDisplayName(entry.scrollName)} resolved.`;
                 return {
-                    html: `<span style="color:${elColor(elementOf(entry.scrollName))}">${esc(text)}</span>`,
+                    html: `<span style="${scrollStyle(entry.scrollName)}">${esc(text)}</span>`,
                     className: 'gl-effect',
                 };
             }
@@ -281,7 +287,7 @@
                 return {
                     html: `${playerSpan(entry.casterIndex)} counters ${playerSpan(entry.player)}'s ` +
                         `${esc(scrollDisplayName(entry.triggeringScroll))} with ` +
-                        `<span style="color:${elColor(elementOf(entry.scrollName))}">${esc(scrollDisplayName(entry.scrollName))}</span>!`,
+                        `<span style="${scrollStyle(entry.scrollName)}">${esc(scrollDisplayName(entry.scrollName))}</span>!`,
                     className: 'gl-counter',
                 };
             }
@@ -300,7 +306,7 @@
             case 'response_resolved': {
                 return {
                     html: `${playerSpan(entry.casterIndex)} responds with ` +
-                        `<span style="color:${elColor(elementOf(entry.scrollName))}">${esc(scrollDisplayName(entry.scrollName))}</span>`,
+                        `<span style="${scrollStyle(entry.scrollName)}">${esc(scrollDisplayName(entry.scrollName))}</span>`,
                     className: 'gl-response',
                 };
             }
@@ -313,14 +319,14 @@
             case 'reflect_triggered': {
                 return {
                     html: `${playerSpan(entry.casterIndex)}'s Reflect activates: ` +
-                        `<span style="color:${elColor(elementOf(entry.scrollName))}">${esc(scrollDisplayName(entry.scrollName))}</span>!`,
+                        `<span style="${scrollStyle(entry.scrollName)}">${esc(scrollDisplayName(entry.scrollName))}</span>!`,
                     className: 'gl-reflect',
                 };
             }
             case 'psychic_triggered': {
                 return {
                     html: `${playerSpan(entry.casterIndex)}'s Psychic activates: ` +
-                        `<span style="color:${elColor(elementOf(entry.scrollName))}">${esc(scrollDisplayName(entry.scrollName))}</span>!`,
+                        `<span style="${scrollStyle(entry.scrollName)}">${esc(scrollDisplayName(entry.scrollName))}</span>!`,
                     className: 'gl-psychic',
                 };
             }

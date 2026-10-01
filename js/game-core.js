@@ -17,6 +17,65 @@
             void:     { color: '#9458f4', symbol: '✺', img: 'images/voidsymbol.webp'     + IMG_V },
             catacomb: { color: '#c8a870', symbol: '✦', img: 'images/Catacomb.webp'       + IMG_V }
         };
+        window.STONE_TYPES = STONE_TYPES; // scroll-panels.js / scroll-effects.js card icons read it
+
+        // How a scroll's element looks (owner, 2026-10-01). A catacomb scroll blends
+        // two elements, so it shows BOTH colors (it used to be void's purple), and
+        // its symbol is drawn as a mask filled with those colors: the image itself
+        // is black, and .element-icon-sm's screen blend made it invisible.
+        window.ScrollLook = (function () {
+            const ORDER = ['earth', 'water', 'fire', 'wind', 'void'];
+            const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+            // name = a scroll key ('CATACOMB_SCROLL_2') or its definition object.
+            function elementOf(name) {
+                if (name && typeof name === 'object') return name.element || null;
+                const n = String(name || '');
+                for (const el of [...ORDER, 'catacomb']) if (n.startsWith(el.toUpperCase())) return el;
+                return null;
+            }
+            // Component elements of a catacomb scroll (pattern stone types), in element order.
+            function parts(name) {
+                const def = (name && typeof name === 'object') ? name
+                    : (window.SCROLL_DEFINITIONS?.[name] || window.spellSystem?.patterns?.[name]);
+                const types = new Set((def?.patterns?.[0] || []).map(p => p.type));
+                return ORDER.filter(el => types.has(el)); // [] for a bare 'catacomb'
+            }
+            function colors(name) {
+                const el = elementOf(name);
+                if (el === 'catacomb') {
+                    const ps = parts(name);
+                    return ps.length ? ps.map(e => STONE_TYPES[e].color) : [STONE_TYPES.catacomb.color];
+                }
+                return [STONE_TYPES[el]?.color || '#aaa'];
+            }
+            function gradient(cols) {
+                if (cols.length < 2) return cols[0];
+                const step = 100 / cols.length;
+                return 'linear-gradient(90deg, ' + cols.map((c, i) => `${c} ${i * step}%, ${c} ${(i + 1) * step}%`).join(', ') + ')';
+            }
+            // <img> for an element, a two-color masked symbol for a catacomb scroll.
+            function iconHtml(name, cls = 'element-icon-sm', extraStyle = '') {
+                const el = elementOf(name);
+                if (el === 'catacomb') {
+                    return `<span class="catacomb-icon ${cls}" style="background:${gradient(colors(name))};${extraStyle}" title="${label(name)}"></span>`;
+                }
+                const img = STONE_TYPES[el]?.img;
+                return img ? `<img src="${img}" class="${cls}" alt="${el}" style="${extraStyle}">` : '';
+            }
+            // Inline style for text in the scroll's color(s).
+            function textStyle(name) {
+                const cols = colors(name);
+                if (cols.length < 2) return `color:${cols[0]};`;
+                return `background:${gradient(cols)};-webkit-background-clip:text;background-clip:text;color:transparent;`;
+            }
+            // "Earth", or "Catacomb (Earth + Wind)".
+            function label(name) {
+                const el = elementOf(name);
+                const ps = el === 'catacomb' ? parts(name) : [];
+                return ps.length ? `Catacomb (${ps.map(cap).join(' + ')})` : cap(el);
+            }
+            return { elementOf, parts, colors, gradient, iconHtml, textStyle, label };
+        })();
 
         // Spell System for pattern-based stone generation
         class SpellSystem {
@@ -2237,8 +2296,8 @@
                             const scrollDiv = document.createElement('div');
                             scrollDiv.className = 'si-common-item';
 
-                            const color = element === 'catacomb' ? '#9b59b6' : STONE_TYPES[element].color;
-                            const iconHTML = `<img src="${STONE_TYPES[element].img}" class="element-icon-sm" alt="${element}" style="vertical-align:middle;">`;
+                            const color = STONE_TYPES[element].color;
+                            const iconHTML = window.ScrollLook.iconHtml(element, 'element-icon-sm', 'vertical-align:middle;');
 
                             const nameDiv = document.createElement('div');
                             nameDiv.innerHTML = `<span style="color:${color}">${iconHTML}</span> ${scroll.name}`;
@@ -2282,8 +2341,8 @@
                         const elementScrolls = handScrollsList.filter(s => this.getScrollElement(s) === element);
                         if (elementScrolls.length > 0) {
                             const elementLabel = document.createElement('div');
-                            const color = element === 'catacomb' ? '#9b59b6' : STONE_TYPES[element].color;
-                            const iconHTML = `<img src="${STONE_TYPES[element].img}" class="element-icon-sm" alt="${element}" style="vertical-align:middle;">`;
+                            const color = STONE_TYPES[element].color;
+                            const iconHTML = window.ScrollLook.iconHtml(element, 'element-icon-sm', 'vertical-align:middle;');
                             elementLabel.innerHTML = `<span style="color:${color}">${iconHTML} ${element.charAt(0).toUpperCase() + element.slice(1)}</span>`;
                             elementLabel.className = 'si-element-label';
                             handSection.appendChild(elementLabel);
@@ -2328,6 +2387,8 @@
                 try {
                     if (window.ScrollPanelSystem) window.ScrollPanelSystem.refresh();
                 } catch (e) {}
+                // ...and the Opponent Status panel (your own card's hand count)
+                try { window.scheduleOpponentPanelRefresh?.(); } catch (e) {}
             }
         }
 

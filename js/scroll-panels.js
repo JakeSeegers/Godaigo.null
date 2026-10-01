@@ -20,7 +20,7 @@ const ScrollPanelSystem = (() => {
     const STORAGE_KEY = 'godaigo_scroll_panels_v8';  // bumped — cards flex column, height 400, autofit on by default
     const EL_COLORS   = {
         earth: '#69d83a', water: '#5894f4', fire: '#ed1b43',
-        wind: '#ffce00', void: '#9458f4', catacomb: '#9b59b6'
+        wind: '#ffce00', void: '#9458f4', catacomb: '#c8a870' // catacomb scrolls use ScrollLook (two colors)
     };
 
     // Static reference text for the Elemental Stones panel's hover preview —
@@ -432,10 +432,14 @@ const ScrollPanelSystem = (() => {
         if (!def) return null;
         const element = typeof sp.getScrollElement === 'function'
             ? sp.getScrollElement(scrollName) : 'earth';
-        const color   = EL_COLORS[element] || '#aaa';
-        const elLabel = element ? element.charAt(0).toUpperCase() + element.slice(1) : '';
+        // A catacomb scroll blends two elements: colors = both (ScrollLook, game-core.js)
+        const look    = window.ScrollLook;
+        const colors  = look ? look.colors(scrollName) : [EL_COLORS[element] || '#aaa'];
+        const color   = colors[0];
+        const bg      = look ? look.gradient(colors) : color;
+        const elLabel = look ? look.label(scrollName) : (element ? element.charAt(0).toUpperCase() + element.slice(1) : '');
         const lvLabel = def.level ? 'Lv. ' + (ROMAN[def.level] || def.level) : '';
-        return { def, element, color, elLabel, lvLabel, name: def.name || scrollName };
+        return { def, element, colors, color, bg, elLabel, lvLabel, name: def.name || scrollName };
     }
 
     // ---- Compact list row (shown in place of the cards while collapsed) ----
@@ -449,7 +453,7 @@ const ScrollPanelSystem = (() => {
 
         const dot = document.createElement('span');
         dot.className = 'fsp-compact-dot';
-        dot.style.background = meta.color;
+        dot.style.background = meta.bg;
         row.appendChild(dot);
 
         const name = document.createElement('span');
@@ -486,7 +490,7 @@ const ScrollPanelSystem = (() => {
 
         const meta = _scrollMeta(scrollName);
         if (!meta) return null;
-        const { def, element, color, elLabel, lvLabel } = meta;
+        const { def, element, colors, color, bg, elLabel, lvLabel } = meta;
         const iconSrc  = window.STONE_TYPES?.[element]?.img || '';
 
         const canModify = (typeof isMultiplayer === 'undefined' || !isMultiplayer)
@@ -498,12 +502,19 @@ const ScrollPanelSystem = (() => {
         card.dataset.scrollName = scrollName;
         card.dataset.area = area;
         card.style.setProperty('--el-color', color);
+        if (colors.length > 1) {
+            card.classList.add('fsp-card-blend');
+            card.style.setProperty('--el-color2', colors[1]);
+            card.style.setProperty('--el-grad', bg);
+        }
 
         // ── Header: icon · name · level · tag ──────────────────────────
         const hdr = document.createElement('div');
         hdr.className = 'fsp-card-header';
 
-        if (iconSrc) {
+        if (element === 'catacomb' && window.ScrollLook) {
+            hdr.insertAdjacentHTML('beforeend', window.ScrollLook.iconHtml(scrollName, 'fsp-card-icon'));
+        } else if (iconSrc) {
             const icon = document.createElement('img');
             icon.src = iconSrc;
             icon.className = 'fsp-card-icon';
@@ -522,6 +533,7 @@ const ScrollPanelSystem = (() => {
         const metaEl = document.createElement('span');
         metaEl.className = 'fsp-card-meta';
         metaEl.textContent = [elLabel, lvLabel].filter(Boolean).join(' · ');
+        if (colors.length > 1 && window.ScrollLook) metaEl.style.cssText = window.ScrollLook.textStyle(scrollName);
         titleWrap.appendChild(metaEl);
 
         hdr.appendChild(titleWrap);
@@ -1391,7 +1403,7 @@ const ScrollPanelSystem = (() => {
             const sp = window.spellSystem;
             const element = (sp && typeof sp.getScrollElement === 'function')
                 ? sp.getScrollElement(scrollName) : 'earth';
-            const elColor = EL_COLORS[element] || '#888';
+            const elColor = window.ScrollLook ? window.ScrollLook.colors(scrollName)[0] : (EL_COLORS[element] || '#888');
             // Real area → _buildCard adds the same Move to Active/Common Area
             // / Activate buttons the actual card has. Falls back to 'preview'
             // (no action buttons) when the area isn't known/meaningful

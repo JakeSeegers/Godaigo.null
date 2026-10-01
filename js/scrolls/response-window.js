@@ -540,7 +540,7 @@ class ResponseWindowSystem {
         // Show what scroll was cast
         const scrollInfo = document.createElement('div');
         const scrollDef = this.spellSystem.patterns[this.pendingScrollData.name];
-        scrollInfo.innerHTML = `<strong>${this.getPlayerName(this.currentCaster)}</strong> activated <span style="color: ${this.getElementColor(scrollDef?.element)}">${scrollDef?.name || this.pendingScrollData.name}</span>`;
+        scrollInfo.innerHTML = `<strong>${this.getPlayerName(this.currentCaster)}</strong> activated <span style="${this.scrollTextStyle(scrollDef)}">${scrollDef?.name || this.pendingScrollData.name}</span>`;
         scrollInfo.style.fontSize = '16px';
         scrollInfo.style.marginBottom = '10px';
         header.appendChild(scrollInfo);
@@ -704,7 +704,7 @@ class ResponseWindowSystem {
 
         const scrollDef = this.spellSystem.patterns[this.pendingScrollData?.name];
         const scrollInfo = document.createElement('div');
-        scrollInfo.innerHTML = `<strong>${this.getPlayerName(this.currentCaster)}</strong> activated <span style="color: ${this.getElementColor(scrollDef?.element)}">${scrollDef?.name || this.pendingScrollData?.name}</span>`;
+        scrollInfo.innerHTML = `<strong>${this.getPlayerName(this.currentCaster)}</strong> activated <span style="${this.scrollTextStyle(scrollDef)}">${scrollDef?.name || this.pendingScrollData?.name}</span>`;
         scrollInfo.style.fontSize = '16px';
         scrollInfo.style.marginBottom = '10px';
         header.appendChild(scrollInfo);
@@ -762,9 +762,10 @@ class ResponseWindowSystem {
         const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
         const def = scrollInfo.definition;
         const element = def?.element || 'earth';
-        const elementColor = this.getElementColor(element);
+        const blend = element === 'catacomb' && window.ScrollLook; // two element colors
+        const elementColor = blend ? window.ScrollLook.colors(def)[0] : this.getElementColor(element);
         const iconSrc = window.STONE_TYPES?.[element]?.img || '';
-        const elLabel = element ? element.charAt(0).toUpperCase() + element.slice(1) : '';
+        const elLabel = blend ? window.ScrollLook.label(def) : (element ? element.charAt(0).toUpperCase() + element.slice(1) : '');
         const lvLabel = def?.level ? 'Lv. ' + (ROMAN[def.level] || def.level) : '';
         const metaText = [elLabel, lvLabel].filter(Boolean).join(' · ');
 
@@ -790,7 +791,9 @@ class ResponseWindowSystem {
         const headerDiv = document.createElement('div');
         Object.assign(headerDiv.style, { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' });
 
-        if (iconSrc) {
+        if (blend) {
+            headerDiv.insertAdjacentHTML('beforeend', window.ScrollLook.iconHtml(def, '', 'width:26px;height:26px;flex-shrink:0;'));
+        } else if (iconSrc) {
             const icon = document.createElement('img');
             icon.src = iconSrc;
             Object.assign(icon.style, { width: '26px', height: '26px', flexShrink: '0' });
@@ -803,6 +806,7 @@ class ResponseWindowSystem {
         const nameSpan = document.createElement('div');
         nameSpan.textContent = def?.name || scrollInfo.name;
         Object.assign(nameSpan.style, { fontWeight: 'bold', color: elementColor, fontSize: '15px' });
+        if (blend) nameSpan.style.cssText += window.ScrollLook.textStyle(def);
         titleWrap.appendChild(nameSpan);
 
         if (metaText) {
@@ -1262,7 +1266,7 @@ class ResponseWindowSystem {
         scrollName.textContent = scrollDef?.name || scrollData.name;
         scrollName.style.fontSize = '20px';
         scrollName.style.fontWeight = 'bold';
-        scrollName.style.color = this.getElementColor(scrollDef?.element);
+        scrollName.style.cssText = this.scrollTextStyle(scrollDef);
         scrollName.style.marginBottom = '20px';
         modal.appendChild(scrollName);
 
@@ -1377,7 +1381,7 @@ class ResponseWindowSystem {
         const info = document.createElement('div');
         info.style.fontSize = '16px';
         info.style.marginBottom = '15px';
-        info.innerHTML = `<strong>${responderName}</strong> cast Psychic to counter and steal <span style="color: ${this.getElementColor(origDef?.element)}">${origName}</span>.<br><br>Pay <strong>${cost} AP</strong> to negate Psychic? Your scroll will resolve normally.`;
+        info.innerHTML = `<strong>${responderName}</strong> cast Psychic to counter and steal <span style="${this.scrollTextStyle(origDef)}">${origName}</span>.<br><br>Pay <strong>${cost} AP</strong> to negate Psychic? Your scroll will resolve normally.`;
         modal.appendChild(info);
 
         const timerDiv = document.createElement('div');
@@ -1890,6 +1894,13 @@ class ResponseWindowSystem {
         return `Player ${playerIndex + 1}`;
     }
 
+    // Inline style for a scroll name: its element color, or both colors for
+    // a catacomb scroll (window.ScrollLook, game-core.js).
+    scrollTextStyle(def) {
+        if (def?.element === 'catacomb' && window.ScrollLook) return window.ScrollLook.textStyle(def);
+        return `color: ${this.getElementColor(def?.element)}`;
+    }
+
     getElementColor(element) {
         const colors = {
             earth: '#69d83a',
@@ -1897,7 +1908,7 @@ class ResponseWindowSystem {
             fire: '#ed1b43',
             wind: '#ffce00',
             void: '#9458f4',
-            catacomb: '#9b59b6'
+            catacomb: '#c8a870'
         };
         return colors[element] || '#ffffff';
     }

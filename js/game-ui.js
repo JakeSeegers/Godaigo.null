@@ -183,8 +183,10 @@
             const existing = document.getElementById('scroll-info-popup-overlay');
             if (existing) existing.remove();
 
-            const elementColor = element === 'catacomb' ? '#9b59b6' : STONE_TYPES[element]?.color || '#aaa';
-            const elementLabel = element ? element.charAt(0).toUpperCase() + element.slice(1) : 'Unknown';
+            // A catacomb scroll shows both of its element colors (ScrollLook, game-core.js)
+            const look = window.ScrollLook;
+            const elementColor = look ? look.colors(scrollName)[0] : (STONE_TYPES[element]?.color || '#aaa');
+            const elementLabel = look ? look.label(scrollName) : (element ? element.charAt(0).toUpperCase() + element.slice(1) : 'Unknown');
             const elementImg   = STONE_TYPES[element]?.img || '';
             const scrollTitle  = pattern?.name || scrollName;
             const levelText    = pattern?.level ? `Level ${pattern.level}` : '';
@@ -217,7 +219,9 @@
                 align-items: center;
                 gap: 10px;
             `;
-            if (elementImg) {
+            if (look && element) {
+                header.insertAdjacentHTML('beforeend', look.iconHtml(scrollName, 'element-icon-sm', 'width:28px;height:28px;object-fit:contain;flex-shrink:0;'));
+            } else if (elementImg) {
                 const icon = document.createElement('img');
                 icon.src = elementImg;
                 icon.className = 'element-icon-sm';
@@ -228,7 +232,7 @@
             const headerText = document.createElement('div');
             headerText.style.cssText = 'flex:1;';
             const line1 = document.createElement('div');
-            line1.style.cssText = `font-family:var(--font-pixel);font-size:13px;color:${elementColor};letter-spacing:2px;text-transform:uppercase;`;
+            line1.style.cssText = `font-family:var(--font-pixel);font-size:13px;color:${elementColor};letter-spacing:2px;text-transform:uppercase;` + (look ? look.textStyle(scrollName) : '');
             line1.textContent = elementLabel + (levelText ? ' · ' + levelText : '');
             headerText.appendChild(line1);
             const line2 = document.createElement('div');
@@ -872,96 +876,47 @@
                 const card = document.createElement('div');
                 card.className = 'opponent-card' + (isActiveTurn ? ' active-turn' : '') + (isSelf ? ' self-card' : '');
                 card.style.borderLeftColor = playerColor;
+                card.dataset.playerIndex = i; // click = flash this player (PlayerFlash below)
+                card.title = 'Click to show this player on the board';
+                const look = window.ScrollLook;
+                const ELS = ['earth', 'water', 'fire', 'wind', 'void'];
+                const row = (label, html) => `<div class="opp-row"><span class="opp-label">${label}</span><span class="opp-value">${html}</span></div>`;
 
-                // Header with name and AP
-                const header = document.createElement('div');
-                header.className = 'opponent-header';
-                header.innerHTML = `
-                    <span class="opponent-name" style="color: ${playerColor};">${window.cosmeticsSystem?.seatNameHtml ? window.cosmeticsSystem.seatNameHtml(i) : playerName}${isSelf ? ' (you)' : ''}</span>
-                    <span class="opponent-ap">AP: ${ap.currentAP}${ap.voidAP > 0 ? ` +${ap.voidAP}<img src="images/voidsymbol.webp${IMG_V}" class="element-icon-sm" alt="void" style="vertical-align:middle;">` : ''}</span>
-                `;
-                card.appendChild(header);
+                // Header: name + AP (void AP as a small extra)
+                const nameHtml = window.cosmeticsSystem?.seatNameHtml ? window.cosmeticsSystem.seatNameHtml(i) : playerName;
+                const voidAp = ap.voidAP > 0 ? ` <span class="opp-void-ap" title="Void AP">+${ap.voidAP}<img src="${STONE_TYPES.void.img}" class="element-icon-sm" alt="void"></span>` : '';
+                let html = `<div class="opponent-header">
+                        <span class="opponent-name" style="color: ${playerColor};">${nameHtml}${isSelf ? ' <span class="opp-you">you</span>' : ''}</span>
+                        <span class="opponent-ap">${ap.currentAP} AP${voidAp}</span>
+                    </div>`;
 
-                // Stones
-                const stonesDiv = document.createElement('div');
-                stonesDiv.className = 'opponent-stones';
-                const stoneElements = ['earth', 'water', 'fire', 'wind', 'void'];
-                let hasStones = false;
-                stoneElements.forEach(element => {
-                    if (pool[element] > 0) {
-                        hasStones = true;
-                        const stoneSpan = document.createElement('span');
-                        stoneSpan.className = 'opponent-stone';
-                        stoneSpan.style.color = STONE_TYPES[element].color;
-                        stoneSpan.innerHTML = `<img src="${STONE_TYPES[element].img}" class="element-icon-sm" alt="${element}"> ${element}: ${pool[element]}/5`;
-                        stonesDiv.appendChild(stoneSpan);
-                    }
-                });
-                if (!hasStones) {
-                    stonesDiv.innerHTML = '<span class="opponent-no-stones">No stones</span>';
+                // Elements activated (public: the symbols on their shrine)
+                const activated = scrollData.activated || new Set();
+                html += row(`Won ${activated.size}/5`, ELS.map(el =>
+                    `<img src="${STONE_TYPES[el].img}" class="element-icon-sm opp-pip${activated.has(el) ? ' on' : ''}" alt="${el}" title="${el.charAt(0).toUpperCase() + el.slice(1)}${activated.has(el) ? ' activated' : ''}">`).join(''));
+
+                // Stones in their pool
+                const stones = ELS.filter(el => pool[el] > 0).map(el =>
+                    `<span class="opponent-stone" style="color:${STONE_TYPES[el].color}" title="${pool[el]} ${el} stone${pool[el] !== 1 ? 's' : ''}"><img src="${STONE_TYPES[el].img}" class="element-icon-sm" alt="${el}">${pool[el]}</span>`).join('');
+                html += row('Stones', stones || '<span class="opp-none">none</span>');
+
+                // Hand: count + each scroll's ELEMENT only (name/pattern stay
+                // private, like a face-down card showing its suit). A catacomb
+                // scroll shows its two element colors.
+                const handNames = scrollData.hand ? [...scrollData.hand] : [];
+                html += row(`Hand ${handNames.length}`, handNames.length
+                    ? handNames.map(n => look ? look.iconHtml(n, 'element-icon-sm opp-hand-icon') : '').join('')
+                    : '<span class="opp-none">empty</span>');
+
+                // Active scrolls (public): icon + name, hover = preview
+                const activeNames = scrollData.active ? [...scrollData.active] : [];
+                if (activeNames.length) {
+                    html += row('Active', activeNames.map(n => {
+                        const pattern = spellSystem.patterns[n];
+                        return `<span class="opponent-scroll-card" data-scroll-name="${n}" title="${look ? look.label(n) : ''}: hover to preview">${look ? look.iconHtml(n) : ''}<span class="opponent-scroll-name" style="${look ? look.textStyle(n) : ''}">${pattern ? pattern.name : n}</span></span>`;
+                    }).join(''));
                 }
-                card.appendChild(stonesDiv);
-
-
-                // Scrolls summary: hand count + each scroll's ELEMENT only (name/
-                // pattern stay private — element type is visible, same as a
-                // face-down card showing its suit but not its rank).
-                const handSize = scrollData.hand ? scrollData.hand.size : 0;
-                const activeSize = scrollData.active ? scrollData.active.size : 0;
-
-                const scrollsSummary = document.createElement('div');
-                scrollsSummary.className = 'opponent-scrolls-summary';
-                scrollsSummary.textContent = `Hand: ${handSize} scroll${handSize !== 1 ? 's' : ''}`;
-                card.appendChild(scrollsSummary);
-
-                if (handSize > 0 && scrollData.hand) {
-                    const handElementsDiv = document.createElement('div');
-                    handElementsDiv.className = 'opponent-hand-elements';
-                    scrollData.hand.forEach(scrollName => {
-                        const element = spellSystem.getScrollElement(scrollName);
-                        const elementIcon = document.createElement('img');
-                        elementIcon.src = element === 'catacomb'
-                            ? 'images/Catacomb.webp' + IMG_V
-                            : (STONE_TYPES[element]?.img || '');
-                        elementIcon.className = 'element-icon-sm';
-                        elementIcon.alt = element || 'unknown';
-                        elementIcon.title = element ? element.charAt(0).toUpperCase() + element.slice(1) : 'Unknown';
-                        handElementsDiv.appendChild(elementIcon);
-                    });
-                    card.appendChild(handElementsDiv);
-                }
-
-                // Active scrolls (visible to opponents)
-                if (activeSize > 0) {
-                    const activeScrollsDiv = document.createElement('div');
-                    activeScrollsDiv.className = 'opponent-active-scrolls';
-
-                    const activeTitle = document.createElement('div');
-                    activeTitle.className = 'opponent-active-scrolls-title';
-                    activeTitle.textContent = `Active Area (${activeSize}):`;
-                    activeScrollsDiv.appendChild(activeTitle);
-
-                    scrollData.active.forEach(scrollName => {
-                        const pattern = spellSystem.patterns[scrollName];
-                        const element = spellSystem.getScrollElement(scrollName);
-                        const elementColor = element === 'catacomb' ? '#9b59b6' : STONE_TYPES[element]?.color || '#666';
-                        const elementIconHTML = `<img src="${STONE_TYPES[element]?.img || ''}" class="element-icon-sm" alt="${element}" style="vertical-align:middle;">`;
-
-                        const scrollCard = document.createElement('div');
-                        scrollCard.className = 'opponent-scroll-card';
-                        scrollCard.title = 'Hover to preview';
-                        scrollCard.dataset.scrollName = scrollName; // read by _initCardHoverPreview (js/scroll-panels.js)
-                        scrollCard.innerHTML = `
-                            <div class="opponent-scroll-name">${pattern ? pattern.name : scrollName}</div>
-                            <div class="opponent-scroll-element" style="color: ${elementColor};">
-                                ${elementIconHTML} ${element ? element.charAt(0).toUpperCase() + element.slice(1) : 'Unknown'}
-                            </div>
-                        `;
-                        activeScrollsDiv.appendChild(scrollCard);
-                    });
-
-                    card.appendChild(activeScrollsDiv);
-                }
+                card.innerHTML = html;
 
                 if (cardsContainer) cardsContainer.appendChild(card);
                 // Clone into new UI container — delegation listener on the container
@@ -985,6 +940,67 @@
             // autofit is off for it or it's collapsed, so always safe to call.
             window.ScrollPanelSystem?.fitPanel?.('opponents');
         }
+
+        // Own scroll changes (draw, cast, discard) only refresh the floating
+        // scroll panels, not this one, so the self card could say "Hand: 0"
+        // while you held a scroll (owner, 2026-10-01). updateScrollCount()
+        // calls this; several calls in one frame rebuild once.
+        let _oppRefreshQueued = false;
+        window.scheduleOpponentPanelRefresh = function () {
+            if (_oppRefreshQueued) return;
+            _oppRefreshQueued = true;
+            requestAnimationFrame(() => { _oppRefreshQueued = false; try { updateOpponentPanel(); } catch (e) {} });
+        };
+
+        // Click a player's pawn, their player shrine, or their card in the
+        // Opponent Status panel: all three briefly glow in that player's color.
+        // A click is a press and release within 6 px and 500 ms, so dragging
+        // a pawn never flashes.
+        window.PlayerFlash = (function () {
+            const MS = 1300;
+            let down = null;
+            function colorOf(i) {
+                const pd = (typeof allPlayersData !== 'undefined' ? allPlayersData : []).find(p => p.player_index === i);
+                return (pd && PLAYER_COLORS[pd.color]) || playerPositions[i]?.color || '#ffffff';
+            }
+            function pulse(el, color) {
+                if (!el) return;
+                el.classList.remove('player-flash');
+                void el.getBoundingClientRect(); // restart the animation
+                el.style.setProperty('--flash-color', color);
+                el.classList.add('player-flash');
+                clearTimeout(el._flashTimer);
+                el._flashTimer = setTimeout(() => el.classList.remove('player-flash'), MS);
+            }
+            function flash(i) {
+                if (typeof i !== 'number' || i < 0) return;
+                const color = colorOf(i);
+                pulse(playerPositions[i]?.element, color);
+                const tile = placedTiles.find(t => t.isPlayerTile && t.playerIndex === i);
+                pulse(tile?.element, color);
+                document.querySelectorAll(`.opponent-card[data-player-index="${i}"]`).forEach(c => pulse(c, color));
+            }
+            function playerAt(target) {
+                if (!target || !target.closest) return -1;
+                const card = target.closest('.opponent-card[data-player-index]');
+                if (card) return Number(card.dataset.playerIndex);
+                const pawn = playerPositions.findIndex(p => p && p.element && p.element.contains(target));
+                if (pawn >= 0) return pawn;
+                const tile = placedTiles.find(t => t.isPlayerTile && t.element && t.element.contains(target));
+                return tile && typeof tile.playerIndex === 'number' ? tile.playerIndex : -1;
+            }
+            document.addEventListener('pointerdown', e => {
+                down = { x: e.clientX, y: e.clientY, t: Date.now(), target: e.target };
+            }, true);
+            document.addEventListener('pointerup', e => {
+                const d = down; down = null;
+                if (!d || Date.now() - d.t > 500 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;
+                if (d.target?.closest?.('.opponent-scroll-card')) return; // scroll chip = preview, not a flash
+                const i = playerAt(d.target);
+                if (i >= 0) flash(i);
+            }, true);
+            return { flash };
+        })();
 
         function clearBoard(skipConfirm = false) {
             if (!skipConfirm && !confirm('Clear all tiles and stones from the board?')) {

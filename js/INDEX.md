@@ -197,6 +197,16 @@ window.gami                 // gamification service
 window.crtOverlay           // CRT effect manager
 window.emojiSystem          // emoji reactions
 window.cosmeticsSystem      // name colour cosmetics
+window.STONE_TYPES          // element colors/symbols/images (game-core.js; was never on window before 2026-10-01)
+window.ScrollLook           // game-core.js: a scroll's look. colors(name) (catacomb = its 2 elements), label(name)
+                            // ("Catacomb (Earth + Wind)"), iconHtml(name, cls) (catacomb = CSS mask of the black
+                            // Catacomb.webp filled with both colors, .catacomb-icon), textStyle(name), gradient(cols).
+                            // name may be a scroll key or a definition object. Used by the opponent panel,
+                            // scroll-panels.js cards, the scroll popup, response-window.js and the Game Log.
+window.PlayerFlash          // game-ui.js: flash(i) = pawn, player shrine and Opponent Status card glow in the
+                            // player's color (.player-flash). Clicking any of the three calls it (press+release
+                            // within 6 px / 500 ms, capture listeners on document, so pawn drags never flash).
+window.scheduleOpponentPanelRefresh // game-ui.js: one updateOpponentPanel() next frame; called by updateScrollCount()
 window.SoundSystem          // SFX + login music
 window.JoytoneBridge        // adaptive music (onTileRevealed, setMuted, setVolume, togglePopup)
 window.BotState             // bot observation/actuation (snapshot, legalActions, applyAction)
