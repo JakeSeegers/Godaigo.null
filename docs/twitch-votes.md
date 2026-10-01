@@ -29,9 +29,11 @@ New `js/stream-votes.js` (`window.StreamVotes`):
   with a status dot (connected / not connected), like the Test game switch (js/test-game.js).
 - New room flag `game_room.stream_mode` (sql/stream-games.sql). Lobby room card shows a small
   pixel emote badge "Stream" (no Unicode emoji).
-- Stream games pay no ladder, no win gold, no pot, no bounty (chat can gang up on a player):
-  `_pay_game_win`, `report_game_result` ladder part and `_maybe_pay_pot` skip a match whose room
-  had `stream_mode` (saved on `matches.settings` at `start_match`, so it cannot change mid-game).
+- Stream games pay rewards as normal (owner, 2026-10-01). Every chat-steered bot seat is named
+  "Twitchbot (<element bot>)" and counts as ONE leaderboard bot, Twitchbot (deployed_bots row,
+  owner null). `_ladder_apply_match` maps those seats to it and never lets it lose to itself.
+  `start_match` copies the room flag into `matches.stream_mode`; the combo miner skips those
+  matches. SQL: sql/stream-games.sql.
 
 ## 3. Mood vote (once per round, per bot)
 At the start of a bot's turn, if its mood vote is due:

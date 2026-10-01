@@ -31,6 +31,14 @@ These apply to all work on this repo. `tools/claude-hooks/` enforces rules 1 and
    hook checks this.
 5. **Keep docs in sync** after changes: follow the `/sync-docs` skill
    (`.claude/skills/sync-docs/SKILL.md`).
+6. **Bundle Supabase calls.** The owner approves every Supabase tool call by hand, so make
+   as few as possible. Put all SQL for one change (tables, functions, data, and a final
+   `select` that checks the result) in ONE `execute_sql` or `apply_migration` call. Read
+   what you need first, also in one call. No one-statement-per-call loops, no extra
+   "did it work?" calls when the check can be the last statement of the same call.
+   If a call times out, check the result once, then stop and tell the owner instead of
+   retrying again and again (2026-10-01: function changes on `start_match` and
+   `_ladder_apply_match` timed out several times; nothing was applied).
 
 ### How the rules are enforced
 - This file is loaded into every Claude session automatically.
