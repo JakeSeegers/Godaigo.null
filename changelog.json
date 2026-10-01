@@ -4,8 +4,10 @@
     {
       "id": "2026-10-01",
       "date": "2026-10-01",
-      "title": "A clearer pot drop",
+      "title": "Fair play fixes and a clearer pot drop",
       "changes": [
+        "Fixes from last night's 4-player game: scrolls no longer get copied when one goes to the common area, an element no longer counts once its stone source is empty (counters and responses too), and every board now agrees on how many stones are left in each source.",
+        "Undo of a stone works properly on every board, and a stone on the board can't be dropped into your pool. Sacrificial Pyre no longer costs AP when you have no scroll in hand to use; it tells you instead.",
         "Pot drop: coins are shown at their real size, the peg that guards the treasure tube glows gold, and when a coin gets close to the tube the drop slows down and shows a close-up, so you can see it slip past the peg and fall in."
       ]
     },

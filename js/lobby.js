@@ -2574,17 +2574,34 @@
             });
 
             // Listen for stone move events
+            // Stone ids are counted separately on every board, so find the stone by
+            // its position when the sender gave one (one stone per hex).
+            const stoneIdAt = (x, y, fallbackId) => {
+                if (typeof x === 'number' && typeof y === 'number' && Array.isArray(placedStones)) {
+                    const st = placedStones.find(s => Math.hypot(s.x - x, s.y - y) < 1);
+                    if (st) return st.id;
+                }
+                return fallbackId;
+            };
+
             gameChannel.on('broadcast', { event: 'stone-move' }, ({ payload }) => {
                 console.log('📄 Received stone move:', payload);
-                const { stoneId, x, y, stoneType } = payload;
-                moveStoneVisually(stoneId, x, y, stoneType);
+                const { stoneId, fromX, fromY, x, y, stoneType } = payload;
+                moveStoneVisually(stoneIdAt(fromX, fromY, stoneId), x, y, stoneType);
             });
 
             // Listen for stone break events
             gameChannel.on('broadcast', { event: 'stone-break' }, ({ payload }) => {
                 console.log('📄 Received stone break:', payload);
-                const { stoneId } = payload;
-                breakStoneVisually(stoneId);
+                const { stoneId, x, y, noSource } = payload;
+                const id = stoneIdAt(x, y, stoneId);
+                const type = placedStones.find(s => s.id === id)?.type;
+                breakStoneVisually(id);
+                // An undone placement goes back to the player's pool, not the source.
+                if (noSource && type && stonePools[type] > 0) {
+                    stonePools[type]--;
+                    if (typeof updateStoneCount === 'function') updateStoneCount(type);
+                }
             });
 
             // Listen for water stone transformation (Control the Current)
@@ -2806,13 +2823,16 @@
             // Listen for spell cast events
             gameChannel.on('broadcast', { event: 'spell-cast' }, ({ payload }) => {
                 console.log('📄 Received spell cast:', payload);
-                const { playerIndex, spellName, element, elements, level, isCatacomb } = payload;
+                const { playerIndex, spellName, element, elements, level, isCatacomb, granted } = payload;
 
                 // Update that player's activated elements display
                 spellSystem.ensurePlayerScrollsStructure(playerIndex);
                 const playerScrollData = spellSystem.playerScrolls[playerIndex];
 
-                if (isCatacomb) {
+                if (Array.isArray(granted)) {
+                    // The caster says which elements it really granted (empty-source rule).
+                    granted.forEach(el => playerScrollData.activated.add(el));
+                } else if (isCatacomb) {
                     // Catacomb activates multiple elements
                     elements.forEach(el => {
                         playerScrollData.activated.add(el);
@@ -3093,6 +3113,14 @@
                     }
                     Object.assign(playerPools[playerIndex], resources);
                 }
+                // Shared source pools, sent by the active player only (see syncPlayerState).
+                if (payload.source && typeof stonePools !== 'undefined' && stonePools) {
+                    Object.keys(stonePools).forEach(t => {
+                        const v = payload.source[t];
+                        if (typeof v === 'number' && isFinite(v)) stonePools[t] = v;
+                        if (typeof updateStoneCount === 'function') updateStoneCount(t);
+                    });
+                }
                 updateOpponentPanel(); // Update opponent panel when player state changes
             });
 
@@ -3289,6 +3317,20 @@
                 }
                 receivedSequences.add(eventId);
 
+                // Each scroll exists once: whoever held it (hand or active) no longer
+                // does. The sender removes it on its own board, but the other boards
+                // only get this message for some paths (Sacrificial Pyre, Psychic going
+                // to the common area), which duplicated scrolls in match 43.
+                (spellSystem.playerScrolls || []).forEach(ps => {
+                    if (!ps) return;
+                    ps.hand?.delete(scrollName);
+                    ps.active?.delete(scrollName);
+                });
+                const deckNow = spellSystem.scrollDecks?.[element];
+                if (Array.isArray(deckNow)) {
+                    const di = deckNow.indexOf(scrollName);
+                    if (di > -1) deckNow.splice(di, 1);
+                }
                 // IDEMPOTENCY: Check if common area already has this scroll
                 if (spellSystem.commonArea[element] === scrollName) {
                     console.warn('⚠️  Common area already has this scroll, skipping update');
@@ -3469,12 +3511,11 @@
                                 if (result.casterIndex === myPlayerIndex) {
                                     // Track activated element for win condition (response scrolls count too!)
                                     spellSystem.ensurePlayerScrollsStructure(result.casterIndex);
-                                    const activatedEls = (scrollDef?.element === 'catacomb' && scrollDef?.patterns?.[0])
-                                        ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                        : scrollDef?.element ? [scrollDef.element] : [];
-                                    activatedEls.forEach(el => {
-                                        spellSystem.playerScrolls[result.casterIndex].activated.add(el);
-                                    });
+                                    // Same empty-source rule as a normal cast (grantElements).
+                                    const activatedEls = spellSystem.grantElements(result.casterIndex,
+                                        (scrollDef?.element === 'catacomb' && scrollDef?.patterns?.[0])
+                                            ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
+                                            : scrollDef?.element ? [scrollDef.element] : []);
                                     if (typeof updatePlayerElementSymbols === 'function') {
                                         updatePlayerElementSymbols(result.casterIndex);
                                     }
@@ -3923,7 +3964,12 @@
             gameChannel.on('broadcast', { event: 'scroll-state-sync-request' }, ({ payload }) => {
                 // Only host responds to sync requests
                 if (myPlayerIndex === 0 && typeof spellSystem !== 'undefined') {
+                    // One answer covers every asker: at most one snapshot per 2 s.
+                    const now = Date.now();
+                    if (window._lastSyncAnswerAt && now - window._lastSyncAnswerAt < 2000) return;
+                    window._lastSyncAnswerAt = now;
                     console.log(`⚠️  Sync request from player ${payload.playerIndex} - sending authoritative state`);
+                    spellSystem.validateScrollState(); // repair before sending
                     const snapshot = spellSystem.getScrollStateSnapshot();
                     broadcastGameAction('scroll-state-sync', { snapshot });
                 }
@@ -3959,11 +4005,9 @@
                     }
                 }
 
-                // If errors found and I'm not the host, immediately request sync
-                if (hasErrors && myPlayerIndex !== 0) {
-                    console.warn('⚠️  Errors detected - immediately requesting sync from host');
-                    broadcastGameAction('scroll-state-sync-request', { playerIndex: myPlayerIndex });
-                }
+                // validateScrollState() repairs clear duplicates itself and asks the
+                // host (at most every 5 s) only for a real conflict.
+                void hasErrors;
             }, 3000);
 
             // Listen for game reset (placement timeout or other critical errors)

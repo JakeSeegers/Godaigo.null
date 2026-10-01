@@ -256,6 +256,27 @@
             }
 
             // Reinforce scroll state: ensure hand/active/activated are Sets (prevents "disappearing" from bad state)
+            // Give a player win-condition elements, with the empty-source rule: an
+            // element whose shared source pool is empty does not count. Returns the
+            // elements really granted (announce only these to the other players).
+            grantElements(playerIndex, elements) {
+                this.ensurePlayerScrollsStructure(playerIndex);
+                const ps = this.playerScrolls[playerIndex];
+                const granted = [];
+                (elements || []).forEach(el => {
+                    if (!el) return;
+                    if ((window.stonePools?.[el] ?? 1) > 0) {
+                        const isNew = !ps.activated.has(el);
+                        ps.activated.add(el);
+                        granted.push(el);
+                        if (isNew && playerIndex === (typeof myPlayerIndex !== 'undefined' ? myPlayerIndex : playerIndex)) window.SoundSystem?.onWinCondition?.(el);
+                    } else {
+                        console.log(`📜 Win condition skipped for ${el} (player ${playerIndex}): source pool is empty.`);
+                    }
+                });
+                return granted;
+            }
+
             ensurePlayerScrollsStructure(playerIndex) {
                 if (playerIndex == null || playerIndex < 0) return;
                 if (!this.playerScrolls[playerIndex]) {
@@ -318,11 +339,55 @@
                     }
                 });
 
-                // If errors found in multiplayer and we're not the host, request sync
-                if (errorsFound && typeof isMultiplayer !== 'undefined' && isMultiplayer) {
-                    console.warn('⚠️ Scroll state errors detected! Requesting sync from host...');
-                    if (typeof broadcastGameAction === 'function' && typeof myPlayerIndex !== 'undefined' && myPlayerIndex !== 0) {
-                        broadcastGameAction('scroll-state-sync-request', { playerIndex: myPlayerIndex });
+                // Repair what has a clear answer, the same way on every board:
+                // a scroll in the common area is not also held by a player (going to
+                // the common area is always the later move), and a scroll in one
+                // player's hand and active area stays in the active area. Before, duplicates
+                // were only reported, and the host's snapshot carried them too, so
+                // every board asked for a resync again and again (match 43: 4,415
+                // requests). A scroll held by a player is also taken out of the decks.
+                let unresolved = false;
+                if (errorsFound) {
+                    const common = new Set(commonElements.map(el => this.commonArea[el]).filter(Boolean));
+                    (this.playerScrolls || []).forEach((p, i) => {
+                        if (!p) return;
+                        [...p.hand].forEach(n => {
+                            if (common.has(n) || p.active.has(n)) { p.hand.delete(n); console.warn(`[Scroll state] repaired: ${n} removed from hand of player ${i}`); }
+                        });
+                        [...p.active].forEach(n => {
+                            if (common.has(n)) { p.active.delete(n); console.warn(`[Scroll state] repaired: ${n} removed from active of player ${i}`); }
+                        });
+                    });
+                    // Two players holding the same scroll has no clear answer: ask the host.
+                    const seen = new Map();
+                    (this.playerScrolls || []).forEach((p, i) => {
+                        if (!p) return;
+                        [...p.hand, ...p.active].forEach(n => {
+                            if (seen.has(n) && seen.get(n) !== i) unresolved = true;
+                            seen.set(n, i);
+                        });
+                    });
+                }
+                // A scroll that is held or in the common area is never also in a deck.
+                const placed = new Set(commonElements.map(el => this.commonArea[el]).filter(Boolean));
+                (this.playerScrolls || []).forEach(p => { p?.hand?.forEach(n => placed.add(n)); p?.active?.forEach(n => placed.add(n)); });
+                Object.keys(this.scrollDecks || {}).forEach(el => {
+                    const deck = this.scrollDecks[el];
+                    if (!Array.isArray(deck)) return;
+                    for (let k = deck.length - 1; k >= 0; k--) {
+                        if (placed.has(deck[k])) { console.warn(`[Scroll state] repaired: ${deck[k]} removed from the ${el} deck`); deck.splice(k, 1); }
+                    }
+                });
+
+                // Only an unresolved conflict asks the host, and at most every 5 s.
+                if (unresolved && typeof isMultiplayer !== 'undefined' && isMultiplayer) {
+                    const now = Date.now();
+                    if (!this._lastSyncRequestAt || now - this._lastSyncRequestAt > 5000) {
+                        this._lastSyncRequestAt = now;
+                        console.warn('⚠️ Scroll state conflict! Requesting sync from host...');
+                        if (typeof broadcastGameAction === 'function' && typeof myPlayerIndex !== 'undefined' && myPlayerIndex !== 0) {
+                            broadcastGameAction('scroll-state-sync-request', { playerIndex: myPlayerIndex });
+                        }
                     }
                 }
 
@@ -1363,6 +1428,22 @@
             }
 
             executeSpell({name, spell, fromCommonArea = false}) {
+                // Sacrificial Pyre activates a scroll from your hand. With nothing in
+                // hand it can use (Level I response scrolls don't count on your own
+                // turn), refuse it before any AP is spent (owner, 2026-10-01: AP was
+                // charged and the cast fizzled).
+                if (name === 'FIRE_SCROLL_3') {
+                    const hand = Array.from(this.getPlayerScrolls(false)?.hand || []);
+                    const usable = hand.filter(s => {
+                        const d = this.patterns?.[s];
+                        return !(d && (d.canCounter === 'any' || d.isResponse === true));
+                    });
+                    if (usable.length === 0) {
+                        updateStatus('Sacrificial Pyre needs a scroll in your hand to activate (not a Level I response scroll). No AP spent.');
+                        window.SoundSystem?.play('error');
+                        return false;
+                    }
+                }
                 const cost = this.getSpellCost(spell, activePlayerIndex);
                 if (!canAfford(cost)) {
                     updateStatus(`Not enough AP! Need ${cost} AP to activate.`);
@@ -1497,6 +1578,11 @@
                             console.log(`📜 Effect cancelled - skipping win-condition tracking for ${name}`);
                             return;
                         }
+                        // Elements this cast really granted (the source-pool guard below can
+                        // skip some). Only these are announced to the other players: they
+                        // used to receive the full element list and add it without the
+                        // guard (match 43: earth won with an empty earth source).
+                        const grantedEls = [];
                         if (spell.element === 'catacomb' && spell.patterns && spell.patterns[0]) {
                             // Catacomb scrolls activate each component element — the same
                             // source-pool guard as regular scrolls applies per component
@@ -1508,6 +1594,7 @@
                                     const ps = this.getPlayerScrolls(false);
                                     const isNew = !ps.activated.has(el);
                                     ps.activated.add(el);
+                                    grantedEls.push(el);
                                     if (isNew) window.SoundSystem?.onWinCondition(el);
                                     if (typeof window.gami?.onElementActivated === 'function') {
                                         window.gami.onElementActivated(el, Array.from(this.getPlayerScrolls(false).activated));
@@ -1525,6 +1612,7 @@
                                 const ps = this.getPlayerScrolls(false);
                                 const isNew = !ps.activated.has(spell.element);
                                 ps.activated.add(spell.element);
+                                grantedEls.push(spell.element);
                                 if (isNew) window.SoundSystem?.onWinCondition(spell.element);
                                 if (typeof window.gami?.onElementActivated === 'function') {
                                     window.gami.onElementActivated(spell.element, Array.from(this.getPlayerScrolls(false).activated));
@@ -1554,16 +1642,13 @@
                         // A later onSelectionEffectComplete repeats it; adding an
                         // element twice is harmless.
                         if (isMultiplayer) {
-                            // For catacomb scrolls, send component elements for win condition tracking
-                            const activatedElements = (spell.element === 'catacomb' && spell.patterns && spell.patterns[0])
-                                ? [...new Set(spell.patterns[0].map(pos => pos.type))]
-                                : [spell.element];
+                            // Only the elements granted above (an empty list = none).
                             broadcastGameAction('scroll-effect', {
                                 playerIndex: activePlayerIndex,
                                 scrollName: name,
                                 effectName: effect.name,
                                 element: spell.element,
-                                activatedElements: activatedElements
+                                activatedElements: grantedEls
                             });
                             syncPlayerState();
                         }
@@ -1587,6 +1672,7 @@
                     });
 
                     const rewards = [];
+                    var defaultGranted = [];
                     Object.entries(elementCounts).forEach(([element, count]) => {
                         playerPool[element] = Math.min(
                             playerPoolCapacity[element],
@@ -1601,6 +1687,7 @@
                             const ps0 = this.getPlayerScrolls(false);
                             const isNew0 = !ps0.activated.has(element);
                             ps0.activated.add(element);
+                            defaultGranted.push(element);
                             if (isNew0) window.SoundSystem?.onWinCondition(element);
                         } else {
                             console.log(`📜 Win condition skipped for ${element} (catacomb component, default path): source pool is empty.`);
@@ -1611,6 +1698,7 @@
                     updatePlayerElementSymbols(activePlayerIndex);
                     updateStatus(`Catacomb scroll activated! Added ${rewards.join(', ')} stones!`);
                 } else {
+                    var defaultGranted = [];
                     // Regular element scrolls
                     playerPool[spell.element] = Math.min(
                         playerPoolCapacity[spell.element],
@@ -1624,6 +1712,7 @@
                         const ps1 = this.getPlayerScrolls(false);
                         const isNew1 = !ps1.activated.has(spell.element);
                         ps1.activated.add(spell.element);
+                        defaultGranted = [spell.element];
                         if (isNew1) window.SoundSystem?.onWinCondition(spell.element);
                         updateStatus(`Scroll activated! Added +${spell.level} ${spell.element} stones!`);
                     } else {
@@ -1645,6 +1734,7 @@
                             playerIndex: activePlayerIndex,
                             spellName: name,
                             elements: Object.keys(elementCounts),
+                            granted: defaultGranted,
                             isCatacomb: true
                         });
                     } else {
@@ -1653,6 +1743,7 @@
                             spellName: name,
                             element: spell.element,
                             level: spell.level,
+                            granted: defaultGranted,
                             isCatacomb: false
                         });
                     }
@@ -1681,16 +1772,18 @@
                     const activatedEl = (spell.element === 'catacomb' && spell.patterns && spell.patterns[0])
                         ? [...new Set(spell.patterns[0].map(pos => pos.type))]
                         : [spell.element];
-                    activatedEl.forEach(el => {
+                    activatedEl.filter(el => this.getPlayerScrolls(false).activated.has(el)).forEach(el => {
                         window.gami.onElementActivated(el, Array.from(this.getPlayerScrolls(false).activated));
                     });
                 }
 
                 if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
-                    // Determine activated elements (for catacomb scrolls)
-                    const activatedElements = (spell.element === 'catacomb' && spell.patterns && spell.patterns[0])
+                    // Only elements the caster really holds now: the cast may have been
+                    // refused an element by the empty-source rule in applyScrollEffects.
+                    const heldNow = this.getPlayerScrolls(false).activated;
+                    const activatedElements = ((spell.element === 'catacomb' && spell.patterns && spell.patterns[0])
                         ? [...new Set(spell.patterns[0].map(pos => pos.type))]
-                        : [spell.element];
+                        : [spell.element]).filter(el => heldNow.has(el));
 
                     broadcastGameAction('scroll-effect', {
                         playerIndex: activePlayerIndex,
@@ -2603,10 +2696,13 @@
             window.SoundSystem?.play('breakstone');
             spendAP(breakCost);
 
-            // Broadcast stone break to other players
+            // Broadcast stone break to other players (with its position: stone ids
+            // are counted separately on every board)
             if (isMultiplayer) {
                 broadcastGameAction('stone-break', {
-                    stoneId: stoneId
+                    stoneId: stoneId,
+                    x: stone.x,
+                    y: stone.y
                 });
             }
 
@@ -6151,11 +6247,17 @@ function clearPlayerPath() {
             const activeResources = isMyTurn
                 ? (playerPools[activePlayerIndex] || { ...INITIAL_PLAYER_STONES })
                 : null;
+            // The shared source pools, from the active player (the one drawing and
+            // returning stones this turn). Before, only the player's own pool was
+            // sent, so each browser had its own source counts and the empty-source
+            // rule could pass on one board and fail on another (match 43).
+            const sourceSnapshot = isMyTurn ? { ...sourcePool } : null;
             broadcastGameAction('player-state-update', {
                 playerIndex: activePlayerIndex,
                 currentAP: apToSend,
                 voidAP: voidApToSend,
-                resources: activeResources
+                resources: activeResources,
+                source: sourceSnapshot
             });
         }
 

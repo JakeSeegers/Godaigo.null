@@ -121,6 +121,20 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-01: Match 43 review (4 humans, room 871) and fixes.** Found: (1) source pools were never
+  synced (shrine collection only changed the collector's board), and casts sent their full element list
+  even when the caster's empty-source rule refused it; responses/counters had no rule at all -> earth
+  counted after the earth source was empty. Fix: `source` in player-state-update, granted-only element
+  broadcasts, `spellSystem.grantElements()`. (2) Scrolls copied when moved to the common area by
+  Sacrificial Pyre / Psychic (common-area-update never removed it from the holder) -> receivers remove
+  it everywhere; validateScrollState repairs and throttles (the game sent 4,415 sync requests and
+  4,902 snapshots). (3) Board stones out of sync from turn 42: Undo of a stone placement returned it to
+  the source AND the pool and removed it on other boards by local stone id; stone-break / stone-move now
+  carry the position (receivers find the stone by position), undo gives the stone to the pool only;
+  touch-moving a board stone placed a NEW stone; dropping a board stone on the Elemental Stones panel
+  put it in your pool unbroadcast (owner: not a rule; now it goes back to its spot). (4) Sacrificial
+  Pyre with no usable hand scroll is refused before AP is spent. Owner rules: recasting a countered
+  scroll from the active area is allowed (if you have the AP).
 - **2026-10-01: Pot drop, show the gap** (owner: the tube looked blocked by the board). Drawing only, no physics or
   server change: coins drawn at true size (12, was 14), guard peg over the tube gold + mouth glow, slow motion
   (1/3) and a 3x close-up of the mouth while a hit or near-miss coin is there, walls flash on a hit.

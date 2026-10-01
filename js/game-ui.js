@@ -708,21 +708,17 @@
         }
 
         // Returns true if the drop was over the open panel (caller should skip
-        // its normal board-placement handling). Only a stone already on the
-        // board (capturedStoneId !== null) actually needs to go anywhere — one
-        // freshly dragged out of the panel and dropped right back on it was
-        // never removed from the pool, so there's nothing to undo.
-        function tryReturnStoneToElementalPanel(clientX, clientY, stoneId, stoneType) {
+        // its normal board-placement handling). Dropping on the panel only
+        // cancels a placement: a stone dragged out of the panel and dropped back
+        // was never taken from the pool, so nothing changes. A stone already on
+        // the board never goes into a pool this way (owner, 2026-10-01: that
+        // "pocketed" stones and was never broadcast); it goes back to its spot.
+        function tryReturnStoneToElementalPanel(clientX, clientY, stoneId, stoneType, originalPos) {
             if (!isPointOverElementalStonesPanel(clientX, clientY)) return false;
-            if (stoneId !== null) {
-                if (stoneCounts[stoneType] < stoneCapacity[stoneType]) {
-                    stoneCounts[stoneType]++;
-                    updateStoneCount(stoneType);
-                    updateStatus('Returned ' + stoneType + ' stone to pool');
-                    window.SoundSystem?.play('placestone');
-                } else {
-                    updateStatus('Pool already full for ' + stoneType + ' stones!');
-                }
+            if (stoneId !== null && originalPos) {
+                placeMovedStone(originalPos.x, originalPos.y, stoneType, stoneId);
+                updateStatus('Stones on the board can\'t go back to your pool. Stone returned to its spot.');
+                window.SoundSystem?.play('error');
             }
             clearStoneReturnHighlight();
             return true;
@@ -1357,7 +1353,7 @@
                 draggedStoneType = null;
                 draggedStoneOriginalPos = null;
 
-                if (!tryReturnStoneToElementalPanel(e.clientX, e.clientY, capturedStoneId, capturedStoneType)) {
+                if (!tryReturnStoneToElementalPanel(e.clientX, e.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
                     const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
                     if (stonePos.valid) {
                         if (capturedStoneId === null) {
@@ -1388,6 +1384,8 @@
                             if (isMultiplayer) {
                                 broadcastGameAction('stone-move', {
                                     stoneId: capturedStoneId,
+                                    fromX: capturedOriginalPos?.x,
+                                    fromY: capturedOriginalPos?.y,
                                     x: stonePos.x,
                                     y: stonePos.y,
                                     stoneType: capturedStoneType
@@ -1994,25 +1992,41 @@
 
                     const capturedStoneId = draggedStoneId;
                     const capturedStoneType = draggedStoneType;
+                    const capturedOriginalPos = draggedStoneOriginalPos;
                     draggedStoneId = null;
                     draggedStoneType = null;
+                    draggedStoneOriginalPos = null;
 
-                    if (!tryReturnStoneToElementalPanel(coords.clientX, coords.clientY, capturedStoneId, capturedStoneType)) {
+                    if (!tryReturnStoneToElementalPanel(coords.clientX, coords.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
                         const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
-                        if (stonePos.valid) {
+                        if (stonePos.valid && capturedStoneId === null) {
                             placeStone(stonePos.x, stonePos.y, capturedStoneType);
                             window.SoundSystem?.play(capturedStoneType === 'earth' ? 'placeearthstone' : 'placestone');
-
-                            if (capturedStoneId === null) {
-                                stoneCounts[capturedStoneType]--;
-                                updateStoneCount(capturedStoneType);
-                                syncPlayerState();
-                            }
-                            // Note: placeStone already calls broadcastGameAction('stone-place', ...) internally.
-                        } else if (capturedStoneId !== null) {
-                            stoneCounts[capturedStoneType]++;
+                            stoneCounts[capturedStoneType]--;
                             updateStoneCount(capturedStoneType);
                             syncPlayerState();
+                            // Note: placeStone already calls broadcastGameAction('stone-place', ...) internally.
+                        } else if (stonePos.valid) {
+                            // A board stone moved (same as the mouse path): broadcast the
+                            // move with its old position. It used to be placed as a NEW
+                            // stone, leaving the old one on every other board.
+                            placeMovedStone(stonePos.x, stonePos.y, capturedStoneType, capturedStoneId);
+                            if (isMultiplayer) {
+                                broadcastGameAction('stone-move', {
+                                    stoneId: capturedStoneId,
+                                    fromX: capturedOriginalPos?.x,
+                                    fromY: capturedOriginalPos?.y,
+                                    x: stonePos.x,
+                                    y: stonePos.y,
+                                    stoneType: capturedStoneType
+                                });
+                            }
+                            updateStatus('Moved ' + capturedStoneType + ' stone');
+                        } else if (capturedStoneId !== null && capturedOriginalPos) {
+                            // Invalid spot: the board stone goes back where it was.
+                            placeMovedStone(capturedOriginalPos.x, capturedOriginalPos.y, capturedStoneType, capturedStoneId);
+                            window.SoundSystem?.play('error');
+                            updateStatus('Invalid placement! Stone returned to original spot.');
                         }
                     }
                 } else if (isDraggingPlayer && ghostPlayer) {
@@ -3496,27 +3510,32 @@ document.getElementById('undo-move').onclick = function() {
                 if (stone) {
                     if (stone.element && stone.element.parentNode) stone.element.remove();
                     placedStones.splice(placedStones.findIndex(s => s.id === action.stoneId), 1);
-                    returnStoneToPool(action.element);
+                    // The stone came from the player's pool, so it goes back there only
+                    // (it used to go to the source pool as well: counted twice).
                     stoneCounts[action.element] = (stoneCounts[action.element] || 0) + 1;
                     updateStoneCount(action.element);
                     updateTileClasses();
                     recheckAllStoneInteractions();
                     updateAllWaterStoneVisuals();
                     updateAllVoidNullificationVisuals();
-                    syncPlayerState();
                     if (isMultiplayer) {
-                        broadcastGameAction('stone-break', { stoneId: action.stoneId });
+                        // By position: stone ids are counted separately on every board.
+                        // noSource: the stone goes back to the player, not the source pool.
+                        broadcastGameAction('stone-break', { stoneId: action.stoneId, x: action.x, y: action.y, noSource: true });
                     }
                 }
-                // Restore any stones that were destroyed by the fire placement
+                // Restore any stones that were destroyed by the fire placement. Fire sent
+                // them to the source pool, so they come back out of it.
                 if (action.destroyedByFire && action.destroyedByFire.length > 0) {
                     action.destroyedByFire.forEach(s => {
                         placeStoneVisually(s.x, s.y, s.type);
+                        if (sourcePool[s.type] > 0) { sourcePool[s.type]--; updateStoneCount(s.type); }
                         if (isMultiplayer) {
                             broadcastGameAction('stone-place', { x: s.x, y: s.y, stoneType: s.type });
                         }
                     });
                 }
+                syncPlayerState();
                 updateStatus(`Undid ${action.element} stone placement.`);
 
             } else if (action.type === 'stone-break') {
@@ -3526,6 +3545,8 @@ document.getElementById('undo-move').onclick = function() {
                 document.getElementById('ap-count').textContent = currentAP;
                 if (typeof refreshVoidAP === 'function') refreshVoidAP();
                 placeStoneVisually(action.x, action.y, action.element);
+                // Breaking it sent it to the source pool; it comes back out of it.
+                if (sourcePool[action.element] > 0) { sourcePool[action.element]--; updateStoneCount(action.element); }
                 if (isMultiplayer) {
                     broadcastGameAction('stone-place', { x: action.x, y: action.y, stoneType: action.element });
                     if (typeof syncPlayerState === 'function') syncPlayerState();

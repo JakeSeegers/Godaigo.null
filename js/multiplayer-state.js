@@ -210,22 +210,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                 // (credited separately in respondWithSacrificialPyre), same rule as the
                                 // main-phase sacrifice flow.
                                 spellSystem.ensurePlayerScrollsStructure(entry.casterIndex);
-                                if (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0]) {
-                                    // Catacomb scrolls activate each component element
-                                    const elements = new Set(scrollDef.patterns[0].map(pos => pos.type));
-                                    elements.forEach(el => spellSystem.playerScrolls[entry.casterIndex].activated.add(el));
-                                } else {
-                                    spellSystem.playerScrolls[entry.casterIndex].activated.add(scrollDef.element);
-                                }
+                                // Catacomb scrolls activate each component element. Same
+                                // empty-source rule as a normal cast (grantElements).
+                                const grantedEls = spellSystem.grantElements(entry.casterIndex,
+                                    (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0])
+                                        ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
+                                        : [scrollDef.element]);
                                 if (typeof updatePlayerElementSymbols === 'function') {
                                     updatePlayerElementSymbols(entry.casterIndex);
                                 }
 
                                 // Broadcast the activation in multiplayer
                                 if (isMultiplayer && typeof broadcastGameAction === 'function') {
-                                    const activatedElements = (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0])
-                                        ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                        : [scrollDef.element];
+                                    const activatedElements = grantedEls;
                                     broadcastGameAction('scroll-effect', {
                                         playerIndex: entry.casterIndex,
                                         scrollName: scrollName,
@@ -290,22 +287,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             // applies regardless — only this extra win-condition credit is suppressed.
                             if (!entry.viaSacrificialPyre) {
                                 spellSystem.ensurePlayerScrollsStructure(counterCasterIdx);
-                                if (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0]) {
-                                    // Catacomb scrolls activate each component element
-                                    const elements = new Set(scrollDef.patterns[0].map(pos => pos.type));
-                                    elements.forEach(el => spellSystem.playerScrolls[counterCasterIdx].activated.add(el));
-                                } else {
-                                    spellSystem.playerScrolls[counterCasterIdx].activated.add(scrollDef.element);
-                                }
+                                // Catacomb scrolls activate each component element. Same
+                                // empty-source rule as a normal cast (grantElements).
+                                const grantedEls = spellSystem.grantElements(counterCasterIdx,
+                                    (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0])
+                                        ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
+                                        : [scrollDef.element]);
                                 if (typeof updatePlayerElementSymbols === 'function') {
                                     updatePlayerElementSymbols(counterCasterIdx);
                                 }
 
                                 // Broadcast the activation in multiplayer
                                 if (isMultiplayer && typeof broadcastGameAction === 'function') {
-                                    const activatedElements = (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0])
-                                        ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                        : [scrollDef.element];
+                                    const activatedElements = grantedEls;
                                     broadcastGameAction('scroll-effect', {
                                         playerIndex: counterCasterIdx,
                                         scrollName: scrollName,

@@ -96,6 +96,25 @@ SCROLL_DECKS = {
 }
 ```
 
+### Win-condition elements: one rule everywhere (2026-10-01, match 43)
+- An element only counts while its shared source pool (`stonePools`) is above 0. Normal casts
+  (`applyScrollEffects`), responses (lobby.js `response-resolved`) and counters
+  (multiplayer-state.js) all apply it; responses/counters use `spellSystem.grantElements(idx, els)`,
+  which returns the elements really granted.
+- `scroll-effect` / `spell-cast` broadcasts carry ONLY the granted elements (`activatedElements`,
+  `granted`); receivers add exactly those. Before, the full list was sent and added without the rule.
+- The source pools are synced: `syncPlayerState()` sends `source` (the active player's `sourcePool`)
+  with `player-state-update`; receivers copy it. Before, shrine collections only changed the
+  collector's own board.
+
+### Common area and duplicates (2026-10-01, match 43)
+- `common-area-update` receivers remove that scroll from every hand / active area / deck: going
+  to the common area is always the latest move (Sacrificial Pyre, Psychic sent no other message).
+- `validateScrollState()` repairs duplicates the same way on every board (common beats a player,
+  active beats the same player's hand, anything held or common leaves the decks) and asks the host
+  only for a real conflict (two players), at most every 5 s; the host answers at most every 2 s.
+  Before, every board asked every 3 s while the host's snapshot carried the same duplicate.
+
 ### cancelled: true
 Used when an execute() call cannot proceed (e.g., Sacrificial Pyre with empty hand).
 `applyScrollEffects()` in game-core.js checks `result.cancelled` and returns before
@@ -113,7 +132,7 @@ Some scrolls pause normal gameplay to collect player input:
 - `takeFlightState` on `window` — the CHOOSER drags the target pawn to a hex. Set up by `_enterTakeFlightDrag()`, called either directly (self-target, or opponent-target outside real multiplayer — the caster drives it) or from `enterTakeFlightChoiceAsTarget()` (real-multiplayer opponent-target — the TARGET's own client drives it instead). `window.pendingTakeFlightCompletion` on the CASTER's client (`{casterIndex, targetPlayerIndex, completionPayload}`) is how the caster's `onSelectionEffectComplete` gets resolved once the target's choice comes back over the `take-flight` broadcast — see lobby.js § Take Flight below.
 
 ### Scroll-specific gotchas
-- **Sacrificial Pyre (FIRE_SCROLL_3)**: checks hand size before entering sacrifice mode. Returns `cancelled:true` if hand is empty. Previously granted fire win-con on empty hand — fixed.
+- **Sacrificial Pyre (FIRE_SCROLL_3)**: `executeSpell()` refuses it before spending AP when the hand has no usable scroll (Level I responses don't count on your own turn), with a message. The effect's own empty-hand `cancelled:true` stays as a fallback (no fire win-con).
 - **Heavy Stomp (EARTH_SCROLL_3)**: calls `performTileFlip()` in scroll-effects.js (NOT `revealTile()`). Remote flips use `flipTileVisually()`. Only `revealTile()` grants +1 AP for catacomb tiles and fires tutorial hooks.
 - **Wandering River (WATER_SCROLL_X)**: uses `getEffectiveTileElement(tile)` to override shrine type for scroll drawing. Check this before assuming `tile.shrineType` is canonical.
 - **Shifting Sands (EARTH_SCROLL_2)** & **Telekinesis (VOID_SCROLL_2)**: both use the "no stones, at most ONE player (carried along + recentered)" rule now. Shifting Sands checks `isTileEligibleForShiftingSands()`/`getEligibleTilesForShiftingSands()`; Telekinesis reuses `getEligibleTilesForShiftingSands()` for its drag-highlight and enforces `playerCountOnTileById(id) >= 2` blocks at drag-start (game-core.js), PLUS its own strand check (`tileIsBridge`) that swap doesn't need. The single carried player is recentered by `carryPlayersOnTelekinesisMove(oldPos,newPos)` in game-ui.js's tile-drop handlers (mouse + touch), which fills `movedPlayers` for the `telekinesis-move` broadcast. **Heavy Stomp (`getEligibleTilesForFlip()` → `getEligibleTilesForSwap()`) still keeps the stricter no-players-at-all rule — don't "fix" it to match.**
