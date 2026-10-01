@@ -29,7 +29,7 @@
             // name = a scroll key ('CATACOMB_SCROLL_2') or its definition object.
             function elementOf(name) {
                 if (name && typeof name === 'object') return name.element || null;
-                const n = String(name || '');
+                const n = String(name || '').toUpperCase(); // 'CATACOMB_SCROLL_2' or a bare 'catacomb'
                 for (const el of [...ORDER, 'catacomb']) if (n.startsWith(el.toUpperCase())) return el;
                 return null;
             }
@@ -44,7 +44,7 @@
                 const el = elementOf(name);
                 if (el === 'catacomb') {
                     const ps = parts(name);
-                    return ps.length ? ps.map(e => STONE_TYPES[e].color) : [STONE_TYPES.catacomb.color];
+                    return ps.length ? ps.map(e => STONE_TYPES[e].color) : ['#eadfc8']; // bare catacomb: light tan, says nothing about its elements
                 }
                 return [STONE_TYPES[el]?.color || '#aaa'];
             }

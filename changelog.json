@@ -10,7 +10,7 @@
         "Undo of a stone works properly, and a stone on the board can't be dropped into your pool. Coming back after a dropped connection no longer replays old moves. Sacrificial Pyre no longer costs AP when you have no scroll in hand; it tells you instead. A wrong computer clock no longer hides a public game or cuts turn timers short.",
         "Counters are clearer: everyone sees who countered what, everyone is told while a Psychic victim decides whether to pay to stop it, and a response that loses to a higher element now gets its AP back and tells you why.",
         "The Opponent Status panel is easier to read, and your own hand count updates right away. Click a player's pawn, shrine or card to make all three glow in their color. Void AP now shows as purple pips at the top, and the step numbers when you drag your pawn count it and stay upright when the map is turned.",
-        "Catacomb scrolls now show their symbol (it was invisible) in the two colors of the elements they blend, instead of void purple. Pot drop: real coin size, a gold peg guarding the treasure tube, and a slow close-up when a coin gets near it."
+        "Catacomb scrolls now show their symbol (it was invisible). In other players' hands it is a plain light tan symbol, so nobody can tell which catacomb scroll it is; once played it shows the two colors of its elements. Pot drop: real coin size and a slow close-up near the treasure tube."
       ]
     },
     {

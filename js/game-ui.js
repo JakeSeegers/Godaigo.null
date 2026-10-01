@@ -916,10 +916,11 @@
 
                 // Hand: count + each scroll's ELEMENT only (name/pattern stay
                 // private, like a face-down card showing its suit). A catacomb
-                // scroll shows its two element colors.
+                // scroll in hand is a plain light-tan symbol: its two element
+                // colors would tell others which catacomb scroll it is.
                 const handNames = scrollData.hand ? [...scrollData.hand] : [];
                 html += row(`Hand ${handNames.length}`, handNames.length
-                    ? handNames.map(n => look ? look.iconHtml(n, 'element-icon-sm opp-hand-icon') : '').join('')
+                    ? handNames.map(n => look ? look.iconHtml(spellSystem.getScrollElement(n) === 'catacomb' ? 'catacomb' : n, 'element-icon-sm opp-hand-icon') : '').join('')
                     : '<span class="opp-none">empty</span>');
 
                 // Active scrolls (public): icon + name, hover = preview

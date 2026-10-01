@@ -132,6 +132,11 @@ reach/beat it from here.
   instead of void-like purple (#9b59b6; --catacomb-color is now the tan stone color). (4) New
   window.PlayerFlash: click a pawn, player shrine or Opponent Status card -> all three glow in that
   player's color for 1.3 s. css/components.css also has old .opponent-* rules but is not loaded anywhere.
+  Owner follow-up: the Opponent Status hand row must NOT show a catacomb's two colors (like a face-down
+  Magic card, others only know it is a catacomb scroll): it uses ScrollLook.iconHtml('catacomb') = plain
+  light tan #eadfc8. Your own Hand panel still shows the colors. ScrollLook.elementOf now accepts a bare
+  lowercase element ('catacomb', 'earth'); it returned nothing before, which also blanked the inventory
+  group label icons.
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also
