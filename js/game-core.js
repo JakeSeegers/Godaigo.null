@@ -7579,6 +7579,7 @@ function clearPlayerPath() {
             updateAllVoidNullificationVisuals();
 
             placeMovedStone(x, y, type, stoneId);
+            clearUndo(); // a stone move can't be undone (see game-ui.js stone drop)
 
             if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
                 broadcastGameAction('stone-move', { stoneId, x, y, stoneType: type });

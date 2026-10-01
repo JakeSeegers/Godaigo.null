@@ -188,6 +188,10 @@ reach/beat it from here.
   comments in bot-state.js / game-core.js. Side effects: replays recorded before the swap replay a
   Wind II / III cast with the other effect (may drift); mined combos that name WIND_SCROLL_2 / 3 now
   point at the other scroll.
+  Undo fuzz rerun after the Pyre fix: stone totals hold (the +2/+2 was Pyre's gift; 0 missing-effect casts).
+  New hole once Breath of Power became Level II: a stone move did not clear undo, so Undo after moving
+  stones refunded the step before. Fixed: clearUndo() in moveStoneTo (bots, Control the Current) and in
+  both game-ui.js board-stone drops when the stone changes hex.
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also

@@ -1415,6 +1415,10 @@
                             updateStatus('Placed ' + capturedStoneType + ' stone');
                         } else {
                             placeMovedStone(stonePos.x, stonePos.y, capturedStoneType, capturedStoneId);
+                            // Moving a board stone (Breath of Power, Control the Current) can't be
+                            // undone, and Undo must not reverse the step before it (undo fuzz test
+                            // 2026-10-01: step next to stones, move them, Undo refunded the step).
+                            if (!capturedOriginalPos || Math.hypot(stonePos.x - capturedOriginalPos.x, stonePos.y - capturedOriginalPos.y) > 5) clearUndo();
                             if (isMultiplayer) {
                                 broadcastGameAction('stone-move', {
                                     stoneId: capturedStoneId,
@@ -2048,6 +2052,10 @@
                             // move with its old position. It used to be placed as a NEW
                             // stone, leaving the old one on every other board.
                             placeMovedStone(stonePos.x, stonePos.y, capturedStoneType, capturedStoneId);
+                            // Moving a board stone (Breath of Power, Control the Current) can't be
+                            // undone, and Undo must not reverse the step before it (undo fuzz test
+                            // 2026-10-01: step next to stones, move them, Undo refunded the step).
+                            if (!capturedOriginalPos || Math.hypot(stonePos.x - capturedOriginalPos.x, stonePos.y - capturedOriginalPos.y) > 5) clearUndo();
                             if (isMultiplayer) {
                                 broadcastGameAction('stone-move', {
                                     stoneId: capturedStoneId,
