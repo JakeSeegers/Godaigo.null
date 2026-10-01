@@ -31,6 +31,13 @@
                 { what: 'JetBrains Mono', by: 'JetBrains', link: 'https://fonts.google.com/specimen/JetBrains+Mono', note: 'SIL Open Font License' },
             ],
         },
+        {
+            section: 'Thanks',
+            items: [
+                { what: 'Hosting the first community test stream', by: 'Plunge87', link: 'https://www.twitch.tv/videos/2888473419' },
+                { what: 'Playing and testing the game', by: 'everyone who joined in. Thank you!' },
+            ],
+        },
     ];
 
     function _esc(s) {

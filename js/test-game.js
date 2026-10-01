@@ -44,7 +44,9 @@
     };
     const g = (name) => S[name];
     const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-    const log = (...a) => console.log('🧪 [TestGame]', ...a);
+    // Pixel emote (Hammer, sheet cell 70) used as the test game icon.
+    const icon = (scale) => window.emojiSystem?.spriteHtml?.(70, scale) || '';
+    const log = (...a) => console.log('[TestGame]', ...a);
 
     let settings = null;               // get_test_settings()
     let active = false;                // this browser is in a running test game
@@ -392,7 +394,7 @@
         const bar = document.createElement('div');
         bar.id = 'test-game-bar';
         bar.className = 'test-game-bar';
-        bar.innerHTML = `<span>🧪 Test game: bots are playing for everyone. Keep this tab open and in front.</span>
+        bar.innerHTML = `<span>${icon(0.6)} Test game: bots are playing for everyone. Keep this tab open and in front.</span>
             <button type="button" id="test-game-stop">Stop test</button>`;
         document.body.appendChild(bar);
         bar.querySelector('#test-game-stop').onclick = async () => {
@@ -437,7 +439,7 @@
                 row = document.createElement('div');
                 row.id = 'test-mode-row';
                 row.className = 'test-mode-row';
-                row.innerHTML = `<label><input type="checkbox" id="test-mode-toggle"> 🧪 Test game: bots play every seat to find online bugs</label>`;
+                row.innerHTML = `<label><input type="checkbox" id="test-mode-toggle"> ${icon(0.6)} Test game: bots play every seat to find online bugs</label>`;
                 hostBox.insertBefore(row, hostBox.firstChild);
                 row.querySelector('input').addEventListener('change', async (e) => {
                     const on = e.target.checked;
@@ -462,7 +464,7 @@
             if (info && info.parentNode) info.parentNode.insertBefore(b, info.nextSibling); else panel.appendChild(b);
         }
         const gold = settings?.gold ?? 150, cap = settings?.max_per_day ?? 2;
-        b.innerHTML = `<b>🧪 Test game</b>: bots play every seat (yours too) over the real network to find online bugs. ` +
+        b.innerHTML = `${icon(0.6)} <b>Test game</b>: bots play every seat (yours too) over the real network to find online bugs. ` +
             `Keep this tab open and in front until it ends. When 2 signed-in players finish a test game, each gets <b>+${gold} gold</b> (up to ${cap} a day).`;
     }
 
@@ -539,7 +541,7 @@
                 <div><b>Match ${r.match_id}</b> · ${new Date(r.started_at).toLocaleString()} · ${r.turns ?? 0} turns · ${esc(r.status)}</div>
                 <div>${esc(s.reps.map(x => x.name || 'player').join(', '))} · paid ${r.paid}</div>
                 <div>Chaos ${s.chaos} · pauses ${s.pauses} · own drops ${s.drops} · lag max ${(s.lagMax / 1000).toFixed(1)} s · hidden ${(s.hidden / 1000).toFixed(0)} s</div>
-                <div class="tg-problems">${s.problems.length ? '⚠ ' + esc(s.problems.join('; ')) : '✓ no problems seen'}</div>
+                <div class="tg-problems">${s.problems.length ? (window.emojiSystem?.spriteHtml?.(0, 0.5) || '') + ' ' + esc(s.problems.join('; ')) : (window.emojiSystem?.spriteHtml?.(96, 0.5) || '') + ' no problems seen'}</div>
                 <div class="tg-btns">
                     <button data-watch="${r.match_id}">Watch</button>
                     <button data-check="${r.match_id}">Check replay</button>

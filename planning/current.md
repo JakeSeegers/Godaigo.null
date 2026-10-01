@@ -121,6 +121,7 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-01: Pixel icons + thanks.** Test game UI uses the Hammer pixel emote (cell 70) instead of a Unicode emoji (Exclamation / Circle in the hermit report). Credits: new "Thanks" section (Plunge87 hosted the stream, everyone who played and tested).
 - **2026-10-01: Online test games (owner request).** sql/test-games.sql (applied: test_games +
   test_games_null_turns; rollback test: 1 report pays nobody, 2nd pays both 150 once, daily cap 2, short
   game / guest / non-test room / outsider refused). js/test-game.js (see CLAUDE.md row 25a),
