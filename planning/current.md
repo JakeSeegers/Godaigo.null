@@ -167,7 +167,11 @@ reach/beat it from here.
   placeStone() returns, and undo falls back to type + position; (6) Undo is refused when it is not your
   turn or mid-drag; (7) undoing a void stone placement gives back the void AP it took (prevVoidAP).
   New helpers in game-core.js: window.clearUndo(), window.clearPawnUndo(). Seen, not changed: a scroll's
-  default effect adds stones to the pool without taking them from the source (looks intended).
+  default effect adds stones to the pool without taking them from the source.
+  Owner: that stone gift is an old test rule. Removed (game-core.js applyScrollEffects default path:
+  only activates the element(s) now, and logs console.error naming the scroll; scroll-effects.js
+  Reflect's dead "give base stone rewards" block; fallback scroll descriptions no longer promise
+  stones). All 35 scrolls have an effect, so the default path should never run.
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also

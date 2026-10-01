@@ -872,7 +872,7 @@
                         const scrollName = `${element.toUpperCase()}_SCROLL_${level + 1}`;
                         this.patterns[scrollName] = {
                             name: `${element.charAt(0).toUpperCase() + element.slice(1)} Scroll ${toRoman(level + 1)}`,
-                            description: `Stand in pattern to gain +${level + 1} ${element} stones (2 AP)`,
+                            description: `Stand in the pattern and cast to activate ${element}.`,
                             level: level + 1,
                             element: element,
                             patterns: patterns.map(pattern =>
@@ -1720,30 +1720,24 @@
                         // effect finishes later (onSelectionEffectComplete).
                         return;
                     } else {
-                        console.warn(`📜 No effect defined for scroll "${name}" – using default (give stones). Add effect in scroll-effects.js for "${name}".`);
+                        console.error(`📜 No effect defined for scroll "${name}": element activated, no other effect. Add its effect in scroll-effects.js.`);
                     }
                 } else {
-                    console.warn('📜 Scroll effects not available – using default (give stones). Is js/scrolls/effects/scroll-effects.js loaded?');
+                    console.error(`📜 Scroll effects not available for "${name}": element activated, no other effect. Is js/scrolls/effects/scroll-effects.js loaded?`);
                 }
 
-                // Default behavior: give stones based on scroll level
+                // No effect found: only activate the element(s). Casting used to
+                // give free stones here (an old test rule, removed 2026-10-01 at
+                // the owner's request; the stones did not come out of the source).
                 if (spell.element === 'catacomb') {
-                    // Catacomb scrolls give +2 of each element type in the pattern
                     const elementCounts = {};
                     spell.patterns[0].forEach(pos => {
                         elementCounts[pos.type] = (elementCounts[pos.type] || 0) + 1;
                     });
 
-                    const rewards = [];
                     var defaultGranted = [];
-                    Object.entries(elementCounts).forEach(([element, count]) => {
-                        playerPool[element] = Math.min(
-                            playerPoolCapacity[element],
-                            playerPool[element] + count
-                        );
-                        updateStoneCount(element);
-
-                        // Track activated element for win condition (for active player) —
+                    Object.keys(elementCounts).forEach(element => {
+                        // Track activated element for win condition (for active player):
                         // source pool guard applies per component element here too.
                         const elSourcePool0 = window.stonePools?.[element] ?? 1;
                         if (elSourcePool0 > 0) {
@@ -1755,21 +1749,14 @@
                         } else {
                             console.log(`📜 Win condition skipped for ${element} (catacomb component, default path): source pool is empty.`);
                         }
-                        rewards.push(`+${count} ${element}`);
                     });
 
                     updatePlayerElementSymbols(activePlayerIndex);
-                    updateStatus(`Catacomb scroll activated! Added ${rewards.join(', ')} stones!`);
+                    updateStatus(`${spell.name || name} activated.`);
                 } else {
                     var defaultGranted = [];
-                    // Regular element scrolls
-                    playerPool[spell.element] = Math.min(
-                        playerPoolCapacity[spell.element],
-                        playerPool[spell.element] + spell.level
-                    );
-                    updateStoneCount(spell.element);
-
-                    // Track activated element for win condition — source pool guard applies here too
+                    // Regular element scrolls. Track activated element for win
+                    // condition: source pool guard applies here too.
                     const elementSourcePoolDefault = window.stonePools?.[spell.element] ?? 1;
                     if (elementSourcePoolDefault > 0) {
                         const ps1 = this.getPlayerScrolls(false);
@@ -1777,7 +1764,7 @@
                         ps1.activated.add(spell.element);
                         defaultGranted = [spell.element];
                         if (isNew1) window.SoundSystem?.onWinCondition(spell.element);
-                        updateStatus(`Scroll activated! Added +${spell.level} ${spell.element} stones!`);
+                        updateStatus(`${spell.name || name} activated.`);
                     } else {
                         updateStatus(`The ${spell.element} shrine source is depleted - scroll effect activated, but win condition not met.`);
                         // Normal rules enforcement (empty-source-pool rule), not an anomaly — log, don't warn
@@ -1811,7 +1798,7 @@
                         });
                     }
 
-                    // Sync resources after spell adds stones
+                    // Sync AP / activated elements after the cast
                     syncPlayerState();
                 }
 

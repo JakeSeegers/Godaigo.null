@@ -147,7 +147,7 @@ function generateElementalScrolls() {
                 oncePerTurn = effect.oncePerTurn || false;
             } else {
                 name = `${element.charAt(0).toUpperCase() + element.slice(1)} Scroll ${toRoman(level + 1)}`;
-                description = `Stand in pattern to gain +${level + 1} ${element} stones (2 AP)`;
+                description = `Stand in the pattern and cast to activate ${element}.`;
             }
 
             scrolls[scrollName] = {

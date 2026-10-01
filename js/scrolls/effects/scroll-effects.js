@@ -584,52 +584,8 @@ const ScrollEffects = {
                     };
                 }
 
-                // No special effect - give base stone rewards
-                if (scrollDef) {
-                    const level = scrollDef.level || 1;
-                    const element = scrollDef.element;
-
-                    if (element && element !== 'catacomb') {
-                        // Give stones based on scroll level
-                        if (typeof stonePools !== 'undefined') {
-                            const currentPlayerStones = typeof playerStoneCounts !== 'undefined'
-                                ? playerStoneCounts[casterIndex]
-                                : null;
-
-                            if (currentPlayerStones) {
-                                currentPlayerStones[element] = (currentPlayerStones[element] || 0) + level;
-                                updateStatus(`Reflect! Gained +${level} ${element} stones from ${displayName}!`);
-
-                                // Update UI
-                                if (typeof updateStoneCountsUI === 'function') {
-                                    updateStoneCountsUI();
-                                }
-                            }
-                        }
-                    } else if (element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0]) {
-                        // Catacomb scroll - give +2 of each element in pattern
-                        const elementCounts = {};
-                        scrollDef.patterns[0].forEach(pos => {
-                            elementCounts[pos.type] = (elementCounts[pos.type] || 0) + 1;
-                        });
-
-                        const currentPlayerStones = typeof playerStoneCounts !== 'undefined'
-                            ? playerStoneCounts[casterIndex]
-                            : null;
-
-                        if (currentPlayerStones) {
-                            Object.entries(elementCounts).forEach(([elem, count]) => {
-                                currentPlayerStones[elem] = (currentPlayerStones[elem] || 0) + 2;
-                            });
-                            updateStatus(`Reflect! Gained catacomb scroll stones from ${displayName}!`);
-
-                            if (typeof updateStoneCountsUI === 'function') {
-                                updateStoneCountsUI();
-                            }
-                        }
-                    }
-                }
-
+                // Every scroll has an effect; casting no longer gives stones (the old
+                // test rule was removed 2026-10-01), so nothing else to do here.
                 return {
                     success: true,
                     reflected: scrollName,
