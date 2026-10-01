@@ -151,6 +151,23 @@ reach/beat it from here.
   only sets a CSS translate on #boardSvg (will-change: transform) equal to the rotated pan delta;
   release writes the real transform once. effects-system.js tileToScreen adds getBoardPanShift().
   Verified identical placement (drift 0 at 0 and 50 deg). Not verified on a real GPU: owner to retest.
+  Owner: panning fix works.
+- **2026-10-01: Undo fuzz test + fixes.** Bots play real local games (BotArena.playMatch); the test wraps
+  window.BotState.applyAction, makes the same undo records the UI does, clicks the real Undo button at
+  random and checks: the state before the undone action comes back exactly, or nothing changes when undo
+  must be refused; stone totals (board + pools + source) and pawn / stone DOM counts stay right; no
+  duplicate scrolls (scratchpad undo-fuzz.mjs; scripted UI cases in undo-test.mjs). Found and fixed:
+  (1) executeSpell no longer cleared undo (the 2026-08-13 fix 10bbac5 was lost): Undo after a cast
+  reversed the move/stone before it for free; (2) catacomb/Freedom teleport did not clear undo (same
+  refund); (3) Undo of a move / stone break called refreshVoidAP(), refilling void AP from the pool
+  (spent void stones came back): now updateVoidAP(); (4) scroll-panels.js set `window.lastMove = null`,
+  which never reached the script-scope `let lastMove`, so Undo after a scroll move reversed the earlier
+  pawn/stone action: now window.clearPawnUndo() (also on hand -> active); (5) stone-place undo record
+  used nextStoneId - 1, which can be another stone after a moved stone bumped the counter: now the id
+  placeStone() returns, and undo falls back to type + position; (6) Undo is refused when it is not your
+  turn or mid-drag; (7) undoing a void stone placement gives back the void AP it took (prevVoidAP).
+  New helpers in game-core.js: window.clearUndo(), window.clearPawnUndo(). Seen, not changed: a scroll's
+  default effect adds stones to the pool without taking them from the source (looks intended).
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also

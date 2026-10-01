@@ -1510,6 +1510,10 @@
                 }
                 // Spend AP first (may be reduced by buffs)
                 spendAP(cost);
+                // A cast can't be undone, so Undo must not reverse the move or
+                // stone before it either (restores the 2026-08-13 fix, 10bbac5,
+                // which was lost later: undo fuzz test 2026-10-01).
+                clearUndo();
                 if (typeof window !== 'undefined' && window.logScrollEvent) {
                     window.logScrollEvent('cast_execute', {
                         playerIndex: activePlayerIndex,
@@ -2471,6 +2475,15 @@
         //   'stone-place' : { type, stoneId, x, y, element }
         //   'stone-break' : { type, x, y, element, prevCurrentAP, prevVoidAP }
         let lastMove = null;
+        // Clear the one-step undo. Call it after anything Undo must not reach
+        // back across: a cast, a teleport, a tile reveal (the Undo button
+        // would otherwise reverse the action BEFORE it, with a free refund).
+        function clearUndo() { lastMove = null; window.lastScrollAction = null; }
+        window.clearUndo = clearUndo;
+        // For scroll moves (scroll-panels.js): a scroll move replaces any
+        // pawn/stone undo. lastMove is a script-scope let, so
+        // `window.lastMove = null` there never reached it.
+        window.clearPawnUndo = () => { lastMove = null; };
 
         // Track each player's AP for multiplayer display
         let playerAPs = []; // Each entry is { currentAP: 5, voidAP: 0 }
@@ -5156,9 +5169,8 @@
             tile.flipped = false;
             tile.element = tileGroup;
 
-            // Tile reveal is irreversible — clear undo history
-            lastMove = null;
-            window.lastScrollAction = null;
+            // Tile reveal is irreversible: clear undo history
+            clearUndo();
 
             // Sound
             if (!silent) window.SoundSystem?.play('tilereveal');

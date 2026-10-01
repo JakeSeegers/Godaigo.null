@@ -1389,15 +1389,18 @@
                     if (stonePos.valid) {
                         if (capturedStoneId === null) {
                             window._pendingFireDestroys = [];
-                            placeStone(stonePos.x, stonePos.y, capturedStoneType);
+                            const vapBeforePlace = voidAP;
+                            const placedStoneId = placeStone(stonePos.x, stonePos.y, capturedStoneType);
                             window.SoundSystem?.play(capturedStoneType === 'earth' ? 'placeearthstone' : 'placestone');
-                            // Track for undo — stone ID is nextStoneId-1 after placeStone increments it
+                            // Track for undo: the id placeStone returned (nextStoneId - 1
+                            // can be another stone once a moved stone bumped the counter)
                             lastMove = {
                                 type: 'stone-place',
-                                stoneId: nextStoneId - 1,
+                                stoneId: placedStoneId,
                                 x: stonePos.x,
                                 y: stonePos.y,
                                 element: capturedStoneType,
+                                prevVoidAP: vapBeforePlace,
                                 destroyedByFire: window._pendingFireDestroys
                             };
                             window._pendingFireDestroys = null;
@@ -2991,9 +2994,10 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                     const type = stonePreviewType;
                     cancelStonePreview();
                     window._pendingFireDestroys = [];
-                    placeStone(pos.x, pos.y, type);
+                    const vapBeforePlace = voidAP;
+                    const placedStoneId = placeStone(pos.x, pos.y, type);
                     window.SoundSystem?.play(type === 'earth' ? 'placeearthstone' : 'placestone');
-                    lastMove = { type: 'stone-place', stoneId: nextStoneId - 1, x: pos.x, y: pos.y, element: type, destroyedByFire: window._pendingFireDestroys };
+                    lastMove = { type: 'stone-place', stoneId: placedStoneId, x: pos.x, y: pos.y, element: type, destroyedByFire: window._pendingFireDestroys, prevVoidAP: vapBeforePlace };
                     window._pendingFireDestroys = null;
                     window.lastScrollAction = null;
                     stoneCounts[type]--;
@@ -3519,6 +3523,18 @@ document.getElementById('undo-move').onclick = function() {
                 updateStatus('Nothing to undo!');
                 return;
             }
+            // Only on your own turn, and not in the middle of a drag (undo fuzz
+            // test 2026-10-01: Undo mid-drag reversed the move before it).
+            if (typeof canTakeAction === 'function' && !canTakeAction()) {
+                window.SoundSystem?.play('error');
+                updateStatus('You can only undo on your own turn.');
+                return;
+            }
+            if (isDraggingStone || isDraggingPlayer || isDraggingTile) {
+                window.SoundSystem?.play('error');
+                updateStatus('Finish the drag first.');
+                return;
+            }
 
             if (action.type === 'move') {
                 // --- Undo player movement ---
@@ -3527,7 +3543,9 @@ document.getElementById('undo-move').onclick = function() {
                 currentAP = action.prevCurrentAP;
                 voidAP    = action.prevVoidAP;
                 document.getElementById('ap-count').textContent = currentAP;
-                if (typeof refreshVoidAP === 'function') refreshVoidAP();
+                // updateVoidAP, not refreshVoidAP: refresh reloads void AP from
+                // the pool, which gave spent void stones back as fresh AP.
+                if (typeof updateVoidAP === 'function') updateVoidAP();
                 updateStatus(`Undid movement. AP restored to ${getTotalAP()}.`);
                 if (isMultiplayer) {
                     broadcastGameAction('undo-move', {
@@ -3541,14 +3559,29 @@ document.getElementById('undo-move').onclick = function() {
 
             } else if (action.type === 'stone-place') {
                 // --- Undo stone placement: remove it from the board and return to pool ---
-                const stone = placedStones.find(s => s.id === action.stoneId);
+                // By id, else by position (an id can be stale; the stone is
+                // still the one of that type on that hex)
+                const stone = placedStones.find(s => s.id === action.stoneId)
+                    || placedStones.find(s => s.type === action.element && Math.hypot(s.x - action.x, s.y - action.y) < 5);
+                if (!stone) {
+                    window.SoundSystem?.play('error');
+                    updateStatus('That stone is no longer on the board, nothing to undo.');
+                    lastMove = null;
+                    return;
+                }
                 if (stone) {
                     if (stone.element && stone.element.parentNode) stone.element.remove();
-                    placedStones.splice(placedStones.findIndex(s => s.id === action.stoneId), 1);
+                    placedStones.splice(placedStones.indexOf(stone), 1);
                     // The stone came from the player's pool, so it goes back there only
                     // (it used to go to the source pool as well: counted twice).
                     stoneCounts[action.element] = (stoneCounts[action.element] || 0) + 1;
                     updateStoneCount(action.element);
+                    // Placing a void stone can lower void AP (one less in the pool);
+                    // the stone is back, so is that void AP.
+                    if (action.prevVoidAP != null && action.prevVoidAP > voidAP) {
+                        voidAP = Math.min(action.prevVoidAP, playerPool.void);
+                        if (typeof updateVoidAP === 'function') updateVoidAP();
+                    }
                     updateTileClasses();
                     recheckAllStoneInteractions();
                     updateAllWaterStoneVisuals();
@@ -3578,7 +3611,7 @@ document.getElementById('undo-move').onclick = function() {
                 currentAP = action.prevCurrentAP;
                 voidAP    = action.prevVoidAP;
                 document.getElementById('ap-count').textContent = currentAP;
-                if (typeof refreshVoidAP === 'function') refreshVoidAP();
+                if (typeof updateVoidAP === 'function') updateVoidAP(); // not refreshVoidAP, see the move undo
                 placeStoneVisually(action.x, action.y, action.element);
                 // Breaking it sent it to the source pool; it comes back out of it.
                 if (sourcePool[action.element] > 0) { sourcePool[action.element]--; updateStoneCount(action.element); }
@@ -3819,8 +3852,10 @@ document.getElementById('undo-move').onclick = function() {
                         return;
                     }
 
-                    // Teleport player (no AP cost)
+                    // Teleport player (no AP cost). Not undoable, and Undo must not
+                    // reverse the move before it (that refunded its AP).
                     placePlayer(shrine.x, shrine.y);
+                    clearUndo();
                     updateStatus(`Teleported to the ${shrine.shrineType} shrine!`);
                     if (window.isTutorialMode && window.TutorialMode?.onCatacombTeleport) {
                         window.TutorialMode.onCatacombTeleport();

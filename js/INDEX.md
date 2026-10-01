@@ -207,6 +207,8 @@ window.ScrollLook           // game-core.js: a scroll's look. colors(name) (cata
 window.PlayerFlash          // game-ui.js: flash(i) = pawn, player shrine and Opponent Status card glow in the
                             // player's color (.player-flash). Clicking any of the three calls it (press+release
                             // within 6 px / 500 ms, capture listeners on document, so pawn drags never flash).
+window.clearUndo / clearPawnUndo // game-core.js: clear the one-step undo (lastMove + lastScrollAction / only lastMove).
+                            // Call clearUndo after anything Undo must not reach back across (cast, teleport, reveal).
 window.beginFastPan / endFastPan / getBoardPanShift // game-core.js: drag-pan moves the painted board with a CSS
                             // translate on #boardSvg, real viewport transform written on release (no repaint per frame)
 window.scheduleOpponentPanelRefresh // game-ui.js: one updateOpponentPanel() next frame; called by updateScrollCount()

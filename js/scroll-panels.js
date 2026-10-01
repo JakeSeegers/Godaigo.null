@@ -590,6 +590,7 @@ const ScrollPanelSystem = (() => {
                     }
                     // Record undo state before moving
                     window.lastScrollAction = { type: 'scroll-move', scrollName, from: 'hand', to: 'active', displacedScroll: null };
+                    window.clearPawnUndo?.(); // Undo now means this scroll move, not an earlier pawn/stone action
                     window.SoundSystem?.play('scrollmove');
                     // Mutate state immediately so an "Undo Step" fired before the animation's
                     // 60ms elapses reverses a move that has actually happened, instead of a
@@ -615,7 +616,7 @@ const ScrollPanelSystem = (() => {
                     const element = sp.getScrollElement?.(scrollName);
                     const displaced = element ? (sp.commonArea?.[element] || null) : null;
                     window.lastScrollAction = { type: 'scroll-move', scrollName, from: 'hand', to: 'common', displacedScroll: displaced !== scrollName ? displaced : null };
-                    window.lastMove = null;
+                    window.clearPawnUndo?.();
                     window.SoundSystem?.play('scrollmove');
                     // Mutate state immediately — see the "Move to Active Area" handler above.
                     sp.discardScroll(scrollName);
@@ -639,7 +640,7 @@ const ScrollPanelSystem = (() => {
                     const element = sp.getScrollElement?.(scrollName);
                     const displaced = element ? (sp.commonArea?.[element] || null) : null;
                     window.lastScrollAction = { type: 'scroll-move', scrollName, from: 'active', to: 'common', displacedScroll: displaced !== scrollName ? displaced : null };
-                    window.lastMove = null;
+                    window.clearPawnUndo?.();
                     window.SoundSystem?.play('scrollmove');
                     // Mutate state immediately — see the "Move to Active Area" handler above.
                     sp.discardScroll(scrollName);
