@@ -292,6 +292,11 @@
                     className: 'gl-negated',
                 };
             }
+            case 'responseOutcome': {
+                // response-window.js announceOutcome: counters / ransom / lost ties,
+                // written on the clients that did not resolve the stack themselves.
+                return { html: esc(entry.text || ''), className: 'gl-counter' };
+            }
             case 'response_resolved': {
                 return {
                     html: `${playerSpan(entry.casterIndex)} responds with ` +

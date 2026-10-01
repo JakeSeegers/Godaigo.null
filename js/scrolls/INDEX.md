@@ -176,6 +176,17 @@ If two players respond simultaneously, higher-rank element wins:
 `Void > Wind > Fire > Water > Earth`
 Same rule applies to stone conflict on the board.
 
+### Telling everyone what happened (2026-10-01, match 43)
+- `announceOutcome()` shows a banner (`.response-outcome-banner`) + status on every client: "X's Psychic
+  countered Y's Pyre!", ransom paid, responses, and lost ties. The resolving client calls it in
+  `finishResponseResolution`; the others via lobby.js `response-resolved` -> `afterRemoteResolved()`
+  (they also get a Game Log line, type `responseOutcome`; the resolver already logs its own).
+- Psychic ransom: before the prompt the resolver broadcasts `psychic-ransom-pending`; the others show
+  "Waiting for Y to decide whether to pay 2 AP" (`showRansomPending`) until the result arrives.
+- Ties: `_arbitrateAndResolve` keeps the losers (`lostTies`, sent in `response-resolved`). A losing
+  response has no effect and its AP is refunded on the client that paid it (`_paidResponses`,
+  `refundPlayerAP`); the owner agreed (2026-10-01). Before, the loser's AP was spent silently.
+
 ### Stack resolution
 - Response resolves BEFORE the original cast takes effect
 - A response cannot itself be responded to (no counter-counter)

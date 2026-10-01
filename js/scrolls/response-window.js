@@ -914,8 +914,10 @@ class ResponseWindowSystem {
             }
         }
 
-        // Spend the AP for the response
+        // Spend the AP for the response (remembered: a response that loses a
+        // tie to a higher element gets it back, see handleLostTies)
         this.spendPlayerAP(myIndex, cost);
+        (this._paidResponses || (this._paidResponses = new Map())).set(myIndex, cost);
         console.log(`  Spent ${cost} AP for response`);
 
         // Badges (sql/more-badges.sql "Scroll Master"): a response scroll played by
@@ -1503,6 +1505,17 @@ class ResponseWindowSystem {
                 this.finishResponseResolution(responses, originalScroll, true);
                 return;
             }
+            // Everyone else only saw "waiting" while this prompt was open (match 43:
+            // the countering player thought their counter had not gone through).
+            const pending = {
+                psychicCaster: psychicEntry.casterIndex,
+                originalCaster: originalScroll.casterIndex,
+                scrollName: originalScroll.scrollData?.name,
+                cost: this.PSYCHIC_RANSOM_AP,
+            };
+            if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
+                broadcastGameAction('psychic-ransom-pending', pending);
+            }
             this.showPsychicRansomPrompt(psychicEntry, originalScroll, (paid) => {
                 this.finishResponseResolution(responses, originalScroll, paid);
             });
@@ -1652,9 +1665,15 @@ class ResponseWindowSystem {
         }
 
         // Broadcast resolution to all clients so they close their windows
+        const lostTies = this._lostTies || [];
+        this._lostTies = [];
         if (typeof isMultiplayer !== 'undefined' && isMultiplayer) {
-            this.broadcastResponseResolved(results, originalScroll);
+            this.broadcastResponseResolved(results, originalScroll, lostTies);
         }
+        // Tell this screen what happened too (the others do it on the broadcast).
+        this.clearRansomPending();
+        this.announceOutcome(results.map(r => ({ scrollName: r.scrollData?.name, casterIndex: r.casterIndex, result: r.result })), lostTies);
+        this.handleLostTies(lostTies);
 
         // Call completion callback exactly once — a stale callback re-invoked by
         // a duplicate resolution would re-apply the original scroll's effects
@@ -1932,7 +1951,7 @@ class ResponseWindowSystem {
         }
     }
 
-    broadcastResponseResolved(results, originalScroll = null) {
+    broadcastResponseResolved(results, originalScroll = null, lostTies = []) {
         if (typeof broadcastGameAction === 'function') {
             // Resolve the original scroll's definition for the broadcast so remote
             // clients can store it (e.g. for Reflect's deferred activation).
@@ -1951,6 +1970,7 @@ class ResponseWindowSystem {
                     isResponse: r.isResponse,
                     eventId: r.eventId || null
                 })),
+                lostTies,
                 triggeringScroll: originalScroll ? {
                     name: originalScroll.scrollData?.name,
                     casterIndex: originalScroll.casterIndex,
@@ -1959,6 +1979,127 @@ class ResponseWindowSystem {
                 } : null
             });
         }
+    }
+
+    // ── What happened, for every player (2026-10-01, match 43) ──────────
+    scrollTitle(name) {
+        return this.spellSystem?.patterns?.[name]?.name || name || 'a scroll';
+    }
+
+    _quietOutcome() {
+        return !!(typeof window !== 'undefined' && window.BotArena?.isRunning?.());
+    }
+
+    // A short banner over the board, shown to everyone.
+    showOutcomeBanner(text, color = '#9458f4', ms = 4500, id = 'response-outcome-banner') {
+        if (typeof document === 'undefined' || this._quietOutcome()) return null;
+        document.getElementById(id)?.remove();
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = 'response-outcome-banner';
+        el.style.borderColor = color;
+        el.textContent = text;
+        document.body.appendChild(el);
+        if (ms) setTimeout(() => el.remove(), ms);
+        return el;
+    }
+
+    // Psychic ransom: the countered player is deciding whether to pay.
+    showRansomPending(p) {
+        if (!p) return;
+        const me = typeof myPlayerIndex !== 'undefined' ? myPlayerIndex : null;
+        if (p.originalCaster === me) return; // they see the prompt itself
+        const text = `${this.getPlayerName(p.psychicCaster)}'s Psychic is countering ${this.getPlayerName(p.originalCaster)}'s ${this.scrollTitle(p.scrollName)}. Waiting for ${this.getPlayerName(p.originalCaster)} to decide whether to pay ${p.cost || this.PSYCHIC_RANSOM_AP} AP to stop it.`;
+        const waitText = document.querySelector('#response-window-modal p');
+        if (waitText) waitText.textContent = text;
+        this.showOutcomeBanner(text, '#9458f4', 0, 'response-ransom-banner');
+        try { updateStatus(text); } catch (e) {}
+    }
+
+    clearRansomPending() {
+        if (typeof document !== 'undefined') document.getElementById('response-ransom-banner')?.remove();
+    }
+
+    // One line for everyone: who countered what, or that a ransom was paid.
+    // log: also write it to this player's Game Log (the resolving client already
+    // logs counters and responses itself; the others had no line at all).
+    announceOutcome(results, lostTies = [], log = false) {
+        if (!Array.isArray(results) || this._quietOutcome()) return;
+        const name = (i) => this.getPlayerName(i);
+        const counter = results.find(r => r.result === 'countered-original');
+        const countered = results.find(r => r.result === 'countered');
+        const negated = results.find(r => r.result === 'counter-negated');
+        const responded = results.filter(r => r.result === 'response-resolved');
+        let text = null, color = '#9458f4';
+        if (counter && countered) {
+            text = `${name(counter.casterIndex)}'s ${this.scrollTitle(counter.scrollName)} countered ${name(countered.casterIndex)}'s ${this.scrollTitle(countered.scrollName)}!`;
+            color = '#ed1b43';
+        } else if (negated) {
+            const orig = results.find(r => r.casterIndex !== negated.casterIndex && r.result !== 'counter-negated');
+            text = `${orig ? name(orig.casterIndex) : 'The caster'} paid ${this.PSYCHIC_RANSOM_AP} AP to stop ${name(negated.casterIndex)}'s Psychic${orig ? `: ${this.scrollTitle(orig.scrollName)} goes ahead` : ''}.`;
+        } else if (responded.length) {
+            text = responded.map(r => `${name(r.casterIndex)} responded with ${this.scrollTitle(r.scrollName)}.`).join(' ');
+            color = '#5894f4';
+        }
+        let lost = null;
+        if (lostTies.length) {
+            lost = lostTies.map(t => `${name(t.casterIndex)}'s ${this.scrollTitle(t.scrollName)} lost to ${name(t.winnerIndex)}'s ${this.scrollTitle(t.beatenBy)} (only the higher element resolves).`).join(' ');
+            text = text ? `${text} ${lost}` : lost;
+        }
+        if (!text) return;
+        this.showOutcomeBanner(text, color);
+        try { updateStatus(text); } catch (e) {}
+        const logText = log ? text : lost;
+        if (logText) try { window.ActionLog?.record?.('responseOutcome', { text: logText }); } catch (e) {}
+    }
+
+    // A response that lost a tie had no effect: its player gets the AP back,
+    // on the client that paid it (their own, or the host for a bot).
+    handleLostTies(lostTies = []) {
+        const paid = this._paidResponses || new Map();
+        for (const t of lostTies || []) {
+            if (!paid.has(t.casterIndex)) continue;
+            const amount = paid.get(t.casterIndex);
+            this.refundPlayerAP(t.casterIndex, amount);
+            if (t.casterIndex === this.localResponderIndex()) {
+                this.showOutcomeBanner(`Your ${this.scrollTitle(t.scrollName)} lost to ${this.getPlayerName(t.winnerIndex)}'s ${this.scrollTitle(t.beatenBy)}, so it had no effect. Your ${amount} AP was given back.`, '#ffce00', 6000, 'response-lost-banner');
+            }
+        }
+        this._paidResponses = new Map();
+    }
+
+    refundPlayerAP(playerIndex, amount) {
+        if (!amount) return;
+        const driverIdx = (typeof window !== 'undefined' && window.BotDriver
+            && typeof window.BotDriver.driverRealIndex === 'function')
+            ? window.BotDriver.driverRealIndex() : null;
+        if (driverIdx != null && playerIndex === driverIdx && typeof window.BotDriver.spendDriverAP === 'function') {
+            window.BotDriver.spendDriverAP(-amount); // a negative spend gives it back
+            return;
+        }
+        const isMultiplayerNow = typeof isMultiplayer !== 'undefined' && isMultiplayer;
+        const isUnclientedBot = typeof window !== 'undefined' && window.BotDriver
+            && typeof window.BotDriver.isBot === 'function' && window.BotDriver.isBot(playerIndex);
+        const isActive = typeof activePlayerIndex !== 'undefined' && playerIndex === activePlayerIndex;
+        if (!isActive && (!isMultiplayerNow || isUnclientedBot) && typeof playerAPs !== 'undefined') {
+            if (!playerAPs[playerIndex]) playerAPs[playerIndex] = { currentAP: 0, voidAP: 0 };
+            playerAPs[playerIndex].currentAP = (playerAPs[playerIndex].currentAP || 0) + amount;
+            return;
+        }
+        if (typeof currentAP !== 'undefined') {
+            currentAP += amount;
+            const el = document.getElementById('ap-count');
+            if (el) el.textContent = currentAP;
+            if (typeof updateApPips === 'function') updateApPips(currentAP);
+            if (isMultiplayerNow && typeof syncPlayerState === 'function') syncPlayerState();
+        }
+    }
+
+    // Called by lobby.js for the response-resolved broadcast (after handleRemoteResolved).
+    afterRemoteResolved(payload) {
+        this.clearRansomPending();
+        this.announceOutcome(payload?.results || [], payload?.lostTies || [], true);
+        this.handleLostTies(payload?.lostTies || []);
     }
 
     /**
@@ -2148,6 +2289,7 @@ class ResponseWindowSystem {
         // Separate responses from original
         const responses = this.responseStack.filter(e => !e.isOriginal);
         const original  = this.responseStack.find(e => e.isOriginal);
+        this._lostTies = [];
 
         if (responses.length > 1) {
             // Sort descending by element rank
@@ -2156,8 +2298,12 @@ class ResponseWindowSystem {
             );
             const winner  = responses[0];
             const losers  = responses.slice(1);
+            this._lostTies = losers.map(l => ({
+                scrollName: l.scrollData?.name, casterIndex: l.casterIndex,
+                beatenBy: winner.scrollData?.name, winnerIndex: winner.casterIndex,
+            }));
             console.log(`⚖️ Arbitration: winner = ${winner.scrollData?.name} (rank ${getScrollElementRank(winner.scrollData?.name)})`);
-            losers.forEach(l => console.log(`  ✗ Loser (AP spent, no effect): ${l.scrollData?.name}`));
+            losers.forEach(l => console.log(`  ✗ Loser (no effect, AP refunded): ${l.scrollData?.name}`));
             // Rebuild stack: original first, then winner (pop() is LIFO → winner resolved first)
             this.responseStack = [];
             if (original) this.responseStack.push(original);

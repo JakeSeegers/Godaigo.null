@@ -149,6 +149,10 @@ reach/beat it from here.
   (server_now_ms(), trigger stamps last_seen = now()), window.serverNow() for turn starts, timer, lobby
   liveness and the host's 45 s lobby sweep. Note: the dropped connection at turn 40 was CaptainConfuzion,
   not Plunge87.
+  (7) Counter feedback: at 01:56 squid's Psychic took 12 s to resolve because only the countered player
+  (CaptainConfuzion) saw the ransom prompt; everyone else saw "waiting" ("I didn't counter it"). At 01:40
+  CaptainConfuzion's Wind response lost the tie to TheHermit's Psychic silently, AP spent. Now: outcome
+  banner + Game Log line for everyone, ransom-pending notice, lost ties told and refunded (owner agreed).
 - **2026-10-01: Pot drop, show the gap** (owner: the tube looked blocked by the board). Drawing only, no physics or
   server change: coins drawn at true size (12, was 14), guard peg over the tube gold + mouth glow, slow motion
   (1/3) and a 3x close-up of the mouth while a hit or near-miss coin is there, walls flash on a hit.

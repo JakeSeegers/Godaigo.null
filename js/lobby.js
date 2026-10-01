@@ -3467,11 +3467,18 @@
                 updateStatus(`⏰ ${playerName} ran out of time with an unresolved scroll cascade - they forfeit!`);
             });
 
+            // Psychic ransom: the countered player is deciding (response-window.js).
+            gameChannel.on('broadcast', { event: 'psychic-ransom-pending' }, ({ payload }) => {
+                spellSystem.responseWindow?.showRansomPending?.(payload);
+            });
+
             gameChannel.on('broadcast', { event: 'response-resolved' }, ({ payload }) => {
                 console.log('📄 Received response resolved:', payload);
-                // Close the response window on this client
+                // Close the response window on this client, then say what happened
+                // (counter, ransom, a response that lost the tie) and refund a lost tie.
                 if (spellSystem.responseWindow) {
                     spellSystem.responseWindow.handleRemoteResolved();
+                    try { spellSystem.responseWindow.afterRemoteResolved?.(payload); } catch (e) { console.warn('afterRemoteResolved failed:', e); }
                 }
 
                 // Sync the one-per-turn response guard on non-arbitrator clients: if any
