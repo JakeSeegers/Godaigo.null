@@ -10,6 +10,29 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 window.__godaigoRecoveryLink = /(^|[#&])type=recovery(&|$)/.test(location.hash);
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Server time. Timestamps other players read (a turn's start, sent by whoever
+// ended the previous turn; lobby heartbeats) must not come from this computer's
+// own clock: in match 43 one player's clock was 107 s slow, his public room
+// looked abandoned (hidden from the lobby) and every turn after his started
+// 107 s short. serverNow() = Date.now() corrected by the measured offset to the
+// server (server_now_ms(), sql/server-clock.sql); 0 until the first measurement.
+window.serverClockOffset = 0;
+window.serverNow = () => Date.now() + (window.serverClockOffset || 0);
+window.syncServerClock = async function () {
+    try {
+        const t0 = Date.now();
+        const { data, error } = await supabase.rpc('server_now_ms');
+        const t1 = Date.now();
+        if (error || data == null) return;
+        const offset = Number(data) + (t1 - t0) / 2 - t1;
+        if (!Number.isFinite(offset)) return;
+        window.serverClockOffset = Math.round(offset);
+        if (Math.abs(offset) > 5000) console.warn(`🕒 This computer's clock is ${(offset / 1000).toFixed(1)} s off the server; using server time.`);
+    } catch (e) { /* keep the last offset */ }
+};
+window.syncServerClock();
+setInterval(() => window.syncServerClock(), 10 * 60 * 1000);
+
 // Multiplayer state
 let myPlayerId = null;
 let myPlayerIndex = null;

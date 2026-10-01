@@ -105,7 +105,10 @@ Order matters — later scripts depend on earlier ones.
 2. scroll-definitions.js   ← SCROLL_DECKS, SCROLL_DEFINITIONS globals
 3. scroll-effects.js       ← ScrollEffects namespace (depends on scroll-definitions)
 4. response-window.js      ← ResponseWindowSystem (depends on scroll-effects)
-5. multiplayer-state.js    ← Shared MP state (myPlayerId, currentGameId, etc.) + the REAL Supabase client/URL/key (config.js is dead — see above)
+5. multiplayer-state.js    ← Shared MP state (myPlayerId, currentGameId, etc.) + the REAL Supabase client/URL/key (config.js is dead, see above).
+                             window.serverNow() = Date.now() + offset measured with server_now_ms() (sql/server-clock.sql, every
+                             10 min): use it for any time another player reads (turnStartedAt, last_seen checks). players.last_seen
+                             is stamped by the server (trigger). Match 43: a player's clock was 107 s slow.
 6. connection-monitor.js   ← window.ConnectionMonitor — network health badge + isWorkable() gate (depends only on multiplayer-state.js's SUPABASE_URL)
 7. sounds.js               ← window.SoundSystem — SFX + login music
 8. joytone-bridge.js       ← window.JoytoneBridge — adaptive music via hidden joytone/ iframe (Shift+J+T popup)

@@ -142,6 +142,13 @@ reach/beat it from here.
   buffer reached further back. Fix: sync/emoji not remembered; answer = only buffered messages after the
   oldest one the returner remembers, minus its own from the same page load. Scratchpad test reproduces
   it (old: 41 re-applied, new: only the 2 missed).
+  (6) Plunge87's computer clock was 106.7 s slow (recording: server time minus his message timestamps;
+  others within 0.5 s). The lobby hides a public room whose newest human heartbeat (players.last_seen,
+  written with the client's clock) is over 90 s old, so his room was invisible; every turn after his also
+  started 107 s short (turnStartedAt comes from whoever ended the turn). Fix: sql/server-clock.sql
+  (server_now_ms(), trigger stamps last_seen = now()), window.serverNow() for turn starts, timer, lobby
+  liveness and the host's 45 s lobby sweep. Note: the dropped connection at turn 40 was CaptainConfuzion,
+  not Plunge87.
 - **2026-10-01: Pot drop, show the gap** (owner: the tube looked blocked by the board). Drawing only, no physics or
   server change: coins drawn at true size (12, was 14), guard peg over the tube gold + mouth glow, slow motion
   (1/3) and a 3x close-up of the mouth while a hit or near-miss coin is there, walls flash on a hit.

@@ -3242,7 +3242,7 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
 
                         // Broadcast turn change FIRST in multiplayer
                         if (isMultiplayer) {
-                            const startedAt = Date.now();
+                            const startedAt = window.serverNow();
                             turnStartedAtMs = startedAt;
                             currentTurnNumber++;
                             broadcastGameAction('turn-change', {
@@ -3362,7 +3362,7 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                 // Broadcast turn change FIRST in multiplayer so the receiver
                 // updates activePlayerIndex before any follow-up broadcasts arrive
                 if (isMultiplayer) {
-                    const startedAt = Date.now();
+                    const startedAt = window.serverNow();
                     turnStartedAtMs = startedAt;
                     currentTurnNumber++;
                     broadcastGameAction('turn-change', {

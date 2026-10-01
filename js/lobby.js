@@ -475,8 +475,9 @@
             // A player is considered active if their heartbeat fired within the last 90 seconds.
             // last_seen may be NULL for a brand-new row that hasn't heartbeated yet — treat NULL as stale
             // unless the row was created within the last 30 seconds (to avoid stomping a fresh join).
-            const ninetySecondsAgo = new Date(Date.now() - 90 * 1000).toISOString();
-            const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
+            // Server time: last_seen is stamped by the server (sql/server-clock.sql).
+            const ninetySecondsAgo = new Date(window.serverNow() - 90 * 1000).toISOString();
+            const thirtySecondsAgo = new Date(window.serverNow() - 30 * 1000).toISOString();
             // user_id ties this seat to the auth account so game results can
             // move the positional ladder (null for guests - they just don't
             // anchor ladder movement).
@@ -656,7 +657,9 @@
             // a dead room stayed listed and joinable for up to 5 minutes.
             // 90s = the same "active" window joinRoomAsPlayer uses, and leaves
             // room for background-tab timer throttling (about 1 beat a minute).
-            const now = Date.now();
+            // Server time: last_seen is stamped by the server (sql/server-clock.sql),
+            // so a player whose computer clock is off still shows as live.
+            const now = window.serverNow();
             const isLive = r => {
                 if (!(counts[r.id] > 0)) return false;
                 const seen = newestSeen[r.id];
@@ -830,7 +833,7 @@
                 await supabase
                     .from('players')
                     .delete()
-                    .lt('last_seen', new Date(Date.now() - 600000).toISOString());
+                    .lt('last_seen', new Date(window.serverNow() - 600000).toISOString());
 
                 // Check game room status — only reset if truly abandoned (no players left)
                 const { data: room } = await supabase
@@ -1517,7 +1520,7 @@
                                             isPlacementPhase = false;
                                             const sorted = Array.from(remainingIndices).sort((a, b) => a - b);
                                             activePlayerIndex = sorted[0];
-                                            const startedAt = Date.now();
+                                            const startedAt = window.serverNow();
                                             turnStartedAtMs = startedAt;
                                             broadcastGameAction('placement-complete', {
                                                 playerIndex: activePlayerIndex,
@@ -1912,7 +1915,7 @@
                 }
 
                 // Update game room status to trigger game start and store turn-timer settings
-                const startedAtIso = new Date().toISOString();
+                const startedAtIso = new Date(window.serverNow()).toISOString();
 
                 // Try writing extended fields; if the DB schema doesn't have them, fall back gracefully.
                 let { error: roomError } = await supabase
@@ -1959,7 +1962,7 @@
                 // Also set local host timer baseline immediately
                 gameInactivityTimeout = turnTimeLimit;
                 kickOnTurnTimeout = kickMode;
-                turnStartedAtMs = Date.now();
+                turnStartedAtMs = window.serverNow();
 
                 console.log('✅ Game started by host!');
 
@@ -2085,10 +2088,10 @@
                     if (!Number.isNaN(ts)) {
                         turnStartedAtMs = ts;
                     } else {
-                        turnStartedAtMs = Date.now();
+                        turnStartedAtMs = window.serverNow();
                     }
                 } else {
-                    turnStartedAtMs = Date.now();
+                    turnStartedAtMs = window.serverNow();
                 }
 
                 // Derive deck seed from player IDs - this is deterministic and shared
@@ -2191,7 +2194,7 @@
                         .single();
                     if (!room || room.status === 'playing') return;
 
-                    const staleThreshold = new Date(Date.now() - 45 * 1000).toISOString();
+                    const staleThreshold = new Date(window.serverNow() - 45 * 1000).toISOString(); // server time, like last_seen
                     const { data: allPlayers } = await supabase
                         .from('players')
                         .select('id, username, last_seen, created_at')
@@ -2694,7 +2697,7 @@
                 if (payload.turnStartedAt) {
                     turnStartedAtMs = payload.turnStartedAt;
                 } else {
-                    turnStartedAtMs = Date.now();
+                    turnStartedAtMs = window.serverNow();
                 }
                 // Wandering River clears at the beginning of the caster's next turn
                 if (spellSystem && spellSystem.scrollEffects && spellSystem.scrollEffects.clearWanderingRiverForPlayer) {
@@ -2804,7 +2807,7 @@
                 if (payload.turnStartedAt) {
                     turnStartedAtMs = payload.turnStartedAt;
                 } else {
-                    turnStartedAtMs = Date.now();
+                    turnStartedAtMs = window.serverNow();
                 }
 
                 if (isMyTurn()) {

@@ -2425,7 +2425,7 @@
         let gameInactivityTimeout = 120000;
         // Turn timer settings (reuses gameInactivityTimeout as the turn time limit, in ms)
         let kickOnTurnTimeout = true;
-        let turnStartedAtMs = Date.now();
+        let turnStartedAtMs = window.serverNow(); // server time (multiplayer-state.js serverNow)
         let turnTimeoutInterval = null;
         let turnSyncInterval = null; // Host's periodic turn sync broadcast
         let commonAreaSyncInterval = null; // Host's periodic common area sync broadcast
@@ -3807,7 +3807,7 @@
 
                     // Timer
                     const turnStarted = typeof turnStartedAtMs !== 'undefined' ? turnStartedAtMs : null;
-                    const elapsed     = turnStarted ? Math.floor((Date.now() - turnStarted) / 1000) : null;
+                    const elapsed     = turnStarted ? Math.floor((window.serverNow() - turnStarted) / 1000) : null;
                     const limitSec    = typeof TURN_TIME_LIMIT_MS !== 'undefined' ? TURN_TIME_LIMIT_MS / 1000 : '?';
 
                     // Response window
@@ -4667,7 +4667,7 @@
                         console.log('✅ All players have placed their tiles. Game begins!');
 
                         // Broadcast placement phase end and turn reset
-                        const startedAt = Date.now();
+                        const startedAt = window.serverNow();
                         turnStartedAtMs = startedAt;
                         broadcastGameAction('placement-complete', {
                             playerIndex: 0,
@@ -4688,7 +4688,7 @@
                         console.log(`📄 Advancing turn: ${oldIndex} -> ${activePlayerIndex} (total: ${totalPlayers})`);
 
                         // Broadcast turn change during placement phase
-                        const startedAt = Date.now();
+                        const startedAt = window.serverNow();
                     turnStartedAtMs = startedAt;
                     currentTurnNumber++;
                     broadcastGameAction('turn-change', {
@@ -5852,7 +5852,7 @@ function clearPlayerPath() {
             // Paused (game-pause.js): keep showing the last value.
             if (window.isGamePaused?.()) return;
 
-            const now = Date.now();
+            const now = window.serverNow();
             const elapsed = now - (turnStartedAtMs || now);
             const timeRemaining = gameInactivityTimeout - elapsed;
 
@@ -5962,7 +5962,7 @@ function clearPlayerPath() {
             // no timeouts. game-pause.js gives the paused time back.
             if (window.isGamePaused?.()) return;
 
-            const now = Date.now();
+            const now = window.serverNow();
             const elapsed = now - (turnStartedAtMs || now);
             if (elapsed < gameInactivityTimeout) return;
 
@@ -6117,8 +6117,8 @@ function clearPlayerPath() {
 
             activePlayerIndex = nextIndex;
 
-            // Restart timer anchored to host time
-            const started = Date.now();
+            // Restart timer anchored to host time (server clock)
+            const started = window.serverNow();
             turnStartedAtMs = started;
             currentTurnNumber++;
 
@@ -6145,7 +6145,7 @@ function clearPlayerPath() {
             stopTurnTimerMonitoring();
 
             // Ensure we have a baseline turn start
-            if (!turnStartedAtMs) turnStartedAtMs = Date.now();
+            if (!turnStartedAtMs) turnStartedAtMs = window.serverNow();
 
             // Monitoring only ever starts once a game is genuinely underway —
             // seed the local cache so checkTurnTimeout() has a correct answer
