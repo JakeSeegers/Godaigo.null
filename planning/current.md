@@ -182,6 +182,12 @@ reach/beat it from here.
   in the executeSpell guard and bot-sim.js); the response-turn picker (response-window.js
   canPlayerRespond reactionOptions) offers Level I from hand + active, respondWithSacrificialPyre
   removes from both and no longer grants stones.
+- **2026-10-01: Wind II / III swapped (owner).** WIND_SCROLL_2 = Breath of Power (was III), WIND_SCROLL_3 =
+  Respirate (was II), drawing 3 wind instead of 2. Changed: scroll-definitions.js WIND_SCROLL_EFFECTS,
+  scroll-effects.js effects, bot-sim.js dispatch + simEffectRespirate draw 3, game-log-ui.js buff map,
+  comments in bot-state.js / game-core.js. Side effects: replays recorded before the swap replay a
+  Wind II / III cast with the other effect (may drift); mined combos that name WIND_SCROLL_2 / 3 now
+  point at the other scroll.
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also

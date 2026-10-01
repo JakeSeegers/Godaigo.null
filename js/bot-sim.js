@@ -74,7 +74,7 @@
 //                   type placeable anywhere this turn (legalActions)
 //                 waterWindGlobalPlacement Seed the Skies (CATACOMB_6) —
 //                   water/wind only placeable anywhere this turn (legalActions)
-//                 respirateWind            Respirate (WIND_2) — ALL wind
+//                 respirateWind            Respirate (WIND_3) — ALL wind
 //                   returns to source at this end-of-turn (simEndTurn)
 //                 simplify                 Simplify (VOID_3) — casts cost 1
 //                   AP instead of 2 (castCost(), read by simCast + legalActions)
@@ -91,7 +91,7 @@
 //                   need element, opportunistically after every action
 //                   (attemptControlTheCurrentTransform, called from both
 //                   simEffectControlTheCurrent and simulate() itself)
-//                 breathOfPower           Breath of Power (WIND_3) — enables
+//                 breathOfPower           Breath of Power (WIND_2) — enables
 //                   the 'moveStone' action (legalActions + simMoveStone)
 //               This is what lets searchPick() plan sequences like "cast
 //               Burning Motivation, then place stones" or "cast Simplify,
@@ -220,7 +220,7 @@
         // Tranche 3/4 (turn buffs — see "Turn buffs" in the file header):
         // Avalanche, Seed the Skies, Respirate, Simplify, Mine, Steam Vents,
         // Mudslide, Reflecting Pool.
-        'EARTH_SCROLL_5', 'CATACOMB_SCROLL_6', 'WIND_SCROLL_2', 'VOID_SCROLL_3',
+        'EARTH_SCROLL_5', 'CATACOMB_SCROLL_6', 'WIND_SCROLL_3', 'VOID_SCROLL_3',
         'CATACOMB_SCROLL_2', 'CATACOMB_SCROLL_5', 'CATACOMB_SCROLL_1', 'CATACOMB_SCROLL_7',
         // Tranche 5 (Tier-2 target-selection scrolls whose BotEffects driver
         // is fully deterministic — see the effect functions for each):
@@ -235,7 +235,7 @@
         // action-vocabulary support, see simEffectControlTheCurrent/
         // simEffectBreathOfPower/simMoveStone): Control the Current,
         // Breath of Power.
-        'WATER_SCROLL_5', 'WIND_SCROLL_3',
+        'WATER_SCROLL_5', 'WIND_SCROLL_2',
         // Tranche 7 (cross-turn buffs — new crossTurnBuffs state that
         // survives simEndTurn crossing OTHER players' turns, see
         // simEffectFreedom/simEffectWanderingRiver): Freedom, Wandering River.
@@ -684,7 +684,7 @@
                 }
             }
 
-            // Respirate (WIND_SCROLL_2): ALL of the caster's wind (not just
+            // Respirate (WIND_SCROLL_3): ALL of the caster's wind (not just
             // what was drawn) returns to source at end of turn — mirrors
             // clearTurnBuffs()'s respirateWind handler exactly.
             if (snap.turn.buffs?.respirateWind && (p.pool.wind || 0) > 0) {
@@ -1241,13 +1241,13 @@
         buffs(snap).waterWindGlobalPlacement = true;
     }
 
-    // Respirate (WIND_SCROLL_2): draw up to 2 wind (source/pool capped) now;
+    // Respirate (WIND_SCROLL_3): draw up to 3 wind (source/pool capped) now;
     // ALL of the caster's wind returns to source at end of THIS turn (even
     // wind they already held before the cast — mirrors clearTurnBuffs()'s
     // respirateWind handler, which zeroes the whole pool, not just the draw).
     // The return itself is applied in simEndTurn().
     function simEffectRespirate(snap, p) {
-        const drawn = Math.min(2, snap.sourcePool.wind || 0, POOL_CAP - (p.pool.wind || 0));
+        const drawn = Math.min(3, snap.sourcePool.wind || 0, POOL_CAP - (p.pool.wind || 0));
         if (drawn > 0) {
             snap.sourcePool.wind -= drawn;
             p.pool.wind = (p.pool.wind || 0) + drawn;
@@ -1349,7 +1349,7 @@
         applyFireInteractions(snap, stone);
     }
 
-    // Breath of Power (WIND_SCROLL_3): this turn, the caster may move any
+    // Breath of Power (WIND_SCROLL_2): this turn, the caster may move any
     // stone adjacent to them onto another adjacent empty hex — free,
     // repeatable (see the 'moveStone' action in legalActions()/simulate()).
     // Unlike Control the Current, the real effect has NO selectionMode or
@@ -1629,7 +1629,7 @@
             simEffectAvalanche(snap);
         } else if (scrollName === 'CATACOMB_SCROLL_6') {
             simEffectSeedTheSkies(snap, p);
-        } else if (scrollName === 'WIND_SCROLL_2') {
+        } else if (scrollName === 'WIND_SCROLL_3') {
             simEffectRespirate(snap, p);
         } else if (scrollName === 'VOID_SCROLL_3') {
             simEffectSimplify(snap);
@@ -1657,7 +1657,7 @@
             simEffectQuickReflexes(snap, p, choice);
         } else if (scrollName === 'WATER_SCROLL_5') {
             simEffectControlTheCurrent(snap, p);
-        } else if (scrollName === 'WIND_SCROLL_3') {
+        } else if (scrollName === 'WIND_SCROLL_2') {
             simEffectBreathOfPower(snap, p);
         } else if (scrollName === 'WIND_SCROLL_5') {
             simEffectFreedom(snap, p);
@@ -2171,7 +2171,7 @@
             }
         }
 
-        // Breath of Power (WIND_SCROLL_3): move a stone adjacent to the pawn
+        // Breath of Power (WIND_SCROLL_2): move a stone adjacent to the pawn
         // onto a DIFFERENT, currently-empty hex within the same placement
         // range placeStone uses (honors Avalanche/Seed the Skies too, same
         // as a real placement would through isInPlacementRange) — free,

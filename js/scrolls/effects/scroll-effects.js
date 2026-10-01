@@ -1119,44 +1119,15 @@ const ScrollEffects = {
             }
         },
         /**
-         * Wind Scroll II - Respirate
-         * Draw two wind stones. At end of turn, return all wind stones to the source.
+         * Wind Scroll II - Breath of Power
+         * Move adjacent stones to another adjacent empty space until end of turn.
+         * (Was Wind III; swapped with Respirate, owner 2026-10-01.)
          */
         WIND_SCROLL_2: {
-            name: 'Respirate',
-            description: 'Draw 2 wind stones. At end of turn, return all your wind stones to the source pool.',
-            isCounter: false,
-            priority: 2,
-
-            execute(casterIndex, context, system) {
-                console.log(`🌬️ Respirate activated by player ${casterIndex}`);
-
-                const drawn = system.drawStonesToPool('wind', 2, casterIndex);
-                system.activeBuffs.respirateWind = {
-                    expiresThisTurn: true,
-                    playerIndex: casterIndex
-                };
-
-                const message = `Respirate: drew ${drawn} wind stone${drawn === 1 ? '' : 's'}. All wind stones return to source at end of turn.`;
-                updateStatus(message);
-
-                return {
-                    success: true,
-                    stonesDrawn: drawn,
-                    message: message
-                };
-            }
-        },
-        /**
-         * Wind Scroll III - Freedom
-         * Until your next turn, you may teleport for free between elemental
-         * shrine centers, the same way a catacomb tile lets you teleport.
-         */
-        WIND_SCROLL_3: {
             name: 'Breath of Power',
             description: 'Until end of turn, you may move adjacent stones to another adjacent empty space.',
             isCounter: false,
-            priority: 3,
+            priority: 2,
 
             execute(casterIndex, context, system) {
                 console.log(`🌬️ Breath of Power activated by player ${casterIndex}`);
@@ -1171,6 +1142,36 @@ const ScrollEffects = {
 
                 return {
                     success: true,
+                    message: message
+                };
+            }
+        },
+        /**
+         * Wind Scroll III - Respirate
+         * Draw three wind stones. At end of turn, return all wind stones to the source.
+         * (Was Wind II drawing two; owner 2026-10-01.)
+         */
+        WIND_SCROLL_3: {
+            name: 'Respirate',
+            description: 'Draw 3 wind stones. At end of turn, return all your wind stones to the source pool.',
+            isCounter: false,
+            priority: 3,
+
+            execute(casterIndex, context, system) {
+                console.log(`🌬️ Respirate activated by player ${casterIndex}`);
+
+                const drawn = system.drawStonesToPool('wind', 3, casterIndex);
+                system.activeBuffs.respirateWind = {
+                    expiresThisTurn: true,
+                    playerIndex: casterIndex
+                };
+
+                const message = `Respirate: drew ${drawn} wind stone${drawn === 1 ? '' : 's'}. All wind stones return to source at end of turn.`;
+                updateStatus(message);
+
+                return {
+                    success: true,
+                    stonesDrawn: drawn,
                     message: message
                 };
             }
@@ -1209,8 +1210,9 @@ const ScrollEffects = {
         },
 
         /**
-         * Wind Scroll V - Breath of Power
-         * Move adjacent stones to another adjacent empty space until end of turn.
+         * Wind Scroll V - Freedom
+         * Until your next turn, you may teleport for free between elemental
+         * shrine centers, the same way a catacomb tile lets you teleport.
          */
         WIND_SCROLL_5: {
             name: 'Freedom',

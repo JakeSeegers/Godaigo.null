@@ -7564,7 +7564,7 @@ function clearPlayerPath() {
         // tracking). Mirrors startStoneDrag()'s removal step +
         // placeMovedStone()'s placement step exactly, run back-to-back with
         // no user input in between — used by BotState.applyAction('moveStone')
-        // to drive Breath of Power (WIND_SCROLL_3), which has no
+        // to drive Breath of Power (WIND_SCROLL_2), which has no
         // selectionMode/modal for waitForQuiescence to drive (see
         // hasWindStoneMove — it just re-enables the ordinary drag handler).
         function moveStoneTo(stoneId, x, y) {

@@ -96,8 +96,8 @@ const VOID_SCROLL_EFFECTS = {
 // Wind scroll effect definitions
 const WIND_SCROLL_EFFECTS = {
     1: { name: 'Sigh of Recollection', description: 'Draw a scroll and a stone of the type that was just activated, if available. Draw one stone of each if it was a Catacomb scroll.', isResponse: true, oncePerTurn: true },
-    2: { name: 'Respirate', description: 'Draw 2 wind stones. At end of turn, return all your wind stones to the source pools.' },
-    3: { name: 'Breath of Power', description: 'Until end of turn, you may move adjacent stones to another adjacent empty space.' },
+    2: { name: 'Breath of Power', description: 'Until end of turn, you may move adjacent stones to another adjacent empty space.' },
+    3: { name: 'Respirate', description: 'Draw 3 wind stones. At end of turn, return all your wind stones to the source pools.' },
     4: { name: 'Take Flight', description: "Select a player to teleport. If you target yourself, you choose where to land; if you target another player, they choose instead. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists." },
     5: { name: 'Freedom', description: 'Until your next turn, you may teleport for free between elemental shrine centers, the same way a catacomb tile lets you teleport (only applies to you).' }
 };

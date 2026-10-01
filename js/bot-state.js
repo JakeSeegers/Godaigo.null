@@ -618,7 +618,7 @@
             }
         }
 
-        // ── moveStone: Breath of Power (WIND_SCROLL_3) — move any stone
+        // ── moveStone: Breath of Power (WIND_SCROLL_2) — move any stone
         // adjacent to the pawn onto a DIFFERENT, currently-empty in-range
         // hex, free, repeatable all turn. hasWindStoneMove() is the exact
         // same gate game-core.js's stone mousedown handlers check before

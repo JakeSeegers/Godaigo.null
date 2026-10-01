@@ -116,8 +116,8 @@
     const BUFF_META = {
         burningMotivation:        { scroll: 'FIRE_SCROLL_2', extra: b => (b.stacks > 1 ? ` ×${b.stacks}` : '') },
         controlTheCurrent:        { scroll: 'WATER_SCROLL_5' },
-        breathOfPower:             { scroll: 'WIND_SCROLL_3' },
-        respirateWind:             { scroll: 'WIND_SCROLL_2' },
+        breathOfPower:             { scroll: 'WIND_SCROLL_2' },
+        respirateWind:             { scroll: 'WIND_SCROLL_3' },
         simplify:                  { scroll: 'VOID_SCROLL_3' },
         mine:                      { scroll: 'CATACOMB_SCROLL_2', extra: b => (b.shrineType ? ` (${b.shrineType})` : '') },
         steamVents:                { scroll: 'CATACOMB_SCROLL_5' },
