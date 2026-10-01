@@ -142,6 +142,15 @@ reach/beat it from here.
   below the center hex, always earth, water, fire, wind, void left to right, empty faint rings for elements
   not won yet (drawn as soon as the tile is placed); levelPlayerTileSymbols() keeps the row level when the
   map is turned (called from updateViewport when viewportRotation changed).
+  Black bars / flat cuts through tiles on the tilted board (owner screenshots): the tilted board is one
+  big 3D layer Chrome paints in wide strips; every drag-pan frame rewrote the viewport transform and
+  repainted all of it, and strips that fell behind (or were wrongly judged off screen under the
+  perspective) showed as flat cuts with the background through them. Stones with pulsing rings are
+  separate compositor layers (CDP LayerTree), so they stayed visible over the gaps. Fix: game-core.js
+  beginFastPan()/endFastPan() (called where game-ui.js sets isPanning): during a pan updateViewport()
+  only sets a CSS translate on #boardSvg (will-change: transform) equal to the rotated pan delta;
+  release writes the real transform once. effects-system.js tileToScreen adds getBoardPanShift().
+  Verified identical placement (drift 0 at 0 and 50 deg). Not verified on a real GPU: owner to retest.
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also

@@ -2918,7 +2918,43 @@
         let leftButtonDown = false;
         let rightButtonDown = false;
 
+        // Fast pan (owner 2026-10-01, black bars / cut tiles on the tilted
+        // board): the tilted board is one big 3D layer that Chrome paints in
+        // strips. Rewriting the viewport transform repaints all of it, every
+        // frame of a drag-pan, and strips that fall behind show as flat cuts.
+        // While a pan gesture runs, viewportX/Y still change (hit-testing via
+        // screenToWorld stays exact), but the already painted board is only
+        // shifted with a CSS translate on #boardSvg (will-change: transform,
+        // so the compositor moves it without repainting). The shift equals
+        // the rotated pan delta, so the picture is identical. endFastPan()
+        // writes the real transform once and drops the shift in the same frame.
+        let _fastPan = null; // { x, y, rot, scale } committed at pan start
+        function beginFastPan() {
+            if (_fastPan) return;
+            _fastPan = { x: viewportX, y: viewportY, rot: viewportRotation, scale: viewportScale };
+        }
+        function endFastPan() {
+            if (!_fastPan) return;
+            _fastPan = null;
+            updateViewport();
+        }
+        window.beginFastPan = beginFastPan;
+        window.endFastPan = endFastPan;
+        // CSS pixel shift currently applied over the committed transform
+        // (for code that reads positions from viewport.getCTM()).
+        window.getBoardPanShift = () => _panShift;
+        let _panShift = { x: 0, y: 0 };
+
         function updateViewport() {
+            if (_fastPan && _fastPan.rot === viewportRotation && _fastPan.scale === viewportScale) {
+                const rad = viewportRotation * Math.PI / 180;
+                const dx = viewportX - _fastPan.x, dy = viewportY - _fastPan.y;
+                _panShift = { x: dx * Math.cos(rad) - dy * Math.sin(rad), y: dx * Math.sin(rad) + dy * Math.cos(rad) };
+                boardSvg.style.transform = `translate(${_panShift.x}px, ${_panShift.y}px)`;
+                return;
+            }
+            if (_fastPan) _fastPan = { x: viewportX, y: viewportY, rot: viewportRotation, scale: viewportScale }; // zoom/turn mid-gesture: commit, keep panning fast from here
+            if (_panShift.x || _panShift.y) { _panShift = { x: 0, y: 0 }; boardSvg.style.transform = ''; }
             const centerX = boardSvg.clientWidth / 2;
             const centerY = boardSvg.clientHeight / 2;
             viewport.setAttribute('transform',
@@ -7728,7 +7764,6 @@ function clearPlayerPath() {
                         nullIndicator.setAttribute('stroke', STONE_TYPES['void'].color);
                         nullIndicator.setAttribute('stroke-width', '2');
                         nullIndicator.style.animation = `mimicryGlow 7s ease-in-out infinite`;
-                        nullIndicator.style.willChange = 'opacity';
 
                         // Append last so it renders on top of the stone circle
                         stone.element.appendChild(nullIndicator);
@@ -7800,7 +7835,6 @@ function clearPlayerPath() {
                 // Solid ring — no dasharray for any indicator type
 
                 indicator.style.animation = `mimicryGlow 7s ease-in-out infinite`;
-                indicator.style.willChange = 'opacity';
 
                 // Inject keyframes once
                 if (!document.getElementById('mimicry-glow-style')) {

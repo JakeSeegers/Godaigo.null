@@ -70,6 +70,10 @@ window.effectsSystem = (() => {
         pt.y = svgY;
         const ctm = viewport.getCTM();
         const screenPt = pt.matrixTransform(ctm);
+        // Mid-pan the board is shifted by a CSS translate on top of the CTM
+        // (game-core.js beginFastPan); follow it.
+        const shift = window.getBoardPanShift ? window.getBoardPanShift() : null;
+        if (shift) { screenPt.x += shift.x; screenPt.y += shift.y; }
         const ctmScale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b);
         // screenPt is relative to boardSvg's own untransformed box, which by
         // design matches .board-area's rect exactly at 0deg tilt (see

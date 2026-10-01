@@ -1611,6 +1611,7 @@
 
             if (isPanning) {
                 isPanning = false;
+                endFastPan();
                 boardSvg.style.cursor = 'grab';
             }
             if (isRotatingBoard) {
@@ -1652,6 +1653,7 @@
                 if (!isStone && !isPlayer && !isTile) {
                     e.preventDefault();
                     isPanning = true;
+                    beginFastPan(); // move the painted board, no repaint per frame (game-core.js)
                     panStartX = coords.x;
                     panStartY = coords.y;
                     lastPanX = viewportX;
@@ -1818,6 +1820,7 @@
 
             if (isPanning) {
                 isPanning = false;
+                endFastPan();
                 boardSvg.style.cursor = 'grab';
             }
 
@@ -2332,6 +2335,7 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
             if (e.button === 0 && (e.target === boardSvg || e.target === viewport || e.target.tagName === 'polygon') && !isStone && !isPlayer) {
                 e.preventDefault();
                 isPanning = true;
+                beginFastPan(); // move the painted board, no repaint per frame (game-core.js)
                 panStartX = e.clientX;
                 panStartY = e.clientY;
                 lastPanX = viewportX;

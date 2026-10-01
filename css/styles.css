@@ -794,6 +794,10 @@ body {
    stylesheet instead of an explicit rule. .board-viewport's overflow:hidden
    remains the real, JS-synced clip boundary. */
 #boardSvg {
+    /* Own compositor layer: a drag-pan moves the painted board with a CSS
+       translate instead of repainting the whole tilted board every frame
+       (game-core.js beginFastPan). */
+    will-change: transform;
     display: block;
     width: 100%;
     height: 100%;
