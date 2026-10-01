@@ -7908,6 +7908,9 @@ document.getElementById('undo-move').onclick = function() {
                 menu.appendChild(makeItem('Rewards: sign-up events, game rewards', () => {
                     window.HermitRewards?.open();
                 }));
+                menu.appendChild(makeItem('Test games: reward and reports', () => {
+                    window.TestGame?.openHermit();
+                }));
                 menu.appendChild(makeItem('Pot Drop demo (plinko)', () => {
                     // Local only: runs the same physics as the real pot, pays nothing.
                     const n = parseInt(window.prompt('How many coins? (1-70, one coin = 10g)', '30'), 10);

@@ -121,6 +121,19 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-01: Online test games (owner request).** sql/test-games.sql (applied: test_games +
+  test_games_null_turns; rollback test: 1 report pays nobody, 2nd pays both 150 once, daily cap 2, short
+  game / guest / non-test room / outsider refused). js/test-game.js (see CLAUDE.md row 25a),
+  tools/online-test.mjs (owner's PC, live site, guests or GODAIGO_USER_n / GODAIGO_PASS_n, --freeze N uses
+  CDP Page.setWebLifecycleState to imitate a sleeping phone). Local proof: scratchpad test-online.mjs + fake-online.js
+  (two pages, shared localStorage tables + BroadcastChannel Realtime with presence and droppable socket,
+  game started through the real handleGameStart): 80-turn game with 11 chaos events, all 80 turns'
+  fingerprints equal except turn 1 (placement, ignored by the server), both reports sent, 0 errors.
+  Bugs it found and fixed in lobby.js: turn-sync used undefined `maxAP` (ReferenceError on a recovered
+  turn, AP not reset); an old host turn-sync could roll the turn back after a newer turn-change (messages
+  from different players are not ordered) and split the boards; every turn the player who ended the
+  previous turn saw a false "Turn sync issue detected" (lastReceivedTurnNumber ignored own turn changes).
+  Not tested here: the real Supabase socket (sandbox cannot reach supabase.co), Wake Lock on phones.
 - **2026-10-01: Opponent Status panel + catacomb look (player feedback).** (1) The panel was hard to
   read: cards are now labelled rows (Won n/5 with the 5 element symbols lit, Stones, Hand n with each
   scroll's element, Active chips with icon + name, hover = preview). (2) Your own Hand count stayed at 0:

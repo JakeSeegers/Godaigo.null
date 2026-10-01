@@ -4636,31 +4636,31 @@ label, .hud-ap-label, .hud-ap-value {
 .reward-notice .rn-ok { display: inline-block; margin: 0 auto; padding: 8px 26px; font-size: 16px; cursor: pointer; background: #9d2c2e; color: #fff; border: none; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) { .reward-notice { animation: none; } }
 
-#hermit-rewards-panel { position: fixed; top: 12px; right: 12px; z-index: 10070; width: min(380px, calc(100vw - 24px));
+#hermit-rewards-panel, #hermit-tests-panel { position: fixed; top: 12px; right: 12px; z-index: 10070; width: min(380px, calc(100vw - 24px));
   max-height: calc(100vh - 24px); display: flex; flex-direction: column; background: #1a1a2e; color: #eee;
   border: 1px solid #555; border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6); font-size: 13px; }
-#hermit-rewards-panel .hr-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #333; color: #d9b08c; }
-#hermit-rewards-panel .hr-body { overflow-y: auto; padding: 8px 12px 12px; }
-#hermit-rewards-panel .hr-section { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #2c2c44; }
-#hermit-rewards-panel .hr-label { font-weight: bold; color: #d9b08c; margin-bottom: 6px; }
-#hermit-rewards-panel input, #hermit-rewards-panel textarea, #hermit-rewards-panel select { width: 100%; box-sizing: border-box; margin-bottom: 6px;
+#hermit-rewards-panel .hr-head, #hermit-tests-panel .hr-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #333; color: #d9b08c; }
+#hermit-rewards-panel .hr-body, #hermit-tests-panel .hr-body { overflow-y: auto; padding: 8px 12px 12px; }
+#hermit-rewards-panel .hr-section, #hermit-tests-panel .hr-section { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #2c2c44; }
+#hermit-rewards-panel .hr-label, #hermit-tests-panel .hr-label { font-weight: bold; color: #d9b08c; margin-bottom: 6px; }
+#hermit-rewards-panel input, #hermit-rewards-panel textarea, #hermit-rewards-panel select, #hermit-tests-panel input, #hermit-tests-panel textarea, #hermit-tests-panel select { width: 100%; box-sizing: border-box; margin-bottom: 6px;
   background: #11111f; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 5px; font: inherit; }
-#hermit-rewards-panel .hr-row { display: flex; align-items: center; gap: 8px; }
-#hermit-rewards-panel .hr-row > span { width: 60px; flex: none; }
-#hermit-rewards-panel .hr-badge-prev { width: 32px; height: 32px; object-fit: contain; }
-#hermit-rewards-panel .hr-item { display: block; margin: 2px 0; }
-#hermit-rewards-panel .hr-item input { width: auto; margin: 0 4px 0 0; }
-#hermit-rewards-panel .hr-secret { font-size: 10px; background: #9d2c2e; color: #fff; padding: 0 4px; border-radius: 3px; }
-#hermit-rewards-panel .hr-hint { font-size: 12px; opacity: 0.75; margin-bottom: 6px; }
-#hermit-rewards-panel button { cursor: pointer; margin: 2px 4px 2px 0; padding: 4px 10px; }
-#hermit-rewards-panel .hr-event, #hermit-rewards-panel .hr-roomrow { padding: 6px; margin-top: 6px; border: 1px solid #333; border-radius: 5px; }
-#hermit-rewards-panel .hr-event.on { border-color: #9d2c2e; }
-#hermit-rewards-panel .hr-live { color: #fff; background: #9d2c2e; padding: 0 4px; border-radius: 3px; font-size: 10px; }
-#hermit-rewards-panel .hr-done, #hermit-rewards-panel .hr-status, #hermit-rewards-panel .hr-players, #hermit-rewards-panel .hr-winners { font-size: 11px; opacity: 0.8; }
-#hermit-rewards-panel .hr-bounty { color: #ffb0b0; }
-#hermit-rewards-panel .hr-paid { color: #9fe0a0; }
-#hermit-rewards-panel .hr-item, #hermit-rewards-panel summary, #hermit-rewards-panel button, #hermit-rewards-panel .hr-row { font-size: 13px; }
-#hermit-rewards-panel .hr-x { background: none; border: 1px solid #444; color: #ccc; padding: 1px 7px; font-size: 13px; }
+#hermit-rewards-panel .hr-row, #hermit-tests-panel .hr-row { display: flex; align-items: center; gap: 8px; }
+#hermit-rewards-panel .hr-row > span, #hermit-tests-panel .hr-row > span { width: 60px; flex: none; }
+#hermit-rewards-panel .hr-badge-prev, #hermit-tests-panel .hr-badge-prev { width: 32px; height: 32px; object-fit: contain; }
+#hermit-rewards-panel .hr-item, #hermit-tests-panel .hr-item { display: block; margin: 2px 0; }
+#hermit-rewards-panel .hr-item input, #hermit-tests-panel .hr-item input { width: auto; margin: 0 4px 0 0; }
+#hermit-rewards-panel .hr-secret, #hermit-tests-panel .hr-secret { font-size: 10px; background: #9d2c2e; color: #fff; padding: 0 4px; border-radius: 3px; }
+#hermit-rewards-panel .hr-hint, #hermit-tests-panel .hr-hint { font-size: 12px; opacity: 0.75; margin-bottom: 6px; }
+#hermit-rewards-panel button, #hermit-tests-panel button { cursor: pointer; margin: 2px 4px 2px 0; padding: 4px 10px; }
+#hermit-rewards-panel .hr-event, #hermit-rewards-panel .hr-roomrow, #hermit-tests-panel .hr-event, #hermit-tests-panel .hr-roomrow { padding: 6px; margin-top: 6px; border: 1px solid #333; border-radius: 5px; }
+#hermit-rewards-panel .hr-event.on, #hermit-tests-panel .hr-event.on { border-color: #9d2c2e; }
+#hermit-rewards-panel .hr-live, #hermit-tests-panel .hr-live { color: #fff; background: #9d2c2e; padding: 0 4px; border-radius: 3px; font-size: 10px; }
+#hermit-rewards-panel .hr-done, #hermit-rewards-panel .hr-status, #hermit-rewards-panel .hr-players, #hermit-rewards-panel .hr-winners, #hermit-tests-panel .hr-done, #hermit-tests-panel .hr-status, #hermit-tests-panel .hr-players, #hermit-tests-panel .hr-winners { font-size: 11px; opacity: 0.8; }
+#hermit-rewards-panel .hr-bounty, #hermit-tests-panel .hr-bounty { color: #ffb0b0; }
+#hermit-rewards-panel .hr-paid, #hermit-tests-panel .hr-paid { color: #9fe0a0; }
+#hermit-rewards-panel .hr-item, #hermit-rewards-panel summary, #hermit-rewards-panel button, #hermit-rewards-panel .hr-row, #hermit-tests-panel .hr-item, #hermit-tests-panel summary, #hermit-tests-panel button, #hermit-tests-panel .hr-row { font-size: 13px; }
+#hermit-rewards-panel .hr-x, #hermit-tests-panel .hr-x { background: none; border: 1px solid #444; color: #ccc; padding: 1px 7px; font-size: 13px; }
 
 /* Pixel-art badges (images/badges/px-*.png, 32x32 from Raven Fantasy Icons): keep them sharp. */
 img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[src*="/px-"] { image-rendering: pixelated; }
@@ -4767,3 +4767,38 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
     stroke-linecap: round;
     stroke-opacity: 0.95;
 }
+
+/* Test games (js/test-game.js) */
+.test-game-bar {
+    position: fixed; left: 50%; top: 58px; transform: translateX(-50%);
+    z-index: 9000; display: flex; align-items: center; gap: 12px;
+    padding: 6px 12px; border-radius: 6px;
+    background: rgba(20, 40, 30, 0.92); border: 1px solid #4caf7a; color: #d8f5e3;
+    font-family: var(--font-terminal); font-size: 14px; pointer-events: auto;
+}
+.test-game-bar button { padding: 3px 10px; font-size: 13px; cursor: pointer; }
+.test-game-toast {
+    position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+    z-index: 9500; max-width: min(560px, 90vw); padding: 10px 16px; border-radius: 6px;
+    background: rgba(15, 25, 20, 0.95); border: 1px solid #4caf7a; color: #e8fff0;
+    font-family: var(--font-terminal); font-size: 15px; text-align: center;
+    opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+}
+.test-game-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.test-game-room-banner {
+    margin: -6px 0 12px; padding: 8px 12px; border-radius: 4px;
+    background: rgba(76, 175, 122, 0.15); border: 1px solid #4caf7a; font-size: 14px; line-height: 1.4;
+}
+.test-mode-row { margin-bottom: 10px; font-size: 14px; }
+.test-mode-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.game-room-test {
+    font-size: 12px; padding: 1px 6px; border-radius: 10px; margin-left: 6px;
+    background: rgba(76, 175, 122, 0.2); border: 1px solid #4caf7a; color: #bff0d3;
+}
+
+#hermit-tests-panel .tg-report { padding: 6px 8px; margin-bottom: 8px; border-radius: 4px; border-left: 3px solid #4caf7a; background: rgba(255,255,255,0.03); font-size: 13px; line-height: 1.45; }
+#hermit-tests-panel .tg-report.tg-bad { border-left-color: #e0a030; }
+#hermit-tests-panel .tg-problems { margin-top: 2px; color: #ffd27a; }
+#hermit-tests-panel .tg-ok .tg-problems { color: #9be3b8; }
+#hermit-tests-panel .tg-btns { display: flex; gap: 6px; margin-top: 4px; }
+#hermit-tests-panel .tg-more { max-height: 260px; overflow: auto; font-size: 11px; white-space: pre-wrap; background: #111; padding: 6px; }

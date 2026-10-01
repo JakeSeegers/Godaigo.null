@@ -612,7 +612,7 @@
 
             const { data: rooms } = await supabase
                 .from('game_room')
-                .select('id,host_name,created_at')
+                .select('id,host_name,created_at,test_mode')
                 .eq('status', 'waiting')
                 .eq('is_private', false)
                 .order('created_at', { ascending: false });
@@ -680,7 +680,7 @@
                 const bounty = window.Rewards?.bountyFor?.(r.id);
                 return `
                 <div class="game-room-card" onclick="joinPublicGame(${r.id})">
-                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">${window.emojiSystem?.spriteHtml?.(76, 0.6) || ''}Reward</span>` : ''}</div>
+                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${r.test_mode ? ' <span class="game-room-test" title="Test game: bots play every seat to find online bugs, gold for each player">🧪 Test</span>' : ''}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">${window.emojiSystem?.spriteHtml?.(76, 0.6) || ''}Reward</span>` : ''}</div>
                     <div class="game-room-count">${counts[r.id]} / 5</div>
                     ${hermit ? `<button class="game-room-reward-btn" title="Put a reward on this game" onclick="event.stopPropagation(); window.HermitRewards?.openForRoom(${r.id}, ${_esc(JSON.stringify(r.host_name || 'Room ' + r.id))})">${window.emojiSystem?.spriteHtml?.(76, 0.7) || 'Reward'}</button>` : ''}
                     <button class="game-room-join-btn">Join</button>
@@ -1176,6 +1176,8 @@
             // Witness report: this browser checks the winner against its own
             // board and tells the server (js/match-witness.js). Once per game.
             window.MatchWitness?.onGameOver(winnerPlayerIndex, winType);
+            // Test game report (js/test-game.js), when this was a test room.
+            window.TestGame?.onGameOver(winnerPlayerIndex, winType);
 
             // Check if notification already exists
             const existingNotification = document.getElementById('game-over-notification');
@@ -2668,15 +2670,20 @@
 
                 // Validate turn number for desync detection
                 if (typeof payload.turnNumber === 'number') {
-                    const expectedTurn = lastReceivedTurnNumber + 1;
+                    // The newest turn this client knows: received, or sent by itself
+                    // (the player who ended a turn never "receives" it, so on its next
+                    // turn change it used to report a missed turn and flash "Turn sync
+                    // issue detected" for nothing; test-game harness 2026-10-01).
+                    const knownTurn = Math.max(lastReceivedTurnNumber, currentTurnNumber || 0);
+                    const expectedTurn = knownTurn + 1;
 
                     if (payload.turnNumber > expectedTurn) {
                         // We missed some turns! Log warning
                         console.warn(`⚠️ DESYNC DETECTED: Expected turn ${expectedTurn}, received turn ${payload.turnNumber}. Missed ${payload.turnNumber - expectedTurn} turn(s).`);
                         updateStatus(`Turn sync issue detected - auto-correcting...`);
-                    } else if (payload.turnNumber < lastReceivedTurnNumber) {
+                    } else if (payload.turnNumber < knownTurn) {
                         // Received an old turn? Ignore it
-                        console.warn(`⚠️ Received outdated turn ${payload.turnNumber} (current: ${lastReceivedTurnNumber}). Ignoring.`);
+                        console.warn(`⚠️ Received outdated turn ${payload.turnNumber} (current: ${knownTurn}). Ignoring.`);
                         return;
                     }
 
@@ -3858,6 +3865,13 @@
             gameChannel.on('broadcast', { event: 'turn-sync' }, ({ payload }) => {
                 const { playerIndex, turnNumber, turnStartedAt } = payload;
 
+                // The host sends this every 5 s. Messages from different players are
+                // not ordered, so a sync sent just before a turn change can arrive
+                // after it: never let an older sync roll the turn back (test-game
+                // harness 2026-10-01: turns flipped 14 -> 12 -> 14, boards split).
+                const knownTurn = Math.max(lastReceivedTurnNumber, currentTurnNumber || 0);
+                if (typeof turnNumber === 'number' && turnNumber < knownTurn) return;
+
                 // Check if we're desynced
                 if (activePlayerIndex !== playerIndex) {
                     console.warn(`⚠️ DESYNC CORRECTED: Local activePlayerIndex was ${activePlayerIndex}, host says ${playerIndex}`);
@@ -3865,8 +3879,11 @@
                     updateTurnDisplay();
                 }
 
-                if (typeof turnNumber === 'number' && lastReceivedTurnNumber !== turnNumber) {
-                    console.warn(`⚠️ DESYNC CORRECTED: Local turn was ${lastReceivedTurnNumber}, host says ${turnNumber}`);
+                if (typeof turnNumber === 'number' && turnNumber === knownTurn) {
+                    // Same turn (e.g. this client ended it itself): just remember it.
+                    lastReceivedTurnNumber = turnNumber;
+                } else if (typeof turnNumber === 'number' && turnNumber > knownTurn) {
+                    console.warn(`⚠️ DESYNC CORRECTED: Local turn was ${knownTurn}, host says ${turnNumber}`);
                     lastReceivedTurnNumber = turnNumber;
                     currentTurnNumber = turnNumber; // see the matching turn-change handler's comment above for why
 
@@ -3874,7 +3891,9 @@
                     // that does this was missed due to the reconnect
                     if (playerIndex === myPlayerIndex) {
                         console.warn('⚠️ DESYNC: Resetting AP for recovered turn');
-                        currentAP = maxAP;
+                        currentAP = 5; // was `maxAP`, which does not exist here (ReferenceError)
+                        const apEl = document.getElementById('ap-count');
+                        if (apEl) apEl.textContent = currentAP;
                         if (typeof refreshVoidAP === 'function') refreshVoidAP();
                         if (typeof updateAPDisplay === 'function') updateAPDisplay();
                     }
