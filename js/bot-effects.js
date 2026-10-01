@@ -576,7 +576,7 @@
     // ----------------------------------------------------------------
     // Sacrificial Pyre (FIRE_SCROLL_3) — modal, single click.
     // Choice: one scroll from the caster's OWN hand to sacrifice (sent to
-    // the common area, but grants stones + runs its own effect too).
+    // the common area, and runs its own effect; no Level I on your own turn).
     // Modal id (scroll-select-modal) is shared with Inspiring Draught's
     // put-back step and Plunder (not yet driven) — disambiguated by the
     // heading text set by showScrollSelectionModal()'s title param.

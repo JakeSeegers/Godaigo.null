@@ -172,6 +172,11 @@ reach/beat it from here.
   only activates the element(s) now, and logs console.error naming the scroll; scroll-effects.js
   Reflect's dead "give base stone rewards" block; fallback scroll descriptions no longer promise
   stones). All 35 scrolls have an effect, so the default path should never run.
+  Sacrificial Pyre (owner): Level I scrolls only as a response on another player's turn. Own-turn
+  checks now go by level (game-core.js executeSpell guard, scroll-effects.js enterScrollSacrificeMode,
+  bot-sim.js simEffectSacrificialPyre), not by the response/counter flags. Pyre also still gave the
+  sacrificed scroll's level in free stones (not from the source): removed there and in bot-sim.js.
+  Likely the source of the +2 water +2 void the undo fuzz test saw.
   (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
   pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
   which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also

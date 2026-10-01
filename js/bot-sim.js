@@ -145,12 +145,6 @@
 //     tile. Rare (needs a still-hidden tile targeted, then revealed before
 //     the buff clears) and — unlike the shrine-collection site — would also
 //     require guessing which drawn card was in the pile's other slots
-//   - Sacrificial Pyre's stone grant is uncapped by source pool availability
-//     — NOT a simplification, a faithful mirror: enterScrollSacrificeMode's
-//     own stone-granting block has no `(snap.sourcePool[el]||0) > 0` guard
-//     at all (every other stone grant in this file — Create, Quick
-//     Reflexes, shrine collection — does check it), so simEffectSacrificial-
-//     Pyre doesn't either, on purpose
 //   - Telekinesis' "cannot strand an adjacent tile" rule: the real game
 //     enforces this as a SEPARATE check at drag-START time (bot-effects.js's
 //     driveTelekinesis comment: "Bridge tiles still highlight but error on
@@ -248,7 +242,7 @@
         'WIND_SCROLL_5', 'WATER_SCROLL_4',
         // Tranche 8 (recursive effect dispatch — simCastEffect() factored
         // out of simCast() so the sacrificed scroll's own effect can be
-        // simulated too, not just the stone grant): Sacrificial Pyre.
+        // simulated): Sacrificial Pyre.
         'FIRE_SCROLL_3',
         // Tranche 9 (the last two DELIBERATELY NOT WHITELISTED entries):
         // Excavate — a deferred-to-next-turn effect, using the same
@@ -1572,9 +1566,10 @@
     //      tracking it would never change a search's evaluation anyway.
     function simEffectSacrificialPyre(snap, p) {
         const hand = p.hand || [];
+        // No Level I on your own turn (owner rule, mirrors enterScrollSacrificeMode)
         const eligible = hand.filter(name => {
             const d = window.SCROLL_DEFINITIONS?.[name];
-            return d && !(d.canCounter === 'any' || d.isResponse === true);
+            return d && d.level !== 1;
         });
         if (!eligible.length) return; // real flow bails — nothing sacrificeable
 
@@ -1593,16 +1588,8 @@
             window.SCROLL_DEFINITIONS?.[name]?.element !== def.element);
         if (!snap.commonArea.includes(chosen)) snap.commonArea.push(chosen);
 
-        if (def.element === 'catacomb' && def.patterns?.[0]) {
-            const counts = {};
-            for (const c of def.patterns[0]) counts[c.type] = (counts[c.type] || 0) + 1;
-            for (const [element, count] of Object.entries(counts)) {
-                p.pool[element] = Math.min(POOL_CAP, (p.pool[element] || 0) + count);
-            }
-        } else if (ELEMENTS.includes(def.element)) {
-            p.pool[def.element] = Math.min(POOL_CAP, (p.pool[def.element] || 0) + def.level);
-        }
-
+        // No stone grant any more (the old test rule was removed 2026-10-01):
+        // only the sacrificed scroll's own effect runs.
         simCastEffect(snap, p, chosen);
     }
 

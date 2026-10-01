@@ -4203,17 +4203,15 @@ const ScrollEffects = {
             return;
         }
 
-        // Level I response/counter scrolls can't be activated this way on your
-        // own turn — they have nothing to respond to here. They're only
-        // activatable via Sacrificial Pyre during an opponent's response
-        // window (see ResponseWindowSystem.showSacrificialPyreResponsePicker),
-        // where a real triggering scroll exists for them to act on.
-        const scrollArray = Array.from(playerScrolls.hand).filter(s => {
-            const d = this.spellSystem?.patterns?.[s];
-            return !(d && (d.canCounter === 'any' || d.isResponse === true));
-        });
+        // Level I scrolls can't be activated this way on your own turn (owner
+        // rule): Sacrificial Pyre activates them only as a response during
+        // another player's response window (see
+        // ResponseWindowSystem.showSacrificialPyreResponsePicker). Checked by
+        // level, not by the response/counter flags, so every Level I counts.
+        const scrollArray = Array.from(playerScrolls.hand).filter(s =>
+            (this.spellSystem?.patterns?.[s]?.level ?? 2) !== 1);
         if (scrollArray.length === 0) {
-            updateStatus('No scrolls to sacrifice! (Level I response scrolls can only be activated this way as a response on an opponent\'s turn.)');
+            updateStatus('No scroll to sacrifice! Level I scrolls can only be activated with Sacrificial Pyre as a response on another player\'s turn.');
             if (typeof onComplete === 'function') onComplete();
             return;
         }
@@ -4233,44 +4231,9 @@ const ScrollEffects = {
                 return;
             }
 
-            // Activate the scroll: add stones to pool and track element
-            if (scrollDef.element === 'catacomb') {
-                // Catacomb scrolls: count how many of each element and add stones
-                const elementCounts = {};
-                if (scrollDef.patterns && scrollDef.patterns[0]) {
-                    scrollDef.patterns[0].forEach(pos => {
-                        elementCounts[pos.type] = (elementCounts[pos.type] || 0) + 1;
-                    });
-                }
-
-                const rewards = [];
-                Object.entries(elementCounts).forEach(([element, count]) => {
-                    const pools = typeof playerPools !== 'undefined' ? playerPools : [];
-                    const poolCaps = typeof playerPoolCapacity !== 'undefined' ? playerPoolCapacity : {};
-                    if (pools[casterIndex] && poolCaps) {
-                        pools[casterIndex][element] = Math.min(
-                            poolCaps[element] || 5,
-                            (pools[casterIndex][element] || 0) + count
-                        );
-                        rewards.push(`+${count} ${element}`);
-                    }
-                    if (typeof updateStoneCount === 'function') updateStoneCount(element);
-                });
-                updateStatus(`Sacrificed ${scrollDef.name}! Added ${rewards.join(', ')} stones!`);
-            } else {
-                // Regular element scrolls: add stones based on level
-                const pools = typeof playerPools !== 'undefined' ? playerPools : [];
-                const poolCaps = typeof playerPoolCapacity !== 'undefined' ? playerPoolCapacity : {};
-                if (pools[casterIndex] && poolCaps) {
-                    pools[casterIndex][scrollDef.element] = Math.min(
-                        poolCaps[scrollDef.element] || 5,
-                        (pools[casterIndex][scrollDef.element] || 0) + scrollDef.level
-                    );
-                }
-                if (typeof updateStoneCount === 'function') updateStoneCount(scrollDef.element);
-
-                updateStatus(`Sacrificed ${scrollDef.name}! Added +${scrollDef.level} ${scrollDef.element} stones!`);
-            }
+            // The sacrificed scroll's effect runs below. It gives no stones: the
+            // old "cast gives stones" test rule was removed (owner, 2026-10-01).
+            updateStatus(`Sacrificed ${scrollDef.name}!`);
 
             // NOTE: Only FIRE is marked as activated (from casting Sacrificial Pyre itself)
             // The sacrificed scroll's elements do NOT count toward win condition
@@ -4282,7 +4245,7 @@ const ScrollEffects = {
                 self.execute(selectedScroll, casterIndex, {});
             }
 
-            // Broadcast stone gains to other players (for resource tracking only, not win condition)
+            // Sync this player's state (scroll moved to the common area, effect results)
             if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof syncPlayerState === 'function') {
                 syncPlayerState();
             }

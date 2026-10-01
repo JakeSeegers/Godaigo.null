@@ -1488,17 +1488,15 @@
 
             executeSpell({name, spell, fromCommonArea = false}) {
                 // Sacrificial Pyre activates a scroll from your hand. With nothing in
-                // hand it can use (Level I response scrolls don't count on your own
-                // turn), refuse it before any AP is spent (owner, 2026-10-01: AP was
-                // charged and the cast fizzled).
+                // hand it can use, refuse it before any AP is spent (owner, 2026-10-01:
+                // AP was charged and the cast fizzled). Level I scrolls never count
+                // here: Pyre can activate them only as a response on another player's
+                // turn (owner rule, 2026-10-01).
                 if (name === 'FIRE_SCROLL_3') {
                     const hand = Array.from(this.getPlayerScrolls(false)?.hand || []);
-                    const usable = hand.filter(s => {
-                        const d = this.patterns?.[s];
-                        return !(d && (d.canCounter === 'any' || d.isResponse === true));
-                    });
+                    const usable = hand.filter(s => (this.patterns?.[s]?.level ?? 2) !== 1);
                     if (usable.length === 0) {
-                        updateStatus('Sacrificial Pyre needs a scroll in your hand to activate (not a Level I response scroll). No AP spent.');
+                        updateStatus('Sacrificial Pyre needs a scroll above Level I in your hand. Level I scrolls can only be activated with it as a response on another player\'s turn. No AP spent.');
                         window.SoundSystem?.play('error');
                         return false;
                     }
