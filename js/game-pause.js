@@ -98,6 +98,8 @@
 
     // ── Message ids, history, handlers ──────────────────────────
     function newMid() { return `${me()}:${midSession}:${++midCounter}`; }
+    // "seat:session" of a message id ("seat:session:counter"): who sent it, from which page load.
+    function midSource(mid) { const p = String(mid).split(':'); return p.length >= 3 ? p[0] + ':' + p[1] : null; }
 
     function markSeen(mid) {
         if (!mid || seenSet.has(mid)) return;
@@ -105,11 +107,15 @@
         while (seen.length > SEEN_SIZE) seenSet.delete(seen.shift());
     }
 
-    // Every game message this client sends or receives.
+    // Every game message this client sends or receives. Skipped events are
+    // never buffered or re-sent, so they are not remembered either: in match
+    // 43 the scroll-sync flood (4-5 a second) pushed real messages out of
+    // `seen` within a minute or two, and a catch-up re-applied old moves.
     function note(event, payload) {
         if (!event || event.startsWith('gp-')) return;
+        if (SKIP_BUFFER.has(event)) return;
         markSeen(payload?._mid);
-        if (SKIP_BUFFER.has(event) || !payload?._mid) return;
+        if (!payload?._mid) return;
         buffer.push({ event, payload });
         while (buffer.length > BUFFER_SIZE) buffer.shift();
     }
@@ -429,7 +435,7 @@
             return;
         }
         resyncTries++;
-        send('gp-resync-request', { seat: me(), seen: seen.slice() });
+        send('gp-resync-request', { seat: me(), source: `${me()}:${midSession}`, seen: seen.slice() });
         // Nobody answered (old client, or they dropped too): go on and let
         // the per-turn fingerprint check catch a difference.
         resyncTimer = setTimeout(() => finishResync(true), RESYNC_REPLY_MS);
@@ -451,7 +457,14 @@
         const responder = presentSeats().filter(i => i !== from).sort((a, b) => a - b)[0];
         if (responder !== me()) return;
         const had = new Set(payload?.seen || []);
-        const moves = buffer.filter(m => !had.has(m.payload._mid));
+        // Only what came after the oldest message they still remember (older
+        // ones they applied long ago, even if they no longer remember them),
+        // and never their own messages from this page load back (match 43: a
+        // returning player re-applied its own old turn change and stones).
+        const anchor = buffer.findIndex(m => had.has(m.payload._mid));
+        const recent = anchor >= 0 ? buffer.slice(anchor) : buffer;
+        const own = payload?.source || null; // this page load's own messages (a reloaded page gets its old ones)
+        const moves = recent.filter(m => !had.has(m.payload._mid) && (!own || midSource(m.payload._mid) !== own));
         let fp = null;
         try { fp = window.MatchWitness?.fingerprint?.() || null; } catch (e) {}
         send('gp-resync-moves', { to: from, moves, fp, hostPaused: g('isHost') ? hostPaused : undefined });
@@ -463,6 +476,7 @@
         let applied = 0;
         for (const m of payload.moves || []) {
             if (!m?.payload?._mid || seenSet.has(m.payload._mid)) continue;
+            if (midSource(m.payload._mid) === `${me()}:${midSession}`) continue; // my own: applied when I sent it
             dispatch(m.event, m.payload); // the '*' handler marks it seen via note()
             markSeen(m.payload._mid);
             applied++;

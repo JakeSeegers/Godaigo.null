@@ -147,7 +147,9 @@ Order matters — later scripts depend on earlier ones.
 17a. game-pause.js         ← window.GamePause / isGamePaused(): pauses an online game for everyone while a player's
                              connection is down or the host pressed the HUD Pause button. Overlay blocks input,
                              bots + turn timeout wait, paused time given back. Catch-up after a drop: `_mid` on
-                             every game message, gp-resync-request / -moves / -done + fingerprint check. After 60 s:
+                             every game message, gp-resync-request / -moves / -done + fingerprint check. The answer holds
+                             only messages after the oldest one the returner still remembers, never its own (same page
+                             load); sync/emoji events are not remembered (match 43 replayed old moves). After 60 s:
                              Wait / Kick (host), Continue without them (host gone), Claim win (last human).
                              docs/network-resilience.md.
 17b. match-recorder.js     ← window.MatchRecorder: HOST-only recording of every online game's broadcast

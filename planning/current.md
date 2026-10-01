@@ -135,6 +135,13 @@ reach/beat it from here.
   put it in your pool unbroadcast (owner: not a rule; now it goes back to its spot). (4) Sacrificial
   Pyre with no usable hand scroll is refused before AP is spent. Owner rules: recasting a countered
   scroll from the active area is allowed (if you have the AP).
+  (5) The turn-42 split: CaptainConfuzion's connection dropped at the end of turn 40; on return the
+  catch-up (game-pause.js) re-sent buffered messages they had already applied, including their own (old
+  turn change: their turn came back with AP 5 at 01:48:45; old stones). Cause: every message, including
+  the scroll-sync flood, was remembered in `seen` (400), pushing real ones out, while the 150-message
+  buffer reached further back. Fix: sync/emoji not remembered; answer = only buffered messages after the
+  oldest one the returner remembers, minus its own from the same page load. Scratchpad test reproduces
+  it (old: 41 re-applied, new: only the 2 missed).
 - **2026-10-01: Pot drop, show the gap** (owner: the tube looked blocked by the board). Drawing only, no physics or
   server change: coins drawn at true size (12, was 14), guard peg over the tube gold + mouth glow, slow motion
   (1/3) and a 3x close-up of the mouth while a hit or near-miss coin is there, walls flash on a hit.
