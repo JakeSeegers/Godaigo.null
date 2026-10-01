@@ -6991,10 +6991,20 @@ function clearPlayerPath() {
 
             if (playerPath.length < 2) return;
 
-            // Calculate cumulative costs and remaining AP for each segment
+            // Calculate cumulative costs and remaining AP for each segment.
+            // The number is the AP left after that step, void AP included
+            // (owner, 2026-10-01: it used to ignore void AP). Void AP is spent
+            // first (spendAP), so steps paid with it are purple, the rest green,
+            // and steps you can't afford red.
             const steamBuff = getSteamVentsBuff();
             let cumulativeCost = 0;
             let banked = steamBuff ? steamBuff.freeStepBanked : false;
+            const totalAP = getTotalAP();
+            // Keep the numbers upright and above the line on screen when the
+            // map is rotated (they used to turn with the board).
+            const rot = viewportRotation || 0;
+            const rad = rot * Math.PI / 180;
+            const offX = -8 * Math.sin(rad), offY = -8 * Math.cos(rad);
 
             for (let i = 1; i < playerPath.length; i++) {
                 const currentSegment = playerPath[i];
@@ -7005,19 +7015,25 @@ function clearPlayerPath() {
                     cumulativeCost += stepCost;
                     if (steamBuff && stepCost > 0) banked = true;
                 }
-                const remainingAP = currentAP - cumulativeCost;
+                const remainingAP = totalAP - cumulativeCost;
+                const fill = remainingAP < 0 ? '#e74c3c'
+                    : (voidAP > 0 && cumulativeCost <= voidAP && stepCost > 0) ? '#b48cff'
+                    : '#2ecc71';
 
                 // Calculate midpoint between this segment and previous
                 const prevSegment = playerPath[i - 1];
                 const midX = (currentSegment.x + prevSegment.x) / 2;
                 const midY = (currentSegment.y + prevSegment.y) / 2;
+                const lx = midX + offX, ly = midY + offY;
 
                 // Create label
                 const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                label.setAttribute('x', midX);
-                label.setAttribute('y', midY - 8); // Offset above the line
+                label.setAttribute('x', lx);
+                label.setAttribute('y', ly);
+                if (rot) label.setAttribute('transform', `rotate(${-rot} ${lx} ${ly})`);
                 label.setAttribute('text-anchor', 'middle');
-                label.setAttribute('fill', remainingAP >= 0 ? '#2ecc71' : '#e74c3c');
+                label.setAttribute('dominant-baseline', 'middle');
+                label.setAttribute('fill', fill);
                 label.setAttribute('font-size', '14');
                 label.setAttribute('font-weight', 'bold');
                 label.setAttribute('stroke', '#000');

@@ -4747,3 +4747,11 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
     background: linear-gradient(90deg, color-mix(in srgb, var(--el-color) 16%, transparent), color-mix(in srgb, var(--el-color2) 16%, transparent) 60%, transparent);
 }
 .fsp-card-icon.catacomb-icon { width: 18px; height: 18px; opacity: 1; }
+
+/* Void AP: extra purple pips after the five AP pips (updateApPips) */
+.ap-pip.void,
+.ap-pip.void.filled {
+    background: #9458f4;
+    border-color: #c4a6ff;
+}
+.ap-pip:not(.void) + .ap-pip.void { margin-left: 4px; }

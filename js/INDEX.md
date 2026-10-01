@@ -207,6 +207,7 @@ window.PlayerFlash          // game-ui.js: flash(i) = pawn, player shrine and Op
                             // player's color (.player-flash). Clicking any of the three calls it (press+release
                             // within 6 px / 500 ms, capture listeners on document, so pawn drags never flash).
 window.scheduleOpponentPanelRefresh // game-ui.js: one updateOpponentPanel() next frame; called by updateScrollCount()
+window.updateApPips? (shared scope) updateApPips(ap, void) // game-ui.js: 5 AP pips + one purple .ap-pip.void per void AP
 window.SoundSystem          // SFX + login music
 window.JoytoneBridge        // adaptive music (onTileRevealed, setMuted, setVolume, togglePopup)
 window.BotState             // bot observation/actuation (snapshot, legalActions, applyAction)

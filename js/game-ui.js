@@ -591,11 +591,25 @@
             } catch (e) { /* spellSystem not ready */ }
         }
 
-        function updateApPips(apValue) {
-            document.querySelectorAll('.ap-pip').forEach(pip => {
+        // Five orange pips for regular AP, plus one purple pip per void AP
+        // (void stones in your pool you can still spend this turn).
+        function updateApPips(apValue, voidValue) {
+            if (voidValue === undefined) voidValue = (typeof voidAP !== 'undefined') ? voidAP : 0;
+            const wrap = document.getElementById('hud-ap-pips');
+            document.querySelectorAll('.ap-pip:not(.void)').forEach(pip => {
                 const n = parseInt(pip.dataset.pip, 10);
                 pip.classList.toggle('filled', n <= apValue);
             });
+            if (!wrap) return;
+            const extra = wrap.querySelectorAll('.ap-pip.void');
+            const want = Math.max(0, Math.min(10, voidValue | 0));
+            for (let k = extra.length; k < want; k++) {
+                const pip = document.createElement('span');
+                pip.className = 'ap-pip void filled';
+                wrap.appendChild(pip);
+            }
+            for (let k = extra.length - 1; k >= want; k--) extra[k].remove();
+            wrap.title = want ? `Action Points: ${apValue} + ${want} Void AP` : 'Action Points';
         }
 
         function setupStoneDragFromCard(card, element) {

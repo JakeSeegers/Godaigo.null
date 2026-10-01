@@ -132,6 +132,12 @@ reach/beat it from here.
   instead of void-like purple (#9b59b6; --catacomb-color is now the tan stone color). (4) New
   window.PlayerFlash: click a pawn, player shrine or Opponent Status card -> all three glow in that
   player's color for 1.3 s. css/components.css also has old .opponent-* rules but is not loaded anywhere.
+  (5) Void AP: updateApPips(ap, void) adds one purple .ap-pip.void per void AP after the five pips;
+  pawn-drag step numbers (updatePathLabels) show AP left INCLUDING void AP (purple while paid by void,
+  which spendAP uses first) and are counter-rotated by viewportRotation so they stay upright. Owner also
+  reported pawn/stone drag-and-drop being hard after rotating the map: could not reproduce (scratchpad
+  rot.mjs / rot2.mjs: screen->world is exact at 0/37/45/90/180 deg with the 20 deg tilt, and a real mouse
+  drag lands on the hex under the cursor). Waiting on details (browser, mouse or touch).
 - **2026-10-01: Match 43 review (4 humans, room 871) and fixes.** Found: (1) source pools were never
   synced (shrine collection only changed the collector's board), and casts sent their full element list
   even when the caster's empty-source rule refused it; responses/counters had no rule at all -> earth
