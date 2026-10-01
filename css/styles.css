@@ -4802,3 +4802,40 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
 #hermit-tests-panel .tg-ok .tg-problems { color: #9be3b8; }
 #hermit-tests-panel .tg-btns { display: flex; gap: 6px; margin-top: 4px; }
 #hermit-tests-panel .tg-more { max-height: 260px; overflow: auto; font-size: 11px; white-space: pre-wrap; background: #111; padding: 6px; }
+
+/* ── Stream games: Twitch chat vote box (js/stream-votes.js) ─────────────── */
+#stream-vote-box {
+    position: fixed; top: 72px; right: 12px; z-index: 9500;
+    width: min(340px, calc(100vw - 24px));
+    background: rgba(20, 16, 30, 0.94); color: #f2ecff;
+    border: 2px solid #9146ff; border-radius: 8px; padding: 10px 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6); font-size: 15px; line-height: 1.3;
+    pointer-events: none;
+}
+#stream-vote-box.sv-closed { border-color: #c9b6ff; }
+#stream-vote-box .sv-head { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #c9b6ff; }
+#stream-vote-box .sv-title { font-size: 18px; font-weight: bold; margin: 4px 0 8px; }
+#stream-vote-box .sv-opt {
+    position: relative; display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; margin-bottom: 5px; border-radius: 5px;
+    background: rgba(255, 255, 255, 0.07); overflow: hidden;
+}
+#stream-vote-box .sv-opt.sv-won { background: rgba(145, 70, 255, 0.35); outline: 1px solid #c9b6ff; }
+#stream-vote-box .sv-bar { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(145, 70, 255, 0.35); z-index: 0; transition: width 0.3s; }
+#stream-vote-box .sv-num, #stream-vote-box .sv-label, #stream-vote-box .sv-count { position: relative; z-index: 1; }
+#stream-vote-box .sv-num { font-weight: bold; color: #c9b6ff; min-width: 28px; }
+/* "!1" reads as "11" in the game font: plain monospace for vote keys */
+#stream-vote-box .sv-num, #stream-vote-box .sv-foot b { font-family: 'JetBrains Mono', 'Consolas', monospace; }
+#stream-vote-box .sv-label { flex: 1; }
+#stream-vote-box .sv-count { font-weight: bold; min-width: 22px; text-align: right; }
+#stream-vote-box .sv-foot { margin-top: 6px; font-size: 13px; color: #c9b6ff; }
+#stream-vote-box .sv-timer { height: 4px; margin-top: 6px; background: rgba(255, 255, 255, 0.12); border-radius: 2px; overflow: hidden; }
+#stream-vote-box .sv-timer span { display: block; height: 100%; background: #9146ff; transition: width 0.25s linear; }
+.stream-room-banner {
+    margin: 8px 0; padding: 8px 10px; border-radius: 6px;
+    background: rgba(145, 70, 255, 0.15); border: 1px solid #9146ff; font-size: 14px; line-height: 1.4;
+}
+.game-room-stream {
+    font-size: 12px; padding: 1px 6px; border-radius: 10px; margin-left: 6px;
+    background: rgba(145, 70, 255, 0.2); border: 1px solid #9146ff; color: #d9c8ff;
+}

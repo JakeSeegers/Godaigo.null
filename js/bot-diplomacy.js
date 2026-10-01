@@ -41,7 +41,7 @@
     try { localStorage.removeItem('godaigo_bot_bonds'); } catch (e) {}
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
-                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, rallied: {}, intents: {}, spoke: {}, thanked: {}, placed: {} };
+                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, rallied: {}, intents: {}, spoke: {}, thanked: {}, placed: {}, mood: {} };
     }
     // A new game or the end of a training round: forget everything, and take
     // every floating emote and queued sentence off the board at once.
@@ -448,6 +448,20 @@
             for (let j = 0; j < n; j++) {
                 if (j === S.pact.target) arr[j] = S.pact.kind === 'grudge' ? Math.max(arr[j] * 1.3, 1.6) : arr[j] * 1.3;
                 else if (S.pact.members.has(j)) arr[j] *= 0.7;
+            }
+        }
+        // Chat's mood for this bot (js/stream-votes.js, stream games).
+        const md = S.mood[o];
+        if (md) {
+            for (let j = 0; j < n; j++) {
+                if (j === o || !snap.players[j]) continue;
+                if (md.kind === 'rush') arr[j] = 1 + (arr[j] - 1) * 0.4;        // mind its own race
+                else if (md.kind === 'pick' && j === md.target) arr[j] = Math.max(arr[j] * 1.5, 1.7);
+            }
+            if (md.kind === 'block') {
+                let lead = -1;
+                for (let j = 0; j < n; j++) if (j !== o && snap.players[j] && (lead < 0 || t[j] > t[lead])) lead = j;
+                if (lead >= 0) arr[lead] = Math.max(arr[lead] * 1.4, 1.6);
             }
         }
         arr[o] = 1;
@@ -914,5 +928,8 @@
         roleOf, roleHolder,
         setRoles: on => { rolesOn = !!on; },
         setEnabled: on => { switchedOn = !!on; if (!on) reset(); },
+        // Chat's mood for bot o: 'rush' | 'block' | 'pick' (target = player) | null.
+        setMood: (o, kind, target) => { if (kind) S.mood[o] = { kind, target: target ?? null }; else delete S.mood[o]; delete S.press[o]; },
+        moodOf: o => (S.mood[o] ? { ...S.mood[o] } : null),
     };
 })();

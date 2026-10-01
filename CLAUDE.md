@@ -317,7 +317,7 @@ Order matters — later scripts depend on earlier ones.
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
 25a. test-game.js          ← window.TestGame: online test games (sql/test-games.sql). Host ticks "Test game" in the waiting
-                             room (game_room.test_mode; 🧪 badge on room cards, banner for everyone). In a test room each human
+                             room (game_room.test_mode; Hammer pixel emote badge on room cards, banner for everyone). In a test room each human
                              browser's autopilot plays its own seat (BotSystem.step / turn, BotEffects.decideResponse, Take Flight
                              target pick), the host drives bot seats as usual. Mild chaos, one browser at a time (slot every 8
                              turns): fake drop (Realtime socket closed and kept down 5-20 s: the real drop / pause / catch-up
@@ -327,6 +327,21 @@ Order matters — later scripts depend on earlier ones.
                              'test_cap')) or on "Stop test". Screen Wake Lock during every online game. Hermit menu "Test games"
                              (openHermit): reward settings + reports, problems first, Watch / Check replay. localStorage
                              godaigo_test_chaos = off disables chaos. tools/online-test.mjs runs test games from a PC.
+                             While the host drives a bot seat, me() = BotDriver.driverRealIndex() (else the autopilot took
+                             bot turns for its own and pressed End Turn).
+25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Lobby "Stream"
+                             button -> openPanel(): on/off, channel, vote time 10-45 s, mood / cast votes (localStorage
+                             godaigo_stream). Reads chat anonymously (wss://irc-ws.chat.twitch.tv, justinfan nick, never posts).
+                             hostStartGame -> prepareHostedGame(room) writes game_room.stream_mode; bot seats become
+                             "🤖 Twitchbot (<element bot>)", bot_source_id = the Twitchbot deployed_bots row (one ladder bot).
+                             bot.js botTurn awaits beforeTurn(idx) (mood vote about once a round, bots take turns:
+                             BotDiplomacy.setMood rush / block / pick -> pressures()) and beforeAct(idx) (cast vote, max one per
+                             bot turn, 2 best casts with different words from BotSystem.explain + "Let X decide" ->
+                             BotSystem.setNextChoice). Votes !1 !2 !3, one per viewer; no votes or a tie = the bot decides.
+                             Host broadcasts 'stream-vote' (open / tick every 2 s / close); lobby.js handler -> onRemote()
+                             draws the same #stream-vote-box; result line = ActionLog 'botTalk'. Vote time is added back to
+                             turnStartedAtMs. Bot seats only, host only, never in arena / replay / tutorial. Tests:
+                             fakeChat(true) + fakeChat(['!1', ...]).
 26. bot-arena.js           ← LAZY-LOADED (no <script> tag — see #30 asset-preloader.js / window.LazyScripts). window.BotArena — self-play arena (bot-vs-bot local games, weight evolution).
                              Shared playMatch() core for 2-5 players (calls ensureLocalMode() so a stale
                              isMultiplayer identity from an incomplete online-game leave never kills a local
@@ -417,7 +432,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 
 | Table | Owner module | Purpose |
 |-------|-------------|---------|
-| `game_room` | lobby.js | Active game sessions |
+| `game_room` | lobby.js | Active game sessions. `test_mode` (test games), `stream_mode` (stream games, js/stream-votes.js; start_match copies it to `matches.stream_mode`, the combo miner skips those once sql/stream-games.sql part B is applied) |
 | `players` | lobby.js | Player slots in a session |
 | `matches` | match-recorder.js | One row per online game: players snapshot, deck seed, settings, winner, status (playing/finished/abandoned), move_count, `keep`. Written ONLY via RPCs `start_match` / `finish_match` (room host or hermit). Read ONLY via RPCs (sql/replay-access.sql): `list_my_matches`, `list_public_matches`, `get_match_replay` (finished + (player of it OR `is_public` OR hermit)), `set_match_public` (players of it). Posting sets `keep`. Finished matches older than 30 days are deleted unless `keep`. `game_room.match_id` points at the live one. |
 | `matches` (check) | replay-viewer.js | `check_status` / `check_detail` / `checked_at`: replay verification result. Hermit-only RPCs `list_matches_for_check`, `get_match_fingerprints`, `save_match_check` (sql/match-check.sql). |
@@ -443,7 +458,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `mailing_list` | lobby.js register form, account-recovery.js settings | Opt-in for human-written news emails (max once a month, sent by hand). RLS on, no client policies: `set_mailing_list(bool)`, `my_mailing_list()`, hermit-only `hermit_mailing_list()` (opted in AND confirmed recovery email; address from `account_recovery`). sql/mailing-list.sql |
 | `recovery_email_log` | edge fn account-recovery | One row per email sent, for rate limits (2/account/hour, 3/address/day, 90/day total). Server only. |
 | `bot_champion_weights` | bot.js, game-ui.js, lobby.js | THE single shared bot brain - append-only submission log. The CURRENT champion is the newest row with `promoted = true` (`order by promoted desc, created_at desc`, sql/champion-promoted.sql, 2026-09-27); `win_rate` is only that row's own confirm record and is NOT comparable between rows. Auto-applied on load (bot.js); the auth-bar "Train Bot" button (hillclimb) inserts a promoted row + pays gold on a confirmed win (game-ui.js `runHillClimbTraining`). |
-| `deployed_bots` | bot-elements.js, lobby.js, gamification-ui.js | Now holds exactly FIVE system-owned rows (`owner IS NULL`) = the elemental bots (`sql/elemental-bots-seed.sql`). Nicknames = Terran Sentinel / Tidewarden / Emberkin / Galewalker / The Void Knight. Client READ-only (public SELECT); ids resolved by nickname at runtime. `ladder.bot_id` FKs here. **Dormant / unused now:** `captured_bots`, `void_knight`, `user_profiles.capture_stones` — the personal Bot Tycoon economy (Shop/Stable/capture) was removed. |
+| `deployed_bots` | bot-elements.js, lobby.js, gamification-ui.js | Now holds SIX system-owned rows (`owner IS NULL`): the five elemental bots (`sql/elemental-bots-seed.sql`, nicknames Terran Sentinel / Tidewarden / Emberkin / Galewalker / The Void Knight) and **Twitchbot** (id 12, sql/stream-games.sql): every chat-steered bot seat in a stream game ("Twitchbot (Emberkin)") is this one ladder bot. Client READ-only (public SELECT); ids resolved by nickname at runtime. `ladder.bot_id` FKs here. **Dormant / unused now:** `captured_bots`, `void_knight`, `user_profiles.capture_stones`: the personal Bot Tycoon economy (Shop/Stable/capture) was removed. |
 
 ---
 

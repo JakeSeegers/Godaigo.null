@@ -68,7 +68,10 @@
     // ---------------------------------------------------------------- helpers
     const inGame = () => document.getElementById('game-layout')?.classList.contains('active');
     const online = () => !!g('isMultiplayer') && g('currentGameId') != null;
-    const me = () => g('myPlayerIndex');
+    // While the host drives a bot seat, bot-driver.js swaps myPlayerIndex to the
+    // bot's seat; the real seat is BotDriver.driverRealIndex() then (without
+    // this the autopilot took bot turns for its own and pressed End Turn).
+    const me = () => { const r = window.BotDriver?.driverRealIndex?.(); return r != null ? r : g('myPlayerIndex'); };
     const turnNo = () => g('currentTurnNumber') || 0;
     const sb = () => g('supabase');
     const humanSeats = () => (g('allPlayersData') || [])

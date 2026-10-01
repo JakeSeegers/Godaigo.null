@@ -612,7 +612,7 @@
 
             const { data: rooms } = await supabase
                 .from('game_room')
-                .select('id,host_name,created_at,test_mode')
+                .select('id,host_name,created_at,test_mode,stream_mode')
                 .eq('status', 'waiting')
                 .eq('is_private', false)
                 .order('created_at', { ascending: false });
@@ -680,7 +680,7 @@
                 const bounty = window.Rewards?.bountyFor?.(r.id);
                 return `
                 <div class="game-room-card" onclick="joinPublicGame(${r.id})">
-                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${r.test_mode ? ` <span class="game-room-test" title="Test game: bots play every seat to find online bugs, gold for each player">${window.emojiSystem?.spriteHtml?.(70, 0.6) || ''} Test</span>` : ''}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">${window.emojiSystem?.spriteHtml?.(76, 0.6) || ''}Reward</span>` : ''}</div>
+                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${r.test_mode ? ` <span class="game-room-test" title="Test game: bots play every seat to find online bugs, gold for each player">${window.emojiSystem?.spriteHtml?.(70, 0.6) || ''} Test</span>` : ''}${r.stream_mode ? ` <span class="game-room-stream" title="Stream game: Twitch chat votes on what the bots do">${window.emojiSystem?.spriteHtml?.(48, 0.6) || ''} Stream</span>` : ''}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">${window.emojiSystem?.spriteHtml?.(76, 0.6) || ''}Reward</span>` : ''}</div>
                     <div class="game-room-count">${counts[r.id]} / 5</div>
                     ${hermit ? `<button class="game-room-reward-btn" title="Put a reward on this game" onclick="event.stopPropagation(); window.HermitRewards?.openForRoom(${r.id}, ${_esc(JSON.stringify(r.host_name || 'Room ' + r.id))})">${window.emojiSystem?.spriteHtml?.(76, 0.7) || 'Reward'}</button>` : ''}
                     <button class="game-room-join-btn">Join</button>
@@ -1842,6 +1842,11 @@
                 // then each bot seat below gets its elemental name + a gentle
                 // per-element weight overlay. Must never throw — a failure here
                 // would abort game start; fall back to the plain placeholder.
+                // Stream mode (js/stream-votes.js): bots become Twitchbots
+                // and Twitch chat votes on what they do. Also writes
+                // game_room.stream_mode (start_match copies it to the match).
+                let streamOn = false;
+                try { streamOn = !!(await window.StreamVotes?.prepareHostedGame?.(currentGameId)); } catch (e) { streamOn = false; }
                 let elementalBase = null;
                 let elementalOk = false;
                 if (window.BotElements) {
@@ -1883,6 +1888,11 @@
                             update.bot_weights = window.BotElements.elementalOverlay(elementalBase, el);
                             const rowId = window.BotElements.idFor(el);
                             if (rowId != null) update.bot_source_id = rowId;
+                            if (streamOn) {
+                                update.username = window.StreamVotes.botSeatName(window.BotElements.NAMES[el]);
+                                const twitchId = await window.StreamVotes.resolveTwitchbot();
+                                if (twitchId != null) update.bot_source_id = twitchId;
+                            }
 
                             // HERMIT-ONLY: js/bot-imitation.js's "🧠 Learn from
                             // my play" toggle. When it's the HOST's own toggle
@@ -4075,6 +4085,11 @@
             // Received when another player fires an emoji.
             // Show it floating above their pawn on every client except the sender
             // (sender already called showEmojiOverPawn locally before broadcasting).
+            // Stream games: the host's Twitch chat vote box (js/stream-votes.js).
+            gameChannel.on('broadcast', { event: 'stream-vote' }, ({ payload }) => {
+                window.StreamVotes?.onRemote?.(payload);
+            });
+
             gameChannel.on('broadcast', { event: 'emoji' }, ({ payload }) => {
                 const { playerIndex, display, isText, sprite, talk } = payload;
                 if (typeof window.emojiSystem !== 'undefined') {

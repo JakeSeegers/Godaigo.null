@@ -44,7 +44,7 @@
     const SEEN_SIZE = 400;
     // Never re-sent in a catch-up: periodic state syncs (a newer one follows
     // anyway) and emotes.
-    const SKIP_BUFFER = new Set(['scroll-state-sync', 'scroll-state-sync-request', 'emoji']);
+    const SKIP_BUFFER = new Set(['scroll-state-sync', 'scroll-state-sync-request', 'emoji', 'stream-vote']);
 
     const drops = new Map();   // seat -> { since, back, graceTimer, fallbackTimer, askTimer }
     let selfDownSince = 0;     // my own connection is down since (0 = up)

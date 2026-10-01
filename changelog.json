@@ -4,13 +4,13 @@
     {
       "id": "2026-10-01",
       "date": "2026-10-01",
-      "title": "Fair play fixes and a clearer player panel",
+      "title": "Fair play fixes, test games and Stream mode",
       "changes": [
         "Thanks to Plunge87 for hosting the stream and to everyone who played and tested! Fixes from that game: scrolls no longer get copied when one goes to the common area, an element no longer counts once its stone source is empty (counters and responses too), and every board now agrees on how many stones are left in each source.",
         "Undo is fixed: it no longer gives AP or stones back after you cast a scroll or teleport, no longer refills spent void AP, and now undoes scroll moves instead of your last step. Sacrificial Pyre can now use a scroll from your active area too, no longer gives free stones, can't use Level I scrolls on your own turn, and costs no AP when it has nothing to use. Also fixed: board stones dropped into your pool, replayed moves after a reconnect, a wrong clock hiding games, black bars when panning.",
         "New: Test games. With another player, let bots play a whole online game for you to help find online bugs; each of you earns 150 gold (up to 2 a day). The screen now stays on during online games, turns no longer jump back after a lag spike, and counters are clearer for everyone (who countered what, Psychic payment waits, refunds on lost ties).",
-        "Easier to read: a clearer Opponent Status panel, and each home shrine has a border in its player's color, a stronger color circle and a row of won elements, always earth, water, fire, wind, void from left to right. Click a pawn, shrine or player card to make all three glow. Void AP shows as purple pips and counts in the step numbers.",
-        "Catacomb scrolls now show their symbol (it was invisible). In other players' hands it is a plain light tan symbol, so nobody can tell which catacomb scroll it is; once played it shows the two colors of its elements. Pot drop: real coin size and a slow close-up near the treasure tube. Wind scrolls: Breath of Power is now Level II, and Respirate is Level III and draws 3 wind."
+        "Easier to read: a clearer Opponent Status panel; home shrines show their player's color and won elements (earth, water, fire, wind, void, left to right); click a pawn, shrine or player card to make all three glow; void AP shows as purple pips. Catacomb scrolls show their symbol (plain tan in other players' hands, two colors once played).",
+        "New: Stream mode (lobby \"Stream\" button). Streaming on Twitch? Host a game with bots and your chat votes with !1 !2 !3 on each bot's mood and which scroll it casts. These bots play as Twitchbot on the leaderboard. Also: Breath of Power is now Level II, Respirate is Level III and draws 3 wind, and the pot drop looks better."
       ]
     },
     {

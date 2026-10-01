@@ -1,6 +1,8 @@
-# Twitch votes: chat steers the bots (plan, 2026-10-01)
+# Twitch votes: chat steers the bots (2026-10-01)
 
-Status: plan, not built yet. Owner idea after Plunge87's stream.
+Status: BUILT (js/stream-votes.js). Tested locally with a fake chat (votes, moods, a chosen cast,
+another player's view). Not yet tested against real Twitch chat. Server: sql/stream-games.sql part B
+(ladder Twitchbot mapping, stream flag on matches) still to apply. Owner idea after Plunge87's stream.
 
 ## Goal
 A streamer plays Godaigo with bots in the game. Twitch chat votes on what the bots do at the

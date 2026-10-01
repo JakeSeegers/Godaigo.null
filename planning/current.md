@@ -121,6 +121,13 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-01: Stream mode (Twitch chat votes).** js/stream-votes.js + hooks in bot.js (beforeTurn / beforeAct,
+  setNextChoice, explain), bot-diplomacy.js (setMood), lobby.js (prepareHostedGame, Twitchbot seat names, room badge,
+  stream-vote handler), game-pause.js (stream-vote not buffered). Owner: stream games pay rewards; chat-steered bots are
+  one ladder bot "Twitchbot" (deployed_bots id 12, applied). OPEN: sql/stream-games.sql part B (ladder maps
+  "Twitchbot (X)" seats to Twitchbot, matches.stream_mode, miner skip) timed out in the Supabase tool; apply it in one
+  call or in the SQL editor. Until then Twitchbot seats are not on the ladder. Not yet tried with real Twitch chat.
+  Also fixed: test-game.js autopilot took bot turns for its own while the host drove a bot (pressed End Turn).
 - **2026-10-01: Pixel icons + thanks.** Test game UI uses the Hammer pixel emote (cell 70) instead of a Unicode emoji (Exclamation / Circle in the hermit report). Credits: new "Thanks" section (Plunge87 hosted the stream, everyone who played and tested).
 - **2026-10-01: Online test games (owner request).** sql/test-games.sql (applied: test_games +
   test_games_null_turns; rollback test: 1 report pays nobody, 2nd pays both 150 once, daily cap 2, short

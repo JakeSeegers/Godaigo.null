@@ -299,7 +299,8 @@
   box-shadow: 0 0 4px var(--pp-rust);
 }
 #changelog-overlay,
-#credits-overlay {
+#credits-overlay,
+#stream-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
@@ -352,6 +353,16 @@
 .credits-note { font-size: 13px; color: var(--pp-ink-soft); }
 #credits-overlay a { color: var(--pp-maroon); }
 .credits-thanks { text-align: center; color: var(--pp-ink-soft); margin: 6px 0 2px; }
+/* Stream mode panel (js/stream-votes.js) reuses the Change Log modal */
+.stream-body p { margin: 0 0 10px; line-height: 1.35; }
+.stream-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.stream-row input[type="text"] { flex: 1; min-width: 0; font-size: 16px; padding: 3px 6px; }
+.stream-row input[type="number"] { width: 60px; font-size: 16px; padding: 3px 6px; }
+.stream-status { margin: 10px 0 6px; padding: 5px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.06); font-size: 15px; }
+.stream-status.stream-connected { background: rgba(76, 175, 122, 0.2); }
+.stream-status.stream-error, .stream-status.stream-reconnecting { background: rgba(224, 160, 48, 0.25); }
+.stream-note { font-size: 13px; color: var(--pp-ink-soft); }
+#stream-btn.stream-btn-on { border: 1px solid #9146ff; box-shadow: 0 0 4px rgba(145, 70, 255, 0.7); }
 
 /* ── Account recovery (js/account-recovery.js) ──────────────────────────── */
 .auth-forgot-link {

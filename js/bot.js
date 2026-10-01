@@ -4468,6 +4468,9 @@
     // Bot Mind viewer (js/bot-mind.js): one record per decision. Only built
     // while the viewer is open, so normal and arena play pay nothing.
     let _th = null;
+    let _forced = null; // { idx, action } from a chat vote (js/stream-votes.js)
+    function setNextChoice(idx, action) { _forced = action ? { idx, action } : null; }
+
     function botAct() {
         _th = null;
         const snapBefore = (window.BotMind && window.BotMind.wants()) ? window.BotState.snapshot() : null;
@@ -4518,6 +4521,20 @@
         const idx = snap.turn.activePlayerIndex;
         const m = mem(idx);
         updateCombo(snap, idx);
+
+        // A chat vote picked this action (js/stream-votes.js): play it if still legal.
+        if (_forced && _forced.idx === idx) {
+            const want = _forced.action;
+            _forced = null;
+            const key = a => `${a.type}|${a.scroll || ''}|${JSON.stringify(a.choice || null)}`;
+            const match = window.BotState.legalActions().find(a => key(a) === key(want));
+            if (match) {
+                if (_th) _th.mode = 'chat';
+                log(`Chat vote: ${match.type} ${match.scroll || ''}`);
+                return applyChosen(snap, idx, { action: match, score: 0 });
+            }
+            log('Chat vote pick is no longer legal - deciding normally');
+        }
 
         // The pattern plan takes priority: it's the only way multi-hex
         // patterns ever complete under the adjacent-only placement rule
@@ -4724,6 +4741,12 @@
             if (!redo && rankedRedo) noteIntent(idx, rankedRedo, choice.action);
         }
 
+        return applyChosen(snap, idx, choice);
+    }
+
+    // Apply the chosen action with all the bookkeeping (also used for a chat
+    // vote's pick, js/stream-votes.js).
+    function applyChosen(snap, idx, choice) {
         const { action, score } = choice;
         const label = action.type === 'placeTile'      ? `place player tile at (${action.x.toFixed(0)},${action.y.toFixed(0)})`
                     : action.type === 'cast'           ? `cast ${action.scroll}`
@@ -4923,6 +4946,10 @@
         const placedThisTurn = []; // {x, y, type} for scroll-pattern placeStones
         let endedTurn = false;
         try {
+            // Stream games: chat picks this bot's mood (js/stream-votes.js).
+            if (window.StreamVotes?.active?.()) {
+                try { await window.StreamVotes.beforeTurn(startingPlayer); } catch (err) { log('Mood vote failed: ' + err.message); }
+            }
             for (let i = 0; i < 30; i++) {                    // safety cap
                 if (activePlayerIndex !== startingPlayer) break; // turn passed
                 // Stop the instant the win condition is met (all 5 elements
@@ -4947,6 +4974,11 @@
                 await waitForQuiescence();
                 flushCastCredit();
                 if (activePlayerIndex !== startingPlayer) break;
+                // Stream games: chat may pick this bot's cast (js/stream-votes.js).
+                if (window.StreamVotes?.active?.()) {
+                    try { await window.StreamVotes.beforeAct(startingPlayer); } catch (err) { log('Cast vote failed: ' + err.message); }
+                    if (activePlayerIndex !== startingPlayer) break;
+                }
                 const applied = botAct();
                 if (!applied) break;
                 if (applied.type === 'move') turnMoves.push(`${applied.x.toFixed(1)},${applied.y.toFixed(1)}`);
@@ -5070,6 +5102,8 @@
 
     window.BotSystem = {
         step:  botAct,        // one action
+        setNextChoice,        // (idx, action): play this action next (chat vote, js/stream-votes.js)
+        explain: (a, snap) => explainAction(a, snap || window.BotState.snapshot(), {}), // plain words for an action
         turn:  botTurn,       // play out the whole turn
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)
         score: scoreAction,   // (action, snapshot, ctx) → utility
