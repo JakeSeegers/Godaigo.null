@@ -121,6 +121,14 @@
         const sim = S.create({ seed: Number(drop.seed), coins, Matter: M });
         const pegs = sim.pegs;
         const chestX = tubeMid, chestY = S.FLOOR_Y + 30;
+        // The "guard" peg just above the tube's mouth: coins get in through the gaps
+        // on either side of it, between the peg and the tube's rims.
+        const guard = pegs.find(p => !p.random && p.x > T.x && p.x < T.x + T.w && p.y < tubeTop && p.y > tubeTop - 30);
+        const COIN_SIZE = S.COIN_R * 2;     // drawn at the true physics size
+        // Close-up of the tube mouth, drawn in the top right corner when a coin is near.
+        const ZOOM = 3, Z_W = 40, Z_H = 52;
+        const zoomSrc = { x: tubeMid - Z_W / 2, y: tubeTop - 30 };
+        const zoomDst = { x: S.W - Z_W * ZOOM - 8, y: 8 };
         const hitCoin = drop.hit_coin;
 
         const box = document.createElement('div');
@@ -149,10 +157,22 @@
         canvas.style.height = Math.round(VIEW_H * scale) + 'px';
         ctx.imageSmoothingEnabled = false;
 
-        const drawn = new Map();       // coin index -> last drawn x (for steering)
-        const landedAt = [];           // { x, t, treasure }
         const sparks = [];
-        let landedCount = 0, chestBump = 0, t = 0, finished = false;
+        let landedCount = 0, chestBump = 0, wallFlash = 0, zoomFade = 0, t = 0, finished = false;
+
+        // Coins worth watching: the ones that go in, and near misses (from the dry run).
+        const watch = new Set(slots.map((s, i) => i).filter(i =>
+            slots[i] === -1 || Math.abs((local.landX[i] ?? -99) - tubeMid) < 14));
+
+        // A watched coin near the tube mouth (where the close-up and slow motion kick in).
+        function nearMouth() {
+            for (const c of sim.coins) {
+                if (!c.body || !watch.has(c.i)) continue;
+                const dx = coinX(c) - tubeMid, dy = c.body.position.y - tubeTop;
+                if (Math.abs(dx) < 26 && dy > -34 && dy < T.h) return true;
+            }
+            return false;
+        }
 
         function coinX(c) {
             const b = c.body, tx = targetX[c.i];
@@ -163,13 +183,16 @@
             return b.position.x + (tx - b.position.x) * k;
         }
 
-        function draw() {
-            ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
-            ctx.clearRect(0, 0, S.W, VIEW_H);
-            ctx.fillStyle = '#15121f';
-            ctx.fillRect(0, 0, S.W, VIEW_H);
+        // Everything on the board, in world units (used for the board and the close-up).
+        function drawScene() {
+            // A soft light on the tube's mouth, so the way in reads at a glance.
+            const glow = ctx.createRadialGradient(tubeMid, tubeTop - 4, 1, tubeMid, tubeTop - 4, 18);
+            glow.addColorStop(0, 'rgba(255, 213, 74, 0.35)');
+            glow.addColorStop(1, 'rgba(255, 213, 74, 0)');
+            ctx.fillStyle = glow;
+            ctx.fillRect(tubeMid - 18, tubeTop - 22, 36, 36);
             for (const p of pegs) {
-                ctx.fillStyle = p.random ? '#b388ff' : '#8a8fa3';
+                ctx.fillStyle = p === guard ? '#ffd54a' : p.random ? '#b388ff' : '#8a8fa3';
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
             }
             // Floor with slot marks and the golden treasure mouth.
@@ -182,20 +205,50 @@
             ctx.fillRect(T.x, S.FLOOR_Y - 1, T.w, 6);
             ctx.fillStyle = 'rgba(255, 213, 74, 0.08)';
             ctx.fillRect(T.x, tubeTop, T.w, T.h);
-            ctx.fillStyle = '#ffd54a';
+            ctx.fillStyle = wallFlash > 0 && (wallFlash >> 2) % 2 ? '#fff6c8' : '#ffd54a';
             ctx.fillRect(T.x - T.t, tubeTop, T.t, T.h + 4);
             ctx.fillRect(T.x + T.w, tubeTop, T.t, T.h + 4);
             const bump = chestBump > 0 ? Math.sin(chestBump * 0.4) * 4 : 0;
             drawEmote(ctx, img, CHEST, chestX, chestY - Math.abs(bump), 44, Math.floor(t / 12));
             for (const c of sim.coins) {
                 if (!c.body) continue;
-                drawEmote(ctx, img, COIN, coinX(c), c.body.position.y, 14, Math.floor((t + c.i * 7) / 10), true);
+                drawEmote(ctx, img, COIN, coinX(c), c.body.position.y, COIN_SIZE, Math.floor((t + c.i * 7) / 10), true);
             }
             for (const s of sparks) {
                 ctx.globalAlpha = Math.max(0, s.life / 60);
                 drawEmote(ctx, img, COIN, s.x, s.y, 12, 0, true);
             }
             ctx.globalAlpha = 1;
+        }
+
+        function draw() {
+            ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+            ctx.clearRect(0, 0, S.W, VIEW_H);
+            ctx.fillStyle = '#15121f';
+            ctx.fillRect(0, 0, S.W, VIEW_H);
+            drawScene();
+            if (zoomFade <= 0) return;
+            // Close-up: the same scene, 3x, around the tube mouth.
+            const w = Z_W * ZOOM, h = Z_H * ZOOM;
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, zoomFade / 10);
+            ctx.fillStyle = '#15121f';
+            ctx.fillRect(zoomDst.x, zoomDst.y, w, h);
+            ctx.beginPath(); ctx.rect(zoomDst.x, zoomDst.y, w, h); ctx.clip();
+            ctx.translate(zoomDst.x, zoomDst.y);
+            ctx.scale(ZOOM, ZOOM);
+            ctx.translate(-zoomSrc.x, -zoomSrc.y);
+            drawScene();
+            ctx.restore();
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, zoomFade / 10);
+            ctx.strokeStyle = '#ffd54a';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(zoomDst.x, zoomDst.y, w, h);
+            ctx.strokeStyle = 'rgba(255, 213, 74, 0.45)';
+            ctx.lineWidth = 0.75;
+            ctx.strokeRect(zoomSrc.x, zoomSrc.y, Z_W, Z_H);
+            ctx.restore();
         }
 
         function burst() {
@@ -216,7 +269,7 @@
             for (const c of sim.coins) {
                 if (c.body || !before.has(c.i)) continue;
                 landedCount++;
-                if (slots[c.i] === -1) { chestBump = 30; burst(); }
+                if (slots[c.i] === -1) { chestBump = 30; wallFlash = 40; burst(); }
             }
             return more;
         }
@@ -254,13 +307,19 @@
                 if (stop) return;
                 acc = Math.min(acc + (now - last), 200);
                 last = now;
-                while (acc >= frameMs && !finished) {
-                    acc -= frameMs;
+                // Slow motion (a third of the speed) while a coin is at the tube mouth,
+                // with the close-up shown; it stays up a moment after.
+                const near = !finished && nearMouth();
+                if (near) zoomFade = 40; else if (zoomFade > 0) zoomFade--;
+                const stepMs = near ? frameMs * 3 : frameMs;
+                while (acc >= stepMs && !finished) {
+                    acc -= stepMs;
                     if (!stepOnce()) finish();
                 }
                 if (finished) acc = 0;
                 t++;
                 if (chestBump > 0) chestBump--;
+                if (wallFlash > 0) wallFlash--;
                 tickSparks();
                 draw();
                 if (!finished) status.textContent = `Coins down: ${landedCount} / ${coins}`;

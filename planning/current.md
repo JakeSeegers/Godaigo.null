@@ -121,6 +121,9 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-01: Pot drop, show the gap** (owner: the tube looked blocked by the board). Drawing only, no physics or
+  server change: coins drawn at true size (12, was 14), guard peg over the tube gold + mouth glow, slow motion
+  (1/3) and a 3x close-up of the mouth while a hit or near-miss coin is there, walls flash on a hit.
 - **2026-09-30: Pot drop v2, the treasure tube** (owner's idea, after the Hermit demo showed hits were hard to
   see). js/plinko-sim.js VERSION 2: the thin floor gap is gone; a tube (x 83.5, inner width 13 = coin + 1,
   height 47, walls 3) stands under the last-row peg at x 90, so a coin must come in at an angle around that peg.
