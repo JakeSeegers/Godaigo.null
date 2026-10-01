@@ -74,7 +74,7 @@
 //                   type placeable anywhere this turn (legalActions)
 //                 waterWindGlobalPlacement Seed the Skies (CATACOMB_6) —
 //                   water/wind only placeable anywhere this turn (legalActions)
-//                 respirateWind            Respirate (WIND_3) — ALL wind
+//                 respirateWind            Respirate (WIND_3): ALL wind
 //                   returns to source at this end-of-turn (simEndTurn)
 //                 simplify                 Simplify (VOID_3) — casts cost 1
 //                   AP instead of 2 (castCost(), read by simCast + legalActions)
@@ -91,7 +91,7 @@
 //                   need element, opportunistically after every action
 //                   (attemptControlTheCurrentTransform, called from both
 //                   simEffectControlTheCurrent and simulate() itself)
-//                 breathOfPower           Breath of Power (WIND_2) — enables
+//                 breathOfPower           Breath of Power (WIND_2): enables
 //                   the 'moveStone' action (legalActions + simMoveStone)
 //               This is what lets searchPick() plan sequences like "cast
 //               Burning Motivation, then place stones" or "cast Simplify,
