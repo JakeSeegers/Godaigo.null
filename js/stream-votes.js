@@ -7,12 +7,14 @@
 // When this browser HOSTS an online game with bots:
 //   * the bot seats become "Twitchbot (<element bot>)": one leaderboard bot,
 //     Twitchbot (deployed_bots row, sql/stream-games.sql). Rewards as normal.
-//   * mood vote, about once a round: chat picks a bot's mood for its next
-//     turns: Rush home / Block the leader / Pick on <player>
-//     (BotDiplomacy.setMood: changes how hard the bot pushes on each player).
-//   * cast vote, at most once per bot turn: when a bot has 2+ good casts,
-//     chat picks one (words from BotSystem.explain) or "Let <bot> decide".
-//     The pick goes to BotSystem.setNextChoice and the bot casts it.
+//   * round vote, about once a round (bots take turns): chat picks the
+//     PLAYER a bot goes after or helps (BotDiplomacy.setMood 'pick' / 'help'),
+//     which player two bots team up against (BotDiplomacy.forcePact), or a
+//     pact member keeps or BETRAYS it (BotDiplomacy.betray). Target choices
+//     hold for cfg.rounds rounds (default 3).
+//   * cast vote, at most once per bot turn: 2+ good casts = chat picks one
+//     (BotSystem.setNextChoice) or "Let <bot> decide"; one cast the bot is
+//     about to make = Allow / VETO (BotSystem.vetoScroll: not this turn).
 // Votes are typed in chat as !1 !2 !3 (or 1 2 3): one vote per viewer, the
 // last one counts. No votes or a tie = the bot decides.
 // The host broadcasts 'stream-vote' messages, so every player (and replays)
@@ -23,7 +25,7 @@
     'use strict';
 
     const KEY = 'godaigo_stream';
-    const DEFAULTS = { on: false, channel: '', secs: 20, cast: true, mood: true };
+    const DEFAULTS = { on: false, channel: '', secs: 20, cast: true, mood: true, rounds: 3 };
     const SPRITE_CHAT = 48;            // Gibberish: the Twitch / chat icon
     const TWITCHBOT = 'Twitchbot';
 
@@ -175,7 +177,7 @@
         const left = Math.max(0, Math.ceil(((p.endsAt || 0) - now()) / 1000));
         const foot = p.phase === 'close'
             ? (p.winner == null ? `No clear winner: ${esc(p.botName)} decides.` : `Chat chose !${p.winner + 1} (${counts[p.winner] || 0} of ${total} votes)`)
-            : `Type <b>!1</b>, <b>!2</b> or <b>!3</b> in chat. ${left} s left`;
+            : `Type ${(p.options || []).map((o, i) => `<b>!${i + 1}</b>`).join(' or ')} in chat. ${left} s left`;
         box.className = p.phase === 'close' ? 'sv-closed' : '';
         box.dataset.id = p.id || '';
         box.innerHTML = `
@@ -234,45 +236,128 @@
         return { winner, counts, total };
     }
 
-    // ------------------------------------------------------------ mood vote
-    let lastMoodTurn = -99, moodRot = 0;
-    const moodAt = {};               // bot seat -> turn of its last mood vote
-    const moodSprite = (k) => ({ rush: 88, block: 79, pick: 15 }[k]); // Going Up, Crown, Bullseye
+    // ------------------------------------------------------------ round votes
+    // About once a round one bot gets a "big" vote. Chat picks the player:
+    //   * Who should <bot> go after?  (any other player, or nobody)
+    //   * Who should <bot> help?      (any other player, or nobody)
+    //   * Team up with <bot> against who? (needs a second bot, no pact yet)
+    //   * in a pact: keep it or BETRAY (once per pact, after its first round)
+    // A decision holds for cfg.rounds rounds; that bot gets no new target
+    // vote until it runs out. There can be several humans: every player can
+    // be picked, humans and bots.
+    let lastRoundVote = -99, kindRot = 0;
+    const roundAt = {};              // bot seat -> turn of its last round vote
+    const decided = {};              // bot seat -> turn its decision ends
+    const betrayAsked = new Set();   // "bot|pact key" already asked
     // Only bot seats: a human seat on autopilot (test games) is never voted on.
     const isBotSeat = (idx) => !!window.BotDriver?.isBot?.(idx);
+    const seats = () => (S.allPlayersData || []).map(p => p.player_index).filter(j => typeof j === 'number').sort((a, b) => a - b);
+    const bots = () => seats().filter(j => isBotSeat(j));
+    const holdTurns = () => Math.max(1, Math.min(6, Number(cfg.rounds) || 3)) * (seats().length || 2);
+    const roundsWord = () => { const r = Math.max(1, Math.min(6, Number(cfg.rounds) || 3)); return r === 1 ? '1 round' : `${r} rounds`; };
+    const pawnSay = (idx, sprites) => { try { window.emojiSystem?.showEmojiOverPawn?.(idx, '', false, sprites); } catch (e) {} };
+    const sym = (j) => window.BotDiplomacy?.symbolOf?.(j) ?? 15;
+    const pactKey = (P) => `${P.target}|${[...P.members].sort().join(',')}`;
+    let pactSince = { key: null, turn: 0 };
+
     async function beforeTurn(idx) {
-        if (!active() || !cfg.mood || !window.BotDiplomacy?.setMood || !isBotSeat(idx)) return;
+        const D = window.BotDiplomacy;
+        if (!active() || !cfg.mood || !D?.setMood || !isBotSeat(idx)) return;
         const turn = S.currentTurnNumber || 0;
-        const seats = (S.allPlayersData || []).length || 2;
-        if (turn - lastMoodTurn < seats) return;          // about once a round
-        // Bots take turns: the one that had a mood vote longest ago goes next.
-        const bots = [...(window.BotDriver?.botIndices?.() || [])].sort((a, b) => a - b);
-        const due = bots.reduce((best, j) => (best == null || (moodAt[j] ?? -1) < (moodAt[best] ?? -1) ? j : best), null);
-        if (due != null && due !== idx) return;
-        moodAt[idx] = turn;
-        const others = (S.allPlayersData || []).map(p => p.player_index)
-            .filter(j => typeof j === 'number' && j !== idx).sort((a, b) => a - b);
-        if (!others.length) return;
-        lastMoodTurn = turn;
-        const target = others[moodRot++ % others.length];
+        // Decisions that ran out.
+        for (const j in decided) {
+            if (turn >= decided[j]) {
+                delete decided[j];
+                D.setMood(+j, null);
+                window.ActionLog?.record?.('botTalk', { text: `Chat's order for {p${j}} ran out.` }, +j);
+            }
+        }
+        const pact = D.pact?.();
+        if (pact) {
+            const k = pactKey(pact);
+            if (pactSince.key !== k) pactSince = { key: k, turn };
+        }
+        if (turn - lastRoundVote < (seats().length || 2)) return;      // about once a round
         const who = shortBot(idx);
-        const options = ['Rush home: race for its own elements', 'Block the leader', `Pick on ${nameOf(target)}`];
-        const kinds = ['rush', 'block', 'pick'];
-        const res = await runVote(idx, `What mood is ${who} in?`, options, (w) =>
-            w == null ? `Chat could not agree on a mood for {p${idx}}.`
-                      : `Chat set {p${idx}}'s mood: ${w === 2 ? `pick on {p${target}}` : options[w].split(':')[0].toLowerCase()}.`);
-        if (res.winner == null) { window.BotDiplomacy.setMood(idx, null); return; }
-        const kind = kinds[res.winner];
-        window.BotDiplomacy.setMood(idx, kind, kind === 'pick' ? target : null);
-        try { window.emojiSystem?.showEmojiOverPawn?.(idx, '', false, [moodSprite(kind)]); } catch (e) {}
+        // Betray: a pact member, once per pact, after the pact's first round.
+        if (pact && pact.members.includes(idx) && pact.members.length >= 2 &&
+            turn - pactSince.turn >= seats().length && !betrayAsked.has(idx + '|' + pactSince.key)) {
+            betrayAsked.add(idx + '|' + pactSince.key);
+            lastRoundVote = turn;
+            return betrayVote(idx, who, pact);
+        }
+        // Target votes: the free bot that had a vote longest ago goes next.
+        const free = bots().filter(j => decided[j] == null);
+        const due = free.reduce((best, j) => (best == null || (roundAt[j] ?? -1) < (roundAt[best] ?? -1) ? j : best), null);
+        if (due !== idx) return;
+        roundAt[idx] = turn;
+        lastRoundVote = turn;
+        const others = seats().filter(j => j !== idx);
+        if (!others.length) return;
+        const kinds = ['hurt', 'help'];
+        const partners = free.filter(j => j !== idx);
+        if (partners.length && !pact && others.length >= 2) kinds.push('team');
+        const kind = kinds[kindRot++ % kinds.length];
+        if (kind === 'team') {
+            const partner = partners[Math.floor(Math.random() * partners.length)];
+            return teamUpVote(idx, who, partner, others.filter(j => j !== partner));
+        }
+        return targetVote(idx, who, kind, others.slice(0, 4));
     }
 
-    // ------------------------------------------------------------ cast vote
+    async function targetVote(idx, who, kind, others) {
+        const hurt = kind === 'hurt';
+        const options = others.map(j => `${hurt ? 'Go after' : 'Help'} ${nameOf(j)}`).concat(['Nobody']);
+        const title = hurt ? `Who should ${who} go after for ${roundsWord()}?` : `Who should ${who} help for ${roundsWord()}?`;
+        const res = await runVote(idx, title, options, (w) =>
+            w == null || w >= others.length ? `Chat gave {p${idx}} no target.`
+                : hurt ? `Chat sent {p${idx}} after {p${others[w]}} for ${roundsWord()}!`
+                       : `Chat told {p${idx}} to help {p${others[w]}} for ${roundsWord()}.`);
+        if (res.winner == null || res.winner >= others.length) return;
+        const t = others[res.winner];
+        window.BotDiplomacy.setMood(idx, hurt ? 'pick' : 'help', t);
+        decided[idx] = (S.currentTurnNumber || 0) + holdTurns();
+        pawnSay(idx, hurt ? [21, sym(t)] : [8, sym(t)]);       // Angry Vein / Heart + who
+    }
+
+    async function teamUpVote(idx, who, partner, targets) {
+        const ts = targets.slice(0, 4);
+        const options = ts.map(j => `Team up with ${shortBot(partner)} against ${nameOf(j)}`).concat(['Go it alone']);
+        const res = await runVote(idx, `${who} and ${shortBot(partner)}: team up for ${roundsWord()}?`, options, (w) =>
+            w == null || w >= ts.length ? `{p${idx}} goes it alone.`
+                : `Chat made {p${idx}} and {p${partner}} team up against {p${ts[w]}} for ${roundsWord()}!`);
+        if (res.winner == null || res.winner >= ts.length) return;
+        const t = ts[res.winner];
+        if (window.BotDiplomacy.forcePact?.([idx, partner], t, holdTurns())) {
+            const until = (S.currentTurnNumber || 0) + holdTurns();
+            for (const j of [idx, partner]) { window.BotDiplomacy.setMood(j, 'pick', t); decided[j] = until; }
+        }
+    }
+
+    async function betrayVote(idx, who, pact) {
+        const partners = pact.members.filter(j => j !== idx);
+        const pn = partners.map(j => shortBot(j)).join(' and ');
+        const options = [`Keep the pact with ${pn}`, `BETRAY ${pn}`];
+        const res = await runVote(idx, `${who} is in a pact against ${nameOf(pact.target)}. Keep it or betray?`, options, (w) =>
+            w === 1 ? `Chat made {p${idx}} betray the pact!` : `{p${idx}} keeps the pact.`);
+        if (res.winner === 1) {
+            // Turns on the partner that is furthest ahead, for the usual rounds.
+            let victim = null;
+            for (const j of partners) if (victim == null || window.BotDiplomacy.progressOf(j) > window.BotDiplomacy.progressOf(victim)) victim = j;
+            window.BotDiplomacy.betray?.(idx);
+            if (victim != null) {
+                window.BotDiplomacy.setMood(idx, 'pick', victim);
+                decided[idx] = (S.currentTurnNumber || 0) + holdTurns();
+                pawnSay(idx, [9, sym(victim)]);                    // Broken Heart + who
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ cast votes
+    // Once per bot turn: 2+ different good casts = chat picks one; one cast
+    // that the bot is about to make = chat can VETO it (no that scroll this turn).
     const castVotedTurn = {};
-    // The two best casts that read differently (same words = same choice for chat).
-    function castOptions(snap) {
-        let ranked = [];
-        try { ranked = window.BotSystem.rank() || []; } catch (e) { return []; }
+    function castOptions(snap, ranked) {
         const seen = new Set(), out = [];
         for (const r of ranked) {
             if (!r || r.action?.type !== 'cast' || !(r.score > 0)) continue;
@@ -290,17 +375,27 @@
         if (!active() || !cfg.cast || !window.BotSystem?.setNextChoice || !isBotSeat(idx)) return;
         const turn = S.currentTurnNumber || 0;
         if (castVotedTurn[idx] === turn) return;
-        let snap = null;
-        try { snap = window.BotState.snapshot(); } catch (e) { return; }
-        const opts = castOptions(snap);
-        if (opts.length < 2) return;
-        castVotedTurn[idx] = turn;
-        const words = opts.map(o => o.words);
+        let snap = null, ranked = [];
+        try { snap = window.BotState.snapshot(); ranked = window.BotSystem.rank() || []; } catch (e) { return; }
+        const opts = castOptions(snap, ranked);
         const who = shortBot(idx);
-        const options = [words[0], words[1], `Let ${who} decide`];
-        const res = await runVote(idx, `What should ${who} cast?`, options, (w) =>
-            w == null || w === 2 ? `Chat let {p${idx}} decide what to cast.` : `Chat chose for {p${idx}}: ${words[w]}.`);
-        if (res.winner === 0 || res.winner === 1) window.BotSystem.setNextChoice(idx, opts[res.winner].action);
+        if (opts.length >= 2) {
+            castVotedTurn[idx] = turn;
+            const words = opts.map(o => o.words);
+            const options = [words[0], words[1], `Let ${who} decide`];
+            const res = await runVote(idx, `What should ${who} cast?`, options, (w) =>
+                w == null || w === 2 ? `Chat let {p${idx}} decide what to cast.` : `Chat chose for {p${idx}}: ${words[w]}.`);
+            if (res.winner === 0 || res.winner === 1) window.BotSystem.setNextChoice(idx, opts[res.winner].action);
+            return;
+        }
+        // Veto: only when the cast is the bot's very next action.
+        if (opts.length === 1 && ranked[0]?.action?.type === 'cast' && window.BotSystem.vetoScroll) {
+            castVotedTurn[idx] = turn;
+            const o = opts[0];
+            const res = await runVote(idx, `${who} wants to: ${o.words}`, ['Allow it', 'VETO!'], (w) =>
+                w === 1 ? `Chat vetoed {p${idx}}: ${o.words}.` : `Chat allowed {p${idx}}: ${o.words}.`);
+            if (res.winner === 1) { window.BotSystem.vetoScroll(idx, o.action.scroll); pawnSay(idx, [0]); }
+        }
     }
 
     // ------------------------------------------------------------ host start (lobby.js)
@@ -318,8 +413,10 @@
     async function prepareHostedGame(roomId) {
         const on = !!cfg.on && cleanChannel(cfg.channel).length >= 3;
         streamGameId = on ? roomId : null;
-        lastMoodTurn = -99; moodRot = 0;
-        for (const k in moodAt) delete moodAt[k];
+        lastRoundVote = -99; kindRot = 0; pactSince = { key: null, turn: 0 };
+        for (const k in roundAt) delete roundAt[k];
+        for (const k in decided) delete decided[k];
+        betrayAsked.clear();
         for (const k in castVotedTurn) delete castVotedTurn[k];
         try { await S.supabase.from('game_room').update({ stream_mode: on }).eq('id', roomId); } catch (e) {}
         if (on) { connect(); await resolveTwitchbot(); }
@@ -359,12 +456,13 @@
                 <div class="changelog-body stream-body">
                     <p>Streaming on Twitch? Let your chat vote on what the bots do. Host a game with bots
                     (Quick Play works): every bot becomes a <b>Twitchbot</b>, and chat types <b>!1</b>, <b>!2</b> or <b>!3</b>
-                    to pick a bot's mood or which scroll it casts. Twitchbots win and lose on the leaderboard as one bot.</p>
+                    to pick who a bot goes after or helps, make bots team up or betray each other, choose or veto its casts. Twitchbots win and lose on the leaderboard as one bot.</p>
                     <label class="stream-row"><input type="checkbox" id="stream-on"> Stream mode on</label>
                     <label class="stream-row">Twitch channel <input type="text" id="stream-channel" placeholder="your_channel" maxlength="40"></label>
                     <label class="stream-row">Vote time <input type="number" id="stream-secs" min="10" max="45" step="5"> seconds</label>
-                    <label class="stream-row"><input type="checkbox" id="stream-mood"> Mood votes (about once a round)</label>
-                    <label class="stream-row"><input type="checkbox" id="stream-cast"> Cast votes (when a bot has 2 good casts)</label>
+                    <label class="stream-row"><input type="checkbox" id="stream-mood"> Target and pact votes (about once a round)</label>
+                    <label class="stream-row">Chat's choice of target lasts <input type="number" id="stream-rounds" min="1" max="6" step="1"> rounds</label>
+                    <label class="stream-row"><input type="checkbox" id="stream-cast"> Cast votes (pick between 2 casts, or veto a cast)</label>
                     <div id="stream-status" class="stream-status"></div>
                     <p class="stream-note">Only reads chat. Nothing is posted to your channel and no Twitch login is needed.
                     Bot turns wait while chat votes; the turn timer gets that time back.</p>
@@ -378,12 +476,14 @@
         $('stream-secs').value = cfg.secs;
         $('stream-mood').checked = !!cfg.mood;
         $('stream-cast').checked = !!cfg.cast;
+        $('stream-rounds').value = cfg.rounds;
         const apply = () => {
             cfg.on = $('stream-on').checked;
             cfg.channel = cleanChannel($('stream-channel').value);
             cfg.secs = Math.max(10, Math.min(45, Number($('stream-secs').value) || 20));
             cfg.mood = $('stream-mood').checked;
             cfg.cast = $('stream-cast').checked;
+            cfg.rounds = Math.max(1, Math.min(6, Number($('stream-rounds').value) || 3));
             save();
             connect();
             updateLobbyButton();

@@ -121,6 +121,9 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-02: Stream votes v2.** Owner tested with real chat (works). New votes: chat picks the player a bot goes
+  after / helps, team up (forced pact), keep or betray, cast veto; choices hold N rounds (default 3). Tested with the
+  fake chat. sql/stream-games.sql part B still not applied.
 - **2026-10-01: Stream mode (Twitch chat votes).** js/stream-votes.js + hooks in bot.js (beforeTurn / beforeAct,
   setNextChoice, explain), bot-diplomacy.js (setMood), lobby.js (prepareHostedGame, Twitchbot seat names, room badge,
   stream-vote handler), game-pause.js (stream-vote not buffered). Owner: stream games pay rewards; chat-steered bots are

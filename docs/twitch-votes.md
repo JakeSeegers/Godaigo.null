@@ -87,3 +87,12 @@ Credits unchanged. Push to `fixes/all-consolidated`.
 ## Later (only if this is fun)
 Channel points / bits ("500 points: make Emberkin angry at someone"). Needs a Twitch app,
 the streamer's sign-in and an edge function for EventSub. Not part of this plan.
+
+## Update 2026-10-02: better votes (owner: "the questions are a little boring")
+- Chat picks the PLAYER (any seat, humans and bots; several humans can play): "Who should X go
+  after?", "Who should X help?" (help = gifts to the common area, wind on their road home, never
+  harmed), "X and Y: team up against who?" (forced pact), and for pact members "Keep or BETRAY?".
+- A target choice holds for N rounds (Stream panel, default 3); the bot gets no new target vote
+  until it runs out ("Chat's order for X ran out." in the Game Log).
+- Cast: 2 different casts = pick one; one cast the bot is about to make = Allow / VETO.
+- The old Rush / Block / Pick on mood vote is gone.

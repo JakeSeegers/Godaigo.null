@@ -4038,6 +4038,19 @@
         const D = window.BotDiplomacy;
         const P = D?.enabled?.() ? D.pact?.() : null;
         const ai = snap.turn.activePlayerIndex;
+        // Stream games: chat told this bot to help a player (js/stream-votes.js).
+        const md = D?.enabled?.() ? D.moodOf?.(ai) : null;
+        if (md && md.kind === 'help' && snap.players[md.target]) {
+            const q = snap.players[md.target];
+            const gift = new Set(ELEMENTS.filter(el => self.activated.includes(el) && !q.activated.includes(el) && (snap.sourcePool[el] || 0) > 0));
+            const road = new Set();
+            if (ELEMENTS.every(el => q.activated.includes(el))) {
+                const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === md.target);
+                const path = home && pathToOrNear(q.x, q.y, home.x, home.y);
+                for (const st of path || []) road.add(hexKey(st.x, st.y));
+            }
+            return (gift.size || road.size) ? { gift, road, push: 1.5 } : null;
+        }
         if (!P || !P.members.includes(ai)) return null;
         const lp = snap.players[P.target];
         if (!lp) return null;
@@ -4075,7 +4088,7 @@
     function rankActions(fixationTarget, opts) {
         const withTrace = !!(opts && opts.withTrace);
         const snap = window.BotState.snapshot();
-        const legal = noBacktrack(snap, kingmakerFilter(snap, window.BotState.legalActions()));
+        const legal = noBacktrack(snap, kingmakerFilter(snap, window.BotState.legalActions())).filter(a => !vetoed(a));
         const scoreWithOptionalTrace = (a, ctx) => {
             const trace = withTrace ? {} : null;
             const score = scoreAction(a, snap, trace ? { ...ctx, trace } : ctx);
@@ -4470,6 +4483,18 @@
     let _th = null;
     let _forced = null; // { idx, action } from a chat vote (js/stream-votes.js)
     function setNextChoice(idx, action) { _forced = action ? { idx, action } : null; }
+    // Chat vetoed these scrolls for bot idx this turn (js/stream-votes.js).
+    let _veto = { idx: null, turn: null, scrolls: new Set() };
+    function vetoScroll(idx, scroll) {
+        const t = typeof currentTurnNumber !== 'undefined' ? currentTurnNumber : 0;
+        if (_veto.idx !== idx || _veto.turn !== t) _veto = { idx, turn: t, scrolls: new Set() };
+        _veto.scrolls.add(scroll);
+    }
+    function vetoed(a) {
+        if (!a || a.type !== 'cast' || !_veto.scrolls.size) return false;
+        const t = typeof currentTurnNumber !== 'undefined' ? currentTurnNumber : 0;
+        return _veto.turn === t && _veto.idx === activePlayerIndex && _veto.scrolls.has(a.scroll);
+    }
 
     function botAct() {
         _th = null;
@@ -4555,6 +4580,7 @@
             log('Plan step would strand the pawn on a stone - scoring instead');
             planAction = null;
         }
+        if (vetoed(planAction)) { log('Plan cast was vetoed by chat - scoring instead'); planAction = null; }
         if (planAction && planAction.type === 'move' && turnSeen(snap)?.has(hexKey(planAction.x, planAction.y))) {
             log('Plan step goes back to a hex I already left this turn - scoring instead');
             planAction = null;
@@ -4741,6 +4767,12 @@
             if (!redo && rankedRedo) noteIntent(idx, rankedRedo, choice.action);
         }
 
+        if (vetoed(choice.action)) {
+            const alt = rankActions();
+            if (!alt.length) return null;
+            log('Chosen cast was vetoed by chat - next best instead');
+            choice = alt[0];
+        }
         return applyChosen(snap, idx, choice);
     }
 
@@ -5103,6 +5135,7 @@
     window.BotSystem = {
         step:  botAct,        // one action
         setNextChoice,        // (idx, action): play this action next (chat vote, js/stream-votes.js)
+        vetoScroll,           // (idx, scroll): bot idx may not cast this scroll this turn (chat veto)
         explain: (a, snap) => explainAction(a, snap || window.BotState.snapshot(), {}), // plain words for an action
         turn:  botTurn,       // play out the whole turn
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)

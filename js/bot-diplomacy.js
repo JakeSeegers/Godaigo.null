@@ -457,6 +457,7 @@
                 if (j === o || !snap.players[j]) continue;
                 if (md.kind === 'rush') arr[j] = 1 + (arr[j] - 1) * 0.4;        // mind its own race
                 else if (md.kind === 'pick' && j === md.target) arr[j] = Math.max(arr[j] * 1.5, 1.7);
+                else if (md.kind === 'help' && j === md.target) arr[j] = Math.min(arr[j], 0.4); // never harm a friend
             }
             if (md.kind === 'block') {
                 let lead = -1;
@@ -580,8 +581,9 @@
     function pactStep(active) {
         const P = S.pact;
         if (P) {
-            // Members who no longer see the target as the leader step out.
-            for (const m of [...P.members]) {
+            // Members who no longer see the target as the leader step out
+            // (not from a pact Twitch chat made: it holds for its rounds).
+            for (const m of (P.forced ? [] : [...P.members])) {
                 if (coalitionTarget(m) === P.target) continue;
                 if (P.kind === 'grudge' && relOf(m, P.target).favor < 0) continue;
                 P.members.delete(m);
@@ -589,6 +591,7 @@
                 say(m, [E.withdraw], `{p${m}} leaves the pact against {p${P.target}}`);
             }
             if (P.members.size < 2) endPact();
+            else if (P.forced) { if (--P.turnsLeft <= 0) endPact(); }
             else if (--P.turnsLeft <= 0) {
                 // Still a real threat to every member: the pact holds for
                 // another round instead of lapsing just as the leader runs
@@ -931,5 +934,31 @@
         // Chat's mood for bot o: 'rush' | 'block' | 'pick' (target = player) | null.
         setMood: (o, kind, target) => { if (kind) S.mood[o] = { kind, target: target ?? null }; else delete S.mood[o]; delete S.press[o]; },
         moodOf: o => (S.mood[o] ? { ...S.mood[o] } : null),
+        symbolOf: j => symbolOf(j, null),
+        // Chat made these bots team up against target (stream games).
+        // turns: how many turn changes it holds (members never step out early).
+        forcePact: (members, target, turns) => {
+            if (S.pact || members.length < 2 || target == null) return false;
+            S.pact = { kind: 'leader', target, members: new Set(members), committed: new Set(), forced: true,
+                       turnsLeft: Math.max(1, turns || ((S.seats || seatCount()) + 1)) };
+            S.lastPactTurn = S.turns; S.press = {};
+            say(members[0], [E.target, E.accept, symbolOf(target, null)], `{p${members[0]}} and {p${members[1]}} team up against {p${target}}`);
+            return true;
+        },
+        // Chat made bot o break its pact: the others trust it much less.
+        betray: o => {
+            const P = S.pact;
+            if (!P || !P.members.has(o)) return false;
+            P.members.delete(o);
+            for (const m of P.members) {
+                const r = relOf(m, o);
+                r.trust = clampT(r.trust + PACT.brokenTrust);
+                r.favor += PACT.brokenFavor * 2;
+                say(m, [E.betrayed, symbolOf(o, null)], `{p${m}} was betrayed by {p${o}}`);
+            }
+            if (P.members.size < 2) { S.pact = null; S.lastPactTurn = S.turns; }
+            S.press = {};
+            return true;
+        },
     };
 })();

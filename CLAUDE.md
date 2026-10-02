@@ -334,10 +334,13 @@ Order matters — later scripts depend on earlier ones.
                              godaigo_stream). Reads chat anonymously (wss://irc-ws.chat.twitch.tv, justinfan nick, never posts).
                              hostStartGame -> prepareHostedGame(room) writes game_room.stream_mode; bot seats become
                              "🤖 Twitchbot (<element bot>)", bot_source_id = the Twitchbot deployed_bots row (one ladder bot).
-                             bot.js botTurn awaits beforeTurn(idx) (mood vote about once a round, bots take turns:
-                             BotDiplomacy.setMood rush / block / pick -> pressures()) and beforeAct(idx) (cast vote, max one per
-                             bot turn, 2 best casts with different words from BotSystem.explain + "Let X decide" ->
-                             BotSystem.setNextChoice). Votes !1 !2 !3, one per viewer; no votes or a tie = the bot decides.
+                             bot.js botTurn awaits beforeTurn(idx) (round vote about once a round, chat picks the PLAYER:
+                             go after (setMood 'pick') / help (setMood 'help' -> bot.js helpContext gifts + road) / team up
+                             with another bot against X (BotDiplomacy.forcePact, P.forced: members never step out early) /
+                             keep or BETRAY a pact (BotDiplomacy.betray, once per pact per bot). Choices hold cfg.rounds rounds
+                             (default 3, decided[] expiry) and that bot gets no new target vote meanwhile) and beforeAct(idx)
+                             (max one per bot turn: 2 casts with different words -> pick (BotSystem.setNextChoice), or the
+                             one cast it is about to make -> Allow / VETO (BotSystem.vetoScroll: that scroll not this turn)). Votes !1 !2 !3, one per viewer; no votes or a tie = the bot decides.
                              Host broadcasts 'stream-vote' (open / tick every 2 s / close); lobby.js handler -> onRemote()
                              draws the same #stream-vote-box; result line = ActionLog 'botTalk'. Vote time is added back to
                              turnStartedAtMs. Bot seats only, host only, never in arena / replay / tutorial. Tests:
