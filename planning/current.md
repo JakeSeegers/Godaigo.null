@@ -121,6 +121,9 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-03: Game plans step 1.** sql/game-plans.sql (applied; the rollback test call timed out in the Supabase
+  tool, nothing left behind, not retried per house rule 6), js/game-plans.js (browser-tested with a mocked server:
+  create, answer, star, pick, Google link, .ics, invite pop-up, time zones). Next: step 2 emails (docs/game-plans.md).
 - **2026-10-03: Player bounties.** sql/player-bounties.sql (applied; rollback test passed: limits, outsider, after-start,
   bot win -> pot, host win -> refund, confirmed non-host win -> paid once, pending stays open, short game -> refund).
   js/player-bounty.js (waiting room box, card badge, status line, settle at game over + sign-in). Owner choices: host

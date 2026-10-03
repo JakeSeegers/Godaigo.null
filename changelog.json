@@ -4,10 +4,11 @@
     {
       "id": "2026-10-03",
       "date": "2026-10-03",
-      "title": "Stream mode in the Shop, player bounties",
+      "title": "Plan games with friends, player bounties",
       "changes": [
         "Stream mode is now a Shop feature: unlock it once for 500 gold (Shop > Features, or the lobby Stream button), then your Twitch chat can steer the bots in your games.",
-        "New: player bounties. In the waiting room, put up 100 to 500 gold (others can add more): whoever beats the host wins it all. If the host wins, everyone gets their gold back; if a bot wins, it goes into the pot. Rooms with a bounty show it in the game list."
+        "New: player bounties. In the waiting room, put up 100 to 500 gold (others can add more): whoever beats the host wins it all. If the host wins, everyone gets their gold back; if a bot wins, it goes into the pot. Rooms with a bounty show it in the game list.",
+        "New: Plans (lobby button). Invite up to 5 friends, suggest some times, and everyone marks Yes, If need be or No. The host picks the time; add it to your calendar, get a reminder, and join with one click."
       ]
     },
     {
