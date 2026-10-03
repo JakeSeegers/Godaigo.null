@@ -123,6 +123,8 @@ reach/beat it from here.
 ## Last Committed Work
 - **2026-10-03: Smart UI fit experiment.** js/ui-fit.js, OFF by default, Hermit menu toggle. Restore point: commit 3c43404 (the
   layout before this). Owner to try it at different window sizes and decide; if kept, turn it on for everyone.
+  Later the same day: also fits the lobby button bar (More menu: Credits, Change Log, Stream, Replays, Plans, Train Bot)
+  and stacks the game list under 760 px. Measured: on = nothing outside the lobby panel at 1920 / 1366 / 1024 / 800 / 390.
 - **2026-10-03: Saved games (owner).** js/save-game.js + lobby.js hostStartGame({resume}) + exports (GamePause.dispatch,
   MatchRecorder.flushAll / pending / matchId) + isRebuilding guards (bot-driver.js, game-core.js). Tested on the fake
   server (turn 8 and 23: board, scrolls, common, pools, pawns equal; play went on). OPEN: sql/saved-games.sql NOT applied

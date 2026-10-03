@@ -421,7 +421,8 @@ Order matters — later scripts depend on earlier ones.
                              restore point = commit 3c43404, the layout before this). Hermit menu "Smart UI fit (experiment)" toggles it
                              for that browser (localStorage godaigo_ui_fit = 'on'). When a HUD / dock bar overflows: spacers shrink,
                              contents zoom down to 75%, short labels (SHORT map), least-needed buttons into a "More" menu (real
-                             buttons hidden, the menu clicks them; MORE_ORDER), then the bar wraps. All CSS scoped to html.ui-fit-on.
+                             buttons hidden, the menu clicks them; MORE_ORDER), then the bar wraps. Also the lobby button bar (#auth-bar: More = Credits / Change Log / Stream / Replays / Plans /
+                             Train Bot) and, under 760 px, the game list stacks. All CSS scoped to html.ui-fit-on.
                              Measured 2026-10-03: off = 1366 wide loses timer / Pause / E C S / End Turn off screen; on = nothing
                              off screen at 1920 / 1366 / 1024 / 800 / 390.
 30. asset-preloader.js     ← window.AssetPreloader — background-loads in-game art + sounds after the intro;

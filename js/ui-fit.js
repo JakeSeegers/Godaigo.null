@@ -1,4 +1,5 @@
-// ui-fit.js: smart sizing for the top HUD bar and the bottom dock (window.UiFit).
+// ui-fit.js: smart sizing for the top HUD bar, the bottom dock and the lobby's
+// button bar (#auth-bar) (window.UiFit).
 //
 // The owner places buttons by hand (TheHermit, js/thehermit.js: order + fixed
 // spacers). At full size that layout is kept exactly. When a bar does not fit
@@ -24,20 +25,32 @@
         'scroll-reference-btn': 'Scrolls', 'panel-btn-gamelog': 'Log', 'panel-btn-rulebook': 'Rules',
         'panel-btn-opponents': 'Players', 'elemental-stones-btn': 'Stones', 'panel-btn-common': 'Common',
         'undo-move': 'Undo', 'cast-spell': 'Activate',
+        // lobby
+        'train-bot-btn': 'Train Bot', 'changelog-btn': 'News',
     };
     // Into "More" first (least needed in play); game actions never move.
     const MORE_ORDER = ['scroll-reference-btn', 'panel-btn-rulebook', 'cosmetics-panel-btn', 'emoji-panel-btn',
-        'settings-panel-btn', 'panel-btn-gamelog', 'elemental-stones-btn'];
-    const MORE_LABEL = { 'cosmetics-panel-btn': 'Colours', 'emoji-panel-btn': 'Emojis', 'settings-panel-btn': 'Settings' };
+        'settings-panel-btn', 'panel-btn-gamelog', 'elemental-stones-btn',
+        // lobby: Profile, Shop, Friends and Sign Out never move
+        'credits-btn', 'changelog-btn', 'stream-btn', 'replays-btn', 'plans-btn', 'train-bot-btn'];
+    const MORE_LABEL = { 'cosmetics-panel-btn': 'Colours', 'emoji-panel-btn': 'Emojis', 'settings-panel-btn': 'Settings',
+        'train-bot-btn': 'Train Bot and Win Gold!', 'changelog-btn': 'Change Log' };
+    // "new" dots other files put on lobby buttons (changelog-ui.js, social.js, game-plans.js)
+    const DOT = ['has-new', 'has-requests'];
 
+    // partSel: the bar's parts (zoomed, checked for overflow); host: where "More" goes;
+    // below: the More menu opens under the bar (else above it).
     const bars = [
-        { name: 'hud', bar: () => document.querySelector('.hud-bar'), parts: () => [...document.querySelectorAll('.hud-bar .hud-section')] },
-        { name: 'dock', bar: () => document.querySelector('.dock-bar'), parts: () => [...document.querySelectorAll('.dock-bar .dock-actions')] },
+        { name: 'hud', bar: () => document.querySelector('.hud-bar'), partSel: '.hud-section', host: '.hud-section.right', below: true },
+        { name: 'dock', bar: () => document.querySelector('.dock-bar'), partSel: '.dock-actions', host: '.dock-actions', below: false },
+        { name: 'lobby', bar: () => document.getElementById('auth-bar'), partSel: '.auth-bar-buttons', host: '.auth-bar-buttons', below: true },
     ];
-    const state = { hud: null, dock: null };
+    for (const b of bars) b.parts = () => { const bar = b.bar(); return bar ? [...bar.querySelectorAll(b.partSel)] : []; };
+    const state = { hud: null, dock: null, lobby: null };
     const visible = (el) => !!el && el.offsetParent !== null && getComputedStyle(el).display !== 'none';
-    const overflowing = (bar) => bar.scrollWidth > bar.clientWidth + 1 ||
-        [...bar.querySelectorAll('.hud-section, .dock-actions')].some(p => p.scrollWidth > p.clientWidth + 1);
+    const overflowing = (b, bar) => bar.scrollWidth > bar.clientWidth + 1 ||
+        [...bar.querySelectorAll(b.partSel)].some(p => p.scrollWidth > p.clientWidth + 1);
+    const hasDot = (el) => DOT.some(c => el.classList.contains(c));
 
     function setScale(b, s) { for (const p of b.parts()) p.style.zoom = s === 1 ? '' : String(s); }
     function setShort(b, on) {
@@ -59,8 +72,7 @@
             m.textContent = 'More';
             m.title = 'More buttons';
             m.onclick = (e) => { e.stopPropagation(); toggleMenu(b, m); };
-            const host = b.name === 'hud' ? bar.querySelector('.hud-section.right') || bar : bar.querySelector('.dock-actions') || bar;
-            host.appendChild(m);
+            (bar.querySelector(b.host) || bar).appendChild(m);
         }
         return m;
     }
@@ -77,6 +89,14 @@
         const m = bar.querySelector('.ui-fit-more');
         if (ids.length) moreButton(b).style.display = '';
         else if (m) m.style.display = 'none';
+        markDot(b);
+    }
+    // The More button carries a dot when a button inside it has one.
+    function markDot(b) {
+        const bar = b.bar();
+        const m = bar && bar.querySelector('.ui-fit-more');
+        if (!m) return;
+        m.classList.toggle('ui-fit-dot', [...bar.querySelectorAll('[data-ui-fit-hidden]')].some(hasDot));
     }
     function toggleMenu(b, anchor) {
         let menu = document.getElementById('ui-fit-menu');
@@ -89,12 +109,13 @@
             const item = document.createElement('button');
             item.type = 'button';
             item.textContent = MORE_LABEL[el.id] || el.dataset.longLabel || el.textContent.trim() || el.title || el.id;
+            if (hasDot(el)) item.classList.add('ui-fit-dot');
             item.onclick = () => { menu.remove(); el.click(); };
             menu.appendChild(item);
         }
         document.body.appendChild(menu);
         const r = anchor.getBoundingClientRect();
-        const top = b.name === 'hud' ? r.bottom + 4 : r.top - menu.offsetHeight - 4;
+        const top = b.below ? r.bottom + 4 : r.top - menu.offsetHeight - 4;
         menu.style.top = Math.max(4, top) + 'px';
         menu.style.left = Math.max(4, Math.min(innerWidth - menu.offsetWidth - 4, r.right - menu.offsetWidth)) + 'px';
         setTimeout(() => document.addEventListener('click', function close(ev) {
@@ -109,24 +130,24 @@
         // start from the full design
         setWrap(b, false); setScale(b, 1); setShort(b, false); setHidden(b, []);
         let level = 0, scale = 1, hidden = [];
-        if (overflowing(bar)) {
+        if (overflowing(b, bar)) {
             level = 2;
-            while (overflowing(bar) && scale > MIN_SCALE + 0.001) { scale = Math.round((scale - 0.05) * 100) / 100; setScale(b, scale); }
+            while (overflowing(b, bar) && scale > MIN_SCALE + 0.001) { scale = Math.round((scale - 0.05) * 100) / 100; setScale(b, scale); }
         }
-        if (overflowing(bar)) { level = 3; setShort(b, true); }
-        if (overflowing(bar)) {
+        if (overflowing(b, bar)) { level = 3; setShort(b, true); }
+        if (overflowing(b, bar)) {
             level = 4;
             for (const id of MORE_ORDER) {
                 const el = document.getElementById(id);
                 if (!el || !bar.contains(el) || !visible(el)) continue;
                 hidden.push(id);
                 setHidden(b, hidden);
-                if (!overflowing(bar)) break;
+                if (!overflowing(b, bar)) break;
             }
         }
-        if (overflowing(bar)) { level = 5; setWrap(b, true); }
+        if (overflowing(b, bar)) { level = 5; setWrap(b, true); }
         state[b.name] = { level, scale, hidden: hidden.slice(), width: innerWidth };
-        document.body.dataset[b.name === 'hud' ? 'uiFitHud' : 'uiFitDock'] = String(level);
+        document.body.dataset['uiFit' + b.name[0].toUpperCase() + b.name.slice(1)] = String(level);
     }
 
     let pending = false;
@@ -149,7 +170,7 @@
             setWrap(b, false); setScale(b, 1); setShort(b, false); setHidden(b, []);
             bar.querySelector('.ui-fit-more')?.remove();
         }
-        delete document.body.dataset.uiFitHud; delete document.body.dataset.uiFitDock;
+        delete document.body.dataset.uiFitHud; delete document.body.dataset.uiFitDock; delete document.body.dataset.uiFitLobby;
     }
     function setEnabled(on) {
         enabled = !!on;
@@ -168,10 +189,11 @@
             const bar = b.bar();
             if (!bar) continue;
             parts.push(visible(bar), [...bar.querySelectorAll('button, .dock-turn-indicator, .hud-timer')]
-                .filter(el => !el.dataset.uiFitHidden).map(el => el.offsetParent ? 1 : 0).join(''), overflowing(bar));
+                .filter(el => !el.dataset.uiFitHidden).map(el => el.offsetParent ? 1 : 0).join(''), overflowing(b, bar));
         }
         const s2 = parts.join('|');
         if (s2 !== sig) { sig = s2; fitAll(); }
+        for (const b of bars) { try { markDot(b); } catch (e) {} }
     }, 1000);
     if (enabled) {
         document.documentElement.classList.add('ui-fit-on');

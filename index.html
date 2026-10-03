@@ -120,8 +120,8 @@
         <!-- Auth bar: shows signed-in username + sign-out button -->
         <div id="auth-bar" style="display:none; justify-content:space-between; align-items:center; margin-bottom:12px; padding:8px 12px;">
             <span id="auth-bar-name" style="font-size:28px;"></span>
-            <div style="display:flex; gap:8px;">
-                <button onclick="gami_openPanel()" style="padding:5px 14px;">Profile</button>
+            <div class="auth-bar-buttons" style="display:flex; gap:8px;">
+                <button id="profile-btn" onclick="gami_openPanel()" style="padding:5px 14px;">Profile</button>
                 <button id="shop-btn" onclick="gami_openShop()" style="padding:5px 14px;">Shop</button>
                 <button id="changelog-btn" onclick="window.Changelog?.open()" style="padding:5px 14px;">Change Log</button>
                 <button id="credits-btn" onclick="window.Credits?.open()" style="padding:5px 14px;">Credits</button>
@@ -129,8 +129,8 @@
                 <button id="plans-btn" onclick="window.GamePlans?.openList()" style="padding:5px 14px;" title="Plan a game with friends: pick times everyone can make">Plans</button>
                 <button id="replays-btn" onclick="window.Replay?.openBrowser()" style="padding:5px 14px;">Replays</button>
                 <button id="stream-btn" onclick="window.StreamVotes?.openPanel()" style="padding:5px 14px;" title="Let your Twitch chat vote on what the bots do">Stream</button>
-                <button onclick="_gami_openTrainBot()" style="padding:5px 14px; border:1px solid #f0c040; box-shadow:0 0 4px rgba(240,192,64,0.6);">Train Bot and Win Gold!</button>
-                <button onclick="authSignOut()" style="padding:5px 14px;">Sign Out</button>
+                <button id="train-bot-btn" onclick="_gami_openTrainBot()" style="padding:5px 14px; border:1px solid #f0c040; box-shadow:0 0 4px rgba(240,192,64,0.6);">Train Bot and Win Gold!</button>
+                <button id="sign-out-btn" onclick="authSignOut()" style="padding:5px 14px;">Sign Out</button>
             </div>
         </div>
 
@@ -148,7 +148,7 @@
 
         <!-- ── Panel A: Game Browser (shown by default after login) ── -->
         <div id="game-browser-panel" style="display: none;">
-            <div style="display: flex; gap: 16px; align-items: flex-start;">
+            <div class="lobby-columns" style="display: flex; gap: 16px; align-items: flex-start;">
 
                 <!-- Left column: inputs & room browser -->
                 <div style="flex: 1; min-width: 0;">
@@ -200,7 +200,7 @@
                 </div><!-- end left column -->
 
                 <!-- Right column: leaderboard -->
-                <div style="width: 320px; flex-shrink: 0;">
+                <div class="lobby-leaderboard-col" style="width: 320px; flex-shrink: 0;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <h3 style="margin: 0;">Leaderboard</h3>
                     </div>
