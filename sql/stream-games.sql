@@ -143,3 +143,36 @@ $function$;
 select position('Twitchbot' in pg_get_functiondef('public._ladder_apply_match'::regproc)) > 0 as ladder,
        position('stream_mode' in pg_get_functiondef('public.start_match'::regproc)) > 0 as start,
        position('stream_mode' in pg_get_functiondef('public.list_matches_for_mining'::regproc)) > 0 as mining;
+
+-- ===================================================================== part C (APPLIED 2026-10-03)
+-- Stream mode is unlocked once for 500 gold (owner): 'feature_stream' in cosmetics_owned.
+-- Not in _shop_cosmetic_ids, so it does not count toward the Fashionista badge.
+create or replace function public.buy_stream_mode()
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_uid   uuid := auth.uid();
+  v_price integer := 500;
+  v_gold  integer;
+begin
+  if v_uid is null then raise exception 'not signed in'; end if;
+  if exists (select 1 from user_profiles where user_id = v_uid and 'feature_stream' = any(coalesce(cosmetics_owned, '{}'))) then
+    raise exception 'already owned';
+  end if;
+  update user_profiles
+  set gold = gold - v_price,
+      cosmetics_owned = array_append(coalesce(cosmetics_owned, '{}'), 'feature_stream'),
+      updated_at = now()
+  where user_id = v_uid and gold >= v_price
+  returning gold into v_gold;
+  if not found then raise exception 'not enough gold'; end if;
+  insert into user_activities (user_id, activity_type, gold_spent, description, metadata)
+  values (v_uid, 'gold_spent', v_price, 'Stream mode', jsonb_build_object('item', 'feature_stream'));
+  return v_gold;
+end;
+$function$;
+revoke all on function public.buy_stream_mode() from public, anon;
+grant execute on function public.buy_stream_mode() to authenticated;

@@ -121,6 +121,7 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-03: Stream mode costs 500g.** buy_stream_mode (applied), locked Stream panel, Shop > Features card.
 - **2026-10-02: Stream votes v2.** Owner tested with real chat (works). New votes: chat picks the player a bot goes
   after / helps, team up (forced pact), keep or betray, cast veto; choices hold N rounds (default 3). Tested with the
   fake chat. sql/stream-games.sql part B still not applied.

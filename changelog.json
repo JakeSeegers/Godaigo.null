@@ -2,6 +2,14 @@
   "_readme": "Player-facing release notes, newest first, shown by the Change Log button in the lobby. Rules (full text: HOUSE RULES #2 in CLAUDE.md): at most ONE entry per day, id = date. If today's entry exists, rewrite it as one summary of the whole day; do not add a second entry. At most 5 lines per entry. Only list changes players will notice; group small fixes into one 'Small fixes and polish' line. Simple English, no file names, no em dashes.",
   "entries": [
     {
+      "id": "2026-10-03",
+      "date": "2026-10-03",
+      "title": "Stream mode in the Shop",
+      "changes": [
+        "Stream mode is now a Shop feature: unlock it once for 500 gold (Shop > Features, or the lobby Stream button), then your Twitch chat can steer the bots in your games."
+      ]
+    },
+    {
       "id": "2026-10-02",
       "date": "2026-10-02",
       "title": "Stream mode votes",

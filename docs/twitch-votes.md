@@ -96,3 +96,8 @@ the streamer's sign-in and an edge function for EventSub. Not part of this plan.
   until it runs out ("Chat's order for X ran out." in the Game Log).
 - Cast: 2 different casts = pick one; one cast the bot is about to make = Allow / VETO.
 - The old Rush / Block / Pick on mood vote is gone.
+
+## Update 2026-10-03: unlock for 500 gold (owner)
+Stream mode is bought once: Shop > Features or the lobby Stream button (locked panel). Server
+`buy_stream_mode()` adds `feature_stream` to `user_profiles.cosmetics_owned` (applied, sql/stream-games.sql
+part C). Without it the Stream panel only shows the unlock offer and no stream game starts. The Hermit has it free.

@@ -344,6 +344,8 @@ function _renderFeatures(content) {
     const price = R ? R.SLOT_PRICE : 700;
     const full = slots >= max;
     const phrases = R ? R.GIFT_PHRASES : [];
+    const streamOwned = !!window.StreamVotes?.owned?.();
+    const streamPrice = window.StreamVotes?.PRICE ?? 500;
     content.innerHTML = `
         <div class="gami-feature">
             <div class="gami-feature-title">Send a gift</div>
@@ -365,6 +367,13 @@ function _renderFeatures(content) {
                 You have <b>${slots} / ${max}</b> slots. Pick the badges in Profile > Badges.</div>
             <button class="gami-shop-buy-btn gami-feature-buy" ${full ? 'disabled' : ''} onclick="_gami_buyBadgeSlot()">
                 ${full ? 'All slots owned' : `Buy for ${price}g`}</button>
+        </div>
+        <div class="gami-feature">
+            <div class="gami-feature-title">Stream mode</div>
+            <div class="gami-feature-desc">Streaming on Twitch? Your chat votes on what the bots do in your games:
+                who they go after or help, team-ups and betrayals, and which scrolls they cast. Turn it on with the lobby Stream button.</div>
+            <button class="gami-shop-buy-btn gami-feature-buy" ${streamOwned ? 'disabled' : ''} onclick="_gami_buyStream()">
+                ${streamOwned ? 'Unlocked' : `Unlock for ${streamPrice}g`}</button>
         </div>
         <div class="gami-feature-gold">You have ${prof.gold ?? 0}g</div>`;
     _gami_fillPot(content);
@@ -422,6 +431,16 @@ async function _gami_buyBadgeSlot() {
     if (!R) return;
     const res = await R.buySlot();
     window.gami?.notify(res.ok ? 'New badge slot! Pick a badge in Profile > Badges.' : res.msg, 0, 'gold');
+    const content = document.getElementById('gami-content');
+    if (content) _renderFeatures(content);
+}
+
+async function _gami_buyStream() {
+    const SV = window.StreamVotes;
+    if (!SV) return;
+    if (!window.confirm(`Unlock Stream mode for ${SV.PRICE}g?`)) return;
+    const res = await SV.buy();
+    window.gami?.notify(res.ok ? 'Stream mode unlocked! Turn it on with the Stream button in the lobby.' : res.msg, 0, 'gold');
     const content = document.getElementById('gami-content');
     if (content) _renderFeatures(content);
 }

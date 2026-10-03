@@ -362,6 +362,7 @@
 .stream-status.stream-connected { background: rgba(76, 175, 122, 0.2); }
 .stream-status.stream-error, .stream-status.stream-reconnecting { background: rgba(224, 160, 48, 0.25); }
 .stream-note { font-size: 13px; color: var(--pp-ink-soft); }
+.stream-buttons { display: flex; justify-content: center; gap: 10px; }
 #stream-btn.stream-btn-on { border: 1px solid #9146ff; box-shadow: 0 0 4px rgba(145, 70, 255, 0.7); }
 
 /* ── Account recovery (js/account-recovery.js) ──────────────────────────── */

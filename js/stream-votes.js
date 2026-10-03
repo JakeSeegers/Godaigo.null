@@ -12,6 +12,7 @@
 //     which player two bots team up against (BotDiplomacy.forcePact), or a
 //     pact member keeps or BETRAYS it (BotDiplomacy.betray). Target choices
 //     hold for cfg.rounds rounds (default 3).
+// Unlocked once for 500 gold (buy_stream_mode, sql/stream-games.sql); the Hermit has it free.
 //   * cast vote, at most once per bot turn: 2+ good casts = chat picks one
 //     (BotSystem.setNextChoice) or "Let <bot> decide"; one cast the bot is
 //     about to make = Allow / VETO (BotSystem.vetoScroll: not this turn).
@@ -56,6 +57,28 @@
     const cleanChannel = (c) => String(c || '').trim().toLowerCase().replace(/^https?:\/\/(www\.)?twitch\.tv\//, '').replace(/^#/, '').replace(/[^a-z0-9_]/g, '').slice(0, 25);
     const voteMs = () => Math.max(10, Math.min(45, Number(cfg.secs) || 20)) * 1000;
 
+    // ------------------------------------------------------------ unlock (500g)
+    // Bought once in the Shop (Features) or this panel: buy_stream_mode() adds
+    // 'feature_stream' to user_profiles.cosmetics_owned. The Hermit has it free.
+    const PRICE = 500;
+    function owned() {
+        try { if (typeof window.isHermit === 'function' && window.isHermit()) return true; } catch (e) {}
+        const own = window.gami?.profile?.cosmetics_owned;
+        return Array.isArray(own) && own.includes('feature_stream');
+    }
+    async function buy() {
+        const prof = window.gami?.profile;
+        if (!prof || !window.gami?.userId) return { ok: false, msg: 'Log in first' };
+        if (owned()) return { ok: true };
+        if ((prof.gold || 0) < PRICE) return { ok: false, msg: `Need ${PRICE}g (you have ${prof.gold || 0}g)` };
+        const { data, error } = await S.supabase.rpc('buy_stream_mode');
+        if (error) return { ok: false, msg: /enough gold/.test(error.message) ? 'Not enough gold' : /already/.test(error.message) ? 'Already unlocked' : 'Could not unlock Stream mode' };
+        prof.gold = typeof data === 'number' ? data : prof.gold - PRICE;
+        prof.cosmetics_owned = (prof.cosmetics_owned || []).concat(['feature_stream']);
+        try { window.gami?.refreshUI?.(); } catch (e) {}
+        return { ok: true };
+    }
+
     // ------------------------------------------------------------ Twitch chat
     // Anonymous read-only login: Twitch accepts any "justinfan<number>" nick.
     let ws = null, wsState = 'off', wsChannel = null, retry = 0, retryTimer = null;
@@ -66,7 +89,7 @@
     function connect() {
         clearTimeout(retryTimer);
         const chan = cleanChannel(cfg.channel);
-        if (!cfg.on || chan.length < 3) { disconnect(); return; }
+        if (!cfg.on || !owned() || chan.length < 3) { disconnect(); return; }
         if (ws && wsChannel === chan) return;
         disconnect();
         wsChannel = chan;
@@ -126,7 +149,7 @@
     }
     function chatReady() { return fakeMode || wsState === 'connected'; }
     function active() {
-        return !!cfg.on && chatReady() && inGame() && S.isMultiplayer && S.isHost &&
+        return !!cfg.on && owned() && chatReady() && inGame() && S.isMultiplayer && S.isHost &&
             streamGameId != null && streamGameId === S.currentGameId &&
             !window.Replay?.state && !window.isTutorialMode && !arenaRunning();
     }
@@ -411,7 +434,7 @@
     // Called by hostStartGame before the game starts. Returns true when this
     // game is a stream game (bots become Twitchbots).
     async function prepareHostedGame(roomId) {
-        const on = !!cfg.on && cleanChannel(cfg.channel).length >= 3;
+        const on = !!cfg.on && owned() && cleanChannel(cfg.channel).length >= 3;
         streamGameId = on ? roomId : null;
         lastRoundVote = -99; kindRot = 0; pactSince = { key: null, turn: 0 };
         for (const k in roundAt) delete roundAt[k];
@@ -446,8 +469,43 @@
         el.className = 'stream-status stream-' + wsState;
     }
     let statusTimer = null;
+    function openLocked() {
+        const o = document.createElement('div');
+        o.id = 'stream-overlay';
+        const gold = window.gami?.profile?.gold ?? 0;
+        o.innerHTML = `
+            <div class="changelog-modal" role="dialog" aria-label="Stream mode">
+                <div class="changelog-title">${sprite(SPRITE_CHAT, 0.8)} Stream Mode</div>
+                <div class="changelog-body stream-body">
+                    <p>Streaming on Twitch? Let your chat vote on what the bots do: who a bot goes after or helps,
+                    which bots team up or betray each other, and which scrolls they cast (or chat can veto them).
+                    Every bot in your game becomes a <b>Twitchbot</b>.</p>
+                    <p>Unlock it once for <b>${PRICE}g</b>. You have ${gold}g.</p>
+                    <div id="stream-buy-msg" class="stream-status"></div>
+                </div>
+                <div class="stream-buttons">
+                    <button class="changelog-close" id="stream-buy" ${gold < PRICE ? 'disabled' : ''}>Unlock for ${PRICE}g</button>
+                    <button class="changelog-close" id="stream-cancel">Close</button>
+                </div>
+            </div>`;
+        document.body.appendChild(o);
+        const close = () => o.remove();
+        o.addEventListener('click', ev => { if (ev.target === o) close(); });
+        o.querySelector('#stream-cancel').addEventListener('click', close);
+        o.querySelector('#stream-buy').addEventListener('click', async (ev) => {
+            if (!window.confirm(`Unlock Stream mode for ${PRICE}g?`)) return;
+            ev.target.disabled = true;
+            const res = await buy();
+            if (!res.ok) { o.querySelector('#stream-buy-msg').textContent = res.msg; ev.target.disabled = false; return; }
+            window.gami?.notify?.('Stream mode unlocked!', 0, 'gold');
+            close();
+            openPanel();
+        });
+    }
     function openPanel() {
         document.getElementById('stream-overlay')?.remove();
+        if (!window.gami?.userId) { window.gami?.notify?.('Log in to use Stream mode.', 0, 'gold'); return; }
+        if (!owned()) { openLocked(); return; }
         const o = document.createElement('div');
         o.id = 'stream-overlay';
         o.innerHTML = `
@@ -506,7 +564,7 @@
         const panel = document.getElementById('waiting-room-panel');
         const visible = panel && panel.style.display !== 'none' && panel.offsetParent !== null;
         let b = document.getElementById('stream-room-banner');
-        if (!visible || !S.isHost || !cfg.on || cleanChannel(cfg.channel).length < 3) { b?.remove(); return; }
+        if (!visible || !S.isHost || !cfg.on || !owned() || cleanChannel(cfg.channel).length < 3) { b?.remove(); return; }
         if (!b) {
             b = document.createElement('div');
             b.id = 'stream-room-banner';
@@ -526,7 +584,8 @@
     window.StreamVotes = {
         active, beforeTurn, beforeAct, onRemote, openPanel,
         prepareHostedGame, botSeatName, resolveTwitchbot,
-        isOn: () => !!cfg.on && cleanChannel(cfg.channel).length >= 3,
+        isOn: () => !!cfg.on && owned() && cleanChannel(cfg.channel).length >= 3,
+        owned, buy, PRICE,
         settings: () => ({ ...cfg }), state: () => wsState, stats: () => ({ ...stats, chatLines }),
         onChat: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
         // Tests: fake chat without Twitch. fakeChat(true) = pretend connected;
