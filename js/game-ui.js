@@ -7911,6 +7911,15 @@ document.getElementById('undo-move').onclick = function() {
                 menu.appendChild(makeItem('Test games: reward and reports', () => {
                     window.TestGame?.openHermit();
                 }));
+                // Experiment (js/ui-fit.js): smart sizing of the HUD and dock. Off by
+                // default; this browser only. Off = the hand-made layout, unchanged.
+                const uiFitLabel = () => `Smart UI fit (experiment): ${window.UiFit?.isEnabled?.() ? 'ON' : 'OFF'}`;
+                const uiFitItem = makeItem(uiFitLabel(), () => {
+                    if (!window.UiFit) return;
+                    window.UiFit.setEnabled(!window.UiFit.isEnabled());
+                    uiFitItem.textContent = uiFitLabel();
+                });
+                menu.appendChild(uiFitItem);
                 menu.appendChild(makeItem('Pot Drop demo (plinko)', () => {
                     // Local only: runs the same physics as the real pot, pays nothing.
                     const n = parseInt(window.prompt('How many coins? (1-70, one coin = 10g)', '30'), 10);

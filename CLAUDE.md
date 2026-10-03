@@ -417,6 +417,13 @@ Order matters — later scripts depend on earlier ones.
 29. thehermit.js           ← window.TheHermit — dev tool, drag-to-reorder editor for the dock-bar/hud-bar
                              buttons and indicators (Shift+H, or the cheat-panel button); persists the
                              chosen order to localStorage and exports it as JSON for hardcoding back in
+29b. ui-fit.js            ← window.UiFit: EXPERIMENT, OFF by default (owner 2026-10-03: keep the hand-made layout safe;
+                             restore point = git tag layout-before-smart-fit). Hermit menu "Smart UI fit (experiment)" toggles it
+                             for that browser (localStorage godaigo_ui_fit = 'on'). When a HUD / dock bar overflows: spacers shrink,
+                             contents zoom down to 75%, short labels (SHORT map), least-needed buttons into a "More" menu (real
+                             buttons hidden, the menu clicks them; MORE_ORDER), then the bar wraps. All CSS scoped to html.ui-fit-on.
+                             Measured 2026-10-03: off = 1366 wide loses timer / Pause / E C S / End Turn off screen; on = nothing
+                             off screen at 1920 / 1366 / 1024 / 800 / 390.
 30. asset-preloader.js     ← window.AssetPreloader — background-loads in-game art + sounds after the intro;
                              shows a loading bar over the board if a match starts before it's done
                              Also window.LazyScripts.load('tutorial'|'bot-arena'|'matter'|'plinko-sim'): loads #18/#26 on idle after
