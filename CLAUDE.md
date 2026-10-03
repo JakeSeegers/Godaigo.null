@@ -418,7 +418,7 @@ Order matters — later scripts depend on earlier ones.
                              buttons and indicators (Shift+H, or the cheat-panel button); persists the
                              chosen order to localStorage and exports it as JSON for hardcoding back in
 29b. ui-fit.js            ← window.UiFit: EXPERIMENT, OFF by default (owner 2026-10-03: keep the hand-made layout safe;
-                             restore point = git tag layout-before-smart-fit). Hermit menu "Smart UI fit (experiment)" toggles it
+                             restore point = commit 3c43404, the layout before this). Hermit menu "Smart UI fit (experiment)" toggles it
                              for that browser (localStorage godaigo_ui_fit = 'on'). When a HUD / dock bar overflows: spacers shrink,
                              contents zoom down to 75%, short labels (SHORT map), least-needed buttons into a "More" menu (real
                              buttons hidden, the menu clicks them; MORE_ORDER), then the bar wraps. All CSS scoped to html.ui-fit-on.
