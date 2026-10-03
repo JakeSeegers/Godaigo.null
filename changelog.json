@@ -9,7 +9,7 @@
         "Stream mode is now a Shop feature: unlock it once for 500 gold (Shop > Features, or the lobby Stream button), then your Twitch chat can steer the bots in your games.",
         "New: player bounties. Unlock once for 300 gold (Shop > Features or the waiting room), then put up 100 to 500 gold on your room (others can add more for free): whoever beats you wins it all. If you win, everyone gets their gold back; if a bot wins, it goes into the pot.",
         "New: Plans (lobby button). Invite up to 5 friends, suggest some times, and everyone marks Yes, If need be or No. The host picks the time; add it to your calendar, get a reminder, and join with one click.",
-        "Small fixes and polish: no Pause button in games against bots (it is only for games with other people)."
+        "Small fixes and polish: no Pause button in games against bots (it is only for games with other people), and the lobby no longer shows old messages like \"Adding bots...\" or \"5 players in lobby\" after a game."
       ]
     },
     {

@@ -269,6 +269,11 @@
             const waitingPanel = document.getElementById('waiting-room-panel');
             if (browserPanel) browserPanel.style.display = 'block';
             if (waitingPanel) waitingPanel.style.display = 'none';
+            // Old status lines ("5 players in lobby. Ready to start!", "Adding
+            // bots...") belong to a room or a start that is over now.
+            setBrowserStatus('');
+            const lobbyStatus = document.getElementById('lobby-status');
+            if (lobbyStatus) lobbyStatus.textContent = '';
             refreshGameBrowser();
             startBrowserRefresh(); // auto-refresh every 5 seconds
             // Reload the leaderboard each time the lobby is shown, so it is
@@ -283,6 +288,7 @@
             const waitingPanel = document.getElementById('waiting-room-panel');
             if (browserPanel) browserPanel.style.display = 'none';
             if (waitingPanel) waitingPanel.style.display = 'block';
+            setBrowserStatus(''); // "Creating room...", "Adding bots..." are done
             // Room name: the host can rename it here (rename_room RPC,
             // sql/rename-room.sql); everyone else sees it as text, kept up to
             // date by the room subscription.
@@ -361,6 +367,7 @@
                 alert('Quick Play could not start: ' + (e?.message || e));
             } finally {
                 if (btn) btn.disabled = false;
+                setBrowserStatus('');
             }
         }
         window.quickPlay = quickPlay;
