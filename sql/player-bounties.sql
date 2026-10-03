@@ -69,6 +69,11 @@ begin
   end if;
   select * into v_b from player_bounties where room_id = p_room for update;
   if found and v_b.status <> 'open' then raise exception 'this bounty is closed'; end if;
+  -- Starting a bounty is a Shop feature (300g, buy_bounty_feature); adding to one is free.
+  if v_b.room_id is null and not public.is_hermit()
+     and not exists (select 1 from user_profiles where user_id = v_uid and 'feature_bounty' = any(coalesce(cosmetics_owned, '{}'))) then
+    raise exception 'unlock bounties first';
+  end if;
 
   update user_profiles set gold = gold - p_gold, updated_at = now()
   where user_id = v_uid and gold >= p_gold;
@@ -271,3 +276,42 @@ grant execute on function public.settle_player_bounty(integer) to authenticated;
 grant execute on function public.settle_my_player_bounties() to authenticated;
 grant execute on function public.get_player_bounty(integer) to anon, authenticated;
 grant execute on function public.list_player_bounties() to anon, authenticated;
+
+-- ===================================================================== unlock (APPLIED 2026-10-03)
+-- Owner: starting a bounty is a paid feature, 300 gold once ('feature_bounty' in cosmetics_owned).
+-- Adding to a bounty that is already up stays free. post_player_bounty (above) was replaced on the
+-- server with the same body plus, right after the 'this bounty is closed' check:
+--   if v_b.room_id is null and not public.is_hermit()
+--      and not exists (select 1 from user_profiles where user_id = v_uid
+--                      and 'feature_bounty' = any(coalesce(cosmetics_owned, '{}'))) then
+--     raise exception 'unlock bounties first';
+--   end if;
+create or replace function public.buy_bounty_feature()
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_uid   uuid := auth.uid();
+  v_price integer := 300;
+  v_gold  integer;
+begin
+  if v_uid is null then raise exception 'not signed in'; end if;
+  if exists (select 1 from user_profiles where user_id = v_uid and 'feature_bounty' = any(coalesce(cosmetics_owned, '{}'))) then
+    raise exception 'already owned';
+  end if;
+  update user_profiles
+  set gold = gold - v_price,
+      cosmetics_owned = array_append(coalesce(cosmetics_owned, '{}'), 'feature_bounty'),
+      updated_at = now()
+  where user_id = v_uid and gold >= v_price
+  returning gold into v_gold;
+  if not found then raise exception 'not enough gold'; end if;
+  insert into user_activities (user_id, activity_type, gold_spent, description, metadata)
+  values (v_uid, 'gold_spent', v_price, 'Bounties', jsonb_build_object('item', 'feature_bounty'));
+  return v_gold;
+end;
+$function$;
+revoke all on function public.buy_bounty_feature() from public, anon;
+grant execute on function public.buy_bounty_feature() to authenticated;

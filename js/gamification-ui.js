@@ -345,6 +345,8 @@ function _renderFeatures(content) {
     const full = slots >= max;
     const phrases = R ? R.GIFT_PHRASES : [];
     const streamOwned = !!window.StreamVotes?.owned?.();
+    const bountyOwned = !!window.PlayerBounty?.owned?.();
+    const bountyPrice = window.PlayerBounty?.PRICE ?? 300;
     const streamPrice = window.StreamVotes?.PRICE ?? 500;
     content.innerHTML = `
         <div class="gami-feature">
@@ -367,6 +369,13 @@ function _renderFeatures(content) {
                 You have <b>${slots} / ${max}</b> slots. Pick the badges in Profile > Badges.</div>
             <button class="gami-shop-buy-btn gami-feature-buy" ${full ? 'disabled' : ''} onclick="_gami_buyBadgeSlot()">
                 ${full ? 'All slots owned' : `Buy for ${price}g`}</button>
+        </div>
+        <div class="gami-feature">
+            <div class="gami-feature-title">Bounties</div>
+            <div class="gami-feature-desc">Put gold on your room: whoever beats you wins it. If you win, everyone gets their gold back.
+                Unlock once to start bounties (anyone can add to one that is already up).</div>
+            <button class="gami-shop-buy-btn gami-feature-buy" ${bountyOwned ? 'disabled' : ''} onclick="_gami_buyBounty()">
+                ${bountyOwned ? 'Unlocked' : `Unlock for ${bountyPrice}g`}</button>
         </div>
         <div class="gami-feature">
             <div class="gami-feature-title">Stream mode</div>
@@ -431,6 +440,16 @@ async function _gami_buyBadgeSlot() {
     if (!R) return;
     const res = await R.buySlot();
     window.gami?.notify(res.ok ? 'New badge slot! Pick a badge in Profile > Badges.' : res.msg, 0, 'gold');
+    const content = document.getElementById('gami-content');
+    if (content) _renderFeatures(content);
+}
+
+async function _gami_buyBounty() {
+    const PB = window.PlayerBounty;
+    if (!PB) return;
+    if (!window.confirm(`Unlock bounties for ${PB.PRICE}g?`)) return;
+    const res = await PB.buy();
+    window.gami?.notify(res.ok ? 'Bounties unlocked! Start one from any waiting room.' : res.msg, 0, 'gold');
     const content = document.getElementById('gami-content');
     if (content) _renderFeatures(content);
 }

@@ -1,7 +1,8 @@
 // player-bounty.js: player bounties, "Beat me and win this" (window.PlayerBounty).
 //
-// Server: sql/player-bounties.sql. Any signed-in (not guest) player in a waiting
-// room can add 100 to 500 gold; adds from several players stack. The host is the
+// Server: sql/player-bounties.sql. Starting a bounty needs the 300g unlock
+// (Shop > Features or the waiting-room box); then any signed-in (not guest)
+// player in the waiting room can add 100 to 500 gold; adds stack. The host is the
 // one to beat:
 //   * another signed-in human wins (6+ turns, win confirmed): they get it all,
 //   * the host wins (or a guest wins, or the game was too short): refunds,
@@ -24,6 +25,27 @@
     const coin = (s) => window.emojiSystem?.spriteHtml?.(COIN, s) || '';
     const gami = () => window.gami;
     const isGuest = () => /^Guest[A-Z0-9]{6}$/.test(gami()?.profile?.display_name || '');
+
+    // Starting a bounty is a Shop feature (300g, buy_bounty_feature ->
+    // 'feature_bounty' in cosmetics_owned). Adding to one already up is free.
+    // The Hermit has it free.
+    const PRICE = 300;
+    function owned() {
+        try { if (typeof window.isHermit === 'function' && window.isHermit()) return true; } catch (e) {}
+        const own = gami()?.profile?.cosmetics_owned;
+        return Array.isArray(own) && own.includes('feature_bounty');
+    }
+    async function buy() {
+        const prof = gami()?.profile;
+        if (!prof || !gami()?.userId) return { ok: false, msg: 'Log in first' };
+        if (owned()) return { ok: true };
+        if ((prof.gold || 0) < PRICE) return { ok: false, msg: `Need ${PRICE}g (you have ${prof.gold || 0}g)` };
+        const { data, error } = await S.supabase.rpc('buy_bounty_feature');
+        if (error) return { ok: false, msg: /enough gold/.test(error.message) ? 'Not enough gold' : /already/.test(error.message) ? 'Already unlocked' : 'Could not unlock bounties' };
+        prof.gold = typeof data === 'number' ? data : prof.gold - PRICE;
+        prof.cosmetics_owned = (prof.cosmetics_owned || []).concat(['feature_bounty']);
+        return { ok: true };
+    }
 
     // ------------------------------------------------------------ lobby room cards
     let cards = new Map();
@@ -76,16 +98,30 @@
             : `${coin(0.7)} <b>No bounty yet.</b> Put up gold: whoever beats the host wins it.`;
         const rules = 'If the host wins, everyone gets their gold back. If a bot wins, it goes into the pot. Needs 6+ turns; guests cannot win it.';
         const canAdd = !isGuest();
-        const sig = `${head}|${canAdd}`;
+        const locked = canAdd && !b && !owned();      // starting one needs the unlock
+        const sig = `${head}|${canAdd}|${locked}`;
         if (box.dataset.sig === sig) return;          // keep the input box while typing
         box.dataset.sig = sig;
         box.innerHTML = `<div class="pbounty-head">${head}</div>
             <div class="pbounty-rules">${rules}</div>
-            ${canAdd ? `<div class="pbounty-add">
+            ${locked ? `<div class="pbounty-add">
+                <button type="button" id="pbounty-unlock">Unlock bounties (${PRICE}g)</button>
+                <span class="pbounty-rules">Unlock once to start bounties. Anyone can add to a bounty that is already up.</span>
+                <span id="pbounty-msg"></span></div>`
+            : canAdd ? `<div class="pbounty-add">
                 <input type="number" id="pbounty-amount" min="${MIN}" max="${MAX}" step="50" value="${MIN}">
                 <button type="button" id="pbounty-post">Add to bounty</button>
                 <span id="pbounty-msg"></span></div>` : '<div class="pbounty-rules">Sign in with an account (not a guest) to add gold.</div>'}`;
         box.querySelector('#pbounty-post')?.addEventListener('click', post);
+        box.querySelector('#pbounty-unlock')?.addEventListener('click', async () => {
+            if (!window.confirm(`Unlock bounties for ${PRICE}g? You can then start bounties in any room.`)) return;
+            const res = await buy();
+            const m = box.querySelector('#pbounty-msg');
+            if (!res.ok) { if (m) m.textContent = res.msg; return; }
+            gami()?.notify?.('Bounties unlocked!', 0, 'gold');
+            box.dataset.sig = '';
+            render(box);
+        });
     }
     async function post() {
         if (posting) return;
@@ -103,7 +139,7 @@
             if (error) {
                 const m = error.message || '';
                 say(/enough gold/.test(m) ? 'Not enough gold.' : /before the game/.test(m) ? 'The game already started.'
-                    : /guest/.test(m) ? 'Guests cannot add gold.' : 'Could not add to the bounty.');
+                    : /guest/.test(m) ? 'Guests cannot add gold.' : /unlock/.test(m) ? `Unlock bounties (${PRICE}g) to start one.` : 'Could not add to the bounty.');
                 return;
             }
             if (gami()?.profile) gami().profile.gold = Math.max(0, gold - n);
@@ -166,5 +202,5 @@
         try { settleMine(); } catch (e) {}
     }, 1000);
 
-    window.PlayerBounty = { refreshList, cardBadge, onGameOver, MIN, MAX, current: () => current };
+    window.PlayerBounty = { refreshList, cardBadge, onGameOver, MIN, MAX, PRICE, owned, buy, current: () => current };
 })();
