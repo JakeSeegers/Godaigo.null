@@ -675,12 +675,13 @@
 
             // Hermit rewards on rooms (js/rewards.js, sql/hermit-rewards.sql).
             await window.Rewards?.refreshBounties?.();
+            await window.PlayerBounty?.refreshList?.(); // player bounties (js/player-bounty.js)
             const hermit = typeof window.isHermit === 'function' && window.isHermit();
             list.innerHTML = liveRooms.map(r => {
                 const bounty = window.Rewards?.bountyFor?.(r.id);
                 return `
                 <div class="game-room-card" onclick="joinPublicGame(${r.id})">
-                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${r.test_mode ? ` <span class="game-room-test" title="Test game: bots play every seat to find online bugs, gold for each player">${window.emojiSystem?.spriteHtml?.(70, 0.6) || ''} Test</span>` : ''}${r.stream_mode ? ` <span class="game-room-stream" title="Stream game: Twitch chat votes on what the bots do">${window.emojiSystem?.spriteHtml?.(48, 0.6) || ''} Stream</span>` : ''}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">${window.emojiSystem?.spriteHtml?.(76, 0.6) || ''}Reward</span>` : ''}</div>
+                    <div class="game-room-host">${_esc(r.host_name || 'Unnamed Game')}${r.test_mode ? ` <span class="game-room-test" title="Test game: bots play every seat to find online bugs, gold for each player">${window.emojiSystem?.spriteHtml?.(70, 0.6) || ''} Test</span>` : ''}${r.stream_mode ? ` <span class="game-room-stream" title="Stream game: Twitch chat votes on what the bots do">${window.emojiSystem?.spriteHtml?.(48, 0.6) || ''} Stream</span>` : ''}${bounty ? ` <span class="game-room-bounty" title="The Hermit put a reward on this game">${window.emojiSystem?.spriteHtml?.(76, 0.6) || ''}Reward</span>` : ''}${window.PlayerBounty?.cardBadge?.(r.id) || ''}</div>
                     <div class="game-room-count">${counts[r.id]} / 5</div>
                     ${hermit ? `<button class="game-room-reward-btn" title="Put a reward on this game" onclick="event.stopPropagation(); window.HermitRewards?.openForRoom(${r.id}, ${_esc(JSON.stringify(r.host_name || 'Room ' + r.id))})">${window.emojiSystem?.spriteHtml?.(76, 0.7) || 'Reward'}</button>` : ''}
                     <button class="game-room-join-btn">Join</button>
@@ -1172,6 +1173,7 @@
             window.GamePause?.reset(); // nothing to wait for any more
             window.PotPlinko?.onGameOver(); // the pot drop, when this game qualifies
             window.Rewards?.afterGameOver(); // a Hermit bounty is paid with the win
+            window.PlayerBounty?.onGameOver(); // a player bounty is settled after the win is paid
 
             // Witness report: this browser checks the winner against its own
             // board and tells the server (js/match-witness.js). Once per game.

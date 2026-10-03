@@ -4839,3 +4839,20 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
     font-size: 12px; padding: 1px 6px; border-radius: 10px; margin-left: 6px;
     background: rgba(145, 70, 255, 0.2); border: 1px solid #9146ff; color: #d9c8ff;
 }
+
+/* ── Player bounties (js/player-bounty.js) ───────────────────────────────── */
+.pbounty-box {
+    margin: 8px 0; padding: 8px 10px; border-radius: 6px;
+    background: rgba(240, 192, 64, 0.12); border: 1px solid #f0c040; font-size: 14px; line-height: 1.4;
+}
+.pbounty-head .px-emote { margin-right: 4px; }
+.pbounty-who { color: #d9c9a0; font-size: 13px; }
+.pbounty-rules { font-size: 12px; color: #cdbf9a; margin-top: 3px; }
+.pbounty-add { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.pbounty-add input { width: 80px; font-size: 15px; padding: 2px 6px; }
+.pbounty-add button { padding: 3px 12px; font-size: 14px; }
+#pbounty-msg { font-size: 13px; color: #ffd27a; }
+.game-room-pbounty {
+    font-size: 12px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; white-space: nowrap;
+    background: rgba(240, 192, 64, 0.2); border: 1px solid #f0c040; color: #ffe7a3;
+}

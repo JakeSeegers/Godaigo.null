@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-03: Player bounties.** sql/player-bounties.sql (applied; rollback test passed: limits, outsider, after-start,
+  bot win -> pot, host win -> refund, confirmed non-host win -> paid once, pending stays open, short game -> refund).
+  js/player-bounty.js (waiting room box, card badge, status line, settle at game over + sign-in). Owner choices: host
+  win = full refund, bot / no winner = pot, 100-500g, no guest winner, 6+ turns, others can add.
 - **2026-10-03: Stream mode costs 500g.** buy_stream_mode (applied), locked Stream panel, Shop > Features card.
 - **2026-10-02: Stream votes v2.** Owner tested with real chat (works). New votes: chat picks the player a bot goes
   after / helps, team up (forced pact), keep or betray, cast veto; choices hold N rounds (default 3). Tested with the

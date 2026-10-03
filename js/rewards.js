@@ -154,6 +154,7 @@
         hermit: { from: 'A gift from The Hermit', icon: null, cls: '' },
         gift:   { from: 'A gift!', icon: 'px-generous.png', cls: 'rn-kind-gift' },
         pot:    { from: 'The pot paid out!', icon: 'px-jackpot.png', cls: 'rn-kind-pot' },
+        bounty: { from: 'Bounty', icon: 'px-peoples-champion.png', cls: 'rn-kind-gift' }, // js/player-bounty.js
     };
 
     function showNotice(n) {
