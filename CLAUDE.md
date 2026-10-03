@@ -161,7 +161,8 @@ Order matters — later scripts depend on earlier ones.
                              every game message, gp-resync-request / -moves / -done + fingerprint check. The answer holds
                              only messages after the oldest one the returner still remembers, never its own (same page
                              load); sync/emoji events are not remembered (match 43 replayed old moves). After 60 s:
-                             Wait / Kick (host), Continue without them (host gone), Claim win (last human).
+                             Wait / Kick (host), Continue without them (host gone), Claim win (last human). The host Pause button shows only
+                             when another human is in the game (none in games against bots).
                              docs/network-resilience.md.
 17b. match-recorder.js     ← window.MatchRecorder: HOST-only recording of every online game's broadcast
                              messages to Supabase (`matches` + `match_moves`, sql/match-recording.sql).
@@ -220,8 +221,10 @@ Order matters — later scripts depend on earlier ones.
                              avg score on up to 6 training puzzles; BotArena.hillClimb opts.puzzleCheck gates a
                              would-be promotion on it (hermit Train Bot passes it).
 17e. save-game.js         ← window.SaveGame: save a game vs bots, continue later (docs/saved-games.md, sql/saved-games.sql,
-                             NOT applied yet: the Save button stays hidden until my_saved_game() exists). "Save & quit" (next to
-                             Leave; only human, host, own turn before acting, no bounty): MatchRecorder.flushAll + save_game
+                             NOT applied yet: saving stays off until my_saved_game() exists). In games where you are the only human
+                             the Leave button reads "Save / Leave" (click caught in the capture phase) and asks Save & quit /
+                             Leave without saving / Cancel; other games keep plain Leave. Save & quit (own turn before acting,
+                             no bounty): MatchRecorder.flushAll + save_game
                              (seats with bot weights, turn, MatchWitness fingerprint) + _doLeaveGame. Lobby card (after Quick Play):
                              Continue / Discard. Resume: createPrivateRoom, same bot rows, hostStartGame({resume}) (lobby.js: saved
                              seat index/colour, saved deck seed, settings.resumed_from), every saved move -> GamePause.dispatch with

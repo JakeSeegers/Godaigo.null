@@ -5,8 +5,9 @@
 // Every move of an online game is already on the server (match-recorder.js), so a
 // save just points at the match and keeps the seats (with each bot's weights) and
 // a board fingerprint.
-//   Save & quit (HUD, your turn before you act): send the last moves, save_game(),
-//     then leave the room as usual.
+//   Leave reads "Save / Leave" in these games and asks: Save & quit (your turn,
+//     before you act: send the last moves, save_game(), leave as usual), Leave
+//     without saving, or Cancel. Other games keep the plain Leave button.
 //   Continue (lobby card): load_saved_game() -> a new private room with the same
 //     bots -> hostStartGame({resume}) puts every seat back and uses the saved deck
 //     -> the saved moves are fed through the game's own message handlers (as
@@ -64,32 +65,58 @@
         return null;
     }
 
-    // ------------------------------------------------------------ HUD button
+    // ------------------------------------------------------------ the Leave button
+    // In a game where you are the only human, Leave reads "Save / Leave" and asks:
+    // Save & quit (when allowed), Leave without saving, or Cancel. In games with
+    // other humans (or before the server part is installed) Leave is unchanged.
+    const soloVsBots = () => serverReady && inGame() && S.isMultiplayer && !window.Replay?.state && !rebuilding &&
+        S.isHost && (S.allPlayersData || []).filter(p => !isBotName(p.username)).length === 1;
     function updateButton() {
-        let btn = document.getElementById('save-game-btn');
-        const show = serverReady && inGame() && S.isMultiplayer && !window.Replay?.state && !rebuilding &&
-            (S.allPlayersData || []).filter(p => !isBotName(p.username)).length === 1 && S.isHost;
-        if (!show) { btn?.remove(); return; }
-        if (!btn) {
-            const leave = document.getElementById('leave-game');
-            if (!leave || !leave.parentNode) return;
-            btn = document.createElement('button');
-            btn.id = 'save-game-btn';
-            btn.type = 'button';
-            btn.className = leave.className;
-            btn.textContent = 'Save & quit';
-            btn.onclick = saveAndQuit;
-            leave.parentNode.insertBefore(btn, leave);
-        }
+        const leave = document.getElementById('leave-game');
+        if (!leave) return;
+        const solo = soloVsBots();
+        const want = solo ? 'Save / Leave' : 'Leave';
+        if (leave.textContent !== want) leave.textContent = want;
+        leave.title = solo ? 'Save this game to finish later, or leave it' : '';
+        document.getElementById('save-game-btn')?.remove();   // older builds had a separate button
+    }
+    // Capture phase: runs before the button's own onclick (game-ui.js -> leaveGame()).
+    document.addEventListener('click', (e) => {
+        const btn = e.target?.closest?.('#leave-game');
+        if (!btn || !soloVsBots()) return;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        openLeaveChoice();
+    }, true);
+    function openLeaveChoice() {
+        document.getElementById('save-leave-overlay')?.remove();
         const why = whyNot();
-        btn.disabled = !!why || saving;
-        btn.title = why ? `Save & quit: ${why}` : 'Save this game and finish it later (on any device)';
+        const o = document.createElement('div');
+        o.id = 'save-leave-overlay';
+        o.className = 'retro-dlg-overlay';
+        o.innerHTML = `<div class="retro-dlg-box">
+            <div class="retro-dlg-title">Leave this game?</div>
+            <div class="retro-dlg-line">Save it to finish later (from the lobby, on any device), or leave without saving.</div>
+            ${why ? `<div class="retro-dlg-line save-leave-why">Saving: ${esc(why)}.</div>` : ''}
+            <div class="retro-dlg-btns">
+                <button type="button" data-act="save" ${why ? 'disabled' : ''}>Save &amp; quit</button>
+                <button type="button" data-act="leave">Leave without saving</button>
+                <button type="button" data-act="cancel">Cancel</button>
+            </div></div>`;
+        document.body.appendChild(o);
+        const close = () => o.remove();
+        o.querySelector('[data-act=cancel]').onclick = close;
+        o.querySelector('[data-act=save]').onclick = () => { close(); saveAndQuit(); };
+        o.querySelector('[data-act=leave]').onclick = async () => {
+            close();
+            if (typeof _doLeaveGame === 'function') await _doLeaveGame();
+        };
     }
 
     async function saveAndQuit() {
         const why = whyNot();
         if (why) { alert('You cannot save right now: ' + why + '.'); return; }
-        if (!confirm('Save this game and leave? Continue it later from the lobby. You have one save slot; saving replaces an older save.')) return;
+        if (saved && !confirm('You already have a saved game. Saving this one replaces it. Continue?')) return;
         saving = true;
         updateButton();
         try {

@@ -276,7 +276,8 @@
             hostBtn.onclick = () => setHostPause(!hostPaused);
             anchor.parentNode.insertBefore(hostBtn, anchor.nextSibling);
         }
-        const show = inOnlineGame() && !!g('isHost');
+        // Only with other humans: a game against bots has nobody to pause for.
+        const show = inOnlineGame() && !!g('isHost') && (hostPaused || otherHumansSeated());
         hostBtn.style.display = show ? '' : 'none';
         hostBtn.textContent = hostPaused ? 'Resume' : 'Pause';
     }

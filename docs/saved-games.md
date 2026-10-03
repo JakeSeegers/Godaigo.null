@@ -5,7 +5,9 @@ the save lives on the account (any device).
 
 ## How it works
 - Only online games where you are the only human (Quick Play, rooms of bots). No open bounty.
-- "Save & quit" (next to Leave) works at the start of your own turn, before you act. It sends the
+- In these games the Leave button reads "Save / Leave" and asks: Save & quit, Leave without saving, or
+  Cancel (owner 2026-10-03: one button, not two; Pause is hidden too). Save & quit works at the start
+  of your own turn, before you act. It sends the
   last moves (MatchRecorder.flushAll), calls save_game (seats with each bot's weights, the turn,
   MatchWitness.fingerprint), then leaves the room as usual. One save per account; a new save replaces it.
 - Lobby card "Saved game: turn N vs ..." with Continue and Discard.
