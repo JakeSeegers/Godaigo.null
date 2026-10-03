@@ -1764,7 +1764,12 @@
         window.removeBotPlayer = removeBotPlayer;
 
         // Host starts the game manually
-        async function hostStartGame() {
+        // Resume a saved game (js/save-game.js): saved seats + deck seed.
+        let _resumeSeed = null, _resumeFrom = null;
+        async function hostStartGame(opts) {
+            const resume = opts && opts.resume ? opts.resume : null;
+            _resumeSeed = resume ? resume.deck_seed : null;
+            _resumeFrom = resume ? resume.match_id : null;
             if (!isHost) {
                 alert('Only the host can start the game!');
                 return;
@@ -1848,7 +1853,7 @@
                 // and Twitch chat votes on what they do. Also writes
                 // game_room.stream_mode (start_match copies it to the match).
                 let streamOn = false;
-                try { streamOn = !!(await window.StreamVotes?.prepareHostedGame?.(currentGameId)); } catch (e) { streamOn = false; }
+                if (!resume) { try { streamOn = !!(await window.StreamVotes?.prepareHostedGame?.(currentGameId)); } catch (e) { streamOn = false; } }
                 let elementalBase = null;
                 let elementalOk = false;
                 if (window.BotElements) {
@@ -1876,14 +1881,26 @@
                 // botIndexSet() then silently never drives them (the reported "bots
                 // appear gray and never act" bug). Assigning indices first guarantees no
                 // subscriber can ever observe status='playing' while a row is unassigned.
+                // Resume: every seat goes back to its saved index and colour
+                // (the human by user id, bots by their saved name).
+                const resumeSeats = resume ? (resume.seats || []).slice() : null;
+                const takeSeat = (player) => {
+                    if (!resumeSeats) return null;
+                    const isBotRow = !!window.isBotUsername?.(player.username);
+                    const k = resumeSeats.findIndex(s => isBotRow ? (s.is_bot && s.username === player.username)
+                                                                  : (!s.is_bot && s.user_id === player.user_id));
+                    return k >= 0 ? resumeSeats.splice(k, 1)[0] : null;
+                };
                 for (let i = 0; i < players.length; i++) {
                     const player = players[i];
-                    const assignedIndex = shuffledIndices[i];
-                    const assignedColor = colorRankOrder[assignedIndex];
+                    const saved = takeSeat(player);
+                    if (resume && !saved) throw new Error('This saved game does not match the room seats.');
+                    const assignedIndex = saved ? saved.index : shuffledIndices[i];
+                    const assignedColor = saved ? saved.color : colorRankOrder[assignedIndex];
 
                     const update = { player_index: assignedIndex, color: assignedColor };
 
-                    if (elementalOk && window.isBotUsername?.(player.username)) {
+                    if (!resume && elementalOk && window.isBotUsername?.(player.username)) {
                         const el = window.BotElements.COLOR_ELEMENT[assignedColor];
                         if (el) {
                             update.username = `${window.BOT_USERNAME_PREFIX || '🤖'} ${window.BotElements.NAMES[el]}`;
@@ -2116,6 +2133,8 @@
                     gameDeckSeed = ((gameDeckSeed << 5) - gameDeckSeed + sortedPlayerIds.charCodeAt(i)) | 0;
                 }
                 gameDeckSeed = Math.abs(gameDeckSeed);
+                // Resumed game (js/save-game.js): the saved game's deck.
+                if (isHost && _resumeSeed != null) gameDeckSeed = Number(_resumeSeed);
                 console.log('🎴 Derived deck seed from player IDs:', gameDeckSeed);
 
                 // Hide lobby, show new game layout
@@ -2148,6 +2167,7 @@
                 // Host records the match (replays, cheat checks, stats).
                 if (isHost) {
                     window.MatchRecorder?.start(gameDeckSeed, allPlayers, {
+                        ...(_resumeFrom != null ? { resumed_from: _resumeFrom } : {}),
                         scarce_tiles: scarceTiles,
                         turn_time_ms: gameInactivityTimeout,
                         kick_on_timeout: !!kickOnTurnTimeout,

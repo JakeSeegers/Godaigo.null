@@ -310,6 +310,7 @@
         if (!gameActive()) { handledPlacement.clear(); lastDrivenTurnKey = null; return; }
         if (!iAmDriver()) return;
         if (window.isGamePaused?.()) return; // game-pause.js: wait with the others
+        if (window.SaveGame?.isRebuilding?.()) return; // js/save-game.js: board being rebuilt
 
         const bots = botIndexSet();
         if (!bots.size || !bots.has(activePlayerIndex)) return;

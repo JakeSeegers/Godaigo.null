@@ -522,6 +522,7 @@
 
     window.GamePause = {
         attach, stamp, note, isPaused,
+        dispatch,                 // feed a message through the game channel's own handlers (save-game.js resume)
         peerLeft, peerJoined, selfDown, selfUp,
         setHostPause, reset,
         forget: (seat) => clearDrop(seat, false),

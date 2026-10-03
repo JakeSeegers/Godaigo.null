@@ -164,5 +164,15 @@
         flush().finally(reset);
     }
 
-    window.MatchRecorder = { start, adopt, record, finish, stop };
+    // Save & quit (js/save-game.js): send everything still waiting.
+    async function flushAll(maxMs = 8000) {
+        const t0 = Date.now();
+        while (buffer.length && Date.now() - t0 < maxMs) {
+            await flush();
+            if (buffer.length) await new Promise(r => setTimeout(r, 250));
+        }
+        return buffer.length === 0;
+    }
+    window.MatchRecorder = { start, adopt, record, finish, stop, flushAll,
+        pending: () => buffer.length, matchId: () => matchId };
 })();

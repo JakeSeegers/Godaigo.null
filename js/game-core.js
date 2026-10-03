@@ -6107,6 +6107,7 @@ function clearPlayerPath() {
             // Game paused (a player's connection dropped, or the host paused):
             // no timeouts. game-pause.js gives the paused time back.
             if (window.isGamePaused?.()) return;
+            if (window.SaveGame?.isRebuilding?.()) return; // js/save-game.js: board being rebuilt
 
             const now = window.serverNow();
             const elapsed = now - (turnStartedAtMs || now);

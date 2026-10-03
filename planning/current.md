@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-03: Saved games (owner).** js/save-game.js + lobby.js hostStartGame({resume}) + exports (GamePause.dispatch,
+  MatchRecorder.flushAll / pending / matchId) + isRebuilding guards (bot-driver.js, game-core.js). Tested on the fake
+  server (turn 8 and 23: board, scrolls, common, pools, pawns equal; play went on). OPEN: sql/saved-games.sql NOT applied
+  (Supabase tool timed out once; owner to run it in the SQL editor). The Save button stays hidden until then.
 - **2026-10-03: Bounties are a paid feature.** Owner: unlock 300g to START a bounty (buy_bounty_feature, gate in
   post_player_bounty, applied); adding to an open one stays free. Shop card + unlock button in the waiting room box.
 - **2026-10-03: Game plans step 1.** sql/game-plans.sql (applied; the rollback test call timed out in the Supabase

@@ -4856,3 +4856,21 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
     font-size: 12px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; white-space: nowrap;
     background: rgba(240, 192, 64, 0.2); border: 1px solid #f0c040; color: #ffe7a3;
 }
+
+/* ── Saved games (js/save-game.js) ───────────────────────────────────────── */
+.saved-game-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    margin: 8px 0; padding: 8px 12px; border-radius: 6px;
+    background: rgba(88, 148, 244, 0.14); border: 1px solid #5894f4; font-size: 15px;
+}
+.saved-game-when { font-size: 12px; color: #b8c8e8; margin-left: 6px; }
+.saved-game-actions { display: flex; gap: 8px; }
+.saved-game-actions button { padding: 4px 12px; font-size: 14px; }
+#save-game-overlay {
+    position: fixed; inset: 0; z-index: 10070; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+}
+.save-game-overlay-box {
+    background: #1a1a2e; color: #eee; border: 2px solid #5894f4; border-radius: 8px;
+    padding: 18px 26px; font-size: 18px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
