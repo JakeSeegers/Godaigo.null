@@ -1875,6 +1875,7 @@ function startPlayback(fromBeat) {
   // Fade hiss in slowly to the user-configured level
   if (hissGainNode) hissGainNode.gain.setTargetAtTime(project.masterFx.hissLevel, audioCtx.currentTime, 1.2);
   scheduleCursor = playStartBeat;
+  salsaCursor = playStartBeat;
   currentSectionPlayIdx = Math.max(0, project.sectionOrder.indexOf(activeSectionId));
   sectionBeatOffset = 0;
   ghostCursor = playStartBeat;
@@ -2003,11 +2004,93 @@ function scheduleRevRevGhosts(now) {
   }
 }
 
+// ── Salsa mode (Godaigo in Spanish) ────────────────────────────────
+// Turned on by JoytoneAPI.setSalsa(true) when the player picks Spanish.
+// The tempo goes up a little (setTension) and a light salsa percussion
+// layer plays over the song on the same beat clock: son clave 3-2, a
+// cowbell on every beat (accents on 1 and 3) and a conga tumbao
+// (slap on 2, open tones on 4 and "4-and"). It is synthesized here, so
+// it needs no samples and never changes the song's own tracks.
+let salsaMode = false;
+let salsaCursor = 0;               // next 8th-note step (in beats) to schedule
+const SALSA_TEMPO = 1.12;          // tempo factor in salsa mode
+// Steps in 8ths over a 2-bar (8-beat) cycle: [step, kind, level]
+const SALSA_PATTERN = [
+  [0, 'clave', 1], [3, 'clave', 1], [6, 'clave', 1], [10, 'clave', 1], [12, 'clave', 1],
+  [0, 'bell', 1], [2, 'bell', 0.6], [4, 'bell', 0.9], [6, 'bell', 0.6],
+  [8, 'bell', 1], [10, 'bell', 0.6], [12, 'bell', 0.9], [14, 'bell', 0.6],
+  [2, 'slap', 1], [6, 'conga', 0.9], [7, 'conga', 1],
+  [10, 'slap', 1], [14, 'conga', 0.9], [15, 'conga', 1],
+];
+
+function salsaHit(kind, t, level) {
+  const out = masterBus || audioCtx.destination;
+  const g = audioCtx.createGain();
+  g.connect(out);
+  const stopAt = t + 0.4;
+  if (kind === 'clave') {
+    const o = audioCtx.createOscillator();
+    o.type = 'sine'; o.frequency.setValueAtTime(2500, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22 * level, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(g); o.start(t); o.stop(stopAt);
+  } else if (kind === 'bell') {
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 800; bp.Q.value = 1.2;
+    bp.connect(g);
+    for (const f of [562, 845]) {
+      const o = audioCtx.createOscillator();
+      o.type = 'square'; o.frequency.setValueAtTime(f, t);
+      o.connect(bp); o.start(t); o.stop(stopAt);
+    }
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.07 * level, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  } else if (kind === 'conga') {
+    const o = audioCtx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(240, t);
+    o.frequency.exponentialRampToValueAtTime(190, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.3 * level, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    o.connect(g); o.start(t); o.stop(stopAt);
+  } else if (kind === 'slap' && noiseBuffer) {
+    const n = audioCtx.createBufferSource();
+    n.buffer = noiseBuffer;
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 1800;
+    n.connect(hp); hp.connect(g);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16 * level, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    n.start(t, Math.random() * 0.5); n.stop(t + 0.1);
+  }
+  setTimeout(() => { try { g.disconnect(); } catch (e) {} },
+             Math.max(0, stopAt - audioCtx.currentTime + 0.2) * 1000);
+}
+
+function scheduleSalsa(now, lookUntilBeat) {
+  // Never schedule into the past (after a pause, or when salsa just turned on).
+  const beatNow = currentBeat();
+  if (salsaCursor < beatNow) salsaCursor = Math.ceil(beatNow * 2) / 2;
+  while (salsaCursor < lookUntilBeat) {
+    const step = ((Math.round(salsaCursor * 2) % 16) + 16) % 16;
+    const t = playStartCtxTime + beatToSec(salsaCursor - playStartBeat);
+    if (t >= now - 0.01) {
+      for (const [st, kind, level] of SALSA_PATTERN) if (st === step) salsaHit(kind, t, level);
+    }
+    salsaCursor += 0.5;
+  }
+}
+
 function scheduleAhead() {
   const now = audioCtx.currentTime;
   const lookUntilBeat = secToBeat(now + LOOKAHEAD - playStartCtxTime) + playStartBeat;
 
   scheduleRevRevGhosts(now);
+  if (salsaMode) scheduleSalsa(now, lookUntilBeat);
 
   while (scheduleCursor < lookUntilBeat) {
     // which section are we in?
@@ -6031,11 +6114,13 @@ init();
   const FULL_RATE_HZ = 2000 + 20050 * 1; // 22050 — matches applyDeRezFx()'s sweep at rate=1
   const CRUNCH_RATE_HZ = 2600;
 
+  let _lastTension = 0;
   function setTension(tension) {
     tension = Math.max(0, Math.min(1, +tension || 0));
+    _lastTension = tension;
 
-    // BPM: 94 at tension 0 → 115 at tension 1.
-    const bpm = Math.round(Math.max(94, Math.min(115, 94 + tension * 21)));
+    // BPM: 94 at tension 0 → 115 at tension 1 (x SALSA_TEMPO in salsa mode).
+    const bpm = Math.round(Math.max(94, Math.min(115, 94 + tension * 21)) * (salsaMode ? SALSA_TEMPO : 1));
     // currentBeat()/scheduleAhead() derive the playhead as
     // playStartBeat + secToBeat(now - playStartCtxTime), and secToBeat() uses
     // WHATEVER project.tempo is at call time — not the tempo that was actually
@@ -6117,7 +6202,7 @@ init();
 
   function getState() {
     return { booted, playing: isPlaying, powered: powerOn, muted: _muted, volume: _volume,
-             lookahead: LOOKAHEAD, softClip: !!softClip,
+             lookahead: LOOKAHEAD, softClip: !!softClip, salsa: salsaMode, tempo: project?.tempo,
              used: [...usedGenerations], sections: project?.sectionOrder?.length || 0 };
   }
 
@@ -6141,7 +6226,19 @@ init();
     }
   }, true);
 
-  window.JoytoneAPI = { boot, addTileTheme, setVolume, setMute, setPower, setTension, stop: stopAll, unlock, onShown, onHidden, getState };
+  // Salsa mode on/off (Godaigo sets it from the game language). Re-applies
+  // the current tension so the tempo change goes through the same
+  // re-anchored path as every other tempo change.
+  function setSalsa(on) {
+    on = !!on;
+    if (on === salsaMode) return;
+    salsaMode = on;
+    if (isPlaying && audioCtx) salsaCursor = Math.ceil(currentBeat() * 2) / 2;
+    setTension(_lastTension);
+    setStatus(on ? '💃 Salsa mode on' : 'Salsa mode off');
+  }
+
+  window.JoytoneAPI = { boot, addTileTheme, setVolume, setMute, setPower, setTension, setSalsa, stop: stopAll, unlock, onShown, onHidden, getState };
 })();
 </script>
 

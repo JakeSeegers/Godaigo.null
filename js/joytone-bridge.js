@@ -131,7 +131,13 @@
         // canvas/DOM redraw loop never spins for a view nobody can see.
         (popupVisible ? a.onShown : a.onHidden)?.();
         try { await a.boot(); } catch (e) { console.warn('Joytone boot failed:', e); }
+        a.setSalsa?.(isSalsa());
     }
+
+    // Salsa mode: the soundtrack gets a salsa beat when the game is in Spanish
+    // (js/i18n.js). Follows a language switch mid-game too.
+    function isSalsa() { return window.I18n?.lang === 'es'; }
+    window.I18n?.onChange?.(() => api()?.setSalsa?.(isSalsa()));
 
     async function startForGame() {
         if (gameActive) return;

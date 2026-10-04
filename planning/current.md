@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-04: Joytone salsa mode.** In Spanish the soundtrack plays 12% faster (94 -> 105 BPM at the start) with a
+  synthesized salsa layer (son clave 3-2, cowbell, conga tumbao) on the same beat clock. joytone/index.html setSalsa /
+  scheduleSalsa, joytone-bridge.js sets it at boot and on I18n.onChange. Checked in headless Chromium (state + hit count),
+  not listened to by ear yet.
 - **2026-10-04: Spanish language setting.** js/i18n.js + js/i18n-es.js (about 1,950 lines of Spanish). Picker on the login
   screen and at the top of Settings; saved per browser (localStorage godaigo_lang). The game code stays English; a
   MutationObserver swaps what the player sees. Bots read button text through srcText() (English), and a 4-game arena run
