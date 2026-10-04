@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-04: Spanish language setting.** js/i18n.js + js/i18n-es.js (about 1,950 lines of Spanish). Picker on the login
+  screen and at the top of Settings; saved per browser (localStorage godaigo_lang). The game code stays English; a
+  MutationObserver swaps what the player sees. Bots read button text through srcText() (English), and a 4-game arena run
+  gives the same result in both languages at the same speed. Not translated: dev / hermit panels, changelog.json text,
+  canvas text (lore intro captions, plinko), Train Bot details. New player-facing text needs a line in js/i18n-es.js.
 - **2026-10-03: Smart UI fit experiment.** js/ui-fit.js, OFF by default, Hermit menu toggle. Restore point: commit 3c43404 (the
   layout before this). Owner to try it at different window sizes and decide; if kept, turn it on for everyone.
   Later the same day: also fits the lobby button bar (More menu: Credits, Change Log, Stream, Replays, Plans, Train Bot)
@@ -3250,6 +3255,8 @@ The tutorial text is vague. Make these explicit at the appropriate steps:
 ---
 
 ## Known Open Issues
+- Spanish: text added later without a line in js/i18n-es.js shows in English. Some sentences split by name chips read a bit
+  stiff (game log, bot talk). Gendered words use one form ("contrarrestado").
 - `onPlayerMoved` hook in game-ui.js exists but tutorial-mode.js treats it as no-op
 - Steps 5–14 of tutorial untested in full sequence
 

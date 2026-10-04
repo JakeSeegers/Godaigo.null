@@ -900,6 +900,13 @@ function _renderSettingsView(content) {
         content.innerHTML = `
             <div class="gami-settings-list gami-settings-menu">
                 <div class="pp-flanked-label"><span>Settings</span></div>
+                <div class="gami-settings-row gami-lang-row">
+                    <div class="gami-settings-label">
+                        <div class="gami-settings-name">Language</div>
+                        <div class="gami-settings-desc">Choose the game language</div>
+                    </div>
+                    ${window.I18n ? I18n.pickerHtml() : ''}
+                </div>
                 <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('display')">Display</button>
                 <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('audio')">Audio</button>
                 <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('controls')">Controls</button>

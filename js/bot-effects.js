@@ -62,6 +62,8 @@
 
 (function () {
     'use strict';
+    // English text of a button even when the player plays in Spanish (js/i18n.js).
+    const srcText = el => (!el ? '' : window.I18n ? window.I18n.src(el) : el.textContent);
 
     function log(...args) { console.log('🎯 [BotEffects]', ...args); }
 
@@ -138,7 +140,7 @@
 
     function clickMatching(root, predicate) {
         for (const el of clickableDescendants(root)) {
-            if (predicate(el.textContent || '')) { el.click(); return true; }
+            if (predicate(srcText(el) || '')) { el.click(); return true; }
         }
         return false;
     }
@@ -310,7 +312,7 @@
             const order = [...rankedElements().filter(el => targets.includes(el)), ...targets];
             if (!clickBestElement(modal, order)) {
                 // Nothing clickable after all: close it instead of looping.
-                [...modal.querySelectorAll('button')].find(b => b.textContent === 'Cancel')?.click();
+                [...modal.querySelectorAll('button')].find(b => srcText(b) === 'Cancel')?.click();
                 return false;
             }
         }
@@ -377,12 +379,12 @@
         const buttons = [...modal.querySelectorAll('button')];
         const c = takeChoice('FIRE_SCROLL_5');
         if (c) {
-            const btn = buttons.find(b => b.textContent === seatLabel(c.target));
+            const btn = buttons.find(b => srcText(b) === seatLabel(c.target));
             if (btn) { pendingStep2 = { kind: 'arson', element: c.element }; btn.click(); return true; }
         }
         for (const idx of rankedOpponents()) {
             const name = (typeof getPlayerColorName === 'function') ? getPlayerColorName(idx) : null;
-            const btn = name ? buttons.find(b => b.textContent === name) : null;
+            const btn = name ? buttons.find(b => srcText(b) === name) : null;
             if (btn) { btn.click(); return true; }
         }
         return false;
@@ -397,12 +399,12 @@
             const el = pendingStep2.element;
             pendingStep2 = null;
             const label = el.charAt(0).toUpperCase() + el.slice(1);
-            const btn = buttons.find(b => b.textContent.startsWith(label + ' ('));
+            const btn = buttons.find(b => srcText(b).startsWith(label + ' ('));
             if (btn) { btn.click(); return true; }
         }
         let best = buttons[0], bestCount = -1;
         for (const b of buttons) {
-            const m = b.textContent.match(/\((\d+) in pool\)/);
+            const m = srcText(b).match(/\((\d+) in pool\)/);
             const count = m ? parseInt(m[1], 10) : 0;
             if (count > bestCount) { bestCount = count; best = b; }
         }
@@ -432,24 +434,24 @@
         const c = takeChoice('CATACOMB_SCROLL_8');
         if (c) {
             const name = seatLabel(c.target);
-            const btn = name && buttons.find(b => b.textContent.startsWith(name + ' -') && typeof b.onclick === 'function');
+            const btn = name && buttons.find(b => srcText(b).startsWith(name + ' -') && typeof b.onclick === 'function');
             if (btn) { pendingStep2 = { kind: 'plunder', scroll: c.scroll }; btn.click(); return true; }
         }
         for (const idx of rankedOpponents(p => p.active && p.active.length > 0)) {
             const name = (typeof getPlayerColorName === 'function') ? getPlayerColorName(idx) : null;
-            const btn = name ? buttons.find(b => b.textContent.startsWith(name) && b.textContent.includes('active')) : null;
+            const btn = name ? buttons.find(b => srcText(b).startsWith(name) && srcText(b).includes('active')) : null;
             if (btn) { btn.click(); return true; }
         }
         return false;
     }
 
     function drivePlunderScrollPick(modal) {
-        const buttons = [...modal.querySelectorAll('button')].filter(b => b.textContent !== 'Cancel');
+        const buttons = [...modal.querySelectorAll('button')].filter(b => srcText(b) !== 'Cancel');
         if (!buttons.length) return false;
         if (pendingStep2?.kind === 'plunder') {
             const want = window.SCROLL_DEFINITIONS?.[pendingStep2.scroll]?.name;
             pendingStep2 = null;
-            const btn = want && buttons.find(b => b.textContent === want);
+            const btn = want && buttons.find(b => srcText(b) === want);
             if (btn) { btn.click(); return true; }
         }
         pickStrongestButton(buttons).click();
@@ -474,7 +476,7 @@
     function driveScholarsInsight() {
         const modal = document.getElementById('scholars-insight-modal');
         if (!modal) return false;
-        const heading = modal.querySelector('h3')?.textContent || '';
+        const heading = srcText(modal.querySelector('h3')) || '';
         const guard = !!(window.BotSystem?.fetchWanted?.() || window.BotSystem?.guardWanted?.());
         // The pact's scholar fetches the pact's attack scroll (Take Flight
         // from the wind deck, Mason's Savvy from the earth deck).
@@ -500,7 +502,7 @@
         const cards = clickableDescendants(modal).filter(c => c.tagName === 'DIV');
         let best = null, bestScore = -Infinity;
         for (const card of cards) {
-            const name = card.firstElementChild?.textContent || '';
+            const name = srcText(card.firstElementChild) || '';
             if (wantDef && name === wantDef.name) { best = card; break; }
             if (guard && (name === 'Psychic' || name === 'Iron Stance')) { best = card; break; }
             const score = pickScore(scrollIdByDisplayName(name, deckEl));
@@ -526,11 +528,11 @@
     }
 
     function pickWeakestButton(buttons) {
-        const responseOnly = buttons.find(b => scrollDefByDisplayName(b.textContent)?.isResponse);
+        const responseOnly = buttons.find(b => scrollDefByDisplayName(srcText(b))?.isResponse);
         if (responseOnly) return responseOnly;
         let worst = buttons[0], worstLevel = Infinity;
         for (const b of buttons) {
-            const level = scrollDefByDisplayName(b.textContent)?.level ?? 0;
+            const level = scrollDefByDisplayName(srcText(b))?.level ?? 0;
             if (level < worstLevel) { worstLevel = level; worst = b; }
         }
         return worst;
@@ -541,7 +543,7 @@
     function pickStrongestButton(buttons) {
         let best = buttons[0], bestLevel = -1;
         for (const b of buttons) {
-            const level = scrollDefByDisplayName(b.textContent)?.level ?? 0;
+            const level = scrollDefByDisplayName(srcText(b))?.level ?? 0;
             if (level > bestLevel) { bestLevel = level; best = b; }
         }
         return best;
@@ -582,7 +584,7 @@
     // heading text set by showScrollSelectionModal()'s title param.
     // ----------------------------------------------------------------
     function driveSacrificialPyre(modal) {
-        const buttons = [...modal.querySelectorAll('button')].filter(b => b.textContent !== 'Cancel');
+        const buttons = [...modal.querySelectorAll('button')].filter(b => srcText(b) !== 'Cancel');
         if (!buttons.length) return false;
         pickWeakestButton(buttons).click();
         return true;
@@ -603,10 +605,10 @@
         if (want) ranked = [want.element, ...ranked.filter(e => e !== want.element)]; // the pact's scroll
         for (const el of ranked) {
             const label = el.charAt(0).toUpperCase() + el.slice(1);
-            const btn = [...modal.querySelectorAll('button')].find(b => !b.disabled && b.textContent.startsWith(label));
+            const btn = [...modal.querySelectorAll('button')].find(b => !b.disabled && srcText(b).startsWith(label));
             if (btn) {
                 btn.click(); // toggles this deck into the (max 1) selection
-                const confirmBtn = [...modal.querySelectorAll('button')].find(b => b.textContent === 'Confirm');
+                const confirmBtn = [...modal.querySelectorAll('button')].find(b => srcText(b) === 'Confirm');
                 confirmBtn?.click();
                 return true;
             }
@@ -616,14 +618,14 @@
 
     // Put back the drawn scroll that helps least (bot.js scrollPickScore).
     function driveInspiringDraughtPutBack(modal) {
-        const buttons = [...modal.querySelectorAll('button')].filter(b => b.textContent !== 'Cancel');
+        const buttons = [...modal.querySelectorAll('button')].filter(b => srcText(b) !== 'Cancel');
         if (!buttons.length) return false;
         if (!window.BotSystem?.scrollPickScore) { pickWeakestButton(buttons).click(); return true; }
         let worst = buttons[0], worstScore = Infinity;
         const want = window.SCROLL_DEFINITIONS?.[window.BotSystem?.scholarWanted?.()];
         for (const b of buttons) {
-            if (want && b.textContent === want.name) continue; // keep the pact's scroll
-            const score = pickScore(scrollIdByDisplayName(b.textContent, null));
+            if (want && srcText(b) === want.name) continue; // keep the pact's scroll
+            const score = pickScore(scrollIdByDisplayName(srcText(b), null));
             if (score < worstScore) { worstScore = score; worst = b; }
         }
         worst.click();
@@ -635,7 +637,7 @@
     function driveScrollSelectModal() {
         const modal = document.getElementById('scroll-select-modal');
         if (!modal) return false;
-        const heading = modal.querySelector('h3')?.textContent || '';
+        const heading = srcText(modal.querySelector('h3')) || '';
         if (heading.startsWith('Select a scroll to sacrifice')) return driveSacrificialPyre(modal);
         if (heading.startsWith('Choose one ') && heading.includes('scroll to put back')) {
             return driveInspiringDraughtPutBack(modal);
@@ -647,7 +649,7 @@
     function driveDeckSelectModal() {
         const modal = document.getElementById('deck-select-modal');
         if (!modal) return false;
-        const heading = modal.querySelector('h3')?.textContent || '';
+        const heading = srcText(modal.querySelector('h3')) || '';
         if (heading.startsWith('Select 1 deck')) return driveInspiringDraughtDeck(modal);
         return false; // enterDeckDrawMode's N>1 variant exists but is unused by any live scroll
     }
@@ -687,7 +689,7 @@
 
         const target = Math.min(maxTotalAP, window.BotSystem?.WEIGHTS?.transmuteTargetAP ?? 7);
         const buttons = [...modal.querySelectorAll('button')];
-        const doneBtn = buttons.find(b => b.textContent === 'Done');
+        const doneBtn = buttons.find(b => srcText(b) === 'Done');
 
         if (currentTotalAP >= target) {
             doneBtn?.click();
@@ -702,11 +704,11 @@
         // — and skipping it is what keeps BotSim's Transmute mirror exact,
         // since a void discard clamps voidAP through a current/void AP split
         // the snapshot doesn't carry.
-        const stoneButtons = buttons.filter(b => /^Discard 1 /.test(b.textContent) &&
-            !/^Discard 1 void/.test(b.textContent) && !b.disabled);
+        const stoneButtons = buttons.filter(b => /^Discard 1 /.test(srcText(b)) &&
+            !/^Discard 1 void/.test(srcText(b)) && !b.disabled);
         let best = null, bestCount = -1;
         stoneButtons.forEach(b => {
-            const m = b.textContent.match(/\((\d+)\)$/);
+            const m = srcText(b).match(/\((\d+)\)$/);
             const count = m ? parseInt(m[1], 10) : 0;
             if (count > bestCount) { bestCount = count; best = b; }
         });
@@ -846,7 +848,7 @@
     function driveExcavateTeleportModal() {
         const modal = document.getElementById('excavate-teleport-modal');
         if (!modal) return false;
-        const btn = [...modal.querySelectorAll('button')].find(b => b.textContent === 'Teleport');
+        const btn = [...modal.querySelectorAll('button')].find(b => srcText(b) === 'Teleport');
         if (!btn) return false;
         btn.click();
         return true;
@@ -920,7 +922,7 @@
         const aimed = pc && pc.target != null
             ? buttons.find(b => b.dataset.playerIndex != null && Number(b.dataset.playerIndex) === pc.target)
             : null;
-        const btn = aimed || off || buttons.find(b => b.textContent.includes('(you)'));
+        const btn = aimed || off || buttons.find(b => srcText(b).includes('(you)'));
         if (!btn) return false;
         btn.click();
         return true;

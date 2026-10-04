@@ -323,7 +323,7 @@
             // cleanup + reload), then join right after the reload.
             if (onGameOver()) {
                 try { sessionStorage.setItem(JOIN_KEY, JSON.stringify({ game: inv.game_id, at: Date.now() })); } catch (e) {}
-                const back = [...document.querySelectorAll('#game-over-notification button')].find(x => /Return to Lobby/i.test(x.textContent));
+                const back = [...document.querySelectorAll('#game-over-notification button')].find(x => /Return to Lobby/i.test(window.srcText ? srcText(x) : x.textContent));
                 if (back) { back.click(); return; }
             }
             if (whereAmI() !== 'lobby') { alert('Leave your current room or game first, then accept the invite.'); return; }

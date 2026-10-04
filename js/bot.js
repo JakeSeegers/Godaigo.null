@@ -21,6 +21,8 @@
 
 (function () {
     'use strict';
+    // English text of a button even when the player plays in Spanish (js/i18n.js).
+    const srcText = el => (!el ? '' : window.I18n ? window.I18n.src(el) : el.textContent);
 
     function log(...args) { console.log('🤖 [Bot]', ...args); }
 
@@ -4862,8 +4864,8 @@
             const cascade = document.getElementById('cascade-popup');
             if (cascade) {
                 const buttons = [...cascade.querySelectorAll('button')];
-                const pick = buttons.find(b => b.textContent === 'To Active') ||
-                             buttons.find(b => b.textContent === 'To Common');
+                const pick = buttons.find(b => srcText(b) === 'To Active') ||
+                             buttons.find(b => srcText(b) === 'To Common');
                 if (pick) { log(`Cascade prompt: choosing "${pick.textContent}"`); pick.click(); }
                 await tick(250);
                 continue;

@@ -18,6 +18,8 @@
 (function () {
     const ELEMENT_TYPES_L1 = ['earth', 'water', 'fire', 'wind', 'void'];
     'use strict';
+    // English text of a button even when the player plays in Spanish (js/i18n.js).
+    const srcText = el => (!el ? '' : window.I18n ? window.I18n.src(el) : el.textContent);
 
     const ELEMENTS = ['earth', 'water', 'fire', 'wind', 'void'];
     const HEX_NEAR = 5;   // px — "same hex" threshold (matches game-core usage)
@@ -815,13 +817,13 @@
                 // the scroll this action asked for (otherwise the cast
                 // silently no-ops and the caller loops on it forever).
                 const title = [...document.querySelectorAll('h3')]
-                    .find(h => h.textContent === 'Select Scroll to Activate');
+                    .find(h => srcText(h) === 'Select Scroll to Activate');
                 const popup = title?.parentElement?.parentElement;
                 if (popup) {
                     const displayName = window.spellSystem.patterns?.[a.scroll]?.name ||
                                         window.SCROLL_DEFINITIONS?.[a.scroll]?.name || a.scroll;
                     const btn = [...popup.querySelectorAll('button')]
-                        .find(b => b.textContent.startsWith(displayName));
+                        .find(b => srcText(b).startsWith(displayName));
                     if (btn) { btn.click(); return { ok: true }; }
                     popup.querySelector('button[title="Close"]')?.click();
                     return { ok: false, reason: `selection popup had no option for ${a.scroll}` };

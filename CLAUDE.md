@@ -109,6 +109,13 @@ Order matters — later scripts depend on earlier ones.
                              (and not typing): re-fetch every own file with cache:'reload', then reload
                              (once per version). In a waiting room: banner with a Reload button. In a game,
                              tutorial or replay: waits. Bump with tools/bump-version.js (HOUSE RULES #4).
+0b. i18n.js               ← window.I18n: game language (English / Spanish). Saved in localStorage godaigo_lang. Picker on the
+                             login screen (#auth-screen .auth-lang-picker) and at the top of Settings (I18n.pickerHtml()).
+                             Spanish: loads js/i18n-es.js (window.I18N_ES, English text -> Spanish, {0} = names/numbers) and a
+                             MutationObserver swaps page text + title/placeholder/aria-label, plus alert/confirm/prompt. Game code
+                             keeps writing English. Code that READS button/heading text must use I18n.src(el) (English); the bot
+                             files have a local srcText(). translate="no" / .no-i18n = left alone. English: nothing loaded.
+                             NEW PLAYER-FACING TEXT: add its Spanish line to js/i18n-es.js.
 1. boot-splash.js          ← Studio/logo intro video (chroma-keyed canvas), plays once per page load. No game deps — loads first.
 2. scroll-definitions.js   ← SCROLL_DECKS, SCROLL_DEFINITIONS globals
 3. scroll-effects.js       ← ScrollEffects namespace (depends on scroll-definitions)

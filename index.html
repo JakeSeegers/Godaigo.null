@@ -79,6 +79,11 @@
 
     <!-- Auth Screen (shown before lobby) -->
     <div id="auth-screen" class="auth-screen">
+        <!-- Language switch (js/i18n.js). Also in Settings. -->
+        <div class="lang-picker auth-lang-picker" translate="no" role="group" aria-label="Language / Idioma">
+            <button type="button" class="lang-pick-btn" data-lang-pick="en" onclick="window.I18n && I18n.setLang('en')">English</button>
+            <button type="button" class="lang-pick-btn" data-lang-pick="es" onclick="window.I18n && I18n.setLang('es')">Español</button>
+        </div>
         <h2 class="auth-title" id="auth-title">Sign In</h2>
         <div class="auth-fields">
             <input type="text" id="auth-username" placeholder="Username" class="auth-input">
@@ -218,7 +223,7 @@
             <!-- Room name header (static once set) -->
             <div id="room-name-display" style="margin-bottom: 10px; padding: 6px 0;">
                 <span style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Room</span>
-                <span id="room-name-value" style="font-size: 20px; font-weight: bold; margin-left: 10px;"></span>
+                <span id="room-name-value" translate="no" style="font-size: 20px; font-weight: bold; margin-left: 10px;"></span>
                 <!-- Host only (js/lobby.js showWaitingRoom): rename the room here, saved on Enter / leaving the box -->
                 <input type="text" id="room-name-edit" class="room-name-edit" maxlength="30" style="display: none;"
                        title="Room name (press Enter to save)" aria-label="Room name">
@@ -677,6 +682,8 @@
     <!-- JavaScript -->
     <!-- Boot splash (no game deps — runs first) -->
     <script src="js/version.js" charset="UTF-8"></script>
+    <!-- Game language (English / Spanish). Loads js/i18n-es.js only when Spanish is picked. -->
+    <script src="js/i18n.js" charset="UTF-8"></script>
     <script src="js/boot-splash.js" charset="UTF-8"></script>
     <!-- Supabase: must precede multiplayer-state.js; kept after boot-splash.js
          so the boot screen is up before this third-party script runs. -->

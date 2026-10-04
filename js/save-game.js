@@ -76,7 +76,7 @@
         if (!leave) return;
         const solo = soloVsBots();
         const want = solo ? 'Save / Leave' : 'Leave';
-        if (leave.textContent !== want) leave.textContent = want;
+        if ((window.srcText ? srcText(leave) : leave.textContent) !== want) leave.textContent = want;
         leave.title = solo ? 'Save this game to finish later, or leave it' : '';
         document.getElementById('save-game-btn')?.remove();   // older builds had a separate button
     }

@@ -2,6 +2,15 @@
   "_readme": "Player-facing release notes, newest first, shown by the Change Log button in the lobby. Rules (full text: HOUSE RULES #2 in CLAUDE.md): at most ONE entry per day, id = date. If today's entry exists, rewrite it as one summary of the whole day; do not add a second entry. At most 5 lines per entry. Only list changes players will notice; group small fixes into one 'Small fixes and polish' line. Simple English, no file names, no em dashes.",
   "entries": [
     {
+      "id": "2026-10-04",
+      "date": "2026-10-04",
+      "title": "Juego en español / Spanish",
+      "changes": [
+        "New: play in Spanish. Pick English or Español on the sign-in screen, or change it any time at the top of Settings.",
+        "Spanish covers the game: scrolls, rules, buttons, messages, the game log, the tutorial, the lobby and the shop."
+      ]
+    },
+    {
       "id": "2026-10-03",
       "date": "2026-10-03",
       "title": "Plan games with friends, player bounties",
