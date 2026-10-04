@@ -126,7 +126,7 @@ Order matters — later scripts depend on earlier ones.
                              is stamped by the server (trigger). Match 43: a player's clock was 107 s slow.
 6. connection-monitor.js   ← window.ConnectionMonitor — network health badge + isWorkable() gate (depends only on multiplayer-state.js's SUPABASE_URL)
 7. sounds.js               ← window.SoundSystem — SFX + login music
-8. joytone-bridge.js       ← window.JoytoneBridge — adaptive music via hidden joytone/ iframe (Shift+J+T popup).
+8. joytone-bridge.js       ← window.JoytoneBridge: adaptive music via hidden joytone/ iframe (Shift+J+T popup).
                              Salsa mode: in Spanish (I18n.lang 'es', also on a mid-game switch) calls JoytoneAPI.setSalsa(true):
                              tempo x1.12 and a synthesized clave 3-2 / cowbell / conga layer (joytone/index.html scheduleSalsa).
 9. game-core.js            ← SpellSystem, placeTile, revealTile, addAP, movement. Also the REAL home of TILE_SIZE/STONE_TYPES/PLAYER_COLORS/etc. (config.js is dead — see above)
