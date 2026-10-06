@@ -121,6 +121,14 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-06: Why online test games hit the 80-turn cap (found, not fixed).** Reproduced with two autopilot
+  windows on a local fake server (no delay): some 2-player games stall for 40+ turns once every tile is revealed.
+  Stall dump (turn 50): P0 has 4/5, needs fire, holds only FIRE_SCROLL_3 (Sacrificial Pyre), which needs another
+  scroll above level I in hand/active to sacrifice, and its hand is empty; P1 has 3/5, holds CATACOMB_SCROLL_10
+  (fire+void), with an almost empty pool. No tiles left to reveal = no new scrolls, and the bots do not plan the ways out
+  (Heavy Stomp to hide and re-reveal a tile, Scholar's Insight, Inspiring Draught, ...). The arena hides this: its stall
+  detector restarts the game with new cards. Lag is not the cause (it stalls with no delay too). Tool:
+  scratchpad fake-supabase-multi.js (BroadcastChannel between pages, fakesb_lag_ms).
 - **2026-10-06: First online test runs (rooms 917-919, owner's PC, read from test_reports + match_fingerprints).**
   Boards never stayed out of sync: mismatches only on turn 1 (known), room 918 turn 11 (stones + pawns) and room 919
   turns 76-77 (pawns), each matching again the next turn = snapshots taken while moves were still arriving.
