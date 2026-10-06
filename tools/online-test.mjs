@@ -95,8 +95,13 @@ async function playOne(pages, n) {
     await host.waitForFunction(() => { try { return currentGameId != null; } catch (e) { return false; } }, null, { timeout: 30000 });
     const roomId = await host.evaluate(() => currentGameId);
     // test switch (js/test-game.js adds it to the host settings)
-    await host.waitForSelector('#test-mode-toggle', { timeout: 30000 });
+    // The checkbox can be hidden by the page's styling, so wait for it to exist
+    // (not to be visible) and click it from code; then check the room really
+    // became a test room (the banner js/test-game.js shows for test rooms).
+    await host.waitForSelector('#test-mode-toggle', { state: 'attached', timeout: 30000 });
     await host.evaluate(() => { const b = document.getElementById('test-mode-toggle'); if (!b.checked) b.click(); });
+    await host.waitForSelector('#test-game-room-banner', { state: 'attached', timeout: 15000 })
+        .catch(() => { throw new Error('the room did not turn into a test room (Test game switch had no effect)'); });
     say(`game ${n}: test room ${roomId}`);
     for (const p of rest) {
         await p.evaluate((id) => joinPublicGame(id), roomId);
