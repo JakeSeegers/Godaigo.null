@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-06: Spanish -> English left Spanish lobby buttons.** Smart UI fit saved the (Spanish) label before its short
+  label and wrote it back after the switch. ui-fit.js saves I18n.src(el) now; i18n.js stop() adds a reverse pass + reverse
+  observer (exact lines). Reproduced on the old code (Change Log / Train Bot buttons), clean on the new. Spanish short
+  labels added (Novedades, Entrenar bot, ...).
 - **2026-10-06: No ending a turn on another player's tile (owner rule).** Crossing is fine, the centre stays
   blocked, ending a turn on any hex within TILE_SIZE*4 of another player's tile centre (tile + bridge hexes) is
   not, unless stranded (0 AP / no move, same escape as a stone). game-core.js isPlayerOnOpponentTile (+ widened

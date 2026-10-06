@@ -187,12 +187,59 @@
         }
     }
 
-    function start() {
+    function startTranslate() {
         if (observer || !dict || !document.body) return;
         walk(document.body);
         observer = new MutationObserver(onMutations);
         observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
     }
+
+    // Spanish -> English for exact table lines (no patterns). Used after a
+    // switch back to English: code that saved a label while Spanish was on
+    // (Smart UI fit's short labels did) can write that Spanish copy back
+    // later, as a new text node this file never translated. Spanish values
+    // that belong to two English lines ("Vacío") are left out.
+    var reverse = null;
+    function buildReverse() {
+        if (reverse || !dict) return;
+        reverse = new Map();
+        var twice = new Set();
+        dict.forEach(function (es, en) {
+            if (!es || es === en) return;
+            if (reverse.has(es) && reverse.get(es) !== en) twice.add(es);
+            else reverse.set(es, en);
+        });
+        twice.forEach(function (es) { reverse.delete(es); });
+    }
+    function backToEnglish(s) {
+        if (!reverse || !s || !/[A-Za-zÀ-ÿ]/.test(s)) return null;
+        var lead = /^\s*/.exec(s)[0], trail = /\s*$/.exec(s)[0];
+        var en = reverse.get(s.slice(lead.length, s.length - trail.length).replace(/\s+/g, ' '));
+        return en == null ? null : lead + en + trail;
+    }
+    function revertNode(n) {
+        if (n.nodeType === 3) {
+            if (n.parentNode && skipEl(n.parentNode)) return;
+            var t = backToEnglish(n.nodeValue);
+            if (t != null && t !== n.nodeValue) n.nodeValue = t;
+        } else if (n.nodeType === 1 && n.getAttribute) {
+            if (skipEl(n)) return;
+            ATTRS.forEach(function (a) {
+                var v = n.getAttribute(a);
+                var t = v && backToEnglish(v);
+                if (t != null && t !== v) n.setAttribute(a, t);
+            });
+        }
+    }
+    function revertTree(root) {
+        if (!root) return;
+        revertNode(root);
+        if (root.nodeType !== 1 && root.nodeType !== 9) return;
+        var w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+        var n;
+        while ((n = w.nextNode())) revertNode(n);
+    }
+    var reverseObserver = null;
 
     function stop() {
         if (observer) { observer.disconnect(); observer = null; }
@@ -212,6 +259,29 @@
                 attrOrig.delete(n);
             }
         }
+        // Then catch Spanish copies that code wrote back, now and for the rest
+        // of this page load (only after Spanish was on here; costs nothing otherwise).
+        buildReverse();
+        revertTree(document.body);
+        if (!reverseObserver && reverse) {
+            reverseObserver = new MutationObserver(function (list) {
+                for (var i = 0; i < list.length; i++) {
+                    var m = list[i];
+                    if (m.type === 'characterData' || m.type === 'attributes') revertNode(m.target);
+                    else for (var j = 0; j < m.addedNodes.length; j++) {
+                        var a = m.addedNodes[j];
+                        if (a.nodeType === 1 && a.namespaceURI === 'http://www.w3.org/2000/svg') continue;
+                        revertTree(a);
+                    }
+                }
+            });
+            reverseObserver.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+        }
+    }
+
+    function start() {
+        if (reverseObserver) { reverseObserver.disconnect(); reverseObserver = null; }
+        startTranslate();
     }
 
     function loadTable() {

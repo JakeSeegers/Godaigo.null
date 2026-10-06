@@ -58,7 +58,7 @@
         for (const id in SHORT) {
             const el = document.getElementById(id);
             if (!el || !bar.contains(el) || el.children.length) continue;
-            if (on) { if (!el.dataset.longLabel) el.dataset.longLabel = el.textContent; el.textContent = SHORT[id]; }
+            if (on) { if (!el.dataset.longLabel) el.dataset.longLabel = window.I18n ? I18n.src(el) : el.textContent; el.textContent = SHORT[id]; }
             else if (el.dataset.longLabel) { el.textContent = el.dataset.longLabel; delete el.dataset.longLabel; }
         }
     }
@@ -108,7 +108,7 @@
         for (const el of b.bar().querySelectorAll('[data-ui-fit-hidden]')) {
             const item = document.createElement('button');
             item.type = 'button';
-            item.textContent = MORE_LABEL[el.id] || el.dataset.longLabel || el.textContent.trim() || el.title || el.id;
+            item.textContent = MORE_LABEL[el.id] || el.dataset.longLabel || (window.I18n ? I18n.src(el) : el.textContent).trim() || el.title || el.id;
             if (hasDot(el)) item.classList.add('ui-fit-dot');
             item.onclick = () => { menu.remove(); el.click(); };
             menu.appendChild(item);

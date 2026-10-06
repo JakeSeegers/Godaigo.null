@@ -113,7 +113,7 @@ Order matters — later scripts depend on earlier ones.
                              login screen (#auth-screen .auth-lang-picker) and at the top of Settings (I18n.pickerHtml()).
                              Spanish: loads js/i18n-es.js (window.I18N_ES, English text -> Spanish, {0} = names/numbers) and a
                              MutationObserver swaps page text + title/placeholder/aria-label, plus alert/confirm/prompt. Game code
-                             keeps writing English. Code that READS button/heading text must use I18n.src(el) (English); the bot
+                             keeps writing English. Code that READS button/heading text (or saves a label to put back later) must use I18n.src(el) (English); the bot
                              files have a local srcText(). translate="no" / .no-i18n = left alone. English: nothing loaded.
                              NEW PLAYER-FACING TEXT: add its Spanish line to js/i18n-es.js.
 1. boot-splash.js          ← Studio/logo intro video (chroma-keyed canvas), plays once per page load. No game deps — loads first.

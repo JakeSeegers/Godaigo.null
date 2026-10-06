@@ -1946,4 +1946,9 @@ window.I18N_ES = {
     "🔮 {0}'s Psychic triggered: activated {1} (counts as void only).": "🔮 Psíquico de {0} se activó: activó {1} (solo cuenta como vacío).",
     "🪞 {0}'s Reflect triggered: activated {1} (counts as water only).": "🪞 Reflejar de {0} se activó: activó {1} (solo cuenta como agua).",
     "You can't end your turn on another player's tile - move off it first.": "No puedes terminar tu turno en la loseta de otro jugador: sal de ella primero.",
+    "Rules": "Reglas",
+    "Undo": "Deshacer",
+    "Train Bot": "Entrenar bot",
+    "News": "Novedades",
+    "More": "Más",
 };
