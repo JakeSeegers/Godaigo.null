@@ -30,3 +30,16 @@ Solo vs 2 bots, saved at turn 8 and at turn 23, page reloaded, Continue: board f
 player's hand / active / activated scrolls, common area, stone pools and pawn positions all equal
 to the moment of saving; my turn with 5 AP; the save used up; play went on 6 more turns, no errors.
 Resume took 4-8 s.
+
+## Stone check (2026-10-06)
+Question: does Continue load stones correctly? Tested with an in-page fake server: Quick Play, a bot
+brain plays your seat, Save & quit at turn 14-24, page reload, Continue, then a full compare.
+- The game data was right every time: every player's stone pool, the shared source pools, every stone
+  on the board, void AP, scrolls, pawns, AP.
+- Bug found and fixed: the stone counters on screen showed 0/5 for every element after Continue. While
+  rebuilding you are a spectator (seat -1), the counters read that empty seat's pool, and nothing redrew
+  them when your seat came back. resume() now drops playerPools[-1] and redraws the stone counters,
+  panels and opponent cards after step 4. After the fix: 3 runs (turns 15, 24, 23; 2-3 bots; once in
+  seat 1 with void stones), zero differences, screen counters included.
+- Note: the board fingerprint checked at resume covers tiles, board stones, pawns and activated
+  elements, not the stone pools. The pools come from the last player-state-update of each player.

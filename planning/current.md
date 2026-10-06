@@ -121,6 +121,11 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-06: Saved games load stones correctly; screen counters fixed.** Tested save at turn 14-24 ->
+  reload -> Continue with an in-page fake Supabase: pools, source pools, board stones, scrolls, pawns, AP all
+  equal. Fixed: the stone counters showed 0/5 after Continue (drawn for spectator seat -1, never redrawn).
+  js/save-game.js resume() redraws after the seat comes back. Saving is still off until sql/saved-games.sql
+  is applied. Details: docs/saved-games.md "Stone check".
 - **2026-10-04: Joytone salsa mode.** In Spanish the soundtrack plays 12% faster (94 -> 105 BPM at the start) with a
   synthesized salsa layer (son clave 3-2, cowbell, conga tumbao) on the same beat clock. joytone/index.html setSalsa /
   scheduleSalsa, joytone-bridge.js sets it at boot and on I18n.onChange. Checked in headless Chromium (state + hit count),

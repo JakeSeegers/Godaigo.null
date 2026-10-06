@@ -261,6 +261,16 @@
                 const apEl = document.getElementById('ap-count');
                 if (apEl) apEl.textContent = currentAP;
             }
+            // The screen was drawn for the spectator seat (-1) while rebuilding:
+            // the stone counters showed that empty seat's pool (all 0) and stayed
+            // that way. Drop that pool and redraw everything for your seat.
+            try { if (typeof playerPools !== 'undefined') delete playerPools[-1]; } catch (e) {}
+            try {
+                if (typeof window.updateStoneCount === 'function') ['earth', 'water', 'fire', 'wind', 'void'].forEach(t => window.updateStoneCount(t));
+                if (typeof updateHUD === 'function') updateHUD();
+                window.ScrollPanelSystem?.refresh?.();
+                if (typeof updateOpponentPanel === 'function') updateOpponentPanel();
+            } catch (e) { log('redraw after rebuild failed', e); }
             try { turnStartedAtMs = window.serverNow(); } catch (e) {}
             try { if (typeof updateEndTurnButtonVisibility === 'function') updateEndTurnButtonVisibility(); } catch (e) {}
             try { if (typeof persistCurrentTurnIndex === 'function') persistCurrentTurnIndex(S.activePlayerIndex); } catch (e) {}
