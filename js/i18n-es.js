@@ -1951,4 +1951,6 @@ window.I18N_ES = {
     "Train Bot": "Entrenar bot",
     "News": "Novedades",
     "More": "Más",
+    "3D Pieces": "Piezas 3D",
+    "Pawns and stones look like thick pucks": "Los peones y las piedras parecen discos gruesos",
 };

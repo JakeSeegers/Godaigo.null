@@ -813,7 +813,16 @@ function _renderSettingsView(content) {
         </div>
     `;
 
+    const pieces3d = window.Piece3D ? window.Piece3D.isOn() : true;
     const displayHtml = `
+        <div class="gami-settings-row">
+            <div class="gami-settings-label">
+                <div class="gami-settings-name">3D Pieces</div>
+                <div class="gami-settings-desc">Pawns and stones look like thick pucks</div>
+            </div>
+            <button class="gami-toggle ${pieces3d ? 'on' : 'off'}"
+                    onclick="window.Piece3D?.toggle(this)">${pieces3d ? 'ON' : 'OFF'}</button>
+        </div>
         <div class="gami-settings-row">
             <div class="gami-settings-label">
                 <div class="gami-settings-name">Scanlines</div>
