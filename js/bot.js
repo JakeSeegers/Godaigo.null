@@ -1521,6 +1521,11 @@
             if (noCreditScrolls.has(name)) continue; // cast before, effect cancelled — don't replan it
             const def = window.SCROLL_DEFINITIONS?.[name];
             if (!def || def.level === 1 || !Array.isArray(def.patterns)) continue;
+            // Sacrificial Pyre only casts with another scroll above level I in
+            // hand / active to sacrifice; without one it gives no fire (2026-10-06
+            // stall: a bot holding only Pyre sat at 4/5 for 40 turns, its draw
+            // tools never woke up because Pyre "covered" fire).
+            if (name === 'FIRE_SCROLL_3' && !pyreHasTarget(self)) continue;
             const el = def.element;
             let credit = 0;
             if (el === 'catacomb') {
@@ -1554,7 +1559,8 @@
         }
         if (need.some(el => !covered.has(el))) {
             for (const name of sources) {
-                if (!DRAW_SCROLLS.has(name) || noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
+                if (!(DRAW_SCROLLS.has(name) || (name === 'EARTH_SCROLL_4' && stompDraws(snap))) ||
+                    noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
                 if (drawOnCooldown(snap.turn.activePlayerIndex, name)) continue;
                 const def = window.SCROLL_DEFINITIONS?.[name];
                 if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: 1, tool: true });
@@ -3837,6 +3843,18 @@
         return { needScroll, blockedTiles, occupiers: [...occupiers] };
     }
     const DRAW_SCROLLS = new Set(['VOID_SCROLL_4', 'WATER_SCROLL_3', 'WATER_SCROLL_2']);
+    // Heavy Stomp (EARTH_SCROLL_4) as a draw tool: once no tile is face-down,
+    // hiding a revealed shrine of a needed element and stepping on it again is
+    // the only way to draw from that element's deck (bot-effects.js
+    // driveTileFlip picks that tile; normal exploring re-reveals it).
+    function stompDraws(snap) {
+        return !snap.tiles.some(t => !t.revealed && !t.isPlayerTile);
+    }
+    // Sacrificial Pyre needs another scroll above level I in hand or active.
+    function pyreHasTarget(self) {
+        return [...(self.hand || []), ...(self.active || [])].some(n =>
+            n !== 'FIRE_SCROLL_3' && (window.SCROLL_DEFINITIONS?.[n]?.level || 0) > 1);
+    }
     // Guard mode (owner, 2026-09-28): an opponent is one cast from winning
     // (BotDiplomacy.alertOn, public info only). Keep a counter (Iron Stance,
     // Psychic) ready: keep them, build their 2-stone pattern and stay on
@@ -3925,7 +3943,8 @@
     function stuckToolHelps(snap, self, scroll) {
         const st = stuckTools(snap, self);
         if (!st) return false;
-        if (scroll === 'VOID_SCROLL_4') return st.needScroll;
+        if (scroll === 'VOID_SCROLL_4' || scroll === 'WATER_SCROLL_3' || scroll === 'WATER_SCROLL_2') return st.needScroll;
+        if (scroll === 'EARTH_SCROLL_4') return st.needScroll && stompDraws(snap);
         if (scroll === 'CATACOMB_SCROLL_10') return st.blockedTiles.size > 0;
         if (scroll === 'WIND_SCROLL_4') return st.occupiers.length > 0;
         return false;

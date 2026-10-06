@@ -8,6 +8,7 @@
       "changes": [
         "You can walk across another player's tile, but you can no longer end your turn on it. Bots follow the same rule. If you run out of moves there, you can still end your turn.",
         "The rulebook now explains this rule.",
+        "Bots handle an element shortage better: they no longer count on Sacrificial Pyre with nothing to sacrifice, and use Heavy Stomp to hide and re-reveal a shrine for a new scroll.",
         "Small fixes and polish: switching from Spanish back to English no longer leaves some lobby buttons in Spanish."
       ]
     },

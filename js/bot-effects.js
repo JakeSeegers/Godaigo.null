@@ -202,11 +202,19 @@
         const chosen = takeChoice('EARTH_SCROLL_4') || takeChoice('CATACOMB_SCROLL_3');
         const chosenTile = chosen && tiles.find(t => Number(t.id) === Number(chosen.tileId));
         if (chosenTile) { sm.handleTileClick(chosenTile); return true; }
-        const me = self(snap());
+        const s = snap();
+        const me = self(s);
         const hidden = tiles.filter(t => t.flipped);
-        const pick = hidden.length
-            ? hidden.reduce((a, b) => (!a || dist(me, b) < dist(me, a)) ? b : a, null)
-            : tiles[0]; // no hidden tiles available — arbitrary pick among a genuinely bad option set
+        // Nothing face-down left: hide a shrine of an element this bot still
+        // needs, so stepping on it again draws a scroll from that element's deck
+        // (bot.js stompDraws). Nearest first; then any tile.
+        const need = me ? ['earth', 'water', 'fire', 'wind', 'void'].filter(el =>
+            !(me.activated || []).includes(el) && ((s.sourcePool || {})[el] || 0) > 0) : [];
+        const useful = tiles.filter(t => !t.flipped && need.includes(t.shrineType));
+        const nearest = list => list.reduce((a, b) => (!a || dist(me, b) < dist(me, a)) ? b : a, null);
+        const pick = hidden.length ? nearest(hidden)
+            : useful.length ? nearest(useful)
+            : tiles[0]; // nothing useful - arbitrary pick among a bad option set
         sm.handleTileClick(pick);
         return true;
     }

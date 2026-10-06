@@ -121,7 +121,8 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
-- **2026-10-06: Why online test games hit the 80-turn cap (found, not fixed).** Reproduced with two autopilot
+- **2026-10-06: Bot fix for the element-shortage stall (owner: no rule change, bots must adapt).** bot.js creditableSources: Sacrificial Pyre gives no fire credit without a level 2+ scroll in hand/active to sacrifice (pyreHasTarget), so stuckTools.needScroll wakes the existing draw tools; Heavy Stomp joins the draw tools when no tile is face-down (stompDraws); stuckToolHelps covers Inspiring Draught / Refreshing Thought / Heavy Stomp. bot-effects.js driveTileFlip: with nothing face-down, hides the nearest shrine of a still-needed element. Testing with the two-window harness in progress.
+- **2026-10-06: Why online test games hit the 80-turn cap (found).** Reproduced with two autopilot
   windows on a local fake server (no delay): some 2-player games stall for 40+ turns once every tile is revealed.
   Stall dump (turn 50): P0 has 4/5, needs fire, holds only FIRE_SCROLL_3 (Sacrificial Pyre), which needs another
   scroll above level I in hand/active to sacrifice, and its hand is empty; P1 has 3/5, holds CATACOMB_SCROLL_10
