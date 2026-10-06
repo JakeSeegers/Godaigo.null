@@ -121,6 +121,10 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-06: Test games run like training.** js/test-game.js quiet mode (no Out of AP prompt, which stopped the
+  autopilot; no sound / Joytone / CRT; bots at speedScale 0.25, godaigo_test_speed), restored at the end.
+  tools/online-test.mjs: waits for the hidden Test game checkbox to exist (not be visible), --speed, sound off and
+  log question answered in its windows. Checked on the fake server: ~32 turns a minute, no prompt.
 - **2026-10-06: Spanish -> English left Spanish lobby buttons.** Smart UI fit saved the (Spanish) label before its short
   label and wrote it back after the switch. ui-fit.js saves I18n.src(el) now; i18n.js stop() adds a reverse pass + reverse
   observer (exact lines). Reproduced on the old code (Change Log / Train Bot buttons), clean on the new. Spanish short

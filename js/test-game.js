@@ -334,6 +334,47 @@
         playTurn();
     }
 
+    // ------------------------------------------------------------- quiet mode
+    // While a test game runs in this browser it plays like the training tools:
+    // no "Out of AP, end your turn?" prompt (it blocked the autopilot), no sound,
+    // music or CRT effects, and faster bots (BotSystem.speedScale, which also
+    // drives the host's bot seats). Everything comes back when the test ends.
+    // localStorage godaigo_test_speed: 'normal' keeps the usual pace, a number
+    // sets the scale (default 0.25).
+    let restoreQuiet = null;
+    function quietOn() {
+        if (restoreQuiet) return;
+        const saved = {
+            prompt: window.showEndTurnPrompt,
+            sound: window.SoundSystem,
+            speed: window.BotSystem?.speedScale,
+            crt: window.crtOverlay?.getOptions?.() || null,
+        };
+        window.showEndTurnPrompt = () => {};
+        document.getElementById('end-turn-empty-ap-modal')?.remove();
+        window.SoundSystem = null;
+        try { window.JoytoneBridge?.setSuppressed?.(true); } catch (e) {}
+        if (saved.crt) Object.keys(saved.crt).forEach(k => window.crtOverlay.setOption(k, false));
+        let speed = 0.25;
+        try {
+            const v = localStorage.getItem('godaigo_test_speed');
+            if (v === 'normal') speed = null; else if (v && isFinite(+v)) speed = Math.max(0.05, Math.min(1, +v));
+        } catch (e) {}
+        if (speed != null && window.BotSystem) window.BotSystem.speedScale = speed;
+        restoreQuiet = () => {
+            if (window.showEndTurnPrompt !== saved.prompt) window.showEndTurnPrompt = saved.prompt;
+            window.SoundSystem = saved.sound;
+            try { window.JoytoneBridge?.setSuppressed?.(false); } catch (e) {}
+            if (saved.crt) Object.keys(saved.crt).forEach(k => window.crtOverlay.setOption(k, saved.crt[k]));
+            if (window.BotSystem && saved.speed != null) window.BotSystem.speedScale = saved.speed;
+        };
+    }
+    function quietOff() {
+        const r = restoreQuiet;
+        restoreQuiet = null;
+        if (r) { try { r(); } catch (e) { log('restore failed', e); } }
+    }
+
     // ------------------------------------------------------------- lifecycle
     function start(id) {
         active = true; reported = false; roomId = id; stopForced = false;
@@ -342,6 +383,7 @@
         stats = newStats();
         stats.wake_lock = wakeState;
         patchBroadcast(); patchPause(); patchTakeFlight();
+        quietOn();
         log('test game started in room', id);
         showBar();
         toast('Test game: bots play every seat. Keep this tab open and in front until it ends.');
@@ -350,6 +392,7 @@
     async function finish(result, winner) {
         if (!active) return;
         active = false;
+        quietOff();
         if (pausedSince) { stats.paused_ms += Date.now() - pausedSince; pausedSince = 0; }
         if (hiddenSince) { stats.hidden_ms += Date.now() - hiddenSince; hiddenSince = Date.now(); }
         stats.result = result;

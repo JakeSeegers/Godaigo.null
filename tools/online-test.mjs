@@ -17,6 +17,10 @@
 //   node tools/online-test.mjs --freeze 45          freezes window 2 for 45 s once (like a phone
 //                                                   screen going to sleep), then wakes it
 //   node tools/online-test.mjs --headful            show the windows
+//   node tools/online-test.mjs --speed normal       bots at the usual pace (default: fast, 0.25)
+//                                                   --speed 0.1 = even faster
+//   Test windows have sound, music and the CRT effects off, and answer the
+//   "Help improve Godaigo?" question with "Not now".
 //   node tools/online-test.mjs --url https://godaigo.aikijake.workers.dev/
 //
 // Guests get no gold (server rule), so this can run any time. To use real
@@ -33,16 +37,27 @@ const CHAOS = opt('chaos', 'mild');
 const FREEZE_S = Number(opt('freeze', 0));
 const HEADFUL = !!opt('headful', false);
 const GAME_MINUTES = Number(opt('minutes', 25));
+const SPEED = opt('speed', 'fast') === 'normal' ? 'normal' : String(opt('speed', 'fast') === 'fast' ? 0.25 : Number(opt('speed', 0.25)) || 0.25);
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const say = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 async function openWindow(browser, k) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    await ctx.addInitScript((chaos) => {
+    await ctx.addInitScript(([chaos, speed]) => {
         try { sessionStorage.setItem('godaigo_skip_intro_once', '1'); } catch (e) {}
         try { localStorage.setItem('godaigo_test_chaos', chaos === 'off' ? 'off' : 'on'); } catch (e) {}
-    }, CHAOS);
+        // Test windows only: no sound or music, no "Help improve Godaigo?" log
+        // question (answered "Not now"), bot speed for the test game.
+        try {
+            localStorage.setItem('godaigo_ui_sound', 'false');
+            localStorage.setItem('godaigo_game_sound', 'false');
+            localStorage.setItem('godaigo_music', 'false');
+            localStorage.setItem('godaigo_joytone_muted', 'true');
+            localStorage.setItem('godaigo_log_consent', 'declined');
+            localStorage.setItem('godaigo_test_speed', String(speed));
+        } catch (e) {}
+    }, [CHAOS, SPEED]);
     const page = await ctx.newPage();
     page.errors = [];
     page.on('pageerror', e => page.errors.push(e.message));

@@ -363,6 +363,9 @@ Order matters — later scripts depend on earlier ones.
                              'test_cap')) or on "Stop test". Screen Wake Lock during every online game. Hermit menu "Test games"
                              (openHermit): reward settings + reports, problems first, Watch / Check replay. localStorage
                              godaigo_test_chaos = off disables chaos. tools/online-test.mjs runs test games from a PC.
+                             Quiet mode while a test runs in a browser (quietOn/quietOff): no Out of AP prompt, SoundSystem null,
+                             Joytone suppressed, CRT effects off, BotSystem.speedScale 0.25 (localStorage godaigo_test_speed:
+                             'normal' or a number); all restored at the end. The script also turns sound off and answers the log question.
                              While the host drives a bot seat, me() = BotDriver.driverRealIndex() (else the autopilot took
                              bot turns for its own and pressed End Turn).
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
