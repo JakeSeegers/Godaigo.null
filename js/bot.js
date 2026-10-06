@@ -519,6 +519,15 @@
         return Math.max(0, v);
     }
 
+    // Rule (game-core.js isPlayerOnOpponentTile): a turn may not END on any hex
+    // of another player's tile (within TILE_SIZE * 4 of its centre). Crossing
+    // is fine. Used to keep bots from walking in with no AP left to walk out.
+    function onOpponentTile(snap, x, y) {
+        const ai = snap.turn.activePlayerIndex;
+        return snap.tiles.some(t => t.isPlayerTile && t.playerIndex != null && t.playerIndex !== ai &&
+            Math.hypot(t.x - x, t.y - y) < 80);
+    }
+
     // Collectible shrine tiles: revealed, elemental, worth something — and
     // with a stone-free centre hex. Collection = ENDING the turn on the
     // centre, and resting on a stone is banned (isPlayerRestingOnStone), so
@@ -1204,7 +1213,8 @@
                     }
                 }
                 let harm = 0;
-                if (snap.turn.ap - (a.cost || 0) < 1 && snap.stones.some(q => Math.hypot(q.x - a.x, q.y - a.y) < 5)) {
+                if (snap.turn.ap - (a.cost || 0) < 1 && (snap.stones.some(q => Math.hypot(q.x - a.x, q.y - a.y) < 5) ||
+                    onOpponentTile(snap, a.x, a.y))) {
                     harm += contrib('moveStrandOnStone', 1);
                 }
                 if (ctx.responseReady) harm += contrib('leaveResponseReady', 1);
@@ -3258,8 +3268,9 @@
             let v = value(c.s1, depth - 1, line) + harmRoot(c.a) + helpRoot(c.a) + stuckRoot(c.a);
             if (guardRes > 0 && snap0.turn.ap - actionApCost(snap0, c.a) < guardRes) v += WEIGHTS.guardKeepAp;
             if (c.a.type === 'move') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.moveRevisitPenalty);
-            if (c.a.type === 'move' && snap0.turn.ap - (c.a.cost || 0) < 1 && snap0.stones.some(q => Math.hypot(q.x - c.a.x, q.y - c.a.y) < 5)) {
-                v += WEIGHTS.moveStrandOnStone; // stranded on a stone (see scoreAction)
+            if (c.a.type === 'move' && snap0.turn.ap - (c.a.cost || 0) < 1 &&
+                (snap0.stones.some(q => Math.hypot(q.x - c.a.x, q.y - c.a.y) < 5) || onOpponentTile(snap0, c.a.x, c.a.y))) {
+                v += WEIGHTS.moveStrandOnStone; // stranded on a stone or another player's tile (see scoreAction)
             }
             if (c.a.type === 'teleport') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.teleportRevisitPenalty);
             if (c.a.type === 'breakStone' || c.a.type === 'placeStone') v += unblockBonus(c.a, snap0, uctx);
@@ -5034,6 +5045,26 @@
             // arena's and bot-driver's forced end-turn safety nets would be
             // rejected and the whole game wedges. One escape step is enough
             // — the pawn is then on an empty hex where endTurn is legal.
+            // Same for another player's tile (isPlayerOnOpponentTile): walk off
+            // it, a few steps at most (a tile is up to 2 steps from its edge).
+            for (let step = 0; step < 4 && !endedTurn && activePlayerIndex === startingPlayer &&
+                typeof isPlayerOnOpponentTile === 'function' && isPlayerOnOpponentTile(startingPlayer) &&
+                !(typeof isPlayerStrandedOnStone === 'function' && isPlayerStrandedOnStone(startingPlayer)); step++) {
+                const snapNow = window.BotState.snapshot();
+                const nearOpp = (x, y) => Math.min(...snapNow.tiles
+                    .filter(t => t.isPlayerTile && t.playerIndex != null && t.playerIndex !== startingPlayer)
+                    .map(t => Math.hypot(t.x - x, t.y - y)));
+                const esc = window.BotState.legalActions()
+                    .filter(a => a.type === 'move' && !placedStones.some(s => Math.hypot(s.x - a.x, s.y - a.y) < 5))
+                    .sort((a, b) => (onOpponentTile(snapNow, a.x, a.y) - onOpponentTile(snapNow, b.x, b.y)) ||
+                        (nearOpp(b.x, b.y) - nearOpp(a.x, a.y)) || (a.cost - b.cost))[0];
+                if (!esc) break;
+                log(`Autopilot is on another player's tile - stepping to (${esc.x.toFixed(0)},${esc.y.toFixed(0)}) so the turn can end`);
+                const r = window.BotState.applyAction(esc);
+                if (!r.ok) break;
+                recordVisited(startingPlayer, esc.x, esc.y);
+                await tick(200);
+            }
             if (!endedTurn && activePlayerIndex === startingPlayer &&
                 typeof isPlayerRestingOnStone === 'function' && isPlayerRestingOnStone(startingPlayer)) {
                 const esc = window.BotState.legalActions()

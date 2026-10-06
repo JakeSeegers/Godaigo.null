@@ -2,6 +2,15 @@
   "_readme": "Player-facing release notes, newest first, shown by the Change Log button in the lobby. Rules (full text: HOUSE RULES #2 in CLAUDE.md): at most ONE entry per day, id = date. If today's entry exists, rewrite it as one summary of the whole day; do not add a second entry. At most 5 lines per entry. Only list changes players will notice; group small fixes into one 'Small fixes and polish' line. Simple English, no file names, no em dashes.",
   "entries": [
     {
+      "id": "2026-10-06",
+      "date": "2026-10-06",
+      "title": "Player tile rule fix",
+      "changes": [
+        "You can walk across another player's tile, but you can no longer end your turn on it. Bots follow the same rule. If you run out of moves there, you can still end your turn.",
+        "The rulebook now explains this rule."
+      ]
+    },
+    {
       "id": "2026-10-04",
       "date": "2026-10-04",
       "title": "Juego en español / Spanish",

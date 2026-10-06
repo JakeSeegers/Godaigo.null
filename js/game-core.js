@@ -6454,6 +6454,22 @@ function clearPlayerPath() {
             return placedStones.some(s => Math.hypot(s.x - pos.x, s.y - pos.y) < 5);
         }
 
+        // Rule (owner 2026-10-06): you may walk across another player's tile,
+        // but you may never END your turn on any hex of it. "On it" = within
+        // TILE_SIZE * 4 of its centre: the tile's 13 hexes plus its bridge
+        // hexes (every board hex at most 2 steps from the centre; the nearest
+        // hex 3 steps away is ~92 px off, the farthest 2-step hex ~69 px).
+        // Same radius bot-sim.js uses for "pawn on a tile". Checked by the
+        // end-turn button (game-ui.js), bot-state.js and bot-sim.js.
+        function isPlayerOnOpponentTile(playerIndex) {
+            const pos = playerPositions[playerIndex];
+            if (!pos) return false;
+            return placedTiles.some(t =>
+                t.isPlayerTile && t.playerIndex !== null && t.playerIndex !== undefined &&
+                t.playerIndex !== playerIndex &&
+                Math.hypot(t.x - pos.x, t.y - pos.y) < TILE_SIZE * 4);
+        }
+
         // Stranded = resting on a stone with no legal move to escape it (0 AP
         // with nothing free/affordable adjacent). isPlayerRestingOnStone's ban
         // on ending the turn there would otherwise hard-deadlock the game —
@@ -6461,8 +6477,11 @@ function clearPlayerPath() {
         // turn. endTurn alone gets this escape hatch; every other
         // position-dependent action stays banned regardless of AP, since
         // being stranded doesn't make casting/placing/breaking legitimate.
+        // Also covers standing on another player's tile with no move left
+        // (isPlayerOnOpponentTile): ending the turn there is banned too, so it
+        // needs the same escape hatch.
         function isPlayerStrandedOnStone(playerIndex) {
-            if (!isPlayerRestingOnStone(playerIndex)) return false;
+            if (!isPlayerRestingOnStone(playerIndex) && !isPlayerOnOpponentTile(playerIndex)) return false;
             const pos = playerPositions[playerIndex];
             const ap = (playerIndex === activePlayerIndex && typeof getTotalAP === 'function') ? getTotalAP() : 0;
             // Mirrors legalActions()'s own move enumeration (bot-state.js),

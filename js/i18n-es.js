@@ -1601,7 +1601,7 @@ window.I18N_ES = {
     "You can only undo on your own turn.": "Solo puedes deshacer en tu propio turno.",
     "You can't end your turn on another player's player tile (though you can end it on your own), and you can't place stones on any player tile.": "No puedes terminar tu turno en la loseta de otro jugador (en la tuya sí), ni colocar piedras en ninguna loseta de jugador.",
     "You can't end your turn on another player's tile, and you can't place stones on any player tile. You can end your turn on your own tile.": "No puedes terminar tu turno en la loseta de otro jugador, ni colocar piedras en ninguna loseta de jugador. Puedes terminar tu turno en tu propia loseta.",
-    "You can't end your turn on the center hex of another player's tile. You can end your turn on your own. You can't place a stone anywhere on a player tile, including your own.": "No puedes terminar tu turno en el hexágono central de la loseta de otro jugador. En la tuya sí. No puedes colocar piedras en ninguna loseta de jugador, tampoco en la tuya.",
+    "You can walk across another player's tile, but you can't end your turn on any hex of it, and you can't step onto its center hex at all. You can end your turn on your own. You can't place a stone anywhere on a player tile, including your own.": "Puedes cruzar la loseta de otro jugador, pero no puedes terminar tu turno en ningún hexágono de ella, y nunca puedes pisar su hexágono central. En la tuya sí puedes terminar. No puedes colocar piedras en ninguna loseta de jugador, tampoco en la tuya.",
     "You can't stand on the same hex as another player.": "No puedes estar en el mismo hexágono que otro jugador.",
     "You cannot respond:": "No puedes responder:",
     "You cannot save right now: {0}.": "No puedes guardar ahora: {0}.",
@@ -1945,4 +1945,5 @@ window.I18N_ES = {
     "🔥 {0} used Arson: destroyed 1 {1} stone from your pool!": "🔥 {0} usó Incendio: ¡destruyó 1 piedra de {1} de tu reserva!",
     "🔮 {0}'s Psychic triggered: activated {1} (counts as void only).": "🔮 Psíquico de {0} se activó: activó {1} (solo cuenta como vacío).",
     "🪞 {0}'s Reflect triggered: activated {1} (counts as water only).": "🪞 Reflejar de {0} se activó: activó {1} (solo cuenta como agua).",
+    "You can't end your turn on another player's tile - move off it first.": "No puedes terminar tu turno en la loseta de otro jugador: sal de ella primero.",
 };

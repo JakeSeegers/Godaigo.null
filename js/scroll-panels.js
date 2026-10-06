@@ -770,7 +770,7 @@ const ScrollPanelSystem = (() => {
                 { title: 'Turns & Action Points', body: 'Each turn gives you 5 AP. Moving into a hex costs 1 AP, except through a Wind stone (or a Water stone adjacent to a Wind stone), which cost 0 AP. Unused AP does not carry over to your next turn.' },
                 { title: 'Exploring Tiles', body: 'All tiles start face-down. Stepping onto a face-down tile flips it, revealing its shrine type and drawing a scroll into your hand.' },
                 { title: 'Undo Step', body: "Undo Step reverses your most recent action: a move, a stone placement or break, or a scroll move. It only works until you end your turn." },
-                { title: 'Player Tiles', body: "You can't end your turn on the center hex of another player's tile. You can end your turn on your own. You can't place a stone anywhere on a player tile, including your own." },
+                { title: 'Player Tiles', body: "You can walk across another player's tile, but you can't end your turn on any hex of it, and you can't step onto its center hex at all. You can end your turn on your own. You can't place a stone anywhere on a player tile, including your own." },
                 { title: 'Sharing a Hex', body: "You can never move onto a hex that another player currently occupies." },
             ],
             stones: [

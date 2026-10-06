@@ -3212,6 +3212,15 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                 return;
             }
 
+            // Another player's tile: you may cross it, but not end your turn
+            // on it (see isPlayerOnOpponentTile). Same stranded exemption.
+            if (typeof isPlayerOnOpponentTile === 'function' && isPlayerOnOpponentTile(turnPlayerIdx) &&
+                !(typeof isPlayerStrandedOnStone === 'function' && isPlayerStrandedOnStone(turnPlayerIdx))) {
+                updateStatus("You can't end your turn on another player's tile - move off it first.");
+                window.SoundSystem?.play('error');
+                return;
+            }
+
             // R2 (docs/bot-roadmap.md, Runtime Track): shadow-mode backend validator.
             // Asks the server (which only knows the LAST persisted turn owner — see
             // persistCurrentTurnIndex below) whether it agrees this player currently

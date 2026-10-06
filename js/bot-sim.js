@@ -2232,8 +2232,13 @@
         // game-core.js): resting on a stone with zero moves enumerated above
         // must still allow ending the turn, or the search sees a dead end
         // with no legal action at all.
-        const strandedOnStone = pawnOnStone && !actions.some(act => act.type === 'move');
-        if (!pawnOnStone || strandedOnStone) actions.push({ type: 'endTurn' });
+        // Another player's tile (mirrors isPlayerOnOpponentTile in game-core.js):
+        // crossing is fine, ending the turn there is not, unless stranded.
+        const onOppTile = snap.tiles.some(t =>
+            t.isPlayerTile && t.playerIndex !== null && t.playerIndex !== undefined &&
+            t.playerIndex !== snap.turn.activePlayerIndex && dist(t.x, t.y, p.x, p.y) < TILE * 4);
+        const strandedOnStone = (pawnOnStone || onOppTile) && !actions.some(act => act.type === 'move');
+        if (!(pawnOnStone || onOppTile) || strandedOnStone) actions.push({ type: 'endTurn' });
         return actions;
     }
 

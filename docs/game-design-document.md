@@ -86,7 +86,10 @@ Scrolls can exist in three locations:
   this applies to every player's tile, including your own.
 - A player may not move their pawn onto the **centre** hex of another player's tile.
   Your own tile's centre stays reachable (required to win). The rest of an opponent's
-  tile (its other hexes, its bridge hexes) is not restricted for movement — only its centre.
+  tile (its other hexes, its bridge hexes) can be crossed.
+- A player may not **end their turn** on any hex of another player's tile, bridge hexes
+  included (owner 2026-10-06). The only exception: no legal move is left (0 AP), the same
+  escape rule as standing on a stone. Bots follow the same rule.
 
 ---
 

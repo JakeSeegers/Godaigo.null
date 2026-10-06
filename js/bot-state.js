@@ -710,10 +710,13 @@
         // this a bot that lands on a stone with 0 AP and nothing affordable
         // adjacent has zero legal actions at all: onStone excludes
         // cast/placeStone/breakStone/endTurn, and no move exists either.
-        const strandedOnStone = onStone &&
+        // Same for another player's tile (isPlayerOnOpponentTile): crossing is
+        // fine, ending the turn there is not, unless stranded.
+        const onOppTile = typeof isPlayerOnOpponentTile === 'function' && isPlayerOnOpponentTile(activePlayerIndex);
+        const strandedOnStone = (onStone || onOppTile) &&
             typeof isPlayerStrandedOnStone === 'function' && isPlayerStrandedOnStone(activePlayerIndex);
         const btn = document.getElementById('end-turn');
-        if ((!onStone || strandedOnStone) && btn && !btn.disabled) actions.push({ type: 'endTurn' });
+        if ((!(onStone || onOppTile) || strandedOnStone) && btn && !btn.disabled) actions.push({ type: 'endTurn' });
 
         return actions;
     }
@@ -739,6 +742,11 @@
             typeof isPlayerRestingOnStone === 'function' && isPlayerRestingOnStone(activePlayerIndex) &&
             !(a.type === 'endTurn' && typeof isPlayerStrandedOnStone === 'function' && isPlayerStrandedOnStone(activePlayerIndex))) {
             return { ok: false, reason: 'standing on a stone - must move to an empty hex first' };
+        }
+        if (a?.type === 'endTurn' &&
+            typeof isPlayerOnOpponentTile === 'function' && isPlayerOnOpponentTile(activePlayerIndex) &&
+            !(typeof isPlayerStrandedOnStone === 'function' && isPlayerStrandedOnStone(activePlayerIndex))) {
+            return { ok: false, reason: "on another player's tile - must move off it before ending the turn" };
         }
 
         switch (a?.type) {

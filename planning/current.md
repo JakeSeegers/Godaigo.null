@@ -121,6 +121,13 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-06: No ending a turn on another player's tile (owner rule).** Crossing is fine, the centre stays
+  blocked, ending a turn on any hex within TILE_SIZE*4 of another player's tile centre (tile + bridge hexes) is
+  not, unless stranded (0 AP / no move, same escape as a stone). game-core.js isPlayerOnOpponentTile (+ widened
+  isPlayerStrandedOnStone), game-ui.js end-turn button, bot-state.js legalActions/applyAction, bot-sim.js
+  legalActions, bot.js (moveStrandOnStone penalty also for opponent tiles + walk-off steps at turn end).
+  Measured with BotArena.run: old code 2 of 720 turn ends on an opponent tile; new code 0 of 1007 (3 and 5
+  players), no stalls, same game length. Rulebook + docs/game-design-document.md updated.
 - **2026-10-06: Saved games load stones correctly; screen counters fixed.** Tested save at turn 14-24 ->
   reload -> Continue with an in-page fake Supabase: pools, source pools, board stones, scrolls, pawns, AP all
   equal. Fixed: the stone counters showed 0/5 after Continue (drawn for spectator seat -1, never redrawn).
