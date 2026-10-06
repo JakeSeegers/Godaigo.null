@@ -1607,6 +1607,9 @@ svg {
     stroke-width: 2;
     stroke-opacity: 0.9;
 }
+.player:hover .pawn3d-outline {
+    fill: #fff;
+}
 
 .stone:active {
     cursor: grabbing;

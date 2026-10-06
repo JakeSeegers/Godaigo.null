@@ -1,5 +1,6 @@
-// 3D pieces: pawns drawn as real pucks (short cylinders), stones as half
-// glass beads (a clear dome with the symbol inside). window.Piece3D
+// 3D pieces: pawns drawn as classic board game pawns (base, narrowing body,
+// collar, ball head), stones as half glass beads (a clear dome with the
+// symbol inside). window.Piece3D
 //
 // No game hooks: a MutationObserver on the board (#viewport) decorates every
 // pawn (g.player) and stone (g.stone) when it appears. Each piece gets:
@@ -14,6 +15,13 @@
 // HEIGHT * sin(t) on screen; the board squashes y by cos(t), so in board units
 // the side is HEIGHT * tan(t). Tilt 0 = straight down = no side.
 // Pawn bases (pawn-cosmetics.js .pawn-cos-base) stay on the ground.
+// Pawns: a solid of revolution built from thin slices (circles), each one
+// higher up the screen by its height x tan(tilt), drawn bottom to top so the
+// higher parts cover the lower ones like a turned wooden pawn. First every
+// slice a little bigger in black (the outline, white on hover), then the
+// slices in the player colour with round side shading, then the ball head.
+// The pawn's own circle is made see-through (still catches the mouse); rim
+// cosmetics are moved under the pawn so they stay a ring on the ground.
 // Stones (beads): the stone's own circle is made see-through (still catches
 // the mouse) and .puck-under draws the dome in its colours instead: body,
 // round shading, a glow of the element colour on the side away from the light
@@ -84,6 +92,86 @@
     function mainDisc(g) { return g.querySelector(':scope > ' + DISC.split(', ').join(', :scope > ')); }
 
     const isBead = g => g.classList.contains('stone');
+    const isPawn = g => g.classList.contains('player');
+
+    // Pawn profile, in pawn radii (r = the marker radius): [height, radius,
+    // cap]. cap = a flat top facing up there (drawn lighter).
+    const PAWN_PROFILE = [
+        [0, 1.0], [0.18, 1.0], [0.3, 0.92, true],     // base disc with a soft edge
+        [0.34, 0.72], [0.6, 0.6], [0.9, 0.5], [1.2, 0.43], [1.5, 0.4], // body
+        [1.55, 0.58], [1.68, 0.58, true],               // collar
+        [1.74, 0.36],                                   // neck
+    ];
+    const HEAD_Z = 2.12, HEAD_R = 0.52;
+
+    function hexRgb(c) {
+        const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c || '').trim());
+        if (!m) return [136, 136, 136];
+        let h = m[1]; if (h.length === 3) h = h.split('').map(x => x + x).join('');
+        return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+    }
+    function mix(c, to, a) {
+        const [r, g, b] = hexRgb(c), t = to === 'white' ? 255 : 0;
+        return '#' + [r, g, b].map(v => Math.round(v + (t - v) * a).toString(16).padStart(2, '0')).join('');
+    }
+
+    // Per colour gradients for pawns (side shading and the ball head).
+    function pawnGrads(color) {
+        const key = hexRgb(color).join('-');
+        const side = 'pawn-side-' + key, ball = 'pawn-ball-' + key;
+        const defs = document.getElementById('puck-defs');
+        if (defs && !document.getElementById(side)) {
+            defs.insertAdjacentHTML('beforeend',
+                `<linearGradient id="${side}" x1="0" y1="0" x2="1" y2="0">` +
+                `<stop offset="0" stop-color="${mix(color, 'black', 0.6)}"/>` +
+                `<stop offset="0.28" stop-color="${mix(color, 'white', 0.3)}"/>` +
+                `<stop offset="0.5" stop-color="${color}"/>` +
+                `<stop offset="1" stop-color="${mix(color, 'black', 0.65)}"/></linearGradient>` +
+                `<radialGradient id="${ball}" cx="0.36" cy="0.32" r="0.72">` +
+                `<stop offset="0" stop-color="${mix(color, 'white', 0.55)}"/>` +
+                `<stop offset="0.45" stop-color="${color}"/>` +
+                `<stop offset="1" stop-color="${mix(color, 'black', 0.6)}"/></radialGradient>`);
+        }
+        return { side: `url(#${side})`, ball: `url(#${ball})` };
+    }
+
+    // Slices from the profile, smooth enough for the current angle.
+    function pawnSlices(r, tan) {
+        const out = [];
+        for (let i = 0; i < PAWN_PROFILE.length - 1; i++) {
+            const [z0, a0] = PAWN_PROFILE[i], [z1, a1] = PAWN_PROFILE[i + 1];
+            const n = Math.max(1, Math.ceil((z1 - z0) * r * Math.max(tan, 0.05) / 0.35));
+            for (let k = (i ? 1 : 0); k <= n; k++) {
+                const f = k / n;
+                out.push({ y: -(z0 + (z1 - z0) * f) * r * tan, rad: (a0 + (a1 - a0) * f) * r, cap: k === n && !!PAWN_PROFILE[i + 1][2] });
+            }
+        }
+        return out;
+    }
+
+    function buildPawn(g, under) {
+        const disc = mainDisc(g);
+        const r = parseFloat(disc?.getAttribute('r')) || 8;
+        const color = disc?.getAttribute('fill') || '#888';
+        const tan = Math.tan(Math.min(80, tilt || 0) * Math.PI / 180);
+        const grads = pawnGrads(color);
+        const slices = pawnSlices(r, tan);
+        const head = { cy: -HEAD_Z * r * tan, r: HEAD_R * r };
+        under.innerHTML = '';
+        under.appendChild(el('ellipse', { cx: r * 0.25, cy: 1.5, rx: r * 1.35, ry: r * 1.25, fill: 'url(#puck-shadow)' }));
+        const outline = el('g', { class: 'pawn3d-outline', fill: '#000' });
+        slices.forEach(sl => outline.appendChild(el('circle', { cx: 0, cy: sl.y, r: sl.rad + 0.9 })));
+        outline.appendChild(el('circle', { cx: 0, cy: head.cy, r: head.r + 0.9 }));
+        under.appendChild(outline);
+        slices.forEach(sl => {
+            under.appendChild(el('circle', { cx: 0, cy: sl.y, r: sl.rad, fill: grads.side }));
+            // flat tops (base, collar) catch the light; the parts above cover their middle
+            if (sl.cap) under.appendChild(el('circle', { cx: -sl.rad * 0.04, cy: sl.y, r: sl.rad * 0.93, fill: mix(color, 'white', 0.22) }));
+        });
+        under.appendChild(el('circle', { cx: 0, cy: head.cy, r: head.r, fill: grads.ball }));
+        under.appendChild(el('ellipse', { cx: -head.r * 0.35, cy: head.cy - head.r * 0.4, rx: head.r * 0.32, ry: head.r * 0.2,
+            fill: '#fff', 'fill-opacity': 0.75, transform: `rotate(-35 ${-head.r * 0.35} ${head.cy - head.r * 0.4})` }));
+    }
 
     // Size of the piece, in board units: radius and how far the top (puck face
     // or bead dome top) sits above the ground spot on screen (before the tilt
@@ -136,6 +224,7 @@
 
     // Shapes under the piece, drawn in screen direction (rotate(-rot)).
     function buildUnder(g, under) {
+        if (isPawn(g)) return buildPawn(g, under);
         if (isBead(g)) return buildBeadUnder(g, under);
         const { r, lift } = dims(g);
         const fill = mainDisc(g)?.getAttribute('fill') || '#888';
@@ -151,6 +240,7 @@
     }
 
     function buildOver(g, over) {
+        if (isPawn(g)) { over.innerHTML = ''; return; }
         if (isBead(g)) return buildBeadOver(g, over);
         const { r, lift } = dims(g);
         over.innerHTML = '';
@@ -163,6 +253,16 @@
     function liftOne(n, g) {
         if (n.nodeType !== 1 || n.classList.contains('puck-under') || n.classList.contains('puck-over')) return;
         if (n.classList.contains('pawn-cos-base') || n.tagName === 'title' || n.tagName === 'defs') return;
+        if (isPawn(g)) {
+            // the pawn shape is ours: its circle goes see-through, a rim stays on the ground under it
+            if (n.matches(DISC)) { n.setAttribute('data-p3d', n.getAttribute('transform') || ''); n.style.fillOpacity = '0'; n.style.strokeOpacity = '0'; }
+            else if (n.classList.contains('pawn-cos')) {
+                const under = g.querySelector(':scope > .puck-under');
+                const kids = [...g.children];
+                if (under && kids.indexOf(n) > kids.indexOf(under)) g.insertBefore(n, under);
+            }
+            return;
+        }
         if (!n.hasAttribute('data-p3d')) n.setAttribute('data-p3d', n.getAttribute('transform') || '');
         const { up: lift } = dims(g);
         const orig = n.getAttribute('data-p3d');
