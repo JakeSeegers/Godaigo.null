@@ -98,11 +98,11 @@
     // cap]. cap = a flat top facing up there (drawn lighter).
     const PAWN_PROFILE = [
         [0, 1.0], [0.18, 1.0], [0.3, 0.92, true],     // base disc with a soft edge
-        [0.34, 0.72], [0.6, 0.6], [0.9, 0.5], [1.2, 0.43], [1.5, 0.4], // body
-        [1.55, 0.58], [1.68, 0.58, true],               // collar
-        [1.74, 0.36],                                   // neck
+        [0.36, 0.72], [0.9, 0.56], [1.5, 0.46], [2.0, 0.41], [2.4, 0.38], // body
+        [2.46, 0.58], [2.6, 0.58, true],                // collar
+        [2.68, 0.36],                                   // neck
     ];
-    const HEAD_Z = 2.12, HEAD_R = 0.52;
+    const HEAD_Z = 3.06, HEAD_R = 0.52;
 
     function hexRgb(c) {
         const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c || '').trim());
