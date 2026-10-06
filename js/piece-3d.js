@@ -5,14 +5,18 @@
 // pawn (g.player) and stone (g.stone) when it appears. Each piece gets:
 // - under it (.puck-under): a soft ground shadow and the puck's side, a band
 //   with a bottom curve, shaded left to right so it reads as round;
-// - its own disc, symbol and extras lifted to the top of the puck and pressed
-//   into a flat oval (the top face), with a rim shade and a highlight
-//   (.puck-over) over the face, still under the element symbol.
+// - its own disc, symbol and extras lifted to the top of the puck (the top
+//   face), with a rim shade and a highlight (.puck-over) over the face, still
+//   under the element symbol.
+// The camera is the board's own: the board tilt (window._boardTiltDegrees, a
+// CSS rotateX on the board, default 20) already flattens the top face, so the
+// puck only adds the side. A puck HEIGHT tall seen at tilt t shows a side of
+// HEIGHT * sin(t) on screen; the board squashes y by cos(t), so in board units
+// the side is HEIGHT * tan(t). Tilt 0 = straight down = no side.
 // Pawn bases (pawn-cosmetics.js .pawn-cos-base) stay on the ground.
 // Everything is turned against the board rotation (window.getBoardRotation), so
 // the side always shows at the bottom of the screen; the symbol keeps the
-// board's turn. With the board tilt on, the oval is pressed less (the tilt
-// already does part of it). All extras ignore the mouse.
+// board's turn. All extras ignore the mouse.
 // Setting: Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces =
 // 'off' turns it off).
 (function () {
@@ -21,8 +25,7 @@
     const KEY = 'godaigo_3d_pieces';
     const PIECES = 'g.player, g.stone';
     const DISC = 'circle.player-marker, circle.stone-piece';
-    const SQUASH = 0.68;   // top face height / width, board flat
-    const SIDE = 0.5;      // side band height / radius
+    const HEIGHT = 0.6;    // puck height / radius (a hockey puck is about 0.67)
     let on = (() => { try { return localStorage.getItem(KEY) !== 'off'; } catch (e) { return true; } })();
     let rot = 0, tilt = 0;
 
@@ -60,38 +63,35 @@
 
     function mainDisc(g) { return g.querySelector(':scope > ' + DISC.split(', ').join(', :scope > ')); }
 
-    function squash() {
-        const c = Math.cos((tilt || 0) * Math.PI / 180);
-        return Math.min(1, Math.max(SQUASH, SQUASH / (c || 1)));
-    }
-
-    // Size of the puck for this piece (screen units before zoom).
+    // Size of the puck for this piece, in board units: radius and how far the
+    // top face sits above the ground spot on screen (before the tilt squash).
     function dims(g) {
         const disc = mainDisc(g);
         const r = parseFloat(disc?.getAttribute('r')) || 10;
-        return { r, k: squash(), h: r * SIDE };
+        return { r, lift: r * HEIGHT * Math.tan(Math.min(80, tilt || 0) * Math.PI / 180) };
     }
 
     // Shapes under the piece, drawn in screen direction (rotate(-rot)).
     function buildUnder(g, under) {
-        const { r, k, h } = dims(g);
+        const { r, lift } = dims(g);
         const fill = mainDisc(g)?.getAttribute('fill') || '#888';
-        const top = -h / 2, bot = h / 2, ry = r * k;
-        const band = `M ${-r} ${top} L ${-r} ${bot} A ${r} ${ry} 0 0 0 ${r} ${bot} L ${r} ${top} Z`;
         under.innerHTML = '';
-        under.appendChild(el('ellipse', { cx: r * 0.12, cy: bot + 1.5, rx: r * 1.25, ry: ry * 1.2, fill: 'url(#puck-shadow)' }));
+        // the shadow lies on the board, around the ground spot
+        under.appendChild(el('circle', { cx: r * 0.12, cy: 1, r: r * 1.25, fill: 'url(#puck-shadow)' }));
+        if (lift < 0.3) return; // straight down: no side to see
+        const band = `M ${-r} ${-lift} L ${-r} 0 A ${r} ${r} 0 0 0 ${r} 0 L ${r} ${-lift} Z`;
         under.appendChild(el('path', { class: 'puck-side', d: band, fill }));
         under.appendChild(el('path', { d: band, fill: 'url(#puck-band)' }));
         // thin dark line along the bottom edge
-        under.appendChild(el('path', { d: `M ${-r} ${bot} A ${r} ${ry} 0 0 0 ${r} ${bot}`, fill: 'none', stroke: '#000', 'stroke-opacity': 0.55, 'stroke-width': 1 }));
+        under.appendChild(el('path', { d: `M ${-r} 0 A ${r} ${r} 0 0 0 ${r} 0`, fill: 'none', stroke: '#000', 'stroke-opacity': 0.55, 'stroke-width': 1 }));
     }
 
     function buildOver(g, over) {
-        const { r, k, h } = dims(g);
+        const { r, lift } = dims(g);
         over.innerHTML = '';
-        const face = { cx: 0, cy: -h / 2, rx: r, ry: r * k };
-        over.appendChild(el('ellipse', { ...face, fill: 'url(#puck-rim)' }));
-        over.appendChild(el('ellipse', { ...face, fill: 'url(#puck-shine)' }));
+        const face = { cx: 0, cy: -lift, r };
+        over.appendChild(el('circle', { ...face, fill: 'url(#puck-rim)' }));
+        over.appendChild(el('circle', { ...face, fill: 'url(#puck-shine)' }));
     }
 
     // Lift a piece's own parts (disc, symbol, rim cosmetics, ...) onto the top face.
@@ -99,11 +99,12 @@
         if (n.nodeType !== 1 || n.classList.contains('puck-under') || n.classList.contains('puck-over')) return;
         if (n.classList.contains('pawn-cos-base') || n.tagName === 'title' || n.tagName === 'defs') return;
         if (!n.hasAttribute('data-p3d')) n.setAttribute('data-p3d', n.getAttribute('transform') || '');
-        const { k, h } = dims(g);
+        const { lift } = dims(g);
         const orig = n.getAttribute('data-p3d');
-        const t = `rotate(${-rot}) translate(0 ${-h / 2}) scale(1 ${k.toFixed(3)}) rotate(${rot})` + (orig ? ' ' + orig : '');
-        n.setAttribute('transform', t);
-        if (n.matches(DISC)) n.style.vectorEffect = 'non-scaling-stroke';
+        // "up" on screen, whatever the board rotation
+        const a = rot * Math.PI / 180;
+        const dx = (-lift * Math.sin(a)).toFixed(2), dy = (-lift * Math.cos(a)).toFixed(2);
+        n.setAttribute('transform', `translate(${dx} ${dy})` + (orig ? ' ' + orig : ''));
     }
 
     function unliftOne(n) {
@@ -111,7 +112,6 @@
         const orig = n.getAttribute('data-p3d');
         if (orig) n.setAttribute('transform', orig); else n.removeAttribute('transform');
         n.removeAttribute('data-p3d');
-        n.style.vectorEffect = '';
     }
 
     function decorate(g) {
