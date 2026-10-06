@@ -121,6 +121,13 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-06: First online test runs (rooms 917-919, owner's PC, read from test_reports + match_fingerprints).**
+  Boards never stayed out of sync: mismatches only on turn 1 (known), room 918 turn 11 (stones + pawns) and room 919
+  turns 76-77 (pawns), each matching again the next turn = snapshots taken while moves were still arriving.
+  Bug fixed: the joining window's test started a second time at game over and its empty report replaced the real one
+  (report_test_run upserts); test-game.js doneRoom. Fast mode (0.25) lag avg 2.1-3.9 s, max 31 s vs 0.45 s at normal
+  speed (room 917): likely Realtime message rate (player-state-update ~8 per turn). Rooms 918/919 hit the 80-turn cap with
+  no winner, 2-5 casts per 40 turns per seat: open question (speed? new player-tile rule?).
 - **2026-10-06: Test games run like training.** js/test-game.js quiet mode (no Out of AP prompt, which stopped the
   autopilot; no sound / Joytone / CRT; bots at speedScale 0.25, godaigo_test_speed), restored at the end.
   tools/online-test.mjs: waits for the hidden Test game checkbox to exist (not be visible), --speed, sound off and

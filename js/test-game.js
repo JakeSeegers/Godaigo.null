@@ -52,6 +52,9 @@
     let active = false;                // this browser is in a running test game
     let roomId = null;
     let checkedKey = null;             // game we already looked up test_mode for
+    let doneRoom = null;               // room whose test already finished here: never start it again
+                                       // (a second start at game over sent an empty report that
+                                       // replaced the real one, 2026-10-06 rooms 918 / 919 seat 1)
     let stats = null;
     let reported = false;
     let busy = false;
@@ -298,7 +301,7 @@
                 checkedKey = key;
                 const id = g('currentGameId');
                 sb().from('game_room').select('test_mode').eq('id', id).maybeSingle().then(({ data }) => {
-                    if (data?.test_mode && !active && inGame()) start(id);
+                    if (data?.test_mode && !active && inGame() && id !== doneRoom) start(id);
                 }).catch(() => {});
             }
         } else if (active) {
@@ -392,6 +395,7 @@
     async function finish(result, winner) {
         if (!active) return;
         active = false;
+        doneRoom = roomId;
         quietOff();
         if (pausedSince) { stats.paused_ms += Date.now() - pausedSince; pausedSince = 0; }
         if (hiddenSince) { stats.hidden_ms += Date.now() - hiddenSince; hiddenSince = Date.now(); }
