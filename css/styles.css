@@ -1602,6 +1602,12 @@ svg {
     stroke-width: 3;
 }
 
+/* 3D pieces (js/piece-3d.js): a glass bead stone shows hover on its dome edge */
+.stone:hover:not(.stone-ghost) .bead-edge {
+    stroke-width: 2;
+    stroke-opacity: 0.9;
+}
+
 .stone:active {
     cursor: grabbing;
 }

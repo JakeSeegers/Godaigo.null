@@ -256,7 +256,9 @@ Order matters — later scripts depend on earlier ones.
                              pawn position changes into fading trail particles (layer .pawn-trail-layer). Never
                              covers the pawn fill; fits between the pawn (r 8) and element symbols (r 15).
                              Seat -> account: allPlayersData user_id (online), own profile on seat 0 (local).
-20b2. piece-3d.js        ← window.Piece3D: pawns (g.player) and stones (g.stone) drawn as real pucks, seen through the board's own
+20b2. piece-3d.js        ← window.Piece3D: pawns (g.player) drawn as real pucks, stones (g.stone) as half glass beads (dome
+                             path, #bead-body / #bead-spec / glow masked by #bead-glow-mask, stone circle made see-through,
+                             shine over the symbol, hover = .bead-edge in css/styles.css), all seen through the board's own
                              camera: the board tilt (_boardTiltDegrees, default 20) already flattens the top face, the puck adds
                              a side HEIGHT * tan(tilt) tall (tilt 0 = no side). A MutationObserver on #viewport adds .puck-under
                              (ground shadow + curved side band, gradient #puck-band) and .puck-over (rim + highlight on the top
