@@ -25,8 +25,9 @@
 // Stones (beads): the stone's own circle is made see-through (still catches
 // the mouse) and .puck-under draws the dome in its colours instead: body,
 // round shading, a glow of the element colour on the side away from the light
-// (light through glass) and a soft halo of that colour on the board around
-// it (.bead-halo). .puck-over goes on top of the symbol: the shine. The
+// (light through glass): magic light inside the glass. A bright core
+// (.bead-core) and the symbol (a glow filter) shine through it, light pools at
+// the lower edge, and a little spills onto the board (.bead-halo). .puck-over goes on top of the symbol: the shine. The
 // symbol sits part way up the dome.
 // Everything is turned against the board rotation (window.getBoardRotation), so
 // the side always shows at the bottom of the screen; the symbol keeps the
@@ -72,10 +73,16 @@
             '<stop offset="1" stop-color="#000" stop-opacity="0.75"/></linearGradient>' +
             // bead: clear in the middle, darker toward the edge, darkest at the bottom
             '<radialGradient id="bead-body" cx="0.42" cy="0.36" r="0.68">' +
-            '<stop offset="0" stop-color="#fff" stop-opacity="0.16"/>' +
-            '<stop offset="0.55" stop-color="#000" stop-opacity="0"/>' +
-            '<stop offset="0.85" stop-color="#000" stop-opacity="0.32"/>' +
+            '<stop offset="0.5" stop-color="#000" stop-opacity="0"/>' +
+            '<stop offset="0.85" stop-color="#000" stop-opacity="0.35"/>' +
             '<stop offset="1" stop-color="#000" stop-opacity="0.6"/></radialGradient>' +
+            // light inside the glass: bright middle, soft fade, nothing at the rim
+            '<radialGradient id="bead-core-grad" cx="0.5" cy="0.55" r="0.5">' +
+            '<stop offset="0" stop-color="#fff" stop-opacity="0.9"/>' +
+            '<stop offset="0.3" stop-color="#fff" stop-opacity="0.45"/>' +
+            '<stop offset="0.7" stop-color="#fff" stop-opacity="0.08"/>' +
+            '<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
+            '<mask id="bead-core-mask" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#bead-core-grad)"/></mask>' +
             '<radialGradient id="bead-spec" cx="0.5" cy="0.5" r="0.5">' +
             '<stop offset="0" stop-color="#fff" stop-opacity="0.95"/>' +
             '<stop offset="0.4" stop-color="#fff" stop-opacity="0.55"/>' +
@@ -205,18 +212,47 @@
         const edge = disc?.getAttribute('stroke') || '#ccc';
         const d = domePath(r, lift);
         under.innerHTML = '';
+        const lit = mix(edge, 'white', 0.45);
         under.appendChild(el('circle', { cx: r * 0.15, cy: 1.5, r: r * 1.3, fill: 'url(#puck-shadow)' }));
-        // soft glow of the element colour around the stone
-        const halo = el('circle', { class: 'bead-halo', cx: 0, cy: -lift * 0.4, r: r * 1.75, fill: edge, 'fill-opacity': 0.75, mask: 'url(#bead-halo-mask)' });
-        halo.style.mixBlendMode = 'screen'; // light, not paint
-        under.appendChild(halo);
+        // a little of the inner light spills onto the board, low right
+        const spill = el('ellipse', { class: 'bead-halo', cx: r * 0.35, cy: r * 0.45, rx: r * 1.5, ry: r * 1.3, fill: edge, 'fill-opacity': 0.5, mask: 'url(#bead-halo-mask)' });
+        spill.style.mixBlendMode = 'screen'; // light, not paint
+        under.appendChild(spill);
         under.appendChild(el('path', { class: 'puck-side', d, fill }));
-        // light through the glass gathers low right, away from the light
-        under.appendChild(el('ellipse', { cx: r * 0.2, cy: r * 0.38 - lift * 0.2, rx: r * 0.7, ry: r * 0.48, fill: edge, mask: 'url(#bead-glow-mask)' }));
+        // the light inside: a bright core of the element colour
+        const core = el('ellipse', { class: 'bead-core', cx: 0, cy: -lift * 0.45, rx: r * 0.8, ry: r * 0.8 + lift * 0.3, fill: edge, mask: 'url(#bead-core-mask)' });
+        core.style.mixBlendMode = 'screen';
+        under.appendChild(core);
+        // light through the glass gathers at the lower edge, away from the light
+        const pool = el('ellipse', { cx: r * 0.18, cy: r * 0.55 - lift * 0.1, rx: r * 0.7, ry: r * 0.32, fill: edge, 'fill-opacity': 0.8, mask: 'url(#bead-glow-mask)' });
+        pool.style.mixBlendMode = 'screen';
+        under.appendChild(pool);
         under.appendChild(el('path', { d, fill: 'url(#bead-body)' }));
         under.appendChild(el('path', { class: 'bead-edge', d, fill: 'none', stroke: '#000', 'stroke-opacity': 0.6, 'stroke-width': 1 }));
         under.appendChild(el('path', { d: `M ${-r * 0.92} ${-lift * 0.35} A ${r} ${r + lift} 0 0 1 ${r * 0.92} ${-lift * 0.35}`,
             fill: 'none', stroke: edge, 'stroke-opacity': 0.55, 'stroke-width': 0.8 }));
+        // the lit glass edge, low right
+        under.appendChild(el('path', { d: `M ${r * 0.98} ${-r * 0.05} A ${r} ${r} 0 0 1 ${-r * 0.3} ${r * 0.95}`,
+            fill: 'none', stroke: lit, 'stroke-opacity': 0.7, 'stroke-width': 1, 'stroke-linecap': 'round' }));
+    }
+
+    // The symbol as light: its shape filled with a bright tint of the element
+    // colour (the art's own colours and dark outline are dropped, so every
+    // element glows the same way), plus a soft blur of it. One filter per colour.
+    function symbolGlow(color) {
+        const id = 'bead-sym-' + hexRgb(color).join('-');
+        const defs = document.getElementById('puck-defs');
+        if (defs && !document.getElementById(id)) {
+            defs.insertAdjacentHTML('beforeend',
+                `<filter id="${id}" x="-50%" y="-50%" width="200%" height="200%">` +
+                `<feFlood flood-color="${mix(color, 'white', 0.62)}" result="c"/>` +
+                `<feComposite in="c" in2="SourceAlpha" operator="in" result="lit"/>` +
+                `<feGaussianBlur in="lit" stdDeviation="1.3" result="b"/>` +
+                `<feFlood flood-color="${mix(color, 'white', 0.2)}" result="c2"/>` +
+                `<feComposite in="c2" in2="b" operator="in" result="g"/>` +
+                `<feMerge><feMergeNode in="g"/><feMergeNode in="g"/><feMergeNode in="lit"/></feMerge></filter>`);
+        }
+        return `url(#${id})`;
     }
 
     function buildBeadOver(g, over) {
@@ -283,6 +319,7 @@
         n.setAttribute('transform', `translate(${dx} ${dy})` + (orig ? ' ' + orig : ''));
         // a bead's own circle: see-through, the dome is drawn under it
         if (isBead(g) && n.matches(DISC)) { n.style.fillOpacity = '0'; n.style.strokeOpacity = '0'; }
+        if (isBead(g) && n.tagName === 'image') n.style.filter = symbolGlow(mainDisc(g)?.getAttribute('stroke') || '#ccc');
     }
 
     function unliftOne(n) {
@@ -290,7 +327,7 @@
         const orig = n.getAttribute('data-p3d');
         if (orig) n.setAttribute('transform', orig); else n.removeAttribute('transform');
         n.removeAttribute('data-p3d');
-        n.style.fillOpacity = ''; n.style.strokeOpacity = '';
+        n.style.fillOpacity = ''; n.style.strokeOpacity = ''; n.style.filter = '';
     }
 
     function decorate(g) {

@@ -259,7 +259,9 @@ Order matters — later scripts depend on earlier ones.
 20b2. piece-3d.js        ← window.Piece3D: pawns (g.player) drawn as classic board game pawns
                              (slices of a turned profile PAWN_PROFILE stacked bottom to top, black outline pass white on
                              hover, ball head; marker circle see-through, rim cosmetics moved under it), stones (g.stone) as half glass beads (dome
-                             path, #bead-body / #bead-spec / glow masked by #bead-glow-mask, element halo .bead-halo, stone circle made see-through,
+                             path, #bead-body / #bead-spec / inner light: .bead-core (screen blend, #bead-core-mask), light pooled at the
+                             lower edge, spill .bead-halo on the board, symbol = its shape filled with element light (symbolGlow,
+                             one filter per colour), stone circle made see-through,
                              shine over the symbol, hover = .bead-edge in css/styles.css), all seen through the board's own
                              camera: the board tilt (_boardTiltDegrees, default 20) already flattens the top face, the puck adds
                              a side HEIGHT * tan(tilt) tall (tilt 0 = no side). A MutationObserver on #viewport adds .puck-under
