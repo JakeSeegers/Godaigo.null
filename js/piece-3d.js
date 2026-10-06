@@ -25,7 +25,8 @@
 // Stones (beads): the stone's own circle is made see-through (still catches
 // the mouse) and .puck-under draws the dome in its colours instead: body,
 // round shading, a glow of the element colour on the side away from the light
-// (light through glass). .puck-over goes on top of the symbol: the shine. The
+// (light through glass) and a soft halo of that colour on the board around
+// it (.bead-halo). .puck-over goes on top of the symbol: the shine. The
 // symbol sits part way up the dome.
 // Everything is turned against the board rotation (window.getBoardRotation), so
 // the side always shows at the bottom of the screen; the symbol keeps the
@@ -83,6 +84,12 @@
             '<stop offset="0" stop-color="#fff" stop-opacity="0.75"/>' +
             '<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
             '<mask id="bead-glow-mask" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#bead-glow)"/></mask>' +
+            // halo around a stone: strong next to the bead, fading out
+            '<radialGradient id="bead-halo-grad" cx="0.5" cy="0.5" r="0.5">' +
+            '<stop offset="0.5" stop-color="#fff" stop-opacity="1"/>' +
+            '<stop offset="0.72" stop-color="#fff" stop-opacity="0.45"/>' +
+            '<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
+            '<mask id="bead-halo-mask" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#bead-halo-grad)"/></mask>' +
             '<radialGradient id="puck-shadow" cx="0.5" cy="0.5" r="0.5">' +
             '<stop offset="0.55" stop-color="#000" stop-opacity="0.45"/>' +
             '<stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>';
@@ -199,6 +206,10 @@
         const d = domePath(r, lift);
         under.innerHTML = '';
         under.appendChild(el('circle', { cx: r * 0.15, cy: 1.5, r: r * 1.3, fill: 'url(#puck-shadow)' }));
+        // soft glow of the element colour around the stone
+        const halo = el('circle', { class: 'bead-halo', cx: 0, cy: -lift * 0.4, r: r * 1.75, fill: edge, 'fill-opacity': 0.75, mask: 'url(#bead-halo-mask)' });
+        halo.style.mixBlendMode = 'screen'; // light, not paint
+        under.appendChild(halo);
         under.appendChild(el('path', { class: 'puck-side', d, fill }));
         // light through the glass gathers low right, away from the light
         under.appendChild(el('ellipse', { cx: r * 0.2, cy: r * 0.38 - lift * 0.2, rx: r * 0.7, ry: r * 0.48, fill: edge, mask: 'url(#bead-glow-mask)' }));
