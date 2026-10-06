@@ -121,7 +121,7 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
-- **2026-10-06: 3D pieces (owner idea).** js/piece-3d.js: pawns and stones as pucks (side edge, shadow, rim, highlight), no game hooks, Settings > Display toggle. Screenshot-checked.
+- **2026-10-06: 3D pieces (owner idea).** js/piece-3d.js: pawns and stones as real pucks: the piece is lifted and pressed into an oval top face over a curved side band, with a ground shadow (owner wanted "actually puck shaped"), no game hooks, Settings > Display toggle. Screenshot-checked.
 - **2026-10-06: Bot fix for the element-shortage stall (owner: no rule change, bots must adapt).** bot.js creditableSources: Sacrificial Pyre gives no fire credit without a level 2+ scroll in hand/active to sacrifice (pyreHasTarget), so stuckTools.needScroll wakes the existing draw tools; Heavy Stomp joins the draw tools when no tile is face-down (stompDraws); stuckToolHelps covers Inspiring Draught / Refreshing Thought / Heavy Stomp. bot-effects.js driveTileFlip: with nothing face-down, hides the nearest shrine of a still-needed element. Testing with the two-window harness in progress.
 - **2026-10-06: Why online test games hit the 80-turn cap (found).** Reproduced with two autopilot
   windows on a local fake server (no delay): some 2-player games stall for 40+ turns once every tile is revealed.

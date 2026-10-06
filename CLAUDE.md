@@ -256,10 +256,12 @@ Order matters — later scripts depend on earlier ones.
                              pawn position changes into fading trail particles (layer .pawn-trail-layer). Never
                              covers the pawn fill; fits between the pawn (r 8) and element symbols (r 15).
                              Seat -> account: allPlayersData user_id (online), own profile on seat 0 (local).
-20b2. piece-3d.js        ← window.Piece3D: pawns (g.player) and stones (g.stone) drawn as thick pucks. No game hooks: a
-                             MutationObserver on #viewport adds .puck-under (shadow + darker side copy, shifted down) and
-                             .puck-over (rim + highlight, gradients #puck-shine / #puck-rim in #boardSvg) around the disc,
-                             counter-turned by getBoardRotation(). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+20b2. piece-3d.js        ← window.Piece3D: pawns (g.player) and stones (g.stone) drawn as real pucks (cylinders seen at an angle).
+                             No game hooks: a MutationObserver on #viewport adds .puck-under (ground shadow + curved side band,
+                             gradient #puck-band) and .puck-over (rim + highlight on the top face); the piece's own parts get a
+                             transform that lifts them up and presses them into an oval (old transform kept in data-p3d; pawn
+                             .pawn-cos-base stays on the ground). Counter-turned by getBoardRotation(), pressed less when the
+                             board tilt (_boardTiltDegrees) is on. Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
