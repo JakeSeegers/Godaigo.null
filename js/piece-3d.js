@@ -206,26 +206,38 @@
         return `M ${-r} 0 A ${r} ${r} 0 0 0 ${r} 0 A ${r} ${r + lift} 0 0 0 ${-r} 0 Z`;
     }
 
+    // Per-element tweaks for the glass stones, keyed by the symbol picture:
+    // size = symbol size, light = strength of the inner light, spill, lit
+    // edge and symbol glow. Earth: symbol 10% smaller, 20% dimmer (owner
+    // 2026-10-07).
+    const STONE_LOOK = { mountainsymbol: { size: 0.9, light: 0.8 } };
+    function stoneLook(g) {
+        const href = g.querySelector(':scope > image')?.getAttribute('href') || '';
+        for (const key in STONE_LOOK) if (href.indexOf(key) >= 0) return STONE_LOOK[key];
+        return { size: 1, light: 1 };
+    }
+
     function buildBeadUnder(g, under) {
         const { r, lift } = dims(g);
         const disc = mainDisc(g);
         const fill = disc?.getAttribute('fill') || '#888';
         const edge = disc?.getAttribute('stroke') || '#ccc';
+        const L = stoneLook(g).light;
         const d = domePath(r, lift);
         under.innerHTML = '';
         const lit = mix(edge, 'white', 0.45);
         under.appendChild(el('circle', { cx: r * 0.15, cy: 1.5, r: r * 1.3, fill: 'url(#puck-shadow)' }));
         // a little of the inner light spills onto the board, low right
-        const spill = el('ellipse', { class: 'bead-halo', cx: r * 0.35, cy: r * 0.45, rx: r * 1.5, ry: r * 1.3, fill: edge, 'fill-opacity': 0.35, mask: 'url(#bead-halo-mask)' });
+        const spill = el('ellipse', { class: 'bead-halo', cx: r * 0.35, cy: r * 0.45, rx: r * 1.5, ry: r * 1.3, fill: edge, 'fill-opacity': 0.35 * L, mask: 'url(#bead-halo-mask)' });
         spill.style.mixBlendMode = 'screen'; // light, not paint
         under.appendChild(spill);
         under.appendChild(el('path', { class: 'puck-side', d, fill }));
         // the light inside: a bright core of the element colour
-        const core = el('ellipse', { class: 'bead-core', cx: 0, cy: -lift * 0.45, rx: r * 0.8, ry: r * 0.8 + lift * 0.3, fill: edge, 'fill-opacity': 0.65, mask: 'url(#bead-core-mask)' });
+        const core = el('ellipse', { class: 'bead-core', cx: 0, cy: -lift * 0.45, rx: r * 0.8, ry: r * 0.8 + lift * 0.3, fill: edge, 'fill-opacity': 0.65 * L, mask: 'url(#bead-core-mask)' });
         core.style.mixBlendMode = 'screen';
         under.appendChild(core);
         // light through the glass gathers at the lower edge, away from the light
-        const pool = el('ellipse', { cx: r * 0.18, cy: r * 0.55 - lift * 0.1, rx: r * 0.7, ry: r * 0.32, fill: edge, 'fill-opacity': 0.55, mask: 'url(#bead-glow-mask)' });
+        const pool = el('ellipse', { cx: r * 0.18, cy: r * 0.55 - lift * 0.1, rx: r * 0.7, ry: r * 0.32, fill: edge, 'fill-opacity': 0.55 * L, mask: 'url(#bead-glow-mask)' });
         pool.style.mixBlendMode = 'screen';
         under.appendChild(pool);
         under.appendChild(el('path', { d, fill: 'url(#bead-body)' }));
@@ -234,7 +246,7 @@
             fill: 'none', stroke: edge, 'stroke-opacity': 0.55, 'stroke-width': 0.8 }));
         // the lit glass edge, low right
         under.appendChild(el('path', { d: `M ${r * 0.98} ${-r * 0.05} A ${r} ${r} 0 0 1 ${-r * 0.3} ${r * 0.95}`,
-            fill: 'none', stroke: lit, 'stroke-opacity': 0.5, 'stroke-width': 1, 'stroke-linecap': 'round' }));
+            fill: 'none', stroke: lit, 'stroke-opacity': 0.5 * L, 'stroke-width': 1, 'stroke-linecap': 'round' }));
     }
 
     // The symbol as light: the symbol's shape (its image used as an alpha mask)
@@ -267,8 +279,10 @@
         // The void art is light dots on a dark disc: its shape is the whole disc,
         // so it uses its brightness instead (only the dots light up).
         const lumMask = /voidsymbol/i.test(href);
-        [[1.22, mix(color, 'white', 0.2), 0.15, 0], [1.1, mix(color, 'white', 0.3), 0.28, 0],
-         [1, mix(color, 'black', 0.72), 0.95, B], [1, mix(color, 'white', 0.45), 1, 0]].forEach(([k, fill, op, off]) => {
+        const { size: S, light: L } = stoneLook(g);
+        [[1.22, mix(color, 'white', 0.2), 0.15 * L, 0], [1.1, mix(color, 'white', 0.3), 0.28 * L, 0],
+         [1, mix(color, 'black', 0.72), 0.95, B], [1, mix(color, 'white', 0.45 * L), L, 0]].forEach(([k0, fill, op, off]) => {
+            const k = k0 * S;
             const id = 'bead-sym-' + (++symSeq);
             const m = el('mask', { id, maskUnits: 'userSpaceOnUse', x: cx - w, y: cy - h, width: w * 2, height: h * 2 });
             m.style.maskType = lumMask ? 'luminance' : 'alpha';
