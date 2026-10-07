@@ -6,7 +6,8 @@
       "date": "2026-10-07",
       "title": "Sharper stones",
       "changes": [
-        "Stone symbols stay sharp at every zoom level (before, they could look blurry until you hovered over them)."
+        "Stone symbols stay sharp at every zoom level (before, they could look blurry until you hovered over them).",
+        "In games against bots only, you no longer get an empty response screen when you have nothing to respond with."
       ]
     },
     {

@@ -280,8 +280,12 @@ class ResponseWindowSystem {
      * @returns {boolean}
      */
     canPlayerBluff(playerIndex) {
-        // Bluffing only matters in multiplayer — in single-player scroll contents are known
+        // Bluffing only matters in multiplayer - in single-player scroll contents are known
         if (typeof isMultiplayer === 'undefined' || !isMultiplayer) return false;
+        // ...and only when another HUMAN is in the game: a bluff fools people, and
+        // bots never read the screen. Against bots only, the empty window was just a
+        // wait with nothing to do (owner report 2026-10-07).
+        if (!this.hasOtherHuman(playerIndex)) return false;
 
         const playerAP = this.getPlayerAP(playerIndex);
         if (playerAP < 2) return false;
@@ -324,6 +328,15 @@ class ResponseWindowSystem {
             if (this.checkPatternForPlayer(scrollName, playerIndex)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /** Is any other seat in this game (not playerIndex) a human? */
+    hasOtherHuman(playerIndex) {
+        const n = typeof playerPositions !== 'undefined' ? playerPositions.length : 0;
+        for (let i = 0; i < n; i++) {
+            if (i !== playerIndex && !this.isBotPlayer(i)) return true;
         }
         return false;
     }

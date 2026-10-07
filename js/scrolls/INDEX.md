@@ -153,7 +153,9 @@ A player can respond if:
 The window only opens when a non-caster, non-bot player either meets the full
 response eligibility above, OR qualifies for a bluff (canPlayerBluff): a hand
 scroll whose ELEMENT matches a response/counter scroll whose formation is
-currently up for them, plus an open active slot and ≥ 2 AP. Bluffers see a
+currently up for them, plus an open active slot and ≥ 2 AP, and only when another
+HUMAN seat is in the game (`hasOtherHuman`; against bots only there is nobody to fool,
+owner report 2026-10-07). Bluffers see a
 window with no scroll cards so opponents can't tell they have nothing to play.
 If nobody qualifies, the cast resolves instantly with no waiting screen.
 Bots DO respond (BotEffects.decideResponse(), driven by bot.js in the arena
