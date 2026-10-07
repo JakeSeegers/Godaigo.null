@@ -117,6 +117,7 @@
         [2.68, 0.36],                                   // neck
     ];
     const HEAD_Z = 3.06, HEAD_R = 0.52;
+    const PAWN_SCALE = 1.15; // the 3D pawn is 15% bigger than the flat marker (owner 2026-10-07)
 
     function hexRgb(c) {
         const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c || '').trim());
@@ -165,7 +166,7 @@
 
     function buildPawn(g, under) {
         const disc = mainDisc(g);
-        const r = parseFloat(disc?.getAttribute('r')) || 8;
+        const r = (parseFloat(disc?.getAttribute('r')) || 8) * PAWN_SCALE;
         const color = disc?.getAttribute('fill') || '#888';
         const tan = Math.tan(Math.min(80, tilt || 0) * Math.PI / 180);
         const grads = pawnGrads(color);
