@@ -446,6 +446,20 @@
             redo.forEach(decorate);
         }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke', 'href', 'class'], attributeOldValue: true });
         all(decorate);
+        // Pawns always draw over stones (owner 2026-10-07: bot pawns went under
+        // stones while moving). Pawns and stones are both children of #viewport
+        // and stones are usually added later, so they ended up on top. When a
+        // stone is added after a pawn, it is moved to just before the first pawn
+        // (the stone moves, never the pawn, so a pawn drag is never disturbed).
+        const stonesUnderPawns = () => {
+            const firstPawn = vp.querySelector(':scope > g.player');
+            if (!firstPawn) return;
+            vp.querySelectorAll(':scope > g.player ~ g.stone').forEach(st => vp.insertBefore(st, firstPawn));
+        };
+        new MutationObserver(list => {
+            if (list.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && (n.matches('g.stone') || n.matches('g.player'))))) stonesUnderPawns();
+        }).observe(vp, { childList: true });
+        stonesUnderPawns();
         // Sharpness: the board is its own cached layer (#boardSvg will-change),
         // and after a zoom Chrome kept showing the stone symbols (images inside
         // masks) at the size they had when they were made: a repaint (hover,
