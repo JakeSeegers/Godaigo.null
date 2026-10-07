@@ -4286,8 +4286,10 @@ label, .hud-ap-label, .hud-ap-value {
     /* Above #scroll-ref-overlay/other retro-dlg popups (z-index: 2000, set
        inline in game-ui.js) now that hovering a row inside the Scroll
        Reference popup can trigger this preview too — below the tutorial's
-       8500+ range, which never needs to compete with it. */
-    z-index: 2500;
+       8500+ range, which never needs to compete with it. Also above the
+       scroll pickers (scroll-effects.js decision overlays, z-index 3000), whose
+       cards are Scroll Reference rows too (2026-10-07). */
+    z-index: 3100;
     width: 480px;                  /* ~250% of the 300px panel card */
     max-height: calc(100vh - 24px);
     overflow-y: auto;

@@ -2013,21 +2013,39 @@ const ScrollEffects = {
                 backgroundColor: '#1a1a2e',
                 border: `2px solid ${info.color}`,
                 borderRadius: '10px',
-                padding: '20px',
+                padding: '16px 18px',
                 color: 'white',
-                minWidth: '300px',
-                maxWidth: '450px',
+                width: '440px',
+                maxWidth: '92vw',
                 maxHeight: '80vh',
                 overflowY: 'auto'
             });
 
             const titleEl = document.createElement('h3');
             titleEl.textContent = `${element.charAt(0).toUpperCase() + element.slice(1)} Deck (${deck.length} scrolls)`;
-            titleEl.style.marginBottom = '5px';
+            titleEl.style.marginBottom = '8px';
             titleEl.style.textAlign = 'center';
             titleEl.style.color = info.color;
             modal.appendChild(titleEl);
             makeDecisionModalMovable(modal, titleEl, overlay);
+
+            // Element tabs like the Scroll Reference: switch decks here
+            // (empty decks greyed). Only scrolls still in a deck are listed.
+            const tabBar = document.createElement('div');
+            tabBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-bottom:8px;';
+            ['earth', 'water', 'fire', 'wind', 'void'].forEach(el => {
+                const n = self.spellSystem?.scrollDecks?.[el]?.length || 0;
+                const c = STONE_TYPES_LOCAL[el].color, on = el === element;
+                const tab = document.createElement('button');
+                tab.textContent = `${el.charAt(0).toUpperCase() + el.slice(1)} (${n})`;
+                tab.disabled = n === 0;
+                tab.style.cssText = `font-family: var(--font-pixel); font-size: 10px; padding: 5px 8px; border-radius: 3px;
+                    border: 1px solid ${on ? c : c + '44'}; background: ${on ? c + '1a' : 'transparent'};
+                    color: ${on ? c : c + '99'}; cursor: ${n ? 'pointer' : 'not-allowed'}; opacity: ${n ? 1 : 0.4}; letter-spacing: 1px;`;
+                if (n && !on) tab.onclick = () => showDeckBrowser(el);
+                tabBar.appendChild(tab);
+            });
+            modal.appendChild(tabBar);
 
             const subtitle = document.createElement('div');
             subtitle.textContent = 'Click a scroll to add it to your hand.';
@@ -2037,42 +2055,17 @@ const ScrollEffects = {
             subtitle.style.textAlign = 'center';
             modal.appendChild(subtitle);
 
-            deck.forEach((scrollName, index) => {
+            // Lowest level first, like the Scroll Reference. The real deck
+            // index is kept for the pick (selectScroll splices by index).
+            const order = deck.map((scrollName, index) => ({ scrollName, index }))
+                .sort((a, b) => (self.spellSystem?.patterns?.[a.scrollName]?.level || 0) - (self.spellSystem?.patterns?.[b.scrollName]?.level || 0));
+            order.forEach(({ scrollName, index }) => {
                 const scrollInfo = self.spellSystem?.patterns?.[scrollName];
                 if (!scrollInfo) return;
 
-                const card = document.createElement('div');
-                Object.assign(card.style, {
-                    backgroundColor: '#34495e',
-                    border: '1px solid #555',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    marginBottom: '8px',
-                    cursor: 'pointer',
-                    transition: 'border-color 0.15s'
-                });
-                card.onmouseenter = () => card.style.borderColor = info.color;
-                card.onmouseleave = () => card.style.borderColor = '#555';
-
-                const nameEl = document.createElement('div');
-                nameEl.textContent = scrollInfo.name || scrollName;
-                nameEl.style.fontWeight = 'bold';
-                nameEl.style.color = info.color;
-                nameEl.style.marginBottom = '4px';
-                card.appendChild(nameEl);
-
-                const descEl = document.createElement('div');
-                descEl.textContent = scrollInfo.description || 'No description';
-                descEl.style.fontSize = '12px';
-                descEl.style.color = '#95a5a6';
-                card.appendChild(descEl);
-
-                const levelEl = document.createElement('div');
-                levelEl.textContent = `Level ${scrollInfo.level || '?'}`;
-                levelEl.style.fontSize = '11px';
-                levelEl.style.color = '#7f8c8d';
-                levelEl.style.marginTop = '4px';
-                card.appendChild(levelEl);
+                // Scroll Reference style card; its first child is the name
+                // (bot-effects.js driveScholarsInsight reads it).
+                const { card } = self._scrollRefCard(scrollName, 'div');
 
                 card.onclick = () => {
                     overlay.remove();
@@ -5169,6 +5162,47 @@ const ScrollEffects = {
     // HELPER MODAL FUNCTIONS
     // ============================================
 
+    // A scroll shown like a Scroll Reference row (game-ui.js
+    // showScrollReferencePopup): name, element + level (+ Response / Counter),
+    // the full description, and the pattern on hover (.scroll-ref-row +
+    // data-scroll-name, scroll-panels.js findHoverable). Used by the scroll
+    // pickers (Inspiring Draught, Sacrificial Pyre, Plunder, Scholar's
+    // Insight) so players can read what they are choosing (owner 2026-10-07).
+    // The FIRST child holds only the scroll's name (a <button> when nameTag is
+    // 'button'): bot-effects.js reads choices by that text.
+    _scrollRefCard(scrollName, nameTag = 'div') {
+        const def = this.spellSystem?.patterns?.[scrollName] || window.SCROLL_DEFINITIONS?.[scrollName] || {};
+        const element = def.element || (this.spellSystem?.getScrollElement?.(scrollName)) || 'earth';
+        const c = window.ScrollLook ? window.ScrollLook.colors(scrollName)[0]
+            : ({ earth: '#69d83a', water: '#5894f4', fire: '#ed1b43', wind: '#ffce00', void: '#9458f4', catacomb: '#c8a870' }[element] || '#aaa');
+        const card = document.createElement('div');
+        card.className = 'scroll-ref-row';
+        card.dataset.scrollName = scrollName;
+        card.style.cssText = `border-left: 3px solid ${c}; background: ${c}0d; border-radius: 0 4px 4px 0;
+            padding: 10px 12px; margin-bottom: 8px; cursor: pointer; text-align: left; transition: background 0.15s;`;
+        card.addEventListener('mouseenter', () => { card.style.background = `${c}26`; });
+        card.addEventListener('mouseleave', () => { card.style.background = `${c}0d`; });
+        const nameEl = document.createElement(nameTag);
+        nameEl.textContent = def.name || scrollName;
+        nameEl.style.cssText = `display: block; font-family: var(--font-terminal); font-size: 17px; color: ${c};
+            background: none; border: none; padding: 0; margin: 0 0 3px; cursor: pointer; text-align: left;`;
+        card.appendChild(nameEl);
+        const meta = document.createElement('div');
+        const kind = def.canCounter === 'any' || def.isCounter ? ' · Counter' : (def.isResponse ? ' · Response' : '');
+        meta.textContent = `${element.charAt(0).toUpperCase() + element.slice(1)} · Lv ${def.level || '?'}${kind}`;
+        meta.style.cssText = `font-family: var(--font-pixel); font-size: 10px; color: #ccc; letter-spacing: 1px; margin-bottom: 5px;`;
+        card.appendChild(meta);
+        const desc = document.createElement('div');
+        desc.textContent = def.description || '';
+        desc.style.cssText = `font-family: var(--font-terminal); font-size: 14px; color: #bbb; line-height: 1.45;`;
+        card.appendChild(desc);
+        const hint = document.createElement('div');
+        hint.textContent = 'hover for pattern';
+        hint.style.cssText = `font-family: var(--font-pixel); font-size: 9px; color: ${c}88; margin-top: 5px; letter-spacing: 1px;`;
+        card.appendChild(hint);
+        return { card, nameEl };
+    },
+
     showScrollSelectionModal(scrollNames, title, onSelect, onCancel, modalId = 'scroll-select-modal') {
         // Remove existing modal
         const existing = document.getElementById(modalId);
@@ -5183,39 +5217,29 @@ const ScrollEffects = {
             backgroundColor: '#1a1a2e',
             border: '2px solid #5894f4',
             borderRadius: '10px',
-            padding: '20px',
-            maxWidth: '500px',
+            padding: '16px 18px',
+            width: '440px',
+            maxWidth: '92vw',
             color: 'white'
         });
 
         const titleEl = document.createElement('h3');
         titleEl.textContent = title;
-        titleEl.style.marginBottom = '15px';
+        titleEl.style.marginBottom = '12px';
         modal.appendChild(titleEl);
         makeDecisionModalMovable(modal, titleEl, overlay);
 
+        // Each choice is a Scroll Reference style card; its name is the button
+        // (bots pick by the button's text).
         scrollNames.forEach(scrollName => {
-            const scrollDef = this.spellSystem?.patterns?.[scrollName];
-            const btn = document.createElement('button');
-            btn.textContent = scrollDef?.name || scrollName;
-            Object.assign(btn.style, {
-                display: 'block',
-                width: '100%',
-                padding: '10px',
-                margin: '5px 0',
-                backgroundColor: '#2d2d44',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer'
-            });
-            btn.onmouseenter = () => btn.style.backgroundColor = '#3d3d54';
-            btn.onmouseleave = () => btn.style.backgroundColor = '#2d2d44';
-            btn.onclick = () => {
+            const { card, nameEl: btn } = this._scrollRefCard(scrollName, 'button');
+            btn.onclick = (e) => {
+                e?.stopPropagation?.();
                 overlay.remove();
                 onSelect(scrollName);
             };
-            modal.appendChild(btn);
+            card.addEventListener('click', (e) => { if (e.target !== btn) btn.click(); });
+            modal.appendChild(card);
         });
 
         const cancelBtn = document.createElement('button');
