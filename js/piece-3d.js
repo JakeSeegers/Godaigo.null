@@ -117,7 +117,7 @@
         [2.68, 0.36],                                   // neck
     ];
     const HEAD_Z = 3.06, HEAD_R = 0.52;
-    const PAWN_SCALE = 1.15; // the 3D pawn is 15% bigger than the flat marker (owner 2026-10-07)
+    const PAWN_SCALE = 1.27; // the 3D pawn is about 27% bigger than the flat marker (owner 2026-10-07: +15%, then +10% more)
 
     function hexRgb(c) {
         const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(c || '').trim());
