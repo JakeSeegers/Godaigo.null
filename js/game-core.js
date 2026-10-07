@@ -4489,8 +4489,8 @@
             });
         }
 
-        // Shrine marker on a shrine tile: a dark disc with an element-colour ring
-        // and the element symbol drawn as light with a dark outline, so it reads
+        // Shrine marker on a shrine tile: a flat dark hexagon plate with an
+        // element-colour edge and the element symbol drawn as light with a dark outline, so it reads
         // clearly on any tile art (owner 2026-10-07). Same idea as the 3D stones
         // (js/piece-3d.js buildSym): the symbol image is used as an alpha mask
         // over flat colour; the outline is the shape stamped 8 times nudged
@@ -4528,14 +4528,20 @@
             };
             const R = 13; // a stone is 12; the shrine hex fits about 17
 
-            // soft colour ring around the disc, then the disc itself
-            mk('circle', { cx: 0, cy: 0, r: R + 2, fill: 'none', stroke: color, 'stroke-width': 2.5, 'stroke-opacity': 0.35 });
-            mk('circle', { cx: 0, cy: 0, r: R, fill: tint(color, 'black', 0.7), stroke: color, 'stroke-width': 1.5 });
+            // A flat hexagon plate set into the floor (pointy top, like the grid
+            // hexes), with an engraved inner hex line: round shiny domes are
+            // stones, flat hexes are shrines (owner 2026-10-07).
+            const hexPts = (rad) => [0, 1, 2, 3, 4, 5].map(k => {
+                const a = (Math.PI / 180) * (60 * k - 90);
+                return `${(rad * Math.cos(a)).toFixed(2)},${(rad * Math.sin(a)).toFixed(2)}`;
+            }).join(' ');
+            mk('polygon', { points: hexPts(R + 2.5), fill: tint(color, 'black', 0.72), 'fill-opacity': 0.92, stroke: color, 'stroke-width': 1.6, 'stroke-linejoin': 'round' });
+            mk('polygon', { points: hexPts(R - 0.5), fill: 'none', stroke: color, 'stroke-width': 0.7, 'stroke-opacity': 0.55, 'stroke-linejoin': 'round' });
 
             // the symbol as light: outline layer, then the light layer
             const href = STONE_TYPES[shrineType]?.img || '';
             if (href) {
-                const w = R * 1.75, x = -w / 2, y = -w / 2;
+                const w = R * 1.6, x = -w / 2, y = -w / 2;
                 const lum = shrineType === 'void';
                 const B = 0.6;
                 const shifts8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71]];
