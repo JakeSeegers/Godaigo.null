@@ -446,6 +446,72 @@
             redo.forEach(decorate);
         }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke', 'href', 'class'], attributeOldValue: true });
         all(decorate);
+        // ── Thick tiles (owner 2026-10-07) ────────────────────────────────
+        // Every placed tile gets a side: the tile's outline pushed "down" the
+        // screen by its thickness (TILE_THICK x tan(tilt), same camera as the
+        // pieces), the hull of both filled dark, plus a soft shadow. All sides
+        // live in one layer (#tile-sides) under every tile, so a side only
+        // shows where no tile covers it: the board's outer edges and gaps.
+        const TILE_THICK = 30;
+        let sidesTimer = 0;
+        const hull = (pts) => {
+            pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+            const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+            const lo = [], up = [];
+            for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+            for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+            return lo.slice(0, -1).concat(up.slice(0, -1));
+        };
+        const tileOutline = (t) => {
+            const base = t.getCTM(); if (!base) return null;
+            const inv = base.inverse(), out = [];
+            const svg = document.getElementById('boardSvg');
+            const pt = svg.createSVGPoint();
+            t.querySelectorAll('.hex-tile').forEach(h => {
+                if (h.closest('.tile-select-mark, .shrine-marker')) return;
+                const m = inv.multiply(h.getCTM());
+                for (let i = 0; i < h.points.numberOfItems; i++) {
+                    const q = h.points.getItem(i); pt.x = q.x; pt.y = q.y;
+                    const r = pt.matrixTransform(m); out.push([r.x, r.y]);
+                }
+            });
+            return out.length ? out : null;
+        };
+        const buildSides = () => {
+            let layer = document.getElementById('tile-sides');
+            const tiles = [...vp.querySelectorAll(':scope > g.placed-tile')];
+            if (!on || !tiles.length) { layer?.remove(); return; }
+            if (!layer) { layer = el('g', { id: 'tile-sides' }); }
+            if (layer !== vp.firstChild) vp.insertBefore(layer, vp.firstChild);
+            const depth = TILE_THICK * Math.tan(Math.min(80, tilt || 0) * Math.PI / 180);
+            if (depth < 0.5) { layer.innerHTML = ''; return; }
+            const a = rot * Math.PI / 180;
+            const dx = depth * Math.sin(a), dy = depth * Math.cos(a);   // "down" on screen, in board units
+            const shadow = [], side = [], edge = [];
+            tiles.forEach(t => {
+                const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/.exec(t.getAttribute('transform') || '');
+                if (!m) return;
+                const tx = +m[1], ty = +m[2];
+                const pts = tileOutline(t); if (!pts) return;
+                const top = pts.map(p => [p[0] + tx, p[1] + ty]);
+                const fmt = ps => ps.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+                const h = hull(top.concat(top.map(p => [p[0] + dx, p[1] + dy])));
+                side.push(fmt(h));
+                shadow.push(fmt(hull(top.concat(top.map(p => [p[0] + dx * 1.9 + 2, p[1] + dy * 1.9 + 2])))));
+                edge.push(fmt(hull(top.map(p => [p[0] + dx, p[1] + dy]))));
+            });
+            layer.innerHTML = '';
+            shadow.forEach(ps => layer.appendChild(el('polygon', { points: ps, fill: '#000', 'fill-opacity': 0.28 })));
+            side.forEach(ps => layer.appendChild(el('polygon', { points: ps, fill: '#4a3a2c', stroke: '#1a130d', 'stroke-width': 1, 'stroke-linejoin': 'round' })));
+            // a darker line along the bottom edge of each slab
+            edge.forEach(ps => layer.appendChild(el('polygon', { points: ps, fill: 'none', stroke: '#120d09', 'stroke-width': 1.2, 'stroke-opacity': 0.8, 'stroke-linejoin': 'round' })));
+        };
+        const sidesSoon = () => { clearTimeout(sidesTimer); sidesTimer = setTimeout(buildSides, 60); };
+        new MutationObserver(list => {
+            if (list.some(m => [...m.addedNodes, ...m.removedNodes].some(n => n.nodeType === 1 && n.matches('g.placed-tile')))) sidesSoon();
+        }).observe(vp, { childList: true });
+        window.Piece3D_rebuildTileSides = sidesSoon;
+        sidesSoon();
         // Pawns always draw over stones (owner 2026-10-07: bot pawns went under
         // stones while moving). Pawns and stones are both children of #viewport
         // and stones are usually added later, so they ended up on top. When a
@@ -483,6 +549,7 @@
             if (r === rot && t === tilt) return;
             rot = r; tilt = t;
             if (on) all(refresh);
+            sidesSoon();
             // shrine carving is lit from the screen's top left too (game-core.js)
             if (typeof window.refreshShrineMarkers === 'function') window.refreshShrineMarkers();
         }, 150);
@@ -492,6 +559,7 @@
         on = !!value;
         try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch (e) {}
         all(on ? decorate : undecorate);
+        window.Piece3D_rebuildTileSides?.();
     }
 
     // ── Stone break animation (owner 2026-10-07) ─────────────────────────────
