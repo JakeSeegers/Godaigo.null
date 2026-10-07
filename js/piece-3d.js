@@ -417,6 +417,21 @@
             redo.forEach(decorate);
         }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke', 'href'] });
         all(decorate);
+        // Sharpness: the board is its own cached layer (#boardSvg will-change),
+        // and after a zoom Chrome can keep showing masked parts (stone symbols,
+        // shrine markers) from an older, smaller picture until they repaint,
+        // which a hover does (owner report 2026-10-07, twice). So once a zoom
+        // settles, nudge them all into repainting: a tiny opacity change for
+        // two frames. Runs with 3D pieces off too (shrine markers use masks).
+        let nudgeTimer = 0;
+        const nudge = () => {
+            const ns = document.querySelectorAll('#viewport .bead-sym, #viewport .shrine-marker');
+            ns.forEach(n => { n.style.opacity = '0.999'; });
+            requestAnimationFrame(() => requestAnimationFrame(() => ns.forEach(n => { n.style.opacity = ''; })));
+        };
+        const soon = () => { clearTimeout(nudgeTimer); nudgeTimer = setTimeout(nudge, 200); };
+        new MutationObserver(soon).observe(vp, { attributes: true, attributeFilter: ['transform'] });
+        window.addEventListener('resize', soon);
         // Board rotation / tilt: cheap check, only touches pieces when they changed.
         setInterval(() => {
             const r = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : 0;

@@ -4489,8 +4489,8 @@
             });
         }
 
-        // Shrine marker on a shrine tile: a flat dark hexagon plate with an
-        // element-colour edge and the element symbol drawn as light with a dark outline, so it reads
+        // Shrine marker on a shrine tile: a dark hexagon plate carved into the
+        // floor with an element-colour edge and the element symbol drawn as light with a dark outline, so it reads
         // clearly on any tile art (owner 2026-10-07). Same idea as the 3D stones
         // (js/piece-3d.js buildSym): the symbol image is used as an alpha mask
         // over flat colour; the outline is the shape stamped 8 times nudged
@@ -4528,29 +4528,43 @@
             };
             const R = 13; // a stone is 12; the shrine hex fits about 17
 
-            // A flat hexagon plate set into the floor (pointy top, like the grid
-            // hexes), with an engraved inner hex line: round shiny domes are
-            // stones, flat hexes are shrines (owner 2026-10-07).
-            const hexPts = (rad) => [0, 1, 2, 3, 4, 5].map(k => {
+            // A hexagon plate carved into the floor (pointy top, like the grid
+            // hexes): round shiny domes are stones, carved hexes are shrines
+            // (owner 2026-10-07). Light comes from the top left, so the sunken
+            // plate's top-left inner walls are in shadow and its bottom-right
+            // walls catch the light.
+            const hexPt = (rad, k) => {
                 const a = (Math.PI / 180) * (60 * k - 90);
                 return `${(rad * Math.cos(a)).toFixed(2)},${(rad * Math.sin(a)).toFixed(2)}`;
-            }).join(' ');
-            mk('polygon', { points: hexPts(R + 2.5), fill: tint(color, 'black', 0.72), 'fill-opacity': 0.92, stroke: color, 'stroke-width': 1.6, 'stroke-linejoin': 'round' });
-            mk('polygon', { points: hexPts(R - 0.5), fill: 'none', stroke: color, 'stroke-width': 0.7, 'stroke-opacity': 0.55, 'stroke-linejoin': 'round' });
+            };
+            const hexPts = (rad) => [0, 1, 2, 3, 4, 5].map(k => hexPt(rad, k)).join(' ');
+            const line = (rad, ks) => ks.map(k => hexPt(rad, k)).join(' ');
+            // vertices: 0 top, 1 upper right, 2 lower right, 3 bottom, 4 lower left, 5 upper left
+            mk('polygon', { points: hexPts(R + 2.5), fill: tint(color, 'black', 0.78), 'fill-opacity': 0.94, stroke: color, 'stroke-width': 1.4, 'stroke-linejoin': 'round' });
+            mk('polyline', { points: line(R + 1.1, [4, 5, 0, 1]), fill: 'none', stroke: '#000', 'stroke-width': 3, 'stroke-opacity': 0.7, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+            mk('polyline', { points: line(R + 1.4, [1, 2, 3, 4]), fill: 'none', stroke: tint(color, 'white', 0.55), 'stroke-width': 1.3, 'stroke-opacity': 0.7, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+            // engraved inner ring
+            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: '#000', 'stroke-width': 0.9, 'stroke-opacity': 0.45, 'stroke-linejoin': 'round', transform: 'translate(-0.35 -0.35)' });
+            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: color, 'stroke-width': 0.6, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', transform: 'translate(0.3 0.3)' });
 
-            // the symbol as light: outline layer, then the light layer
+            // The symbol as an inlay in carved grooves: groove shadow toward the
+            // top left, light catch toward the bottom right, a thin outline, then
+            // the glowing inlay itself.
             const href = STONE_TYPES[shrineType]?.img || '';
             if (href) {
                 const w = R * 1.6, x = -w / 2, y = -w / 2;
                 const lum = shrineType === 'void';
-                const B = 0.6;
                 const shifts8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71]];
-                [[tint(color, 'black', 0.75), 1, B], [tint(color, 'white', lum ? 0.75 : 0.45), 1, 0]].forEach(([fill, op, off]) => {
+                // [fill, opacity, shifts]
+                [[ '#000', 0.75, [[-0.8, -0.8]] ],
+                 [ tint(color, 'white', 0.6), 0.5, [[0.7, 0.7]] ],
+                 [ tint(color, 'black', 0.8), 1, shifts8.map(([dx, dy]) => [dx * 0.4, dy * 0.4]) ],
+                 [ tint(color, 'white', lum ? 0.7 : 0.4), 1, [[0, 0]] ]].forEach(([fill, op, shifts]) => {
                     const id = 'shrine-sym-' + (++_shrineSymSeq);
                     const m = mk('mask', { id, maskUnits: 'userSpaceOnUse', x: -R * 2, y: -R * 2, width: R * 4, height: R * 4 });
                     m.style.maskType = lum ? 'luminance' : 'alpha';
-                    (off ? shifts8 : [[0, 0]]).forEach(([dx, dy]) => mk('image', {
-                        href, x: x + dx * off, y: y + dy * off, width: w, height: w, preserveAspectRatio: 'xMidYMid meet'
+                    shifts.forEach(([dx, dy]) => mk('image', {
+                        href, x: x + dx, y: y + dy, width: w, height: w, preserveAspectRatio: 'xMidYMid meet'
                     }, m));
                     mk('rect', { x: -R * 2, y: -R * 2, width: R * 4, height: R * 4, fill, 'fill-opacity': op, mask: `url(#${id})` });
                 });

@@ -6,9 +6,9 @@
       "date": "2026-10-07",
       "title": "Sharper stones",
       "changes": [
-        "Stone symbols have a dark outline so they are easier to read, and stay sharp at every zoom level.",
+        "Stone symbols have a dark outline so they are easier to read, and should stay sharp after zooming.",
         "In games against bots only, you no longer get an empty response screen when you have nothing to respond with.",
-        "Shrines on the tiles are now bigger, clearer hexagon plates, easy to tell apart from stones."
+        "Shrines on the tiles are now bigger hexagon plates carved into the floor, easy to tell apart from stones."
       ]
     },
     {
