@@ -419,16 +419,17 @@
         }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke', 'href'] });
         all(decorate);
         // Sharpness: the board is its own cached layer (#boardSvg will-change),
-        // and after a zoom Chrome can keep showing masked parts (stone symbols,
-        // shrine markers) from an older, smaller picture until they repaint,
-        // which a hover does (owner report 2026-10-07, twice). So once a zoom
-        // settles, nudge them all into repainting: a tiny opacity change for
-        // two frames. Runs with 3D pieces off too (shrine markers use masks).
+        // and after a zoom Chrome kept showing the stone symbols (images inside
+        // masks) at the size they had when they were made: a repaint (hover,
+        // an opacity nudge) was not enough, but turning the map, which rebuilds
+        // every piece, fixed it (owner report 2026-10-07). So once a zoom
+        // settles, rebuild the 3D stones the same way, and give each shrine
+        // marker fresh copies of its mask images. Shrines run with 3D pieces off
+        // too (they use masks either way).
         let nudgeTimer = 0;
         const nudge = () => {
-            const ns = document.querySelectorAll('#viewport .bead-sym, #viewport .shrine-marker');
-            ns.forEach(n => { n.style.opacity = '0.999'; });
-            requestAnimationFrame(() => requestAnimationFrame(() => ns.forEach(n => { n.style.opacity = ''; })));
+            if (on) document.querySelectorAll('#viewport g.stone').forEach(g => { if (g.querySelector(':scope > .puck-under')) refresh(g); });
+            document.querySelectorAll('#viewport .shrine-marker mask image').forEach(img => img.replaceWith(img.cloneNode(true)));
         };
         const soon = () => { clearTimeout(nudgeTimer); nudgeTimer = setTimeout(nudge, 200); };
         new MutationObserver(soon).observe(vp, { attributes: true, attributeFilter: ['transform'] });
