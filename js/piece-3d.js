@@ -239,9 +239,9 @@
     // The symbol as light: the symbol's shape (its image used as an alpha mask)
     // filled with a bright tint of the element colour, so the art's own colours
     // and dark outline drop out and every element glows the same way. Two
-    // slightly bigger, fainter copies make a soft glow. Masks, not an SVG
-    // A dark border (the shape stamped 8 times, nudged outward) keeps the
-    // lines readable.
+    // slightly bigger, fainter copies make a soft glow, and a dark border (the
+    // shape stamped 8 times, nudged outward) keeps the lines readable. The void
+    // art uses its brightness instead of its shape. Masks, not an SVG
     // filter: browsers keep a filter's picture from an older zoom (blurry until
     // something repaints it, e.g. hover); masks are drawn fresh every time.
     // The real image is hidden (opacity 0) while this is shown.
