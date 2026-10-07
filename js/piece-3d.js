@@ -226,11 +226,29 @@
         return isActiveStone(g) ? { size: look.size, light: look.light * ACTIVE_LIGHT } : look;
     }
 
+    // A stone's colours come from its SYMBOL (the element it is), so the glass
+    // can never show one element's colour with another's symbol (owner
+    // 2026-10-07: Control the Current left stones blue with a wind symbol).
+    // Falls back to the stone circle's own colours.
+    function beadColors(g) {
+        const disc = mainDisc(g);
+        const href = g.querySelector(':scope > image')?.getAttribute('href') || '';
+        const types = window.STONE_TYPES || null;
+        if (types) for (const k in types) {
+            const img = (types[k].img || '').split('?')[0];
+            if (img && href.split('?')[0] === img) {
+                const c = types[k].color;
+                const [r, gg, b] = hexRgb(c).map(v => Math.round(v * 0.55));
+                return { fill: `rgb(${r},${gg},${b})`, edge: c };
+            }
+        }
+        return { fill: disc?.getAttribute('fill') || '#888', edge: disc?.getAttribute('stroke') || '#ccc' };
+    }
+
     function buildBeadUnder(g, under) {
         const { r, lift } = dims(g);
         const disc = mainDisc(g);
-        const fill = disc?.getAttribute('fill') || '#888';
-        const edge = disc?.getAttribute('stroke') || '#ccc';
+        const { fill, edge } = beadColors(g);
         const L = stoneLook(g).light;
         const d = domePath(r, lift);
         under.innerHTML = '';
@@ -273,7 +291,7 @@
         const img = g.querySelector(':scope > image');
         if (!img) { if (sym) sym.remove(); return; }
         if (!sym) { sym = el('g', { class: 'bead-sym' }); img.after(sym); }
-        const color = mainDisc(g)?.getAttribute('stroke') || '#ccc';
+        const color = beadColors(g).edge;
         const x = +img.getAttribute('x') || 0, y = +img.getAttribute('y') || 0;
         const w = +img.getAttribute('width') || 0, h = +img.getAttribute('height') || 0;
         const cx = x + w / 2, cy = y + h / 2;
