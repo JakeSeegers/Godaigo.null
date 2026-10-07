@@ -33,6 +33,77 @@ function styleDecisionOverlay(overlay) {
     });
 }
 
+// A clear "this tile is picked" mark (owner 2026-10-07: the picked tile for
+// Shifting Sands was hard to tell from the other choices, same idea for the
+// tile being moved by Telekinesis). On a tile group (or the drag ghost):
+// a light tint over every hex of the tile, a bright outline, a slow pulse,
+// and an optional numbered badge above the tile. Ignores the mouse.
+// window.TileMark.mark(el, {color, label}) / .unmark(el) /
+// .fromMark(x, y) (dashed ring where a moved tile came from) / .clearFrom().
+window.TileMark = (function () {
+    const NS = 'http://www.w3.org/2000/svg';
+    const mk = (tag, attrs, parent) => {
+        const e = document.createElementNS(NS, tag);
+        for (const k in attrs) e.setAttribute(k, attrs[k]);
+        e.style.pointerEvents = 'none';
+        if (parent) parent.appendChild(e);
+        return e;
+    };
+    const style = () => {
+        if (document.getElementById('tile-mark-style')) return;
+        const st = document.createElement('style');
+        st.id = 'tile-mark-style';
+        st.textContent = '@keyframes tileMarkPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }'
+            + ' .tile-select-mark .tm-tint { animation: tileMarkPulse 1.2s ease-in-out infinite; }'
+            + ' .tile-from-mark { animation: tileMarkPulse 1.6s ease-in-out infinite; }';
+        document.head.appendChild(st);
+    };
+    function hexesOf(el) {
+        let hexes = el.querySelectorAll('.hex-tile');
+        if (!hexes.length) hexes = el.querySelectorAll(':scope > g polygon');
+        return [...hexes].filter(h => !h.closest('.shrine-marker, .tile-select-mark'));
+    }
+    function mark(el, opts = {}) {
+        if (!el) return;
+        unmark(el);
+        style();
+        const color = opts.color || '#ffffff';
+        const g = mk('g', { class: 'tile-select-mark' }, el);
+        const hexes = hexesOf(el);
+        const tint = mk('g', { class: 'tm-tint' }, g);
+        hexes.forEach(h => {
+            const pts = h.getAttribute('points'); if (!pts) return;
+            const t = h.closest('g[transform]') !== el ? h.closest('g[transform]')?.getAttribute('transform') : null;
+            const a = { points: pts, fill: color, 'fill-opacity': 0.3, stroke: '#ffffff', 'stroke-width': 2.4, 'stroke-opacity': 0.95, 'stroke-linejoin': 'round' };
+            if (t) a.transform = t;
+            mk('polygon', a, tint);
+        });
+        if (opts.label != null) {
+            // just above the tile's own hexes (not the whole group: an overlay can be bigger)
+            let top = 0;
+            hexes.forEach(h => (h.getAttribute('points') || '').trim().split(/\s+/).forEach(pt => {
+                const y = parseFloat(pt.split(',')[1]); if (y < top) top = y;
+            }));
+            top = (top || -50) - 4;
+            mk('circle', { cx: 0, cy: top, r: 9, fill: color, stroke: '#ffffff', 'stroke-width': 2 }, g);
+            const tx = mk('text', { x: 0, y: top + 4, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 'bold', fill: '#111' }, g);
+            tx.textContent = String(opts.label);
+        }
+    }
+    function unmark(el) { el?.querySelectorAll(':scope > .tile-select-mark').forEach(n => n.remove()); }
+    function fromMark(x, y, color = '#ffffff') {
+        clearFrom();
+        style();
+        const vp = document.getElementById('viewport');
+        if (!vp) return;
+        const g = mk('g', { id: 'tile-from-mark', class: 'tile-from-mark', transform: `translate(${x}, ${y})` });
+        mk('circle', { cx: 0, cy: 0, r: 52, fill: color, 'fill-opacity': 0.08, stroke: color, 'stroke-width': 2.5, 'stroke-dasharray': '7 5', 'stroke-opacity': 0.9 }, g);
+        vp.appendChild(g);
+    }
+    function clearFrom() { document.getElementById('tile-from-mark')?.remove(); }
+    return { mark, unmark, fromMark, clearFrom };
+})();
+
 function makeDecisionModalMovable(modal, handle, overlay) {
     Object.assign(modal.style, {
         position: 'fixed',
@@ -2361,6 +2432,7 @@ const ScrollEffects = {
                     selectedTiles.splice(existingIndex, 1);
                     self.unhighlightTile(tile);
                     self.highlightTile(tile, '#69d83a'); // Back to eligible highlight
+                    selectedTiles.forEach(t => window.TileMark.mark(t.element, { color: '#69d83a' }));
                     updateStatus(`Deselected tile. Select ${2 - selectedTiles.length} more.`);
                     return;
                 }
@@ -2368,6 +2440,7 @@ const ScrollEffects = {
                 // Select tile
                 selectedTiles.push(tile);
                 self.highlightTile(tile, '#2ecc71', 4); // Selected highlight
+                window.TileMark.mark(tile.element, { color: '#69d83a' }); // clear "picked" mark
                 console.log(`   Tile ${tile.id} selected. Total selected: ${selectedTiles.length}`);
 
                 if (selectedTiles.length === 1) {
@@ -2724,6 +2797,7 @@ const ScrollEffects = {
 
     unhighlightTile(tile) {
         if (!tile.element) return;
+        window.TileMark.unmark(tile.element);
 
         let hexes = tile.element.querySelectorAll('.hex-tile');
         if (hexes.length === 0) {

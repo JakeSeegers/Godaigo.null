@@ -5540,6 +5540,12 @@
             const tileContent = createTileGroup(TILE_SIZE, draggedTileRotation, draggedTileFlipped);
             ghostTile.appendChild(tileContent);
             viewport.appendChild(ghostTile);
+            // Telekinesis: mark the tile being moved and where it came from
+            if (window.telekinesisState?.active && window.TileMark) {
+                window.TileMark.mark(ghostTile, { color: '#e8c84d' });
+                ghostTile.style.opacity = '0.85'; // the moving tile itself stays easy to see (ghost default 0.4)
+                if (draggedTileOriginalPos) window.TileMark.fromMark(draggedTileOriginalPos.x, draggedTileOriginalPos.y, '#e8c84d');
+            }
 
             // The tile has already been removed from placedTiles above, so the
             // board is already in its "post-move" state — no excludeTileId needed.

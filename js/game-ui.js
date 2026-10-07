@@ -1362,6 +1362,7 @@
 
                 ghostTile.remove();
                 ghostTile = null;
+                window.TileMark?.clearFrom();
                 isDraggingTile = false;
                 draggedTileId = null;
                 draggedTileOriginalPos = null;
@@ -2019,6 +2020,7 @@
 
                     viewport.removeChild(ghostTile);
                     ghostTile = null;
+                    window.TileMark?.clearFrom();
                     isDraggingTile = false;
                     draggedTileId = null;
                     draggedTileOriginalPos = null;
