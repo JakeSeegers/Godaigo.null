@@ -1604,6 +1604,11 @@ svg {
     stroke-width: 2;
     stroke-opacity: 0.9;
 }
+/* 3D pieces: a stone picked out by a scroll (scroll-effects.js highlightStone) shows its pulsing ring
+   even though piece-3d.js made the stone circle see-through */
+.stone.stone-highlighted .stone-piece {
+    stroke-opacity: 1 !important;
+}
 .player:hover .pawn3d-outline {
     fill: #fff;
 }

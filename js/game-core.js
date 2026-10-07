@@ -5381,12 +5381,13 @@
             // Re-render circle and symbol to new element
             if (stone.element && STONE_TYPES[newElement]) {
                 const newColor = STONE_TYPES[newElement].color;
-                const circle = stone.element.querySelector('circle');
+                // the stone's own circle: with 3D pieces on, the first circle is the bead's shadow
+                const circle = stone.element.querySelector('circle.stone-piece') || stone.element.querySelector('circle');
                 if (circle) {
                     circle.setAttribute('fill', darkenHex(newColor, 0.55));
                     circle.setAttribute('stroke', newColor);
                 }
-                const img = stone.element.querySelector('image');
+                const img = stone.element.querySelector(':scope > image');
                 if (img) img.setAttribute('href', STONE_TYPES[newElement].img);
             }
 

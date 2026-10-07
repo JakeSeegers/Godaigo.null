@@ -3535,7 +3535,7 @@ const ScrollEffects = {
                 if (typeof placedStones !== 'undefined') {
                     placedStones.forEach(s => {
                         if (!s.element) return;
-                        const circle = s.element.querySelector('circle');
+                        const circle = s.element.querySelector('circle.stone-piece') || s.element.querySelector('circle');
                         if (circle && circle.style.animation && circle.style.animation.includes('stonePulse')) {
                             self.unhighlightStone(s);
                         }
@@ -3732,7 +3732,7 @@ const ScrollEffects = {
         // Update the stone's visual appearance — re-render as the new element type
         if (stone.element && typeof STONE_TYPES !== 'undefined' && STONE_TYPES[newElement]) {
             const newColor = STONE_TYPES[newElement].color;
-            const circle = stone.element.querySelector('circle');
+            const circle = stone.element.querySelector('circle.stone-piece') || stone.element.querySelector('circle');
             if (circle) {
                 const darkFill = typeof darkenHex === 'function'
                     ? darkenHex(newColor, 0.55)
@@ -3740,7 +3740,7 @@ const ScrollEffects = {
                 circle.setAttribute('fill', darkFill);
                 circle.setAttribute('stroke', newColor);
             }
-            const stoneImg = stone.element.querySelector('image');
+            const stoneImg = stone.element.querySelector(':scope > image');
             if (stoneImg) {
                 stoneImg.setAttribute('href', STONE_TYPES[newElement].img);
             }
@@ -3780,7 +3780,7 @@ const ScrollEffects = {
 
     highlightStone(stone, color) {
         if (!stone.element) return;
-        const circle = stone.element.querySelector('circle');
+        const circle = stone.element.querySelector('circle.stone-piece') || stone.element.querySelector('circle');
         if (circle) {
             circle.setAttribute('data-original-stroke', circle.getAttribute('stroke') || 'none');
             circle.setAttribute('data-original-stroke-width', circle.getAttribute('stroke-width') || '0');
@@ -3789,6 +3789,8 @@ const ScrollEffects = {
 
             // Add pulsing animation class
             circle.style.animation = 'stonePulse 1s ease-in-out infinite';
+            // 3D pieces (js/piece-3d.js) hide this circle's paint; the class shows the ring again
+            stone.element.classList.add('stone-highlighted');
 
             // Make clickable with cursor change
             stone.element.style.cursor = 'pointer';
@@ -3831,7 +3833,7 @@ const ScrollEffects = {
 
     unhighlightStone(stone) {
         if (!stone.element) return;
-        const circle = stone.element.querySelector('circle');
+        const circle = stone.element.querySelector('circle.stone-piece') || stone.element.querySelector('circle');
         if (circle) {
             const origStroke = circle.getAttribute('data-original-stroke') || 'none';
             const origWidth = circle.getAttribute('data-original-stroke-width') || '0';
@@ -3839,6 +3841,7 @@ const ScrollEffects = {
             circle.setAttribute('stroke-width', origWidth);
             circle.style.animation = '';
         }
+        stone.element.classList.remove('stone-highlighted');
 
         // Remove click handlers
         if (stone._clickHandler) {
