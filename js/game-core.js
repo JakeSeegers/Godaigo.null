@@ -4489,8 +4489,18 @@
             });
         }
 
+        // Shrine marker on a shrine tile: a dark disc with an element-colour ring
+        // and the element symbol drawn as light with a dark outline, so it reads
+        // clearly on any tile art (owner 2026-10-07). Same idea as the 3D stones
+        // (js/piece-3d.js buildSym): the symbol image is used as an alpha mask
+        // over flat colour; the outline is the shape stamped 8 times nudged
+        // outward. Masks, not SVG filters (Chrome keeps a filter's picture from
+        // an older zoom, so it looks blurry). The void art is light dots on a
+        // dark disc, so it masks by brightness instead of shape.
+        let _shrineSymSeq = 0;
         function createShrineMarker(shrineType) {
-            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            const NS = 'http://www.w3.org/2000/svg';
+            const g = document.createElementNS(NS, 'g');
             g.setAttribute('class', 'shrine-marker');
 
             // Color mapping for shrine types
@@ -4500,30 +4510,45 @@
                 'fire': '#ed1b43',
                 'wind': '#ffce00',
                 'void': '#9458f4',
-                'catacomb': '#8b4513'
+                'catacomb': '#c8a870'
             };
+            const color = shrineColors[shrineType] || '#cccccc';
+            const tint = (hex, to, a) => {
+                const c = hex.replace('#', ''), t = to === 'white' ? 255 : 0;
+                return '#' + [0, 2, 4].map(i => {
+                    const v = parseInt(c.slice(i, i + 2), 16);
+                    return Math.round(v + (t - v) * a).toString(16).padStart(2, '0');
+                }).join('');
+            };
+            const mk = (tag, attrs, parent) => {
+                const e = document.createElementNS(NS, tag);
+                for (const k in attrs) e.setAttribute(k, attrs[k]);
+                (parent || g).appendChild(e);
+                return e;
+            };
+            const R = 13; // a stone is 12; the shrine hex fits about 17
 
-            // Create a circle background
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('cx', '0');
-            circle.setAttribute('cy', '0');
-            circle.setAttribute('r', '8');
-            circle.setAttribute('fill', shrineColors[shrineType]);
-            circle.setAttribute('opacity', '0.6');
-            circle.setAttribute('stroke', shrineColors[shrineType]);
-            circle.setAttribute('stroke-width', '2');
-            g.appendChild(circle);
+            // soft colour ring around the disc, then the disc itself
+            mk('circle', { cx: 0, cy: 0, r: R + 2, fill: 'none', stroke: color, 'stroke-width': 2.5, 'stroke-opacity': 0.35 });
+            mk('circle', { cx: 0, cy: 0, r: R, fill: tint(color, 'black', 0.7), stroke: color, 'stroke-width': 1.5 });
 
-            // Element image on shrine indicator
-            const shrineImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-            shrineImg.setAttribute('href', STONE_TYPES[shrineType]?.img || '');
-            shrineImg.setAttribute('x', '-8');
-            shrineImg.setAttribute('y', '-8');
-            shrineImg.setAttribute('width', '16');
-            shrineImg.setAttribute('height', '16');
-            // Catacomb symbol is not bright enough for screen blend — use normal so it's visible
-            shrineImg.style.mixBlendMode = shrineType === 'catacomb' ? 'normal' : 'screen';
-            g.appendChild(shrineImg);
+            // the symbol as light: outline layer, then the light layer
+            const href = STONE_TYPES[shrineType]?.img || '';
+            if (href) {
+                const w = R * 1.75, x = -w / 2, y = -w / 2;
+                const lum = shrineType === 'void';
+                const B = 0.6;
+                const shifts8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71]];
+                [[tint(color, 'black', 0.75), 1, B], [tint(color, 'white', lum ? 0.75 : 0.45), 1, 0]].forEach(([fill, op, off]) => {
+                    const id = 'shrine-sym-' + (++_shrineSymSeq);
+                    const m = mk('mask', { id, maskUnits: 'userSpaceOnUse', x: -R * 2, y: -R * 2, width: R * 4, height: R * 4 });
+                    m.style.maskType = lum ? 'luminance' : 'alpha';
+                    (off ? shifts8 : [[0, 0]]).forEach(([dx, dy]) => mk('image', {
+                        href, x: x + dx * off, y: y + dy * off, width: w, height: w, preserveAspectRatio: 'xMidYMid meet'
+                    }, m));
+                    mk('rect', { x: -R * 2, y: -R * 2, width: R * 4, height: R * 4, fill, 'fill-opacity': op, mask: `url(#${id})` });
+                });
+            }
 
             return g;
         }

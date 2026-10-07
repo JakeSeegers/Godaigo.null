@@ -7,7 +7,8 @@
       "title": "Sharper stones",
       "changes": [
         "Stone symbols have a dark outline so they are easier to read, and stay sharp at every zoom level.",
-        "In games against bots only, you no longer get an empty response screen when you have nothing to respond with."
+        "In games against bots only, you no longer get an empty response screen when you have nothing to respond with.",
+        "Shrine symbols on the tiles are bigger and clearer."
       ]
     },
     {
