@@ -2767,9 +2767,10 @@
                 });
             }
 
-            // Remove stone from board
+            // Remove stone from board (crack-and-shatter animation: js/piece-3d.js)
             const stoneElement = stone.element;
             if (stoneElement && stoneElement.parentNode) {
+                window.playStoneBreak?.(stoneElement);
                 stoneElement.remove();
             }
 
@@ -6010,9 +6011,10 @@ function clearPlayerPath() {
 
             console.log(`🔨 Breaking stone visually: id=${stoneId}, type=${stone.type}`);
 
-            // Remove stone from board
+            // Remove stone from board (crack-and-shatter animation: js/piece-3d.js)
             const stoneElement = stone.element;
             if (stoneElement && stoneElement.parentNode) {
+                window.playStoneBreak?.(stoneElement);
                 stoneElement.remove();
             }
 
@@ -7831,6 +7833,11 @@ function clearPlayerPath() {
                 }
             });
 
+            // Void stones that cancel a neighbour are using their ability:
+            // class stone-active (js/piece-3d.js makes them glow brighter).
+            placedStones.forEach(s => { if (s.type === 'void') s.element?.classList.toggle('stone-active',
+                getNeighborStones(s.x, s.y).some(n => n.type === 'fire' || n.type === 'wind' || n.type === 'earth')); });
+
             // Update all stones to show if they're nullified by void
             let anyNewNullification = false;
             placedStones.forEach(stone => {
@@ -7849,7 +7856,7 @@ function clearPlayerPath() {
                         const nullIndicator = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                         nullIndicator.setAttribute('cx', 0);
                         nullIndicator.setAttribute('cy', 0);
-                        nullIndicator.setAttribute('r', STONE_SIZE + 7);
+                        nullIndicator.setAttribute('r', STONE_SIZE + 3.5); // close around the stone (owner 2026-10-07; was + 7)
                         nullIndicator.setAttribute('class', 'void-nullification-indicator');
                         nullIndicator.setAttribute('fill', 'none');
                         nullIndicator.setAttribute('stroke', STONE_TYPES['void'].color);
@@ -7917,8 +7924,8 @@ function clearPlayerPath() {
                 const indicator = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 indicator.setAttribute('cx', 0);
                 indicator.setAttribute('cy', 0);
-                // r = STONE_SIZE + 7 keeps the ring outside the highlight stroke zone (max ~15px)
-                indicator.setAttribute('r', STONE_SIZE + 7);
+                // close around the stone (owner 2026-10-07; was + 7, outside the old highlight stroke)
+                indicator.setAttribute('r', STONE_SIZE + 3.5);
                 indicator.setAttribute('class', isChained ? 'chain-indicator' : 'mimicry-indicator');
                 indicator.setAttribute('fill', 'none');
                 indicator.setAttribute('stroke', STONE_TYPES[displayAbility].color);

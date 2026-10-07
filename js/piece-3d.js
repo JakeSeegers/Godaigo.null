@@ -211,10 +211,19 @@
     // edge and symbol glow. Earth: symbol 10% smaller, 20% dimmer (owner
     // 2026-10-07).
     const STONE_LOOK = { mountainsymbol: { size: 0.9, light: 0.8 } };
+    // A stone using its ability glows 15% brighter (owner 2026-10-07): a water
+    // stone copying a neighbour (its .mimicry-indicator / .chain-indicator
+    // ring) or a void stone cancelling one (class stone-active, game-core.js).
+    const ACTIVE_LIGHT = 1.15;
+    const ACTIVE_RING = '.mimicry-indicator, .chain-indicator';
+    function isActiveStone(g) {
+        return g.classList.contains('stone-active') || !!g.querySelector(':scope > .mimicry-indicator, :scope > .chain-indicator');
+    }
     function stoneLook(g) {
         const href = g.querySelector(':scope > image')?.getAttribute('href') || '';
-        for (const key in STONE_LOOK) if (href.indexOf(key) >= 0) return STONE_LOOK[key];
-        return { size: 1, light: 1 };
+        let look = { size: 1, light: 1 };
+        for (const key in STONE_LOOK) if (href.indexOf(key) >= 0) { look = STONE_LOOK[key]; break; }
+        return isActiveStone(g) ? { size: look.size, light: look.light * ACTIVE_LIGHT } : look;
     }
 
     function buildBeadUnder(g, under) {
@@ -417,20 +426,25 @@
                 if (m.type === 'attributes') {
                     // a water stone copying a neighbour changes colour (fill / stroke) or symbol (href)
                     if (m.target.matches?.(DISC + ', image') && m.target.parentNode?.matches?.(PIECES)) redo.add(m.target.parentNode);
+                    // a void stone starts / stops cancelling a neighbour
+                    else if (m.attributeName === 'class' && m.target.matches?.('g.stone') && m.target.querySelector(':scope > .puck-under')
+                        && m.target.classList.contains('stone-active') !== (m.oldValue || '').split(/\s+/).includes('stone-active')) redo.add(m.target);
                     continue;
                 }
+                // an ability ring taken off a stone
+                if (m.target.matches?.('g.stone')) for (const n of m.removedNodes) if (n.nodeType === 1 && n.matches(ACTIVE_RING)) redo.add(m.target);
                 for (const n of m.addedNodes) {
                     if (n.nodeType !== 1) continue;
                     if (n.matches?.(PIECES)) redo.add(n);
                     else if (n.parentNode?.matches?.(PIECES)) {
                         // a part added to a piece later (symbol, rim cosmetic, water mark)
-                        if (n.matches(DISC) || (n.tagName === 'image' && isBead(n.parentNode))) redo.add(n.parentNode);
+                        if (n.matches(DISC) || (n.tagName === 'image' && isBead(n.parentNode)) || n.matches(ACTIVE_RING)) redo.add(n.parentNode);
                         else if (n.parentNode.querySelector(':scope > .puck-under')) liftOne(n, n.parentNode);
                     } else n.querySelectorAll?.(PIECES).forEach(p => redo.add(p));
                 }
             }
             redo.forEach(decorate);
-        }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke', 'href'] });
+        }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke', 'href', 'class'], attributeOldValue: true });
         all(decorate);
         // Sharpness: the board is its own cached layer (#boardSvg will-change),
         // and after a zoom Chrome kept showing the stone symbols (images inside
@@ -465,6 +479,148 @@
         try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch (e) {}
         all(on ? decorate : undecorate);
     }
+
+    // ── Stone break animation (owner 2026-10-07) ─────────────────────────────
+    // game-core.js calls window.playStoneBreak(el) just before it removes a
+    // broken stone's element (attemptBreakStone for players and bots,
+    // breakStoneVisually on other screens). A copy of the stone stays on the
+    // board for a moment: cracks run out from near the middle (0.28 s), then the
+    // stone splits along those cracks into shards that fly apart, turn and
+    // fade, with a little dust (0.5 s). Game logic never waits on it. Works with
+    // 3D pieces on or off. Skipped while the tab is hidden or sound is off
+    // (muted bot training, quiet test games), at most 6 at once.
+    let breaking = 0, fxSeq = 0;
+    function playStoneBreak(el) {
+        try {
+            if (!el || !el.parentNode || document.hidden || !window.SoundSystem || breaking >= 6) return;
+            const disc = el.querySelector(':scope > circle.stone-piece');
+            const color = disc?.getAttribute('stroke') || '#cccccc';
+            const decorated = !!el.querySelector(':scope > .puck-under');
+            const { r, lift } = decorated ? dims(el) : { r: parseFloat(disc?.getAttribute('r')) || 12, lift: 0 };
+            const cy = -lift * 0.5;                  // the middle of the dome
+            const fxg = el.ownerDocument.createElementNS(NS, 'g');
+            fxg.setAttribute('class', 'stone-break-fx');
+            fxg.setAttribute('transform', el.getAttribute('transform') || '');
+            fxg.style.pointerEvents = 'none';
+            const inner = () => {                    // a fresh copy of the stone's look
+                const g = el.ownerDocument.createElementNS(NS, 'g');
+                Array.from(el.childNodes).forEach(n => {
+                    // ability rings just go away; they do not shatter with the stone
+                    if (n.nodeType === 1 && n.matches('.mimicry-indicator, .chain-indicator, .void-nullification-indicator')) return;
+                    g.appendChild(n.cloneNode(true));
+                });
+                g.querySelectorAll('*').forEach(n => { n.removeAttribute('id'); });
+                return g;
+            };
+            // masks inside the copy need their own ids
+            const reid = (g) => {
+                g.querySelectorAll('mask').forEach(m => m.remove());
+                const src = el.querySelectorAll('mask');
+                const map = {};
+                src.forEach(m => { const id = 'brk-' + (++fxSeq); map[m.id] = id; const c = m.cloneNode(true); c.id = id; g.insertBefore(c, g.firstChild); });
+                g.querySelectorAll('[mask]').forEach(n => { const k = (n.getAttribute('mask') || '').replace(/^url\(#|\)$/g, ''); if (map[k]) n.setAttribute('mask', `url(#${map[k]})`); });
+                return g;
+            };
+            // crack lines: N jagged paths from a point near the middle to past the edge
+            const N = 5, rnd = Math.random;
+            const c0 = { x: (rnd() - 0.5) * r * 0.3, y: cy + (rnd() - 0.5) * r * 0.3 };
+            const start = rnd() * Math.PI * 2;
+            const cracks = [];
+            for (let i = 0; i < N; i++) {
+                const a = start + (i + (rnd() - 0.5) * 0.5) * (Math.PI * 2 / N);
+                const pts = [c0];
+                for (let k = 1; k <= 4; k++) {
+                    const d = (r * 1.25) * k / 4, wob = (rnd() - 0.5) * 0.5;
+                    pts.push({ x: c0.x + Math.cos(a + wob) * d, y: c0.y + Math.sin(a + wob) * d });
+                }
+                cracks.push({ a, pts });
+            }
+            const ptsStr = pts => pts.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+            const len = pts => pts.slice(1).reduce((t, p, i) => t + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0);
+            // stage 1: the whole stone with growing cracks
+            const whole = reid(inner());
+            const crackG = el.ownerDocument.createElementNS(NS, 'g');
+            const crackEls = cracks.map(c => {
+                const L = len(c.pts);
+                const dark = el.ownerDocument.createElementNS(NS, 'polyline');
+                dark.setAttribute('points', ptsStr(c.pts));
+                dark.setAttribute('fill', 'none'); dark.setAttribute('stroke', '#0b0b0b'); dark.setAttribute('stroke-width', '1.2');
+                dark.setAttribute('stroke-linejoin', 'round'); dark.setAttribute('stroke-linecap', 'round');
+                dark.setAttribute('stroke-dasharray', L.toFixed(2)); dark.setAttribute('stroke-dashoffset', L.toFixed(2));
+                const lightLine = dark.cloneNode();
+                lightLine.setAttribute('stroke', mix(color, 'white', 0.7)); lightLine.setAttribute('stroke-width', '0.5');
+                lightLine.setAttribute('transform', 'translate(0.5 0.5)'); lightLine.setAttribute('stroke-opacity', '0.8');
+                crackG.appendChild(dark); crackG.appendChild(lightLine);
+                return { els: [dark, lightLine], L };
+            });
+            whole.appendChild(crackG);
+            fxg.appendChild(whole);
+            // stage 2 pieces: one shard per gap between two cracks, clipped along them
+            const FAR = r * 3;
+            const shards = cracks.map((c, i) => {
+                const n = cracks[(i + 1) % N];
+                let a1 = n.a; while (a1 < c.a) a1 += Math.PI * 2;
+                const arc = [];
+                for (let k = 0; k <= 6; k++) { const a = c.a + (a1 - c.a) * k / 6; arc.push({ x: c0.x + Math.cos(a) * FAR, y: c0.y + Math.sin(a) * FAR }); }
+                const poly = [...c.pts, ...arc, ...n.pts.slice().reverse()];
+                const id = 'brk-' + (++fxSeq);
+                const cp = el.ownerDocument.createElementNS(NS, 'clipPath'); cp.id = id;
+                const pg = el.ownerDocument.createElementNS(NS, 'polygon'); pg.setAttribute('points', ptsStr(poly)); cp.appendChild(pg);
+                const holder = el.ownerDocument.createElementNS(NS, 'g');
+                const body = reid(inner()); body.setAttribute('clip-path', `url(#${id})`);
+                holder.appendChild(cp); holder.appendChild(body);
+                holder.style.display = 'none';
+                fxg.appendChild(holder);
+                const mid = (c.a + a1) / 2;
+                return { holder, dx: Math.cos(mid), dy: Math.sin(mid), spin: (rnd() - 0.5) * 70, dist: r * (0.55 + rnd() * 0.45),
+                    cx: c0.x + Math.cos(mid) * r * 0.5, cy: c0.y + Math.sin(mid) * r * 0.5 };
+            });
+            // dust
+            const dust = [];
+            for (let i = 0; i < 10; i++) {
+                const d = el.ownerDocument.createElementNS(NS, 'circle');
+                const a = rnd() * Math.PI * 2;
+                d.setAttribute('r', (0.6 + rnd() * 0.9).toFixed(2));
+                d.setAttribute('fill', i % 2 ? mix(color, 'white', 0.4) : '#8a8070');
+                d.style.display = 'none';
+                fxg.appendChild(d);
+                dust.push({ d, a, sp: r * (1 + rnd() * 0.9) });
+            }
+            el.parentNode.insertBefore(fxg, el.nextSibling);
+            breaking++;
+            let done = false;
+            const finish = () => { if (done) return; done = true; fxg.remove(); breaking--; };
+            const T1 = 280, T2 = 520, t0 = performance.now();
+            const ease = p => 1 - Math.pow(1 - p, 3);
+            const step = (now) => {
+                const t = now - t0;
+                if (t < T1) {
+                    const p = t / T1;
+                    crackEls.forEach(c => c.els.forEach(e => e.setAttribute('stroke-dashoffset', (c.L * (1 - ease(p))).toFixed(2))));
+                    const sh = Math.sin(t * 0.09) * 0.6 * p;
+                    whole.setAttribute('transform', `translate(${sh.toFixed(2)} 0)`);
+                } else if (t < T1 + T2) {
+                    if (whole.parentNode) { whole.remove(); shards.forEach(s => { s.holder.style.display = ''; }); dust.forEach(d => { d.d.style.display = ''; }); }
+                    const p = (t - T1) / T2, e = ease(p), fade = Math.max(0, 1 - Math.pow(p, 1.6));
+                    shards.forEach(s => {
+                        const x = s.dx * s.dist * e, y = s.dy * s.dist * e + 5 * p * p; // a little fall
+                        s.holder.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${(s.spin * e).toFixed(1)} ${s.cx.toFixed(2)} ${s.cy.toFixed(2)})`);
+                        s.holder.setAttribute('opacity', fade.toFixed(3));
+                    });
+                    dust.forEach(d => {
+                        d.d.setAttribute('cx', (c0.x + Math.cos(d.a) * d.sp * e).toFixed(2));
+                        d.d.setAttribute('cy', (c0.y + Math.sin(d.a) * d.sp * e + 4 * p).toFixed(2));
+                        d.d.setAttribute('opacity', (fade * 0.85).toFixed(3));
+                    });
+                } else { finish(); return; }
+                requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+            // safety: never leave the effect behind (a hidden tab pauses frames)
+            setTimeout(finish, T1 + T2 + 1500);
+        } catch (e) { console.warn('[Piece3D] stone break effect failed', e); }
+    }
+    window.playStoneBreak = playStoneBreak;
 
     window.Piece3D = {
         isOn: () => on,
