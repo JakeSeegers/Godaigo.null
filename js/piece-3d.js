@@ -441,6 +441,8 @@
             if (r === rot && t === tilt) return;
             rot = r; tilt = t;
             if (on) all(refresh);
+            // shrine carving is lit from the screen's top left too (game-core.js)
+            if (typeof window.refreshShrineMarkers === 'function') window.refreshShrineMarkers();
         }, 150);
     }
 

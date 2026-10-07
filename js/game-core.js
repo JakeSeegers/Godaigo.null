@@ -4498,10 +4498,21 @@
         // an older zoom, so it looks blurry). The void art is light dots on a
         // dark disc, so it masks by brightness instead of shape.
         let _shrineSymSeq = 0;
+        // Redraw every shrine marker (their carving light depends on the map
+        // rotation). Called by js/piece-3d.js when the map turns.
+        window.refreshShrineMarkers = function () {
+            document.querySelectorAll('#viewport .shrine-marker[data-shrine-type]').forEach(old => {
+                const fresh = createShrineMarker(old.getAttribute('data-shrine-type'));
+                const t = old.getAttribute('transform');
+                if (t) fresh.setAttribute('transform', t);
+                old.replaceWith(fresh);
+            });
+        };
         function createShrineMarker(shrineType) {
             const NS = 'http://www.w3.org/2000/svg';
             const g = document.createElementNS(NS, 'g');
             g.setAttribute('class', 'shrine-marker');
+            g.setAttribute('data-shrine-type', shrineType);
 
             // Color mapping for shrine types
             const shrineColors = {
@@ -4530,9 +4541,16 @@
 
             // A hexagon plate carved into the floor (pointy top, like the grid
             // hexes): round shiny domes are stones, carved hexes are shrines
-            // (owner 2026-10-07). Light comes from the top left, so the sunken
-            // plate's top-left inner walls are in shadow and its bottom-right
-            // walls catch the light.
+            // (owner 2026-10-07). Light comes from the top left of the SCREEN,
+            // the same light as the 3D pawns and stones (js/piece-3d.js), so the
+            // sunken plate's inner walls facing the light are in shadow and the
+            // far walls catch it. The marker turns with the map, so the light is
+            // worked out for the current map rotation (`lx, ly` = direction to
+            // the light in board space); piece-3d.js calls
+            // window.refreshShrineMarkers() when the map turns.
+            const rotRad = ((typeof viewportRotation === 'number' ? viewportRotation : 0) * Math.PI) / 180;
+            const lx = (-Math.cos(rotRad) - Math.sin(rotRad)) / Math.SQRT2;   // screen (-1,-1)/sqrt2 turned back by the map rotation
+            const ly = (Math.sin(rotRad) - Math.cos(rotRad)) / Math.SQRT2;
             const hexPt = (rad, k) => {
                 const a = (Math.PI / 180) * (60 * k - 90);
                 return `${(rad * Math.cos(a)).toFixed(2)},${(rad * Math.sin(a)).toFixed(2)}`;
@@ -4541,14 +4559,21 @@
             const line = (rad, ks) => ks.map(k => hexPt(rad, k)).join(' ');
             // vertices: 0 top, 1 upper right, 2 lower right, 3 bottom, 4 lower left, 5 upper left
             mk('polygon', { points: hexPts(R + 2.5), fill: tint(color, 'black', 0.78), 'fill-opacity': 0.94, stroke: color, 'stroke-width': 1.4, 'stroke-linejoin': 'round' });
-            mk('polyline', { points: line(R + 1.2, [4, 5, 0, 1]), fill: 'none', stroke: '#000', 'stroke-width': 2.4, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
-            mk('polyline', { points: line(R + 1.4, [1, 2, 3, 4]), fill: 'none', stroke: tint(color, 'white', 0.55), 'stroke-width': 1, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
-            // engraved inner ring
-            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: '#000', 'stroke-width': 0.8, 'stroke-opacity': 0.35, 'stroke-linejoin': 'round', transform: 'translate(-0.3 -0.3)' });
-            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: color, 'stroke-width': 0.6, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', transform: 'translate(0.3 0.3)' });
+            // each inner wall: edge k runs from vertex k to k+1, its outward
+            // normal points at 60k - 60 degrees; facing the light = shadow
+            for (let k = 0; k < 6; k++) {
+                const na = (Math.PI / 180) * (60 * k - 60);
+                const face = Math.cos(na) * lx + Math.sin(na) * ly; // 1 = faces the light
+                if (face > 0.05) mk('polyline', { points: line(R + 1.2, [k, (k + 1) % 6]), fill: 'none', stroke: '#000', 'stroke-width': 2.4, 'stroke-opacity': (0.55 * face).toFixed(2), 'stroke-linecap': 'round' });
+                if (face < -0.05) mk('polyline', { points: line(R + 1.4, [k, (k + 1) % 6]), fill: 'none', stroke: tint(color, 'white', 0.55), 'stroke-width': 1, 'stroke-opacity': (-0.55 * face).toFixed(2), 'stroke-linecap': 'round' });
+            }
+            // engraved inner ring: shadow line nudged toward the light, colour line away
+            const nudge = (d) => `translate(${(lx * d).toFixed(2)} ${(ly * d).toFixed(2)})`;
+            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: '#000', 'stroke-width': 0.8, 'stroke-opacity': 0.35, 'stroke-linejoin': 'round', transform: nudge(0.42) });
+            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: color, 'stroke-width': 0.6, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', transform: nudge(-0.42) });
 
             // The symbol as an inlay in carved grooves: groove shadow toward the
-            // top left, light catch toward the bottom right, a thin outline, then
+            // light, light catch on the far side, a thin outline, then
             // the glowing inlay itself.
             const href = STONE_TYPES[shrineType]?.img || '';
             if (href) {
@@ -4556,8 +4581,8 @@
                 const lum = shrineType === 'void';
                 const shifts8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71]];
                 // [fill, opacity, shifts]
-                [[ '#000', 0.5, [[-0.6, -0.6]] ],
-                 [ tint(color, 'white', 0.6), 0.35, [[0.5, 0.5]] ],
+                [[ '#000', 0.5, [[lx * 0.85, ly * 0.85]] ],
+                 [ tint(color, 'white', 0.6), 0.35, [[-lx * 0.7, -ly * 0.7]] ],
                  [ tint(color, 'black', 0.8), 1, shifts8.map(([dx, dy]) => [dx * 0.4, dy * 0.4]) ],
                  [ tint(color, 'white', lum ? 0.7 : 0.4), 1, [[0, 0]] ]].forEach(([fill, op, shifts]) => {
                     const id = 'shrine-sym-' + (++_shrineSymSeq);
