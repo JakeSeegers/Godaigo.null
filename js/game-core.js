@@ -4541,10 +4541,10 @@
             const line = (rad, ks) => ks.map(k => hexPt(rad, k)).join(' ');
             // vertices: 0 top, 1 upper right, 2 lower right, 3 bottom, 4 lower left, 5 upper left
             mk('polygon', { points: hexPts(R + 2.5), fill: tint(color, 'black', 0.78), 'fill-opacity': 0.94, stroke: color, 'stroke-width': 1.4, 'stroke-linejoin': 'round' });
-            mk('polyline', { points: line(R + 1.1, [4, 5, 0, 1]), fill: 'none', stroke: '#000', 'stroke-width': 3, 'stroke-opacity': 0.7, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
-            mk('polyline', { points: line(R + 1.4, [1, 2, 3, 4]), fill: 'none', stroke: tint(color, 'white', 0.55), 'stroke-width': 1.3, 'stroke-opacity': 0.7, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+            mk('polyline', { points: line(R + 1.2, [4, 5, 0, 1]), fill: 'none', stroke: '#000', 'stroke-width': 2.4, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+            mk('polyline', { points: line(R + 1.4, [1, 2, 3, 4]), fill: 'none', stroke: tint(color, 'white', 0.55), 'stroke-width': 1, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
             // engraved inner ring
-            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: '#000', 'stroke-width': 0.9, 'stroke-opacity': 0.45, 'stroke-linejoin': 'round', transform: 'translate(-0.35 -0.35)' });
+            mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: '#000', 'stroke-width': 0.8, 'stroke-opacity': 0.35, 'stroke-linejoin': 'round', transform: 'translate(-0.3 -0.3)' });
             mk('polygon', { points: hexPts(R - 0.8), fill: 'none', stroke: color, 'stroke-width': 0.6, 'stroke-opacity': 0.5, 'stroke-linejoin': 'round', transform: 'translate(0.3 0.3)' });
 
             // The symbol as an inlay in carved grooves: groove shadow toward the
@@ -4556,8 +4556,8 @@
                 const lum = shrineType === 'void';
                 const shifts8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71]];
                 // [fill, opacity, shifts]
-                [[ '#000', 0.75, [[-0.8, -0.8]] ],
-                 [ tint(color, 'white', 0.6), 0.5, [[0.7, 0.7]] ],
+                [[ '#000', 0.5, [[-0.6, -0.6]] ],
+                 [ tint(color, 'white', 0.6), 0.35, [[0.5, 0.5]] ],
                  [ tint(color, 'black', 0.8), 1, shifts8.map(([dx, dy]) => [dx * 0.4, dy * 0.4]) ],
                  [ tint(color, 'white', lum ? 0.7 : 0.4), 1, [[0, 0]] ]].forEach(([fill, op, shifts]) => {
                     const id = 'shrine-sym-' + (++_shrineSymSeq);
