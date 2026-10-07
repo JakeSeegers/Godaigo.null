@@ -9,7 +9,7 @@
         "Stone symbols have a dark outline so they are easier to read and should stay sharp after zooming. Earth stones glow a little less.",
         "Shrines on the tiles are now bigger hexagon plates carved into the floor, easy to tell apart from stones.",
         "Inspiring Draught, Scholar's Insight and other scroll pickers show each scroll's full text, with its pattern when you hover it.",
-        "Stones crack and shatter when broken. Stones using their ability glow a little brighter, with a tighter ring.",
+        "Tiles are now thick slabs. Stones crack and shatter when broken. Stones using their ability glow a little brighter, with a tighter ring.",
         "Small fixes and polish: bigger pawns, pawns no longer slip under stones, no empty response screen in games against bots, clearer picked tile for Shifting Sands and Telekinesis, and Control the Current changes the stone's look again."
       ]
     },
