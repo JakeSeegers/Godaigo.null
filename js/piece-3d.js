@@ -530,6 +530,55 @@
         }).observe(vp, { childList: true });
         window.Piece3D_rebuildTileSides = sidesSoon;
         sidesSoon();
+        // ── Smooth pawn steps (owner 2026-10-07) ────────────────────────────
+        // A pawn move (bots step one hex at a time) removes the pawn and adds a
+        // new one at the new hex. When a pawn of the same colour comes back
+        // 1-2 hexes away, it slides there with a small hop (CSS translate,
+        // which adds to the SVG transform; the game's position is already
+        // final). Off in muted training, hidden tabs and reduced motion.
+        const posOf = (g) => {
+            const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/.exec(g.getAttribute('transform') || '');
+            return m ? { x: +m[1], y: +m[2] } : null;
+        };
+        const pawnKey = (g) => g.querySelector('circle.player-marker')?.getAttribute('fill') || '';
+        const lastPawnPos = new Map();
+        const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        const glide = (n, from, to) => {
+            const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
+            if (d < 5 || d > 80 || reduceMotion || document.hidden || !window.SoundSystem || !n.animate) return;
+            const a = rot * Math.PI / 180, hop = 5;
+            const ux = -hop * Math.sin(a), uy = -hop * Math.cos(a);   // "up" on screen
+            try {
+                n.getAnimations?.().forEach(an => an.cancel());
+                n.animate([
+                    { translate: `${dx}px ${dy}px` },
+                    { translate: `${(dx / 2 + ux).toFixed(2)}px ${(dy / 2 + uy).toFixed(2)}px`, offset: 0.5 },
+                    { translate: '0px 0px' }
+                ], { duration: Math.min(320, 160 + d * 2.5), easing: 'ease-in-out' });
+            } catch (e) {}
+        };
+        // the same pawn moved (its transform changed)
+        new MutationObserver(list => {
+            for (const m of list) {
+                if (!m.target.matches?.('#viewport > g.player') || !m.oldValue) continue;
+                const fake = { getAttribute: () => m.oldValue };
+                const from = posOf(fake), to = posOf(m.target);
+                if (from && to) glide(m.target, from, to);
+            }
+        }).observe(vp, { subtree: true, attributes: true, attributeFilter: ['transform'], attributeOldValue: true });
+        // a pawn re-created at its new hex
+        new MutationObserver(list => {
+            for (const m of list) for (const n of m.removedNodes) {
+                if (n.nodeType === 1 && n.matches('g.player')) { const p = posOf(n); if (p) lastPawnPos.set(pawnKey(n), { p, t: performance.now() }); }
+            }
+            for (const m of list) for (const n of m.addedNodes) {
+                if (n.nodeType !== 1 || !n.matches('g.player')) continue;
+                const k = pawnKey(n), old = lastPawnPos.get(k), now = posOf(n);
+                if (!old || !now || performance.now() - old.t > 400) continue;
+                lastPawnPos.delete(k);
+                glide(n, old.p, now);
+            }
+        }).observe(vp, { childList: true });
         // Pawns always draw over stones (owner 2026-10-07: bot pawns went under
         // stones while moving). Pawns and stones are both children of #viewport
         // and stones are usually added later, so they ended up on top. When a
