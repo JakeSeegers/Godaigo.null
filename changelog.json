@@ -6,7 +6,7 @@
       "date": "2026-10-07",
       "title": "Sharper stones",
       "changes": [
-        "Stone symbols stay sharp at every zoom level (before, they could look blurry until you hovered over them).",
+        "Stone symbols have a dark outline so they are easier to read, and stay sharp at every zoom level.",
         "In games against bots only, you no longer get an empty response screen when you have nothing to respond with."
       ]
     },

@@ -240,6 +240,8 @@
     // filled with a bright tint of the element colour, so the art's own colours
     // and dark outline drop out and every element glows the same way. Two
     // slightly bigger, fainter copies make a soft glow. Masks, not an SVG
+    // A dark border (the shape stamped 8 times, nudged outward) keeps the
+    // lines readable.
     // filter: browsers keep a filter's picture from an older zoom (blurry until
     // something repaints it, e.g. hover); masks are drawn fresh every time.
     // The real image is hidden (opacity 0) while this is shown.
@@ -257,11 +259,21 @@
         const t = img.getAttribute('transform');
         if (t) sym.setAttribute('transform', t); else sym.removeAttribute('transform');
         sym.innerHTML = '';
-        [[1.22, mix(color, 'white', 0.25), 0.22], [1.1, mix(color, 'white', 0.35), 0.4], [1, mix(color, 'white', 0.62), 1]].forEach(([k, fill, op]) => {
+        // layer: [scale, fill, opacity, border offset]. The border layer is the
+        // symbol shape stamped 8 times, each nudged a little outward (a fatter
+        // copy), in a dark tint: a thin dark line around every light line.
+        const B = Math.max(0.45, w * 0.028);
+        // The void art is light dots on a dark disc: its shape is the whole disc,
+        // so it uses its brightness instead (only the dots light up).
+        const lumMask = /voidsymbol/i.test(href);
+        [[1.22, mix(color, 'white', 0.25), 0.22, 0], [1.1, mix(color, 'white', 0.35), 0.4, 0],
+         [1, mix(color, 'black', 0.72), 0.95, B], [1, mix(color, 'white', 0.62), 1, 0]].forEach(([k, fill, op, off]) => {
             const id = 'bead-sym-' + (++symSeq);
             const m = el('mask', { id, maskUnits: 'userSpaceOnUse', x: cx - w, y: cy - h, width: w * 2, height: h * 2 });
-            m.style.maskType = 'alpha';
-            m.appendChild(el('image', { href, x: cx - w * k / 2, y: cy - h * k / 2, width: w * k, height: h * k, preserveAspectRatio: 'xMidYMid meet' }));
+            m.style.maskType = lumMask ? 'luminance' : 'alpha';
+            const shifts = off ? [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71]] : [[0, 0]];
+            shifts.forEach(([dx, dy]) => m.appendChild(el('image', { href, x: cx - w * k / 2 + dx * off, y: cy - h * k / 2 + dy * off,
+                width: w * k, height: h * k, preserveAspectRatio: 'xMidYMid meet' })));
             sym.appendChild(m);
             sym.appendChild(el('rect', { x: cx - w, y: cy - h, width: w * 2, height: h * 2, fill, 'fill-opacity': op, mask: `url(#${id})` }));
         });

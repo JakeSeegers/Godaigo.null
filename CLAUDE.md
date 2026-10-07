@@ -261,7 +261,7 @@ Order matters — later scripts depend on earlier ones.
                              hover, ball head; marker circle see-through, rim cosmetics moved under it), stones (g.stone) as half glass beads (dome
                              path, #bead-body / #bead-spec / inner light: .bead-core (screen blend, #bead-core-mask), light pooled at the
                              lower edge, spill .bead-halo on the board, symbol = its shape filled with element light (buildSym:
-                             .bead-sym, the image as an alpha mask over a light rect, image itself opacity 0; masks, not an SVG
+                             .bead-sym, the image as an alpha mask over a light rect + a dark border from 8 nudged copies, image itself opacity 0; masks, not an SVG
                              filter, because Chrome showed a filter's stale lower-zoom picture until hover), stone circle made see-through,
                              shine over the symbol, hover = .bead-edge in css/styles.css), all seen through the board's own
                              camera: the board tilt (_boardTiltDegrees, default 20) already flattens the top face, the puck adds
