@@ -236,23 +236,36 @@
             fill: 'none', stroke: lit, 'stroke-opacity': 0.7, 'stroke-width': 1, 'stroke-linecap': 'round' }));
     }
 
-    // The symbol as light: its shape filled with a bright tint of the element
-    // colour (the art's own colours and dark outline are dropped, so every
-    // element glows the same way), plus a soft blur of it. One filter per colour.
-    function symbolGlow(color) {
-        const id = 'bead-sym-' + hexRgb(color).join('-');
-        const defs = document.getElementById('puck-defs');
-        if (defs && !document.getElementById(id)) {
-            defs.insertAdjacentHTML('beforeend',
-                `<filter id="${id}" x="-50%" y="-50%" width="200%" height="200%">` +
-                `<feFlood flood-color="${mix(color, 'white', 0.62)}" result="c"/>` +
-                `<feComposite in="c" in2="SourceAlpha" operator="in" result="lit"/>` +
-                `<feGaussianBlur in="lit" stdDeviation="1.3" result="b"/>` +
-                `<feFlood flood-color="${mix(color, 'white', 0.2)}" result="c2"/>` +
-                `<feComposite in="c2" in2="b" operator="in" result="g"/>` +
-                `<feMerge><feMergeNode in="g"/><feMergeNode in="g"/><feMergeNode in="lit"/></feMerge></filter>`);
-        }
-        return `url(#${id})`;
+    // The symbol as light: the symbol's shape (its image used as an alpha mask)
+    // filled with a bright tint of the element colour, so the art's own colours
+    // and dark outline drop out and every element glows the same way. Two
+    // slightly bigger, fainter copies make a soft glow. Masks, not an SVG
+    // filter: browsers keep a filter's picture from an older zoom (blurry until
+    // something repaints it, e.g. hover); masks are drawn fresh every time.
+    // The real image is hidden (opacity 0) while this is shown.
+    let symSeq = 0;
+    function buildSym(g) {
+        let sym = g.querySelector(':scope > .bead-sym');
+        const img = g.querySelector(':scope > image');
+        if (!img) { if (sym) sym.remove(); return; }
+        if (!sym) { sym = el('g', { class: 'bead-sym' }); img.after(sym); }
+        const color = mainDisc(g)?.getAttribute('stroke') || '#ccc';
+        const x = +img.getAttribute('x') || 0, y = +img.getAttribute('y') || 0;
+        const w = +img.getAttribute('width') || 0, h = +img.getAttribute('height') || 0;
+        const cx = x + w / 2, cy = y + h / 2;
+        const href = img.getAttribute('href') || img.getAttribute('xlink:href') || '';
+        const t = img.getAttribute('transform');
+        if (t) sym.setAttribute('transform', t); else sym.removeAttribute('transform');
+        sym.innerHTML = '';
+        [[1.22, mix(color, 'white', 0.25), 0.22], [1.1, mix(color, 'white', 0.35), 0.4], [1, mix(color, 'white', 0.62), 1]].forEach(([k, fill, op]) => {
+            const id = 'bead-sym-' + (++symSeq);
+            const m = el('mask', { id, maskUnits: 'userSpaceOnUse', x: cx - w, y: cy - h, width: w * 2, height: h * 2 });
+            m.style.maskType = 'alpha';
+            m.appendChild(el('image', { href, x: cx - w * k / 2, y: cy - h * k / 2, width: w * k, height: h * k, preserveAspectRatio: 'xMidYMid meet' }));
+            sym.appendChild(m);
+            sym.appendChild(el('rect', { x: cx - w, y: cy - h, width: w * 2, height: h * 2, fill, 'fill-opacity': op, mask: `url(#${id})` }));
+        });
+        img.style.opacity = '0';
     }
 
     function buildBeadOver(g, over) {
@@ -298,7 +311,7 @@
 
     // Lift a piece's own parts (disc, symbol, rim cosmetics, ...) onto the top face.
     function liftOne(n, g) {
-        if (n.nodeType !== 1 || n.classList.contains('puck-under') || n.classList.contains('puck-over')) return;
+        if (n.nodeType !== 1 || n.classList.contains('puck-under') || n.classList.contains('puck-over') || n.classList.contains('bead-sym')) return;
         if (n.classList.contains('pawn-cos-base') || n.tagName === 'title' || n.tagName === 'defs') return;
         if (isPawn(g)) {
             // the pawn shape is ours: its circle goes see-through, a rim stays on the ground under it
@@ -319,7 +332,6 @@
         n.setAttribute('transform', `translate(${dx} ${dy})` + (orig ? ' ' + orig : ''));
         // a bead's own circle: see-through, the dome is drawn under it
         if (isBead(g) && n.matches(DISC)) { n.style.fillOpacity = '0'; n.style.strokeOpacity = '0'; }
-        if (isBead(g) && n.tagName === 'image') n.style.filter = symbolGlow(mainDisc(g)?.getAttribute('stroke') || '#ccc');
     }
 
     function unliftOne(n) {
@@ -327,7 +339,7 @@
         const orig = n.getAttribute('data-p3d');
         if (orig) n.setAttribute('transform', orig); else n.removeAttribute('transform');
         n.removeAttribute('data-p3d');
-        n.style.fillOpacity = ''; n.style.strokeOpacity = ''; n.style.filter = '';
+        n.style.fillOpacity = ''; n.style.strokeOpacity = ''; n.style.opacity = '';
     }
 
     function decorate(g) {
@@ -358,10 +370,11 @@
         const t = rot ? `rotate(${-rot})` : null;
         [under, over].forEach(n => { if (t) n.setAttribute('transform', t); else n.removeAttribute('transform'); });
         Array.from(g.children).forEach(n => liftOne(n, g));
+        if (isBead(g)) buildSym(g);
     }
 
     function undecorate(g) {
-        g.querySelectorAll(':scope > .puck-under, :scope > .puck-over').forEach(n => n.remove());
+        g.querySelectorAll(':scope > .puck-under, :scope > .puck-over, :scope > .bead-sym').forEach(n => n.remove());
         Array.from(g.children).forEach(unliftOne);
     }
 
@@ -375,8 +388,8 @@
             const redo = new Set();
             for (const m of list) {
                 if (m.type === 'attributes') {
-                    // a water stone copying a neighbour changes colour (fill / stroke)
-                    if (m.target.matches?.(DISC) && m.target.parentNode?.matches?.(PIECES)) redo.add(m.target.parentNode);
+                    // a water stone copying a neighbour changes colour (fill / stroke) or symbol (href)
+                    if (m.target.matches?.(DISC + ', image') && m.target.parentNode?.matches?.(PIECES)) redo.add(m.target.parentNode);
                     continue;
                 }
                 for (const n of m.addedNodes) {
@@ -384,13 +397,13 @@
                     if (n.matches?.(PIECES)) redo.add(n);
                     else if (n.parentNode?.matches?.(PIECES)) {
                         // a part added to a piece later (symbol, rim cosmetic, water mark)
-                        if (n.matches(DISC)) redo.add(n.parentNode);
+                        if (n.matches(DISC) || (n.tagName === 'image' && isBead(n.parentNode))) redo.add(n.parentNode);
                         else if (n.parentNode.querySelector(':scope > .puck-under')) liftOne(n, n.parentNode);
                     } else n.querySelectorAll?.(PIECES).forEach(p => redo.add(p));
                 }
             }
             redo.forEach(decorate);
-        }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke'] });
+        }).observe(vp, { subtree: true, childList: true, attributes: true, attributeFilter: ['fill', 'stroke', 'href'] });
         all(decorate);
         // Board rotation / tilt: cheap check, only touches pieces when they changed.
         setInterval(() => {
