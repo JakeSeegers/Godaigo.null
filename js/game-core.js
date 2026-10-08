@@ -2799,6 +2799,8 @@
             updateAllWaterStoneVisuals();
             updateAllVoidNullificationVisuals();
 
+            // Bot diplomacy reads this as "this player broke a stone" (js/bot-diplomacy.js HARM_CAUSES)
+            window.ActionLog?.record('breakStone', { x: +stone.x.toFixed(1), y: +stone.y.toFixed(1), stoneType: stone.type });
             updateStatus(`Broke ${stone.type} stone! Cost: ${breakCost} AP (${getTotalAP()} AP remaining)`);
             console.log(`🔨 Broke ${stone.type} stone (id=${stoneId}), cost=${breakCost} AP`);
         }
@@ -6066,6 +6068,8 @@ function clearPlayerPath() {
             updateAllWaterStoneVisuals();
             updateAllVoidNullificationVisuals();
 
+            // Bot diplomacy reads this as "this player broke a stone" (js/bot-diplomacy.js HARM_CAUSES)
+            window.ActionLog?.record('breakStone', { x: +stone.x.toFixed(1), y: +stone.y.toFixed(1), stoneType: stone.type });
             console.log(`✅ Stone ${stoneId} broken visually`);
         }
 

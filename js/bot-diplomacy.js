@@ -140,7 +140,7 @@
     // (owner's game 859, 2026-09-30: bots thanked each other, and the owner
     // for just ending a turn, from the first round). A shorter path because
     // someone revealed a tile or walked, or a bot's own gain landing on the
-    // next player's turn, is not help. Harm is still counted from any look.
+    // next player's turn, is not help. Harm needs a cause as well (HARM_CAUSES).
     // Checked against everything the player did this turn (S.turnActs; the
     // path is only measured when a turn ends).
     const HELP_CAUSES = {
@@ -151,6 +151,19 @@
         common: ['discardScroll', 'cast_execute'],   // a scroll I can use, given
         shrines: ['move', 'cast_execute'],           // stepped off a shrine I need
     };
+    // Harm needs a cause too (owner's game 947, 2026-10-08: a human who only
+    // ended turns was blamed when a bot's own plan changed on their turn, and
+    // the bots ganged up on them). A drop only counts when the player did
+    // something this turn that could have caused it.
+    const HARM_CAUSES = {
+        plan: ['placeStone', 'breakStone', 'cast_execute'],
+        ready: ['placeStone', 'breakStone', 'move', 'cast_execute'],
+        shrines: ['placeStone', 'move', 'cast_execute'],
+        path: ['placeStone', 'breakStone', 'move', 'cast_execute'],
+        road: ['placeStone', 'breakStone', 'move', 'cast_execute'],
+        stones: ['cast_execute'],
+        common: ['cast_execute', 'discardScroll'],
+    };
     function blameable(now, prev, acts) {
         const out = {};
         for (const k of Object.keys(now)) {
@@ -158,6 +171,7 @@
             if (k === 'elements') c = 0;
             if (k === 'stones' && c > 0) c = 0;
             if (c > 0 && !(HELP_CAUSES[k] || []).some(a => acts?.has(a))) c = 0;
+            if (c < 0 && HARM_CAUSES[k] && !HARM_CAUSES[k].some(a => acts?.has(a))) c = 0;
             if (k === 'path' && !(now._pathOk && prev?._pathOk)) c = 0;
             // Disruption hurts more than it measures (bots are touchy).
             if (c < 0) c *= (DISRUPT[k] || 1);

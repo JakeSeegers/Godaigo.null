@@ -8,6 +8,7 @@
       "changes": [
         "Turning the map now spins it around the middle of the board, so it stays in place.",
         "Undoing a stone break now also brings back stones the break destroyed (for example a wind stone burned once a void stone was gone).",
+        "Bots no longer turn against you when you only end your turn: they only feel hurt by something you actually did.",
         "Telekinesis no longer leaves a dashed circle on the board after you move a tile."
       ]
     },
