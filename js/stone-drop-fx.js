@@ -305,10 +305,11 @@
             }).join(' ');
             // plain blending: 'screen' washed it out on the light tiles
             const fill = el('polygon', { points: hex, fill: glowFill(svg, color), opacity: 0 }, back);
-            animate(fill, [{ opacity: 0 }, { opacity: 0.85, offset: 0.2 }, { opacity: 0.6, offset: 0.6 }, { opacity: 0 }],
+            // dimmed 70% (owner 2026-10-08: the white hex flash was too strong)
+            animate(fill, [{ opacity: 0 }, { opacity: 0.26, offset: 0.2 }, { opacity: 0.18, offset: 0.6 }, { opacity: 0 }],
                 { duration: 1700, easing: 'ease-out', fill: 'both' });
             const edge = el('polygon', { points: hex, fill: 'none', stroke: '#ffffff', 'stroke-width': 2.4, opacity: 0 }, back);
-            animate(edge, [{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 0.7, offset: 0.5 }, { opacity: 0 }],
+            animate(edge, [{ opacity: 0 }, { opacity: 0.3, offset: 0.15 }, { opacity: 0.21, offset: 0.5 }, { opacity: 0 }],
                 { duration: 1300, easing: 'ease-out', fill: 'both' });
             // a soft column of light rising through the pawn (screen upright)
             const rot = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : 0;
