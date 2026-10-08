@@ -7,7 +7,7 @@
       "title": "Livelier board",
       "changes": [
         "Turning the map now spins it around the middle of the board. Pawns zip across wind stones with a blurred trail.",
-        "Every stone has its own drop: earth lands heavily and makes nearby pieces bounce; water, fire and wind drop on lightly, then water bobs like a droplet, fire sparks and wind swells once; void appears with a ghostly glow.",
+        "Every stone has its own drop: earth lands heavily and makes nearby pieces bounce; water, fire and wind drop on lightly, then water bobs like a droplet, fire sparks and wind swells once; void appears with a ghostly glow (stones next to void just drop).",
         "Bots only feel hurt by something you actually did, and notice (and push back) when you play fast: an early scroll, quick elements.",
         "Casting a scroll now crackles with magic: lines of the scroll's colour join you and the pattern stones, which flare up. Energy swirls around you, a countered scroll shatters, and the counter scroll has its own effect.",
         "Small fixes: undoing a stone break brings back stones it destroyed, replays skip empty waiting steps, Telekinesis no longer leaves a circle behind, the source pool goes up right away when a stone breaks, and Watchable bot training shows all the new effects."

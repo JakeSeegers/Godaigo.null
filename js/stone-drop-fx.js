@@ -9,6 +9,8 @@
 //   fire:  flickers, crackles and gives off a few floating sparks.
 //   wind:  expands slightly and contracts once, with a soft ring.
 //   void:  fades in with a spectral glow, as if summoned.
+//   Any other stone placed next to a void stone has its ability cancelled,
+//   so it only gets the light drop (no ripple, bob, sparks or swell).
 // window.StoneDropFx.play(x, y, type). Triggered by every 'placeStone' record
 // in the ActionLog (own placements, bots on this screen, other players'
 // 'stone-place' messages, replays). Undo restores do not record, so they do
@@ -201,6 +203,9 @@
             { translate: '0px 0px', opacity: 1 },
         ], { duration: SOFT, easing: 'ease-in', composite: 'add' });
     }
+    function nextToVoid(stone) {
+        try { return (placedStones || []).some(s => s !== stone && s.type === 'void' && hexDist(s, stone) === 1); } catch (e) { return false; }
+    }
     const SOFT_DROP = new Set(['water', 'fire', 'wind']);
 
     // ── void ─────────────────────────────────────────────────────
@@ -242,6 +247,14 @@
             if (!vp || !svg) return;
             // a water stone always plays the drop of the stone it takes its ability from
             let look = type || stone.type;
+            // next to a void stone a stone's ability is cancelled, so it only
+            // gets the plain light drop (void itself keeps its summoning)
+            if (look !== 'void' && nextToVoid(stone)) {
+                running++;
+                setTimeout(() => { running--; }, 400);
+                softDrop(stone);
+                return;
+            }
             if (look === 'water') look = window.stoneAbilityAt?.(stone.x, stone.y) || 'water';
             const fn = BY_TYPE[look];
             if (!fn) return;
