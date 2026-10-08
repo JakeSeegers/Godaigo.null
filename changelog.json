@@ -10,7 +10,7 @@
         "Undoing a stone break now also brings back stones the break destroyed (for example a wind stone burned once a void stone was gone).",
         "Bots only feel hurt by something you actually did, and notice (and push back) when you play fast: an early scroll, quick elements.",
         "Casting a scroll now crackles with magic: lines of the scroll's colour join you and the pattern stones, which flare up. Energy swirls around you, a countered scroll shatters, and the counter scroll has its own effect.",
-        "Small fixes: Telekinesis no longer leaves a dashed circle behind, and the source pool number goes up right away when a stone is broken or destroyed."
+        "Small fixes: replays skip the empty waiting steps, Telekinesis no longer leaves a dashed circle behind, and the source pool number goes up right away when a stone is broken or destroyed."
       ]
     },
     {

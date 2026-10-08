@@ -91,7 +91,7 @@
             <button data-act="exit">Exit replay</button>`;
         document.body.appendChild(bar);
         bar.querySelector('[data-act=play]').onclick = () => (state.playing ? pause() : play());
-        bar.querySelector('[data-act=step]').onclick = () => { pause(); step(); };
+        bar.querySelector('[data-act=step]').onclick = () => { pause(); watchStep(); };
         bar.querySelector('[data-act=speed]').onchange = (e) => { state.speed = +e.target.value || 1; };
         bar.querySelector('[data-act=restart]').onclick = () => restart();
         bar.querySelector('[data-act=exit]').onclick = () => exitReplay();
@@ -104,7 +104,8 @@
         const names = (state.match.players || []).map(p => seatName(p)).join(' vs ');
         bar.querySelector('.replay-title').textContent = `Replay #${state.match.id}: ${names}`;
         bar.querySelector('.replay-progress').textContent =
-            state.index >= state.moves.length ? 'End of game' : `Move ${state.index} / ${state.moves.length}`;
+            state.index >= state.moves.length ? 'End of game'
+                : `Move ${state.shown} (${Math.floor(100 * state.index / Math.max(1, state.moves.length))}%)`;
         bar.querySelector('[data-act=play]').textContent = state.playing ? 'Pause' : 'Play';
     }
 
@@ -134,13 +135,55 @@
         return true;
     }
 
+    // What a viewer can see: board, pawns, activated elements, whose turn,
+    // AP, hands, active scrolls, common area, and new Game Log lines. Many
+    // recorded messages (syncs, timer pings, passes while waiting) change
+    // none of it; playback runs through those at once instead of showing
+    // them as empty "moves".
+    function visibleState() {
+        try {
+            const scrolls = (spellSystem?.playerScrolls || []).map(p => p
+                ? [...(p.hand || [])].sort().join('+') + '/' + [...(p.active || [])].sort().join('+')
+                : '-');
+            return [
+                window.MatchWitness?.publicState?.() || '',
+                activePlayerIndex, currentTurnNumber, currentAP,
+                scrolls.join(';'),
+                JSON.stringify(spellSystem?.commonArea || {}),
+                state.logCount,
+            ].join('|');
+        } catch (e) { return String(Math.random()); } // unknown: treat as visible
+    }
+
+    // Always shown, even when the board does not change.
+    const SHOWN_EVENTS = new Set(['emoji', 'scroll-used', 'spell-cast', 'game-over']);
+
+    // One visible move: dispatch messages until one changes what the viewer
+    // sees. Returns false at the end. (step() stays one message; the replay
+    // check, miner and puzzles count on that.)
+    function watchStep() {
+        if (!state) return false;
+        while (state.index < state.moves.length) {
+            const move = state.moves[state.index];
+            const before = visibleState();
+            step();
+            if (SHOWN_EVENTS.has(move.event) || visibleState() !== before) {
+                state.shown++;
+                updateControls();
+                return true;
+            }
+        }
+        pause(); updateControls();
+        return false;
+    }
+
     function scheduleNext() {
         clearTimeout(state.timer);
         if (!state.playing || state.index >= state.moves.length) { state.playing = false; updateControls(); return; }
         const prev = state.moves[state.index - 1];
         const next = state.moves[state.index];
         const gap = prev ? Math.min(MAX_GAP_MS, Math.max(0, (next.t || 0) - (prev.t || 0))) : 0;
-        state.timer = setTimeout(() => { if (step()) scheduleNext(); }, gap / state.speed);
+        state.timer = setTimeout(() => { if (watchStep()) scheduleNext(); }, gap / state.speed);
     }
 
     function play() { if (!state) return; state.playing = true; updateControls(); scheduleNext(); }
@@ -177,7 +220,8 @@
         window.promptLogConsentIfNeeded = () => {};
 
         startBoard(match, seats, handlers);
-        state = { match, seats, moves: match.moves || [], index: 0, playing: false, speed: opts.speed || 1, timer: null, handlers, errors: [] };
+        state = { match, seats, moves: match.moves || [], index: 0, playing: false, speed: opts.speed || 1, timer: null, handlers, errors: [], shown: 0, logCount: 0 };
+        window.ActionLog?.onRecord?.(() => { if (state) state.logCount++; });
         if (opts.check) return;
         buildControls();
         const sel = document.querySelector('#replay-controls [data-act=speed]');
@@ -221,6 +265,7 @@
         pause();
         startBoard(state.match, state.seats, state.handlers);
         state.index = 0;
+        state.shown = 0;
         state.errors = [];
         updateControls();
         state.startTimer = setTimeout(play, 1500);

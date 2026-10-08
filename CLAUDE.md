@@ -193,7 +193,10 @@ Order matters — later scripts depend on earlier ones.
                              from recorded seats + deck seed -> myPlayerIndex = -1 (spectator; game-core
                              getPlayerScrolls shows the ACTIVE player's hand for a negative seat) -> recorded
                              messages dispatched into setupGameBroadcast()'s own handlers, timed, with
-                             play/pause/step/speed. Restart rewinds in place (startBoard: clears handlers, turn 0,
+                             play/pause/step/speed. Playback and Step use watchStep(): messages that change nothing a viewer
+                             sees (board, turn, AP, hands, common area, Game Log; emoji / scroll-used / spell-cast / game-over always
+                             count) run at once, so waiting steps are not shown; the counter shows visible moves + %. step() stays one
+                             message (check / miner / puzzles). Restart rewinds in place (startBoard: clears handlers, turn 0,
                              startMultiplayerGame again); Exit reloads with sessionStorage godaigo_skip_intro_once,
                              which boot-splash.js honours once (no logo / lore intro). Players: lobby "Replays"
                              button -> Replay.openBrowser(): "My games" (Watch, Post publicly / Remove from
