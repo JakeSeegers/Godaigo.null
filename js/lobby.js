@@ -2731,7 +2731,7 @@
                     // (game-ui.js replenishShrineStones): play the collection effect.
                     const col = payload.collected;
                     if (col && Number.isInteger(col.player) && col.type && col.n > 0) {
-                        window.StoneDropFx?.collect?.(col.player, String(col.type), Math.min(10, +col.n));
+                        window.StoneDropFx?.collect?.(col.player, String(col.type), Math.min(10, +col.n), { x: +col.x, y: +col.y });
                     }
                     // Found via a real playtest's godaigoTest.diag() output (2026-08-21):
                     // this receiver corrected lastReceivedTurnNumber (used only for the

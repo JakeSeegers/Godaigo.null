@@ -3745,8 +3745,9 @@ document.getElementById('undo-move').onclick = function() {
                 window.SoundSystem?.play('collectstones');
                 // the collection effect here, and on other screens via the next
                 // turn-change message (payload.collected)
-                lastShrineCollect = { player: activePlayerIndex, type: shrineType, n: actualReplenished };
-                window.StoneDropFx?.collect?.(activePlayerIndex, shrineType, actualReplenished);
+                const at = (typeof playerPosition !== 'undefined' && playerPosition) ? { x: playerPosition.x, y: playerPosition.y } : null;
+                lastShrineCollect = { player: activePlayerIndex, type: shrineType, n: actualReplenished, x: at?.x, y: at?.y };
+                window.StoneDropFx?.collect?.(activePlayerIndex, shrineType, actualReplenished, at);
 
                 // Sync resources in multiplayer
                 syncPlayerState();
