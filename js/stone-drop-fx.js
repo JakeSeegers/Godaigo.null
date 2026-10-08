@@ -1,9 +1,10 @@
 // Stone drop effects (owner 2026-10-08): a short animation when a stone is
 // placed, one per element.
-//   earth: a small board shake; stones and pawns 1, 2 and 3 hexes away
-//          bounce, less the farther away they are.
-//   water: jiggles. A water stone that takes another stone's ability (next
-//          to it, or chained) plays THAT stone's drop instead (earth = shake).
+//   earth: a heavy drop (falls a little, squashes, settles); stones and
+//          pawns 1, 2 and 3 hexes away bounce, less the farther away they
+//          are. The board itself does not move.
+//   water: a small droplet bob up and down. A water stone that takes another
+//          stone's ability (next to it, or chained) plays THAT stone's drop.
 //   fire:  flickers, crackles and gives off a few floating sparks.
 //   wind:  "breathes" once, growing and shrinking, with a soft ring.
 //   void:  fades in with a spectral glow, as if summoned.
@@ -81,21 +82,23 @@
     }
 
     // ── earth ────────────────────────────────────────────────────
+    const LAND = 210;                          // ms until the earth stone lands
     function earth(stone, svg, vp) {
         const up = upVec(1);
-        // the stone lands with a thud
+        // a heavy drop: falls from a little above, speeding up, then a short
+        // squash and a tiny settle when it lands
         animate(stone.element, [
-            { translate: `${up.x * 9}px ${up.y * 9}px` }, { translate: '0px 0px', offset: 0.55 },
-            { translate: `${up.x * 1.5}px ${up.y * 1.5}px`, offset: 0.75 }, { translate: '0px 0px' },
-        ], { duration: 260, easing: 'ease-in', composite: 'add' });
-        // board shake, right when it lands
-        const k = [];
-        for (let i = 0; i <= 6; i++) {
-            const f = 1 - i / 6, a = 2.6 * f;
-            k.push({ translate: i === 6 ? '0px 0px' : `${((Math.random() * 2 - 1) * a).toFixed(2)}px ${((Math.random() * 2 - 1) * a).toFixed(2)}px` });
-        }
-        animate(svg, k, { duration: 340, delay: 140, composite: 'add' });
+            { translate: `${(up.x * 10).toFixed(2)}px ${(up.y * 10).toFixed(2)}px`, opacity: 0.6 },
+            { translate: '0px 0px', opacity: 1 },
+        ], { duration: LAND, easing: 'cubic-bezier(0.55, 0, 1, 0.45)', composite: 'add' });
+        animate(stone.element, [
+            { translate: '0px 0px' }, { translate: `${(up.x * 1.2).toFixed(2)}px ${(up.y * 1.2).toFixed(2)}px`, offset: 0.45 },
+            { translate: '0px 0px' },
+        ], { duration: 200, delay: LAND, easing: 'ease-out', composite: 'add' });
+        scaleAnim(stone.element, [{ scale: '1' }, { scale: '0.93', offset: 0.3 }, { scale: '1.02', offset: 0.7 }, { scale: '1' }],
+            { duration: 260, delay: LAND - 20, easing: 'ease-out' });
         // ripple: stones and pawns 1-3 hexes away bounce, less with distance
+        // (the board itself stays still)
         const things = [];
         try { (placedStones || []).forEach(s => { if (s !== stone && s.element) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
         try { (playerPositions || []).forEach(p => { if (p && p.element) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
@@ -109,20 +112,26 @@
                 { translate: '0px 0px', offset: 0.62 },
                 { translate: `${(u.x * 0.25).toFixed(2)}px ${(u.y * 0.25).toFixed(2)}px`, offset: 0.8 },
                 { translate: '0px 0px' },
-            ], { duration: 460, delay: 140 + d * 70, easing: 'ease-out', composite: 'add' });
+            ], { duration: 460, delay: LAND + d * 70, easing: 'ease-out', composite: 'add' });
         });
         // a puff of dust on landing
-        const L = layer(vp, stone.x, stone.y, 900);
+        const L = layer(vp, stone.x, stone.y, 1000);
         const ring = el('circle', { r: 12, fill: 'none', stroke: colorOf('earth'), 'stroke-width': 2.5, opacity: 0 }, L);
-        animate(ring, [{ r: 11, opacity: 0.7 }, { r: 30, opacity: 0 }], { duration: 520, delay: 140, easing: 'ease-out', fill: 'both' });
+        animate(ring, [{ r: 11, opacity: 0.6 }, { r: 28, opacity: 0 }], { duration: 520, delay: LAND, easing: 'ease-out', fill: 'both' });
     }
 
     // ── water ────────────────────────────────────────────────────
+    // a droplet: a small up-and-down bob that dies away, with a slight swell
     function water(stone) {
+        const u = (k) => { const v = upVec(k); return `${v.x.toFixed(2)}px ${v.y.toFixed(2)}px`; };
+        animate(stone.element, [
+            { translate: '0px 0px' }, { translate: u(1.6), offset: 0.18 }, { translate: u(-0.6), offset: 0.38 },
+            { translate: u(0.6), offset: 0.58 }, { translate: u(-0.2), offset: 0.78 }, { translate: '0px 0px' },
+        ], { duration: 720, easing: 'ease-in-out', composite: 'add' });
         scaleAnim(stone.element, [
-            { scale: '1 1' }, { scale: '1.14 0.86', offset: 0.22 }, { scale: '0.9 1.1', offset: 0.45 },
-            { scale: '1.06 0.95', offset: 0.68 }, { scale: '0.98 1.02', offset: 0.85 }, { scale: '1 1' },
-        ], { duration: 560, easing: 'ease-out' });
+            { scale: '1' }, { scale: '1.025', offset: 0.18 }, { scale: '0.985', offset: 0.38 },
+            { scale: '1.008', offset: 0.58 }, { scale: '1' },
+        ], { duration: 720, easing: 'ease-in-out' });
     }
 
     // ── fire ─────────────────────────────────────────────────────

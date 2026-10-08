@@ -284,8 +284,8 @@ Order matters — later scripts depend on earlier ones.
                              keeps crackling (max 20 s). CastFX.resolve(results) (from response-window.js announceOutcome): a
                              countered cast shatters (grey lines + a bolt from the counter caster in the counter scroll's colour),
                              and the counter / response scroll plays its own effect.
-20b4. stone-drop-fx.js    ← window.StoneDropFx.play(x, y, type): stone drop animations on every ActionLog 'placeStone'. Earth: board
-                             shake + stones / pawns 1-3 hexes away bounce (less with distance). Water: jiggle, or the drop of the
+20b4. stone-drop-fx.js    ← window.StoneDropFx.play(x, y, type): stone drop animations on every ActionLog 'placeStone'. Earth: heavy
+                             drop + stones / pawns 1-3 hexes away bounce (less with distance; board stays still). Water: droplet bob, or the drop of the
                              stone whose ability it takes (window.stoneAbilityAt in game-core.js). Fire: flicker, crackle, sparks.
                              Wind: breathes once. Void: summoned with a spectral glow. Same skips as cast-fx.js.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
