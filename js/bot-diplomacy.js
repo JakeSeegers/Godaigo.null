@@ -53,6 +53,36 @@
         const why = EFF_MARKERS.filter(m => { try { return m.ok(j, p, snap); } catch (e) { return false; } }).map(m => m.why);
         return { score: 0.5 * why.length, why };
     }
+    // A bot says so out loud when a human meets a new efficiency marker
+    // (owner 2026-10-08): one bot, the one pushing hardest against them.
+    const FAST_WORDS = {
+        'cast a scroll by turn 3': 'cast a scroll early',
+        'first element by turn 4': 'got an element early',
+        'two elements by turn 7': 'is racing ahead',
+        'three elements by turn 10': 'is racing ahead',
+        'more elements than everyone else': 'is in the lead',
+    };
+    function noticeFastPlay(snap) {
+        snap.players.forEach((p, j) => {
+            if (!p || isBotSeat(j)) return;
+            const eff = efficiency(snap, j);
+            // Each marker is said once per game ("in the lead" comes and goes).
+            const seen = S.effSeen[j] || [];
+            const fresh = eff.why.filter(w => !seen.includes(w));
+            S.effSeen[j] = [...new Set([...seen, ...eff.why])];
+            if (!fresh.length) return;
+            const bots = snap.players.map((q, b) => b).filter(b => b !== j && snap.players[b] && isBotSeat(b));
+            if (!bots.length) return;
+            let who = bots[0], best = -1;
+            for (const b of bots) { const pr = (pressures(b) || [])[j] || 0; if (pr > best) { best = pr; who = b; } }
+            const words = FAST_WORDS[fresh[fresh.length - 1]] || 'is playing fast';
+            const stage = Math.floor(eff.score) > Math.floor(0.5 * seen.length);
+            say(who, [E.warning, symbolOf(j, null)], stage
+                ? `{p${who}} keeps an eye on {p${j}}, who ${words}`
+                : `{p${who}} notices {p${j}} ${words}`);
+        });
+    }
+
     // Remember the own turn on which each player reached each element count.
     function noteActs(snap) {
         snap.players.forEach((p, j) => {
@@ -75,7 +105,7 @@
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
                  pact: null, lastPactTurn: -99, warned: {}, asked: {}, rallied: {}, intents: {}, spoke: {}, thanked: {}, placed: {}, mood: {},
-                 ownTurns: {}, firstCast: {}, actsAt: {} };
+                 ownTurns: {}, firstCast: {}, actsAt: {}, effSeen: {} };
     }
     // A new game or the end of a training round: forget everything, and take
     // every floating emote and queued sentence off the board at once.
@@ -100,7 +130,9 @@
         if (!switchedOn || !gameActive() || window.Replay?.state) return false;
         return arenaRunning() || hostOnline();
     }
+    let testHumans = null; // tests: BotDiplomacy._testHumans([1]) treats seat 1 as a human in the arena
     function isBotSeat(j) {
+        if (testHumans && testHumans.includes(j)) return false;
         if (arenaRunning()) return true;
         return !!window.BotDriver?.isBot?.(j);
     }
@@ -275,6 +307,7 @@
         if (S.seats && S.seats !== n) reset();
         S.seats = n;
         noteActs(snap);
+        noticeFastPlay(snap);
         const prevOk = S.prev && S.prev.length === n;
         const now = snap.players.map((p, j) => (p ? parts(snap, j, full, prevOk ? S.prev[j] : null) : null));
         const actor = S.lastActive;
@@ -974,6 +1007,7 @@
     window.BotDiplomacy = {
         view, events: o => (S.events[o] || []).slice(), relation: relOf, reset, observe,
         enabled, threatOf, _state: () => S, pressures, coalitionTarget,
+        _testHumans: (seats) => { testHumans = seats || null; },
         // How efficiently human j plays: {score 0..2.5, why: [markers met]}
         efficiency: (j) => { try { return efficiency(window.BotState.snapshot(), j); } catch (e) { return { score: 0, why: [] }; } },
         // Stones player j placed in the last `turns` turns: [{x, y, type, turn}].
