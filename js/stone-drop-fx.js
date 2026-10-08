@@ -2,8 +2,8 @@
 // placed, one per element.
 //   earth: a heavy drop (falls a little, squashes, settles); stones and
 //          pawns 1, 2 and 3 hexes away bounce, less the farther away they
-//          are. Other earth stones hold firm unless a void stone next to them
-//          cancels them. The board itself does not move.
+//          are. Earth stones (and water using earth's ability) hold firm
+//          unless a void stone next to them cancels them. The board itself does not move.
 //   water, fire and wind first drop lightly into place (softDrop), then:
 //   water: a small droplet bob up and down. A water stone that takes another
 //          stone's ability (next to it, or chained) plays THAT stone's drop.
@@ -109,9 +109,16 @@
         // ripple: stones and pawns 1-3 hexes away bounce, less with distance
         // (the board itself stays still)
         const things = [];
-        // Earth stones are too heavy to bounce, unless a void stone next to
-        // them cancels them. Other stones and pawns bounce.
-        try { (placedStones || []).forEach(s => { if (s !== stone && s.element && (s.type !== 'earth' || nextToVoid(s))) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
+        // Earth stones, and water stones using earth's ability, are too heavy
+        // to bounce, unless a void stone next to them cancels them
+        // (stoneAbilityAt already returns 'water' for a void-blocked water).
+        // Other stones and pawns bounce.
+        const heavy = (s) => {
+            if (s.type === 'earth') return !nextToVoid(s);
+            if (s.type === 'water') return window.stoneAbilityAt?.(s.x, s.y) === 'earth';
+            return false;
+        };
+        try { (placedStones || []).forEach(s => { if (s !== stone && s.element && !heavy(s)) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
         try { (playerPositions || []).forEach(p => { if (p && p.element) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
         things.forEach(t => {
             const d = hexDist(stone, t);
