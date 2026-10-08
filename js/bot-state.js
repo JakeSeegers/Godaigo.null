@@ -973,6 +973,11 @@
             case 'endTurn': {
                 const btn = document.getElementById('end-turn');
                 if (!btn || btn.disabled) return { ok: false, reason: 'end-turn button unavailable' };
+                // The button would refuse this click: say so instead of
+                // clicking (the bot clicked 7 times in a row in game 951,
+                // each click looked like a success).
+                const blocked = window.endTurnBlockReason?.();
+                if (blocked) return { ok: false, reason: 'end turn refused: ' + blocked };
                 btn.click();
                 return { ok: true };
             }

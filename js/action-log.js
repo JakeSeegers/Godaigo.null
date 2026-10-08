@@ -152,8 +152,37 @@
     // capturing listeners always run before the target's own listeners,
     // regardless of script load order (unlike a second listener on the
     // button itself, which would fire after and see the NEW active player) ──
+    // A click the button turns down (same checks as game-ui.js's end-turn
+    // onclick, run here first) is logged as 'endTurnRefused' with the reason,
+    // not as an end of turn: game 951 logged eight 'endTurn' entries for one
+    // bot turn and it was not clear why (owner 2026-10-08). Each entry also
+    // carries the source pools and the player's own pool, so a log shows
+    // where a pool count went wrong.
+    window.endTurnBlockReason = function () {
+        try {
+            if (typeof canTakeAction === 'function' && !canTakeAction()) return 'not this player\'s turn, or a scroll cascade / overflow is open';
+            const idx = (typeof isMultiplayer !== 'undefined' && isMultiplayer) ? myPlayerIndex : activePlayerIndex;
+            if (spellSystem?.hasPendingCascade?.(idx)) return 'scroll cascade open';
+            const stranded = typeof isPlayerStrandedOnStone === 'function' && isPlayerStrandedOnStone(idx);
+            if (typeof isPlayerRestingOnStone === 'function' && isPlayerRestingOnStone(idx) && !stranded) return 'standing on a stone';
+            if (typeof isPlayerOnOpponentTile === 'function' && isPlayerOnOpponentTile(idx) && !stranded) return "on another player's tile";
+        } catch (e) { /* unknown: let the button decide */ }
+        return null;
+    };
+    function poolsNow() {
+        try {
+            const p = (typeof playerPools !== 'undefined' && playerPools[activePlayerIndex]) || null;
+            return {
+                src: (typeof sourcePool !== 'undefined') ? { ...sourcePool } : undefined,
+                pool: p ? { ...p } : undefined,
+            };
+        } catch (e) { return {}; }
+    }
     document.addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'end-turn') record('endTurn', {});
+        if (!(e.target && e.target.id === 'end-turn')) return;
+        const why = window.endTurnBlockReason();
+        if (why) record('endTurnRefused', { reason: why, ...poolsNow() });
+        else record('endTurn', poolsNow());
     }, true);
 
     // ── Download as JSON: a header with game/player context, then entries ──
