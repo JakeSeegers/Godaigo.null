@@ -3635,8 +3635,19 @@ document.getElementById('undo-move').onclick = function() {
                 if (sourcePool[action.element] > 0) { sourcePool[action.element]--; updateStoneCount(action.element); }
                 if (isMultiplayer) {
                     broadcastGameAction('stone-place', { x: action.x, y: action.y, stoneType: action.element });
-                    if (typeof syncPlayerState === 'function') syncPlayerState();
                 }
+                // Stones the break set off (e.g. a fire stone freed from a void
+                // stone destroyed a wind stone): put back every stone that was on
+                // the board before and is gone now. The broken stone is back
+                // first, so the same reaction does not happen again.
+                const near = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < 5;
+                (action.stonesBefore || []).forEach(old => {
+                    if (placedStones.some(s => near(s, old))) return;
+                    placeStoneVisually(old.x, old.y, old.type);
+                    if (sourcePool[old.type] > 0) { sourcePool[old.type]--; updateStoneCount(old.type); }
+                    if (isMultiplayer) broadcastGameAction('stone-place', { x: old.x, y: old.y, stoneType: old.type });
+                });
+                if (isMultiplayer && typeof syncPlayerState === 'function') syncPlayerState();
                 updateStatus(`Undid ${action.element} stone break. AP restored to ${getTotalAP()}.`);
 
             } else if (action.type === 'scroll-move') {

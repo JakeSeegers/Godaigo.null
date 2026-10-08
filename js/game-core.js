@@ -2749,7 +2749,12 @@
                 y: stone.y,
                 element: stone.type,
                 prevCurrentAP: currentAP,
-                prevVoidAP: voidAP
+                prevVoidAP: voidAP,
+                // Every other stone on the board before the break: breaking one
+                // can set off others (break a void stone and the fire next to it
+                // destroys a wind stone). Undo puts back any of these that are
+                // gone (owner 2026-10-08).
+                stonesBefore: placedStones.filter(s => s.id !== stone.id).map(s => ({ x: s.x, y: s.y, type: s.type }))
             };
             window.lastScrollAction = null; // a stone-break supersedes any pending scroll undo
 
