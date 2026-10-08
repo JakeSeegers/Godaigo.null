@@ -4528,8 +4528,14 @@
         return _veto.turn === t && _veto.idx === activePlayerIndex && _veto.scrolls.has(a.scroll);
     }
 
+    // Slow decisions (owner 2026-10-08): a decision over 1 s is saved as a
+    // lag-recorder moment with the kind of thinking (_slowMode), time spent
+    // in the big helpers (_slowParts, see timedHelper below) and board size,
+    // to tell a hard position from a search that goes in circles.
+    let _slowMode = null, _slowParts = {};
     function botAct() {
         const t0 = performance.now();               // js/lag-recorder.js: whole decision, Bot Mind included
+        _slowMode = null; _slowParts = {};
         _th = null;
         const snapBefore = (window.BotMind && window.BotMind.wants()) ? window.BotState.snapshot() : null;
         if (snapBefore) {
@@ -4540,7 +4546,24 @@
             try { window.BotMind.record(finishThought(_th, act)); } catch (e) { log('Bot Mind record failed', e); }
         }
         _th = null;
-        window.LagRecorder?.botThink?.(performance.now() - t0);
+        const took = performance.now() - t0;
+        window.LagRecorder?.botThink?.(took);
+        if (took > 1000) {
+            try {
+                const parts = {};
+                for (const k in _slowParts) parts[k] = { ms: Math.round(_slowParts[k].ms), calls: _slowParts[k].n };
+                window.LagRecorder?.mark?.(`slow bot decision: ${Math.round(took)} ms (${_slowMode || 'unknown'})`, {
+                    ms: Math.round(took), mode: _slowMode, parts,
+                    action: act ? act.type + (act.scroll ? ' ' + act.scroll : '') : null,
+                    turn: (typeof currentTurnNumber !== 'undefined') ? currentTurnNumber : null,
+                    seat: activePlayerIndex,
+                    stones: (typeof placedStones !== 'undefined') ? placedStones.length : null,
+                    tiles: (typeof placedTiles !== 'undefined') ? placedTiles.length : null,
+                    searchDepth: WEIGHTS.searchDepth, mcts: !!WEIGHTS.mctsEnabled,
+                    botMind: !!window.BotMind?.wants?.(),
+                });
+            } catch (e) { /* diagnostics only */ }
+        }
         return act;
     }
 
@@ -4565,7 +4588,7 @@
                 const ranked = rankActions(); // legalActions() returns discards only right now
                 if (ranked.length) {
                     const { action } = ranked[0];
-                    if (_th) _th.mode = 'overflow';
+                    _slowMode = 'overflow'; if (_th) _th.mode = 'overflow';
                     log(`Resolving scroll overflow: discard ${action.scroll} (from ${action.from})`);
                     const r = window.BotState.applyAction(action);
                     if (r.ok) return action;
@@ -4588,7 +4611,7 @@
             const key = a => `${a.type}|${a.scroll || ''}|${JSON.stringify(a.choice || null)}`;
             const match = window.BotState.legalActions().find(a => key(a) === key(want));
             if (match) {
-                if (_th) _th.mode = 'chat';
+                _slowMode = 'chat'; if (_th) _th.mode = 'chat';
                 log(`Chat vote: ${match.type} ${match.scroll || ''}`);
                 return applyChosen(snap, idx, { action: match, score: 0 });
             }
@@ -4625,7 +4648,7 @@
                         : planAction.type === 'endTurn' ? 'end turn to collect shrine stones'
                         : `move to (${planAction.x.toFixed(0)},${planAction.y.toFixed(0)})`;
             log(`Plan action: ${label}`);
-            if (_th) _th.mode = 'plan';
+            _slowMode = 'plan'; if (_th) _th.mode = 'plan';
             const r = window.BotState.applyAction(planAction);
             if (r.ok) {
                 if (planAction.type === 'cast') {
@@ -4694,7 +4717,7 @@
                 const ranked = rankActions(fixationTarget);
                 if (ranked.length) {
                     choice = ranked[0];
-                    if (_th) { _th.mode = 'unstuck'; _th.fixation = fixationTarget; }
+                    _slowMode = 'unstuck'; if (_th) { _th.mode = 'unstuck'; _th.fixation = fixationTarget; }
                     log(`${stuckByRepeat ? `Turn-repeat circuit breaker (streak ${m.turnRepeatStreak})` : `Unproductive streak (${m.unproductiveStreak})`}: ` +
                         `fixating on ${fixationTarget.scroll} near (${fixationTarget.x.toFixed(0)},${fixationTarget.y.toFixed(0)})`);
                 }
@@ -4703,7 +4726,7 @@
                 const ranked = rankActions().filter(r => r.action.type !== 'move');
                 if (ranked.length) {
                     choice = ranked[0];
-                    if (_th) _th.mode = 'unstuck';
+                    _slowMode = 'unstuck'; if (_th) _th.mode = 'unstuck';
                     log(`Turn-repeat circuit breaker (streak ${m.turnRepeatStreak}): skipping movement, picked ${choice.action.type}`);
                 } else {
                     const r = window.BotState.applyAction({ type: 'endTurn' });
@@ -4723,7 +4746,7 @@
         if (!choice && WEIGHTS.mctsEnabled && window.BotSim) {
             choice = mctsPick();
             if (choice) {
-                if (_th) _th.mode = 'playout';
+                _slowMode = 'playout'; if (_th) _th.mode = 'playout';
                 log(`MCTS (${choice.samples} samples, ${choice.votes}/${choice.samples} votes) picked ${choice.action.type}`);
                 signalBrainMode(snap.turn.activePlayerIndex, 'mcts');
             }
@@ -4767,7 +4790,7 @@
             if (useSearch) {
                 choice = searchPick();
                 if (choice) {
-                    if (_th) { _th.mode = 'lookahead'; _th.line = choice.line || null; _th.depth = choice.depth; }
+                    _slowMode = 'lookahead'; if (_th) { _th.mode = 'lookahead'; _th.line = choice.line || null; _th.depth = choice.depth; }
                     log(`Search (depth ${WEIGHTS.searchDepth | 0}${WEIGHTS.searchHybrid ? ', hybrid' : ''}) picked ${choice.action.type}`);
                     signalBrainMode(snap.turn.activePlayerIndex, 'search');
                 }
@@ -4778,7 +4801,7 @@
             if (!ranked.length) { log('No legal actions found'); return null; }
             choice = ranked[0];
             noteIntent(idx, ranked, choice.action);
-            if (_th) _th.mode = 'quick';
+            _slowMode = 'quick'; if (_th) _th.mode = 'quick';
         }
 
         // Anti-freeze: choosing endTurn with most of the turn's AP unspent
@@ -5194,7 +5217,21 @@
         resetAllMemory();
     }
 
+    // time the big helpers for the slow-decision record (botAct above)
+    function timedHelper(name, fn) {
+        return function () {
+            const t = performance.now();
+            try { return fn.apply(this, arguments); }
+            finally { const e = (_slowParts[name] ||= { ms: 0, n: 0 }); e.ms += performance.now() - t; e.n++; }
+        };
+    }
+    searchPick = timedHelper('lookahead search', searchPick);
+    mctsPick = timedHelper('random playouts (MCTS)', mctsPick);
+    makePlan = timedHelper('build plan', makePlan);
+    rankActions = timedHelper('rank actions', rankActions);
+
     window.BotSystem = {
+        _lastDecisionParts: () => ({ mode: _slowMode, parts: _slowParts }), // slow-decision record (debug)
         step:  botAct,        // one action
         setNextChoice,        // (idx, action): play this action next (chat vote, js/stream-votes.js)
         vetoScroll,           // (idx, scroll): bot idx may not cast this scroll this turn (chat veto)

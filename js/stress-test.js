@@ -121,6 +121,17 @@
             if (nw.roundTripP95 != null && nw.serverAckP95 != null && nw.roundTripP95 > 2 * nw.serverAckP95 + 150 && sc.blockedPct > 5)
                 v.push('Messages came back late mostly because the screen was busy, not because of the network.');
         }
+        // bot decisions over 1 s (bot.js saves them as lag moments)
+        const since = new Date(run.startedAt).toISOString();
+        S.slowDecisions = (window.LagRecorder?.moments?.() || [])
+            .filter(m => m.at >= since && /^slow bot decision/.test(m.reason))
+            .map(m => m.sample);
+        if (S.slowDecisions.length) {
+            const worst = S.slowDecisions.reduce((a, b) => (b.ms > a.ms ? b : a));
+            const part = Object.entries(worst.parts || {}).sort((a, b) => b[1].ms - a[1].ms)[0];
+            v.push(`${S.slowDecisions.length} bot decision(s) took over 1 s. Worst: ${(worst.ms / 1000).toFixed(1)} s in "${worst.mode || 'unknown'}" mode`
+                + (part ? `, most of it in ${part[0]} (${part[1].calls} calls)` : '') + '.');
+        }
         if (!v.length) v.push('No problems found: the screen stayed smooth and messages came back quickly.');
         S.verdicts = v;
         return S;

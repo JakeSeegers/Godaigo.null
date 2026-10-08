@@ -385,6 +385,8 @@ Order matters — later scripts depend on earlier ones.
                              turns; comboStep / comboChoiceMatch bonus on the next cast in greedy + search root;
                              makePlan builds the next combo scroll's pattern; dropped when too slow or the next
                              scroll is gone; 3 own turns rest before the same combo again).
+                             Slow decisions: a decision over 1 s becomes a lag-recorder moment with its mode, time per helper
+                             (search / MCTS / plan / rank) and board size; the stress test summary lists them.
 24b. bot-memory.js         ← window.BotMemory — episodic "what happened after decisions like this" memory.
                              Captures a fingerprint+action+outcome row whenever a bot decision's immediate
                              evaluateSnapshot() swing is extreme; retrieveSimilar() feeds mctsPick()'s root
