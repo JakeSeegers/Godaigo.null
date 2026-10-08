@@ -495,28 +495,39 @@
             });
             return out.length ? out : null;
         };
+        // One tile's slab: side hull, its shadow and the bottom edge, in board
+        // units ("down" on screen = the camera's tilt and the board's turn).
+        const slabPolys = (t) => {
+            const depth = TILE_THICK * Math.tan(Math.min(80, tilt || 0) * Math.PI / 180);
+            if (depth < 0.5) return null;
+            const a = rot * Math.PI / 180;
+            const dx = depth * Math.sin(a), dy = depth * Math.cos(a);
+            const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/.exec(t.getAttribute('transform') || '');
+            if (!m) return null;
+            const tx = +m[1], ty = +m[2];
+            const pts = tileOutline(t); if (!pts) return null;
+            const top = pts.map(p => [p[0] + tx, p[1] + ty]);
+            const fmt = ps => ps.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+            return {
+                top: fmt(hull(top)),
+                side: fmt(hull(top.concat(top.map(p => [p[0] + dx, p[1] + dy])))),
+                shadow: fmt(hull(top.concat(top.map(p => [p[0] + dx * 1.9 + 2, p[1] + dy * 1.9 + 2])))),
+                edge: fmt(hull(top.map(p => [p[0] + dx, p[1] + dy]))),
+            };
+        };
         const buildSides = () => {
             let layer = document.getElementById('tile-sides');
-            const tiles = [...vp.querySelectorAll(':scope > g.placed-tile')];
+            // a tile in the middle of a flip carries its own slab (tileFlip)
+            const tiles = [...vp.querySelectorAll(':scope > g.placed-tile')].filter(t => !t.hasAttribute('data-flipping'));
             if (!on || !tiles.length) { layer?.remove(); return; }
             if (!layer) { layer = el('g', { id: 'tile-sides' }); }
             if (layer !== vp.firstChild) vp.insertBefore(layer, vp.firstChild);
             const depth = TILE_THICK * Math.tan(Math.min(80, tilt || 0) * Math.PI / 180);
             if (depth < 0.5) { layer.innerHTML = ''; return; }
-            const a = rot * Math.PI / 180;
-            const dx = depth * Math.sin(a), dy = depth * Math.cos(a);   // "down" on screen, in board units
             const shadow = [], side = [], edge = [];
             tiles.forEach(t => {
-                const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/.exec(t.getAttribute('transform') || '');
-                if (!m) return;
-                const tx = +m[1], ty = +m[2];
-                const pts = tileOutline(t); if (!pts) return;
-                const top = pts.map(p => [p[0] + tx, p[1] + ty]);
-                const fmt = ps => ps.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-                const h = hull(top.concat(top.map(p => [p[0] + dx, p[1] + dy])));
-                side.push(fmt(h));
-                shadow.push(fmt(hull(top.concat(top.map(p => [p[0] + dx * 1.9 + 2, p[1] + dy * 1.9 + 2])))));
-                edge.push(fmt(hull(top.map(p => [p[0] + dx, p[1] + dy]))));
+                const sp = slabPolys(t); if (!sp) return;
+                side.push(sp.side); shadow.push(sp.shadow); edge.push(sp.edge);
             });
             layer.innerHTML = '';
             shadow.forEach(ps => layer.appendChild(el('polygon', { points: ps, fill: '#000', 'fill-opacity': 0.28 })));
@@ -545,25 +556,60 @@
             const origin = `${m[1]}px ${m[2]}px`;
             const r = (typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : rot) * Math.PI / 180;
             const lift = (k) => `${(-k * Math.sin(r)).toFixed(2)}px ${(-k * Math.cos(r)).toFixed(2)}px`;
-            const T1 = 190, T2 = 260;
-            // the old face, back on top, no longer a real tile
+            const T = 760, L = 26;
+            // the tile leaves its spot: no slab there while it is up
+            newG.setAttribute('data-flipping', '1');
+            const sp = on ? slabPolys(newG) : null;
+            buildSides();
+            // shadow in the empty spot, under every tile
+            const ground = el('g', { class: 'tile-flip-fx' });
+            const sides = document.getElementById('tile-sides');
+            vp.insertBefore(ground, sides ? sides.nextSibling : vp.firstChild);
+            if (sp) {
+                const sh = el('polygon', { points: sp.top, fill: '#000', opacity: 0 });
+                ground.appendChild(sh);
+                sh.animate([{ opacity: 0.15 }, { opacity: 0.45, offset: 0.25 }, { opacity: 0.45, offset: 0.75 }, { opacity: 0.15 }],
+                    { duration: T, fill: 'both' });
+            }
+            // the moving tile (its slab, then both faces) goes above the other tiles
+            const slab = el('g', { class: 'tile-flip-fx' });
+            if (sp) {
+                slab.appendChild(el('polygon', { points: sp.side, fill: '#4a3a2c', stroke: '#1a130d', 'stroke-width': 1, 'stroke-linejoin': 'round' }));
+                slab.appendChild(el('polygon', { points: sp.edge, fill: 'none', stroke: '#120d09', 'stroke-width': 1.2, 'stroke-opacity': 0.8, 'stroke-linejoin': 'round' }));
+            }
             oldG.setAttribute('class', 'tile-flip-fx');
             oldG.removeAttribute('data-tile-id');
             oldG.style.pointerEvents = 'none';
-            if (newG.nextSibling) vp.insertBefore(oldG, newG.nextSibling); else vp.appendChild(oldG);
-            for (const g of [oldG, newG]) { g.style.transformBox = 'view-box'; g.style.transformOrigin = origin; }
-            const a1 = oldG.animate([
-                { scale: '1 1', translate: '0px 0px' },
-                { scale: '0.02 1', translate: lift(6), filter: 'brightness(0.7)' },
-            ], { duration: T1, easing: 'ease-in', fill: 'forwards' });
-            a1.onfinish = a1.oncancel = () => oldG.remove();
-            setTimeout(() => oldG.remove(), T1 + 200);
-            const a2 = newG.animate([
-                { scale: '0.02 1', translate: lift(6), filter: 'brightness(1.4)' },
-                { scale: '1.04 1', translate: lift(1), filter: 'brightness(1.1)', offset: 0.75 },
-                { scale: '1 1', translate: '0px 0px', filter: 'brightness(1)' },
-            ], { duration: T2, delay: T1, easing: 'ease-out', fill: 'backwards' });
-            a2.onfinish = a2.oncancel = () => { newG.style.transformBox = ''; newG.style.transformOrigin = ''; };
+            const tiles = vp.querySelectorAll(':scope > g.placed-tile');
+            const after = tiles[tiles.length - 1];
+            const at = after && after !== newG ? after.nextSibling : newG.nextSibling;
+            vp.insertBefore(slab, at);
+            vp.insertBefore(newG, at);          // same face as before here: the observer skips it
+            vp.insertBefore(oldG, at);
+            const move = (o) => [
+                { translate: '0px 0px', scale: '1 1', easing: 'ease-out' },
+                { translate: lift(L), scale: '1 1', offset: 0.25, easing: 'ease-in' },
+                { translate: lift(L), scale: '0.02 1', offset: 0.5, opacity: o, easing: 'ease-out' },
+                { translate: lift(L), scale: '1 1', offset: 0.75, easing: 'ease-in' },
+                { translate: '0px 0px', scale: '1 1' },
+            ];
+            const parts = [slab, newG, oldG];
+            parts.forEach(g => { g.style.transformBox = 'view-box'; g.style.transformOrigin = origin; });
+            slab.animate(move(1), { duration: T });
+            // old face shows for the first half, the new one for the second
+            const a1 = oldG.animate(move(1).map((k, i) => ({ ...k, opacity: i <= 2 ? (i === 2 ? 0 : 1) : 0 })), { duration: T, fill: 'forwards' });
+            const a2 = newG.animate(move(1).map((k, i) => ({ ...k, opacity: i <= 2 ? 0 : 1 })), { duration: T });
+            let finished = false;
+            const done = () => {
+                if (finished) return; finished = true;
+                oldG.remove(); slab.remove(); ground.remove();
+                newG.removeAttribute('data-flipping');
+                newG.style.transformBox = ''; newG.style.transformOrigin = '';
+                buildSides();
+            };
+            a2.onfinish = a2.oncancel = done;
+            setTimeout(done, T + 300);
+            void a1;
         };
         const reduceMotionT = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
         new MutationObserver(list => {
