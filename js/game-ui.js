@@ -678,7 +678,12 @@
         }
 
         function updateSourceCount(type) {
-            document.getElementById(type + '-source').textContent = 'Source: ' + sourcePool[type] + '/' + sourcePoolCapacity[type];
+            const oldEl = document.getElementById(type + '-source');
+            if (oldEl) oldEl.textContent = 'Source: ' + sourcePool[type] + '/' + sourcePoolCapacity[type];
+            // The Elemental Stones panel players see (owner 2026-10-08: a broken
+            // stone went back to the source pool but this number did not change)
+            const newEl = document.getElementById('new-' + type + '-source');
+            if (newEl) newEl.textContent = sourcePool[type] + '/' + (sourcePoolCapacity[type] ?? 25);
         }
 
         function returnStoneToPool(type) {

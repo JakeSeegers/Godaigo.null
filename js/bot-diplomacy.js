@@ -27,7 +27,8 @@
     'use strict';
 
     const W = { favor: 1, trust: 0.5, threat: 1 };  // ally-preference weights (personalities: phase 4)
-    const HUMAN_BIAS = 0.5;                          // a human counts half a tracker step further ahead (mild)
+    const HUMAN_BIAS = 0.75;                         // a human counts 3/4 of a tracker step further ahead (owner 2026-10-08: bots were slow to interfere)
+    const HUMAN_STAGE = 1;                           // ...and one element further along for push stages (pact at 2 elements, not 3)
     const FAVOR_DECAY = 0.9, TRUST_DECAY = 0.95;     // per full round
     const SCALE = 500;                               // progress points per 1.0 favor
     const MIN_DELTA = 8;                             // ignore smaller wobbles
@@ -439,8 +440,11 @@
             // counts, from the first element on. Pacts and harm (push 2)
             // start when the leader has 3 elements, not 4.
             const lead = t[leader] - Math.max(...others);
-            if (lead >= 0.75) {
-                const acts = snap.players[leader].activated.length;
+            const human = !isBotSeat(leader);
+            const realActs = snap.players[leader].activated.length;
+            // A human is pushed back on earlier, but never before their first element.
+            if (lead >= 0.75 && !(human && realActs === 0)) {
+                const acts = realActs + (human ? HUMAN_STAGE : 0);
                 const byCount = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four + 0.25 : acts >= 3 ? STAGE.four : STAGE.clear;
                 const byLead = lead >= 2.75 ? STAGE.five : lead >= 1.75 ? STAGE.four : STAGE.clear;
                 // A lead in hard elements (void, wind) weighs a bit more. Easy
