@@ -1,7 +1,7 @@
 // Stone drop effects (owner 2026-10-08): a short animation when a stone is
 // placed, one per element.
 //   earth: a heavy drop (falls a little, squashes, settles); stones and
-//          pawns 1, 2 and 3 hexes away bounce, less the farther away they
+//          pawns (not the placing player's) 1, 2 and 3 hexes away bounce, less the farther away they
 //          are. Earth stones (and water using earth's ability) hold firm
 //          unless a void stone next to them cancels them. The board itself does not move.
 //   water, fire and wind first drop lightly into place (softDrop), then:
@@ -119,7 +119,10 @@
             return false;
         };
         try { (placedStones || []).forEach(s => { if (s !== stone && s.element && !heavy(s)) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
-        try { (playerPositions || []).forEach(p => { if (p && p.element) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
+        // the pawn of the player who placed it stays still (owner 2026-10-08)
+        let placer = null;
+        try { placer = activePlayerIndex; } catch (e) {}
+        try { (playerPositions || []).forEach((p, i) => { if (p && p.element && i !== placer) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
         things.forEach(t => {
             const d = hexDist(stone, t);
             if (d < 1 || d > 3) return;
