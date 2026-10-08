@@ -201,7 +201,10 @@
                 : null),
             entryCount: log.length,
         };
-        const blob = new Blob([JSON.stringify({ meta, entries: log }, null, 1)], { type: 'application/json' });
+        // js/lag-recorder.js: speed samples and lag moments of this session
+        let lag = null;
+        try { lag = window.LagRecorder?.export?.() || null; } catch (e) {}
+        const blob = new Blob([JSON.stringify({ meta, entries: log, lag }, null, 1)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

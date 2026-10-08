@@ -4534,7 +4534,9 @@
         if (snapBefore) {
             try { _th = beginThought(snapBefore); } catch (e) { _th = null; }
         }
+        const t0 = performance.now();
         const act = botActCore();
+        window.LagRecorder?.botThink?.(performance.now() - t0); // js/lag-recorder.js
         if (_th) {
             try { window.BotMind.record(finishThought(_th, act)); } catch (e) { log('Bot Mind record failed', e); }
         }

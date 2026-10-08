@@ -1961,4 +1961,5 @@ window.I18N_ES = {
     "More": "Más",
     "3D Pieces": "Piezas 3D",
     "Pawns and stones look like thick pucks": "Los peones y las piedras parecen discos gruesos",
+    "Lag moment saved. Download the Action Log to send it.": "Momento de lentitud guardado. Descarga el registro de acciones para enviarlo.",
 };

@@ -107,7 +107,8 @@
         } catch (e) { return; }
         if (DEDUPE_EVENTS.has(event)) {
             // Ignore the ordering/time stamps broadcastGameAction adds to scroll events
-            const { _seq, _timestamp, ...content } = clean || {};
+            // (_st: send time stamp, js/lag-recorder.js)
+            const { _seq, _timestamp, _st, ...content } = clean || {};
             const key = event + '|' + sender;
             const text = JSON.stringify(content);
             if (lastSync.get(key) === text) return;

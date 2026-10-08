@@ -422,6 +422,13 @@ Order matters — later scripts depend on earlier ones.
                              'normal' or a number); all restored at the end. The script also turns sound off and answers the log question.
                              While the host drives a bot seat, me() = BotDriver.driverRealIndex() (else the autopilot took
                              bot turns for its own and pressed End Turn).
+25a2. lag-recorder.js    ← window.LagRecorder: why a game felt slow. Every 5 s in a game: fps, long tasks (and how much of it
+                             while a bot turn ran), bot thinking ms (bot.js botAct -> botThink), ping / net / channel
+                             (ConnectionMonitor), messages sent / received + receive delay (every broadcast gets _st = serverNow();
+                             match-recorder.js dedupe ignores _st), board effects, element count, memory, hidden tab; last 30 min.
+                             Bad sample (fps < 10 in front, 2 s+ blocked, ping or delay > 2 s) or Shift+L saves a moment (context,
+                             last 8 actions, last messages). ActionLog.download() adds export() as "lag". Read: network = ping / delay
+                             high, fps fine; computer = fps low, long tasks; bots = long tasks while botMs is high.
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
                              for 500g (buy_stream_mode -> 'feature_stream' in cosmetics_owned; owned(), Hermit free; locked
                              panel + Shop > Features card in gamification-ui.js). Lobby "Stream" button -> openPanel(): on/off, channel, vote time 10-45 s, mood / cast votes (localStorage
