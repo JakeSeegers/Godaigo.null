@@ -275,6 +275,11 @@ Order matters — later scripts depend on earlier ones.
                              a rune ring turns, sparks drift; lines re-jag every frame, then break up and fade (~1.1 s). Layer
                              .cast-fx in #viewport. Own casts: ActionLog 'cast_execute'; other players: lobby.js 'scroll-used'.
                              Skipped with SoundSystem null (muted training), hidden tab, reduced motion; max 3 at once.
+                             Two layers: lines, aura and the far half of three energy arcs wrapping the pawn go BEHIND pawns; stone
+                             flares and the near half of the arcs go in front. While a response window is open on this cast the hold
+                             keeps crackling (max 20 s). CastFX.resolve(results) (from response-window.js announceOutcome): a
+                             countered cast shatters (grey lines + a bolt from the counter caster in the counter scroll's colour),
+                             and the counter / response scroll plays its own effect.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen

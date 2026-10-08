@@ -2040,6 +2040,7 @@ class ResponseWindowSystem {
     // log: also write it to this player's Game Log (the resolving client already
     // logs counters and responses itself; the others had no line at all).
     announceOutcome(results, lostTies = [], log = false) {
+        if (Array.isArray(results)) window.CastFX?.resolve?.(results); // a countered cast's effect shatters (js/cast-fx.js)
         if (!Array.isArray(results) || this._quietOutcome()) return;
         const name = (i) => this.getPlayerName(i);
         const counter = results.find(r => r.result === 'countered-original');

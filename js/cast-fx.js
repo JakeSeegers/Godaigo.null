@@ -82,6 +82,18 @@
     }
 
     let running = 0;
+    const live = [];          // effects waiting on a response window
+    const screenGroup = (parent, at) => {
+        // a group in screen direction around `at` (counter-turns the board rotation)
+        const r = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : 0;
+        return el('g', { transform: `translate(${at.x} ${at.y}) rotate(${-r})` }, parent);
+    };
+    function waitingOnWindow(playerIndex, scrollName) {
+        const rw = window.spellSystem?.responseWindow;
+        return !!(rw && rw.isResponseWindowOpen && rw.currentCaster === playerIndex
+            && (!rw.pendingScrollData || rw.pendingScrollData.name === scrollName));
+    }
+
     function play(playerIndex, scrollName) {
         try {
             if (document.hidden || reduceMotion || !window.SoundSystem || running >= 3) return;
@@ -93,34 +105,46 @@
             const cols = colorsOf(scrollName);
             const P = { x: pawn.x, y: pawn.y };
             const stones = patternPoints(scrollName, P);
-            const nodes = [P, ...stones];
-            // Lines: caster to every stone, and stone to stone around the caster.
             const links = stones.map((s, i) => [P, s, cols[i % cols.length]]);
             const ring = stones.slice().sort((a, b) => Math.atan2(a.y - P.y, a.x - P.x) - Math.atan2(b.y - P.y, b.x - P.x));
             if (ring.length >= 3) ring.forEach((s, i) => links.push([s, ring[(i + 1) % ring.length], cols[(i + 1) % cols.length]]));
             else if (ring.length === 2) links.push([ring[0], ring[1], cols[cols.length - 1]]);
 
-            const layer = el('g', { class: 'cast-fx' }, vp);
-            const flares = el('g', {}, layer), lines = el('g', {}, layer), sparks = el('g', {}, layer);
-            // Flares on the caster and the stones (light, so screen blend)
-            const flareEls = nodes.map((n, i) => {
-                const c = i === 0 ? cols[0] : (window.STONE_TYPES?.[n.type]?.color || cols[0]);
-                const f = el('circle', { cx: n.x, cy: n.y, r: i === 0 ? 22 : 18, fill: c, mask: 'url(#cast-fx-flare-mask)', opacity: 0 }, flares);
+            // Two layers: BACK (under the pawns: lines, the caster's aura, rune,
+            // the far half of the energy around the pawn) and FRONT (over
+            // everything: stone flares, sparks, the near half of the energy).
+            const back = el('g', { class: 'cast-fx' });
+            const firstPawn = vp.querySelector(':scope > g.player');
+            vp.insertBefore(back, firstPawn || null);
+            const front = el('g', { class: 'cast-fx' }, vp);
+            const lines = el('g', {}, back);
+            const aura = el('circle', { cx: P.x, cy: P.y, r: 22, fill: cols[0], mask: 'url(#cast-fx-flare-mask)', opacity: 0 }, back);
+            aura.style.mixBlendMode = 'screen';
+            const rune = el('circle', { cx: P.x, cy: P.y, r: 10, fill: 'none', stroke: cols[0], 'stroke-width': 1.4, 'stroke-dasharray': '3 4', opacity: 0 }, back);
+            const flareEls = stones.map(n => {
+                const f = el('circle', { cx: n.x, cy: n.y, r: 18, fill: window.STONE_TYPES?.[n.type]?.color || cols[0], mask: 'url(#cast-fx-flare-mask)', opacity: 0 }, front);
                 f.style.mixBlendMode = 'screen';
                 return f;
             });
-            // Rune ring under the caster
-            const rune = el('circle', { cx: P.x, cy: P.y, r: 10, fill: 'none', stroke: cols[0], 'stroke-width': 1.4, 'stroke-dasharray': '3 4', opacity: 0 }, flares);
-            // Lines: wide soft glow + thin bright core, re-jagged every frame
-            const linkEls = links.map(([a, b, c]) => ({
-                a, b,
-                glow: el('polyline', { fill: 'none', stroke: c, 'stroke-width': 4.5, 'stroke-opacity': 0, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, lines),
-                core: el('polyline', { fill: 'none', stroke: '#ffffff', 'stroke-width': 1.1, 'stroke-opacity': 0, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, lines),
-            }));
-            linkEls.forEach(l => { l.glow.style.mixBlendMode = 'screen'; l.glow.style.filter = 'blur(1.2px)'; });
-            // Sparks drifting up and out from each node
+            const sparks = el('g', {}, front);
+            const mkBolt = (parent, c, w = 4.5) => {
+                const glow = el('polyline', { fill: 'none', stroke: c, 'stroke-width': w, 'stroke-opacity': 0, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
+                const core = el('polyline', { fill: 'none', stroke: '#ffffff', 'stroke-width': 1.1, 'stroke-opacity': 0, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
+                glow.style.mixBlendMode = 'screen'; glow.style.filter = 'blur(1.2px)';
+                return { glow, core, set(pts, op, grey) {
+                    glow.setAttribute('points', pts); core.setAttribute('points', pts);
+                    glow.setAttribute('stroke-opacity', (0.75 * op).toFixed(3)); core.setAttribute('stroke-opacity', (0.95 * op).toFixed(3));
+                    if (grey) { glow.setAttribute('stroke', '#777'); core.setAttribute('stroke', '#bbb'); }
+                } };
+            };
+            const linkEls = links.map(([a, b, c]) => ({ a, b, ...mkBolt(lines, c) }));
+            // Energy wrapping the caster: arcs on an ellipse around the pawn at
+            // different heights; the near half draws in front, the far half behind.
+            const wrapBack = screenGroup(back, P), wrapFront = screenGroup(front, P);
+            const arcs = [0, 1, 2].map(i => ({ h: 3 + i * 5, a0: Math.random() * 6.28, speed: (i % 2 ? -1 : 1) * (0.008 + i * 0.002),
+                c: cols[i % cols.length], backB: mkBolt(wrapBack, cols[i % cols.length], 3), frontB: mkBolt(wrapFront, cols[i % cols.length], 3) }));
             const sparkEls = [];
-            nodes.forEach((n, i) => {
+            [P, ...stones].forEach((n, i) => {
                 for (let k = 0; k < (i === 0 ? 6 : 4); k++) {
                     const a = Math.random() * Math.PI * 2, sp = 8 + Math.random() * 16;
                     const s = el('circle', { r: (0.6 + Math.random() * 0.9).toFixed(2), fill: k % 2 ? '#ffffff' : cols[k % cols.length], opacity: 0 }, sparks);
@@ -129,53 +153,105 @@
             });
 
             running++;
+            const fx = { playerIndex, scrollName, state: 'grow', tEnd: null, counter: null };
+            live.push(fx);
             let done = false;
-            const finish = () => { if (done) return; done = true; layer.remove(); running--; };
-            const t0 = performance.now(), TOTAL = T_GROW + T_HOLD + T_FADE;
+            const finish = () => {
+                if (done) return; done = true; back.remove(); front.remove(); running--;
+                const i = live.indexOf(fx); if (i >= 0) live.splice(i, 1);
+            };
+            const t0 = performance.now();
+            let counterBolt = null;
             const step = (now) => {
                 if (done) return;
                 const t = now - t0;
-                if (t >= TOTAL) { finish(); return; }
-                // line strength: grow, flicker, then break up and fade
+                // phases: grow, then hold while a response window is open (max
+                // 20 s), then end: 'release' (normal) or 'shatter' (countered)
+                if (fx.state === 'grow' && t >= T_GROW) fx.state = 'hold';
+                if (fx.state === 'hold' && t >= T_GROW + T_HOLD && !(waitingOnWindow(playerIndex, scrollName) && t < 20000)) {
+                    fx.state = 'release'; fx.tEnd = t;
+                }
+                if (fx.state === 'shatter' && fx.tEnd == null) fx.tEnd = t;
+                const endT = fx.tEnd == null ? 0 : t - fx.tEnd;
+                const shatter = fx.state === 'shatter';
+                const FADE = shatter ? 520 : T_FADE;
+                if (fx.tEnd != null && endT >= FADE) { finish(); return; }
                 const grow = Math.min(1, t / T_GROW);
-                const fade = t > T_GROW + T_HOLD ? 1 - (t - T_GROW - T_HOLD) / T_FADE : 1;
+                const fade = fx.tEnd == null ? 1 : 1 - endT / FADE;
+                const waiting = fx.state === 'hold' && t > T_GROW + T_HOLD;   // charged, waiting on a response
                 const flick = 0.75 + 0.25 * Math.sin(t / 23) * Math.sin(t / 61);
-                const breaking = t > T_GROW + T_HOLD;
+                const ending = fx.tEnd != null;
                 linkEls.forEach((l, i) => {
-                    // grow out from the caster: draw only part of the way
                     const g = Math.max(0, Math.min(1, grow * 1.3 - i * 0.06));
                     const end = { x: l.a.x + (l.b.x - l.a.x) * g, y: l.a.y + (l.b.y - l.a.y) * g };
-                    const amp = breaking ? 6 + 10 * (1 - fade) : 3.5;
-                    const pts = bolt(l.a, end, amp);
-                    // while breaking, lines drop out one by one
-                    const on = !breaking || Math.random() < fade + 0.15;
-                    l.glow.setAttribute('points', pts); l.core.setAttribute('points', pts);
-                    l.glow.setAttribute('stroke-opacity', on ? (0.75 * fade * flick).toFixed(3) : 0);
-                    l.core.setAttribute('stroke-opacity', on ? (0.95 * fade * flick).toFixed(3) : 0);
+                    const amp = shatter ? 4 + 18 * (1 - fade) : ending ? 6 + 10 * (1 - fade) : waiting ? 4.5 : 3.5;
+                    const on = !ending || Math.random() < fade + (shatter ? 0 : 0.15);
+                    l.set(bolt(l.a, end, amp), on ? fade * flick * (waiting ? 0.8 : 1) : 0, shatter && endT > 60);
+                });
+                // the energy around the caster
+                arcs.forEach(a => {
+                    const ang = a.a0 + t * a.speed, fr = [], bk = [];
+                    for (let k = 0; k <= 14; k++) {
+                        const th = ang + k * 0.17, rr = 11 + (Math.random() - 0.5) * 3;
+                        const x = Math.cos(th) * rr, y = Math.sin(th) * rr * 0.42 - a.h + (Math.random() - 0.5) * 1.5;
+                        (Math.sin(th) > 0 ? fr : bk).push(`${x.toFixed(1)},${y.toFixed(1)}`);
+                    }
+                    const op = grow * fade * flick;
+                    a.frontB.set(fr.join(' '), fr.length > 1 ? op : 0, shatter);
+                    a.backB.set(bk.join(' '), bk.length > 1 ? op : 0, shatter);
                 });
                 const pulse = grow * fade * (0.8 + 0.2 * Math.sin(t / 40));
-                flareEls.forEach((f, i) => {
-                    f.setAttribute('opacity', (pulse * (i === 0 ? 0.8 : 0.95)).toFixed(3));
-                    f.setAttribute('r', ((i === 0 ? 22 : 18) * (0.85 + 0.25 * grow)).toFixed(1));
+                aura.setAttribute('opacity', (pulse * 0.8).toFixed(3));
+                flareEls.forEach(f => {
+                    f.setAttribute('opacity', (pulse * 0.95).toFixed(3));
+                    f.setAttribute('r', (18 * (0.85 + 0.25 * grow)).toFixed(1));
                 });
                 rune.setAttribute('opacity', (0.8 * grow * fade).toFixed(3));
-                rune.setAttribute('r', (10 + 8 * (t / TOTAL)).toFixed(1));
+                rune.setAttribute('r', (10 + Math.min(8, t / 120)).toFixed(1));
                 rune.setAttribute('transform', `rotate(${(t / 6).toFixed(1)} ${P.x} ${P.y})`);
                 sparkEls.forEach(p => {
-                    const u = Math.max(0, (t - p.t0) / 1000);
-                    if (u <= 0) return;
-                    p.s.setAttribute('cx', (p.x + p.vx * u).toFixed(1));
-                    p.s.setAttribute('cy', (p.y + p.vy * u - 12 * u * u).toFixed(1));
-                    p.s.setAttribute('opacity', Math.max(0, 0.9 * (1 - u * 1.4)).toFixed(3));
+                    const u = Math.max(0, ((t - p.t0) % 1100) / 1000);   // keep sparking while charged
+                    if (t < p.t0 || (ending && u < endT / 1000)) { if (ending) p.s.setAttribute('opacity', 0); return; }
+                    p.s.setAttribute('cx', (p.x + p.vx * u * (shatter ? 2.5 : 1)).toFixed(1));
+                    p.s.setAttribute('cy', (p.y + p.vy * u * (shatter ? 2.5 : 1) - 12 * u * u).toFixed(1));
+                    p.s.setAttribute('opacity', (Math.max(0, 0.9 * (1 - u * 1.4)) * fade).toFixed(3));
                 });
+                // countered: a bolt in the counter's colour from the countering pawn
+                if (shatter && fx.counter) {
+                    if (!counterBolt) counterBolt = mkBolt(front, fx.counter.color, 5.5);
+                    const k = Math.min(1, endT / 140), C = fx.counter.from;
+                    const tip = { x: C.x + (P.x - C.x) * k, y: C.y + (P.y - C.y) * k };
+                    counterBolt.set(bolt(C, tip, 6), Math.max(0, 1 - Math.max(0, endT - 260) / 260));
+                }
                 requestAnimationFrame(step);
             };
             requestAnimationFrame(step);
-            setTimeout(finish, TOTAL + 1500); // safety: hidden tabs pause frames
+            setTimeout(finish, 22000); // safety: hidden tabs pause frames
         } catch (e) { console.warn('[CastFX] failed', e); }
     }
 
-    window.CastFX = { play };
+    // Called by response-window.js announceOutcome on every screen: response /
+    // counter scrolls get their own effect, a countered cast shatters (grey
+    // lines, a bolt from the countering player);
+    // anything else just ends normally once the window has closed.
+    function resolve(results) {
+        try {
+            // Response and counter scrolls are not in the cast log: give them
+            // their own cast effect around their caster (owner 2026-10-08).
+            (results || []).filter(r => r.result === 'countered-original' || r.result === 'response-resolved')
+                .forEach(r => { if (r.casterIndex != null && r.scrollName) play(r.casterIndex, r.scrollName); });
+            const countered = (results || []).find(r => r.result === 'countered');
+            const counter = (results || []).find(r => r.result === 'countered-original');
+            if (!countered) return;
+            const fx = live.find(f => f.playerIndex === countered.casterIndex && f.scrollName === countered.scrollName && f.tEnd == null);
+            if (!fx) return;
+            fx.state = 'shatter';
+            const from = counter && (typeof playerPositions !== 'undefined') ? playerPositions[counter.casterIndex] : null;
+            if (from) fx.counter = { from: { x: from.x, y: from.y }, color: colorsOf(counter.scrollName)[0] };
+        } catch (e) {}
+    }
+
+    window.CastFX = { play, resolve };
 
     // Casts on this screen (players, bots driven here, the arena)
     function hook() {

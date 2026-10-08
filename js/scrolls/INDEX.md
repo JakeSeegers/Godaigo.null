@@ -181,7 +181,7 @@ If two players respond simultaneously, higher-rank element wins:
 Same rule applies to stone conflict on the board.
 
 ### Telling everyone what happened (2026-10-01, match 43)
-- `announceOutcome()` shows a banner (`.response-outcome-banner`) + status on every client: "X's Psychic
+- `announceOutcome()` first calls `window.CastFX?.resolve?.(results)` (countered cast shatters, counter scroll gets its own cast effect, js/cast-fx.js), then shows a banner (`.response-outcome-banner`) + status on every client: "X's Psychic
   countered Y's Pyre!", ransom paid, responses, and lost ties. The resolving client calls it in
   `finishResponseResolution`; the others via lobby.js `response-resolved` -> `afterRemoteResolved()`
   (they also get a Game Log line, type `responseOutcome`; the resolver already logs its own).
