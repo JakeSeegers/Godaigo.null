@@ -3,10 +3,11 @@
 //   earth: a heavy drop (falls a little, squashes, settles); stones and
 //          pawns 1, 2 and 3 hexes away bounce, less the farther away they
 //          are. The board itself does not move.
+//   water, fire and wind first drop lightly into place (softDrop), then:
 //   water: a small droplet bob up and down. A water stone that takes another
 //          stone's ability (next to it, or chained) plays THAT stone's drop.
 //   fire:  flickers, crackles and gives off a few floating sparks.
-//   wind:  "breathes" once, growing and shrinking, with a soft ring.
+//   wind:  expands slightly and contracts once, with a soft ring.
 //   void:  fades in with a spectral glow, as if summoned.
 // window.StoneDropFx.play(x, y, type). Triggered by every 'placeStone' record
 // in the ActionLog (own placements, bots on this screen, other players'
@@ -177,13 +178,26 @@
     // ── wind ─────────────────────────────────────────────────────
     function wind(stone, svg, vp, color) {
         scaleAnim(stone.element, [
-            { scale: '1' }, { scale: '1.17', offset: 0.45 }, { scale: '0.95', offset: 0.78 }, { scale: '1' },
-        ], { duration: 950, easing: 'ease-in-out' });
+            { scale: '1' }, { scale: '1.08', offset: 0.45 }, { scale: '0.97', offset: 0.78 }, { scale: '1' },
+        ], { duration: 900, easing: 'ease-in-out' });
         const L = layer(vp, stone.x, stone.y, 1300);
         const ring = el('circle', { r: 12, fill: 'none', stroke: color, 'stroke-width': 1.5, opacity: 0 }, L);
-        animate(ring, [{ r: 12, opacity: 0 }, { r: 20, opacity: 0.55, offset: 0.45 }, { r: 26, opacity: 0 }],
+        animate(ring, [{ r: 12, opacity: 0 }, { r: 18, opacity: 0.4, offset: 0.45 }, { r: 23, opacity: 0 }],
             { duration: 1000, easing: 'ease-out', fill: 'both' });
     }
+
+    // ── light drop (water, fire, wind) ───────────────────────────
+    // A short drop into place, lighter than earth's, before the element's
+    // own effect starts.
+    const SOFT = 170;
+    function softDrop(stone) {
+        const up = upVec(6);
+        animate(stone.element, [
+            { translate: `${up.x.toFixed(2)}px ${up.y.toFixed(2)}px`, opacity: 0.75 },
+            { translate: '0px 0px', opacity: 1 },
+        ], { duration: SOFT, easing: 'ease-in', composite: 'add' });
+    }
+    const SOFT_DROP = new Set(['water', 'fire', 'wind']);
 
     // ── void ─────────────────────────────────────────────────────
     function voidFx(stone, svg, vp, color) {
@@ -228,8 +242,11 @@
             const fn = BY_TYPE[look];
             if (!fn) return;
             running++;
-            setTimeout(() => { running--; }, 1200);
-            fn(stone, svg, vp, colorOf(look));
+            setTimeout(() => { running--; }, 1400);
+            if (SOFT_DROP.has(look)) {
+                softDrop(stone);
+                setTimeout(() => { if (stone.element.isConnected) fn(stone, svg, vp, colorOf(look)); }, SOFT);
+            } else fn(stone, svg, vp, colorOf(look));
         } catch (e) { /* looks only */ }
     }
 

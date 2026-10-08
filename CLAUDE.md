@@ -287,7 +287,7 @@ Order matters — later scripts depend on earlier ones.
 20b4. stone-drop-fx.js    ← window.StoneDropFx.play(x, y, type): stone drop animations on every ActionLog 'placeStone'. Earth: heavy
                              drop + stones / pawns 1-3 hexes away bounce (less with distance; board stays still). Water: droplet bob, or the drop of the
                              stone whose ability it takes (window.stoneAbilityAt in game-core.js). Fire: flicker, crackle, sparks.
-                             Wind: breathes once. Void: summoned with a spectral glow. Same skips as cast-fx.js.
+                             Wind: expands and contracts once. Water / fire / wind first drop lightly into place (softDrop). Void: summoned with a spectral glow. Same skips as cast-fx.js.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
