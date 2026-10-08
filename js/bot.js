@@ -4529,18 +4529,18 @@
     }
 
     function botAct() {
+        const t0 = performance.now();               // js/lag-recorder.js: whole decision, Bot Mind included
         _th = null;
         const snapBefore = (window.BotMind && window.BotMind.wants()) ? window.BotState.snapshot() : null;
         if (snapBefore) {
             try { _th = beginThought(snapBefore); } catch (e) { _th = null; }
         }
-        const t0 = performance.now();
         const act = botActCore();
-        window.LagRecorder?.botThink?.(performance.now() - t0); // js/lag-recorder.js
         if (_th) {
             try { window.BotMind.record(finishThought(_th, act)); } catch (e) { log('Bot Mind record failed', e); }
         }
         _th = null;
+        window.LagRecorder?.botThink?.(performance.now() - t0);
         return act;
     }
 

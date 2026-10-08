@@ -12,7 +12,8 @@
 // the Download Action Log file (ActionLog.download adds LagRecorder.export()).
 // How to read it: slow network = high ping / late messages, fps fine;
 // slow computer = low fps and long tasks, ping fine; bots = long tasks while
-// botMs is high (the host's browser thinks for every bot).
+// botMs is high (the host's browser thinks for every bot). botMind / learn say
+// whether the hermit's Bot Mind and Learn from my moves were on (both add work).
 (function () {
     'use strict';
     const SAMPLE_MS = 5000, KEEP = 360, MOMENTS = 40;
@@ -125,6 +126,10 @@
             c.botTurn = botTurnNow();
             c.paused = !!window.isGamePaused?.();
         } catch (e) {}
+        // hermit tools that add work: Bot Mind ranks every bot decision twice,
+        // Learn from my moves ranks every move of the hermit's own turns
+        try { c.botMind = !!window.BotMind?.wants?.(); } catch (e) {}
+        try { c.learn = !!window.BotImitation?.isEnabled?.(); } catch (e) {}
         if (vp) {
             c.nodes = vp.getElementsByTagName('*').length;
             c.fx = vp.querySelectorAll('.cast-fx, .stone-drop-fx, .tile-flip-fx, .pawn-teleport-fx, .stone-burn-copy, .pawn-afterimage').length;
