@@ -74,10 +74,14 @@
     function animate(node, frames, opts) {
         try { return node.animate(frames, opts); } catch (e) { return null; }
     }
-    // scale around the piece's own middle
+    // Scale around the piece's own spot. The CSS scale is applied on top of
+    // the piece's transform="translate(x, y)", so it must be centred on
+    // (x, y) in the board's units; centring it on the piece's own box made it
+    // slide towards / away from the board's middle instead of growing.
     function scaleAnim(node, frames, opts) {
-        node.style.transformBox = 'fill-box';
-        node.style.transformOrigin = 'center';
+        const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/.exec(node.getAttribute('transform') || '');
+        node.style.transformBox = 'view-box';
+        node.style.transformOrigin = m ? `${m[1]}px ${m[2]}px` : '0px 0px';
         const a = animate(node, frames, opts);
         if (a) a.onfinish = () => { node.style.transformBox = ''; node.style.transformOrigin = ''; };
     }
