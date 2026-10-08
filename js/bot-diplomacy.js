@@ -27,8 +27,40 @@
     'use strict';
 
     const W = { favor: 1, trust: 0.5, threat: 1 };  // ally-preference weights (personalities: phase 4)
-    const HUMAN_BIAS = 0.75;                         // a human counts 3/4 of a tracker step further ahead (owner 2026-10-08: bots were slow to interfere)
-    const HUMAN_STAGE = 1;                           // ...and one element further along for push stages (pact at 2 elements, not 3)
+    const HUMAN_BIAS = 0.25;                         // a human counts a little further ahead...
+    // ...plus how EFFICIENTLY they play (owner 2026-10-08: "base it off player
+    // gameplay efficiency markers, like a scroll activated by turn three").
+    // Public markers, counted in the player's own turns, each worth 0.5:
+    //   - a scroll cast by their 3rd turn
+    //   - their first element by their 4th turn
+    //   - two elements by their 7th turn
+    //   - three elements by their 10th turn
+    //   - more elements than every other player
+    // efficiency() = sum (0 .. 2.5). It is added to the tracker (who leads) and,
+    // rounded down, counts as extra elements for push stages: two markers
+    // = one element further along (pact against them one element sooner).
+    // Humans only: bot-vs-bot training keeps its old balance.
+    const EFF_MARKERS = [
+        { why: 'cast a scroll by turn 3', ok: (j, p) => S.firstCast[j] != null && S.firstCast[j] <= 3 },
+        { why: 'first element by turn 4', ok: (j, p) => (S.actsAt[j]?.[1] ?? 99) <= 4 },
+        { why: 'two elements by turn 7', ok: (j, p) => (S.actsAt[j]?.[2] ?? 99) <= 7 },
+        { why: 'three elements by turn 10', ok: (j, p) => (S.actsAt[j]?.[3] ?? 99) <= 10 },
+        { why: 'more elements than everyone else', ok: (j, p, snap) => snap.players.every((q, k) => k === j || !q || q.activated.length < p.activated.length) },
+    ];
+    function efficiency(snap, j) {
+        const p = snap?.players?.[j];
+        if (!p || isBotSeat(j)) return { score: 0, why: [] };
+        const why = EFF_MARKERS.filter(m => { try { return m.ok(j, p, snap); } catch (e) { return false; } }).map(m => m.why);
+        return { score: 0.5 * why.length, why };
+    }
+    // Remember the own turn on which each player reached each element count.
+    function noteActs(snap) {
+        snap.players.forEach((p, j) => {
+            if (!p) return;
+            const a = (S.actsAt[j] ||= {});
+            for (let k = 1; k <= p.activated.length; k++) if (a[k] == null) a[k] = Math.max(1, S.ownTurns[j] || 1);
+        });
+    }
     const FAVOR_DECAY = 0.9, TRUST_DECAY = 0.95;     // per full round
     const SCALE = 500;                               // progress points per 1.0 favor
     const MIN_DELTA = 8;                             // ignore smaller wobbles
@@ -42,7 +74,8 @@
     try { localStorage.removeItem('godaigo_bot_bonds'); } catch (e) {}
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
-                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, rallied: {}, intents: {}, spoke: {}, thanked: {}, placed: {}, mood: {} };
+                 pact: null, lastPactTurn: -99, warned: {}, asked: {}, rallied: {}, intents: {}, spoke: {}, thanked: {}, placed: {}, mood: {},
+                 ownTurns: {}, firstCast: {}, actsAt: {} };
     }
     // A new game or the end of a training round: forget everything, and take
     // every floating emote and queued sentence off the board at once.
@@ -213,7 +246,7 @@
     }
     function threatOf(snap, o, j) {
         if (canWinNext(snap, j)) return 1;
-        const diff = tracker(snap, j) - tracker(snap, o) + (isBotSeat(j) ? 0 : HUMAN_BIAS);
+        const diff = tracker(snap, j) - tracker(snap, o) + (isBotSeat(j) ? 0 : HUMAN_BIAS + efficiency(snap, j).score);
         return Math.max(0.05, Math.min(0.9, 0.45 + 0.2 * diff));
     }
 
@@ -241,6 +274,7 @@
         const n = snap.players.length;
         if (S.seats && S.seats !== n) reset();
         S.seats = n;
+        noteActs(snap);
         const prevOk = S.prev && S.prev.length === n;
         const now = snap.players.map((p, j) => (p ? parts(snap, j, full, prevOk ? S.prev[j] : null) : null));
         const actor = S.lastActive;
@@ -298,6 +332,7 @@
             S.rel[o][j].trust *= t;
         }
         S.lastActive = newActive;
+        if (newActive != null) S.ownTurns[newActive] = (S.ownTurns[newActive] || 0) + 1;
         S.hostile = null;
         S.turnActs = new Set();
         S.turns++;
@@ -324,6 +359,10 @@
             const list = (S.placed[e.player] ||= []);
             list.push({ x: e.x, y: e.y, type: e.stoneType, turn: S.turns });
             if (list.length > 30) list.shift();
+        }
+        if (e.type === 'cast_execute') {
+            const who = e.playerIndex ?? e.player;
+            if (who != null && S.firstCast[who] == null) S.firstCast[who] = Math.max(1, S.ownTurns[who] || 1);
         }
         if (e.type === 'cast_execute' && HOSTILE.has(e.scrollName)) {
             const def = window.SCROLL_DEFINITIONS?.[e.scrollName];
@@ -430,7 +469,8 @@
         if (!snap.players[o]) return null;
         const n = snap.players.length;
         const arr = new Array(n).fill(1);
-        const t = snap.players.map((p, j) => p ? tracker(snap, j) + (j !== o && !isBotSeat(j) ? HUMAN_BIAS : 0) : -1);
+        noteActs(snap);
+        const t = snap.players.map((p, j) => p ? tracker(snap, j) + (j !== o && !isBotSeat(j) ? HUMAN_BIAS + efficiency(snap, j).score : 0) : -1);
         let leader = -1;
         for (let j = 0; j < n; j++) if (j !== o && snap.players[j] && (leader < 0 || t[j] > t[leader])) leader = j;
         if (leader >= 0) {
@@ -444,7 +484,7 @@
             const realActs = snap.players[leader].activated.length;
             // A human is pushed back on earlier, but never before their first element.
             if (lead >= 0.75 && !(human && realActs === 0)) {
-                const acts = realActs + (human ? HUMAN_STAGE : 0);
+                const acts = realActs + (human ? Math.floor(efficiency(snap, leader).score) : 0);
                 const byCount = canWinNext(snap, leader) ? STAGE.canWin : acts >= 5 ? STAGE.five : acts >= 4 ? STAGE.four + 0.25 : acts >= 3 ? STAGE.four : STAGE.clear;
                 const byLead = lead >= 2.75 ? STAGE.five : lead >= 1.75 ? STAGE.four : STAGE.clear;
                 // A lead in hard elements (void, wind) weighs a bit more. Easy
@@ -934,6 +974,8 @@
     window.BotDiplomacy = {
         view, events: o => (S.events[o] || []).slice(), relation: relOf, reset, observe,
         enabled, threatOf, _state: () => S, pressures, coalitionTarget,
+        // How efficiently human j plays: {score 0..2.5, why: [markers met]}
+        efficiency: (j) => { try { return efficiency(window.BotState.snapshot(), j); } catch (e) { return { score: 0, why: [] }; } },
         // Stones player j placed in the last `turns` turns: [{x, y, type, turn}].
         recentStones: (j, turns) => (S.placed[j] || []).filter(r => S.turns - r.turn <= turns),
         setTalkAlways: on => { talkAlways = !!on; },

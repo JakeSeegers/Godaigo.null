@@ -235,6 +235,11 @@
                 + rel.map(x => `<tr><td><span class="bm-dot" style="background:${seatColor(x.player)};display:inline-block;"></span> ${esc(x.name)}${x.human ? ' <span style="color:#999;">(human)</span>' : ''} <span style="color:#888;">${x.tracker}/5</span></td>`
                     + `<td style="color:${tone(x.favor)}">${sign(x.favor)}</td><td>${threatWord(x.threat)}</td><td style="color:${tone(x.ally)}">${sign(x.ally)}</td><td style="color:${x.push > 1.2 ? '#ff9a8a' : x.push < 0.9 ? '#8fe08f' : '#bbb'}">×${x.push.toFixed(1)}</td></tr>`).join('')
                 + `</table>`;
+            // Humans: the efficiency markers that make bots push harder (bot-diplomacy.js)
+            rel.filter(x => x.human).forEach(x => {
+                const eff = window.BotDiplomacy.efficiency?.(x.player);
+                if (eff && eff.why.length) html += `<div class="bm-help" style="margin-top:3px;">${esc(x.name)} plays fast: ${esc(eff.why.join(', '))}</div>`;
+            });
             const tgt = window.BotDiplomacy.coalitionTarget?.(r.playerIndex);
             if (tgt != null) html += `<div class="bm-help" style="color:#ff9a8a;margin-top:3px;">Ganging up on ${esc(seatName(tgt))}: clearly in the lead.</div>`;
             const ev = window.BotDiplomacy.events(r.playerIndex).slice(0, 3);
