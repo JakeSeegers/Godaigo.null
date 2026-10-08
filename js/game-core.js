@@ -2985,10 +2985,32 @@
             return ((viewportRotation % 360) + 360) % 360;
         };
         window.setBoardRotation = function (degrees) {
-            viewportRotation = ((degrees % 360) + 360) % 360;
-            updateViewport();
+            rotateBoardTo(((degrees % 360) + 360) % 360);
             return viewportRotation;
         };
+
+        // Turn the map to `degrees` around the CENTRE OF THE BOARD (the middle
+        // of all placed tiles), not the middle of the screen: the board's
+        // centre stays where it is on screen and the board spins in place
+        // (owner 2026-10-08). Screen point of world p: c + R(rot)(s p + v - c),
+        // so for a fixed screen point S the new pan is v = c + R(-rot)(S - c) - s p.
+        function rotateBoardTo(degrees) {
+            const tiles = (typeof placedTiles !== 'undefined' && placedTiles.length) ? placedTiles : null;
+            if (!tiles) { viewportRotation = degrees; updateViewport(); return; }
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            tiles.forEach(t => { x0 = Math.min(x0, t.x); x1 = Math.max(x1, t.x); y0 = Math.min(y0, t.y); y1 = Math.max(y1, t.y); });
+            const px = (x0 + x1) / 2, py = (y0 + y1) / 2;
+            const cx = boardSvg.clientWidth / 2, cy = boardSvg.clientHeight / 2, sc = viewportScale;
+            const rot = (r, x, y) => { const a = r * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return [x * c - y * s, x * s + y * c]; };
+            const [ax, ay] = rot(viewportRotation, sc * px + viewportX - cx, sc * py + viewportY - cy);
+            const Sx = cx + ax, Sy = cy + ay;                       // where the board centre is now
+            const [bx, by] = rot(-degrees, Sx - cx, Sy - cy);
+            viewportRotation = degrees;
+            viewportX = cx + bx - sc * px;
+            viewportY = cy + by - sc * py;
+            updateViewport();
+        }
+        window.rotateBoardTo = rotateBoardTo;
 
         // Hermit-only board tilt ("angle") tool (js/game-ui.js's
         // openBoardTiltPanel): a CSS 3D perspective tilt on the board

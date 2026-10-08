@@ -6,6 +6,7 @@
       "date": "2026-10-08",
       "title": "Small fixes",
       "changes": [
+        "Turning the map now spins it around the middle of the board, so it stays in place.",
         "Telekinesis no longer leaves a dashed circle on the board after you move a tile."
       ]
     },

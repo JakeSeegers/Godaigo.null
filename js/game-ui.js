@@ -2388,8 +2388,7 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                     updateViewport();
                 } else if (isRotatingBoard) {
                     const dx = lastDocumentMove.clientX - rotateStartX;
-                    viewportRotation = rotateStartRotation + (dx / 100) * 90;
-                    updateViewport();
+                    window.rotateBoardTo(rotateStartRotation + (dx / 100) * 90); // turns around the board's centre
                 } else if (isRotatingTile) {
                     const dx = lastDocumentMove.clientX - rotateTileStartX;
                     const steps = Math.round(dx / 60);
