@@ -184,6 +184,8 @@
     // ActionLog we still have the position it was decided from. Same
     // poll-while-my-turn idiom bot-driver.js's watcher already uses.
     let pending = null; // { bestType, endTurnTrace, topDiscardScroll, discardTraceByScroll }
+    let stateVersion = 0, pendingVersion = -1, nextRankAt = 0;
+    try { window.ActionLog?.onRecord?.(() => { stateVersion++; }); } catch (e) { /* no log: rank per poll as before */ }
     let lastSeenGameId = undefined;
     function refreshPending() {
         // A fresh game means a fresh set of decisions to reason about — a
@@ -198,8 +200,20 @@
         if (!eligibleNow()) { pending = null; return; }
         const bs = window.BotSystem;
         if (!bs || typeof bs.rank !== 'function') { pending = null; return; }
+        // A full ranking can take a second or more late in a game, and this
+        // used to rerun every 300 ms for the whole turn: the hermit's own
+        // turn froze (owner 2026-10-08: five minutes to move a pawn). Now it
+        // ranks once per board change (any ActionLog entry), and after a slow
+        // ranking it waits 4x that long before the next one.
+        if (pending && pendingVersion === stateVersion) return;
+        if (Date.now() < nextRankAt) return;
+        const t0 = performance.now();
         try {
             const ranked = bs.rank(null, { withTrace: true });
+            const took = performance.now() - t0;
+            window.LagRecorder?.learnThink?.(took);
+            pendingVersion = stateVersion;
+            nextRankAt = took > 150 ? Date.now() + took * 4 : 0;
             if (!ranked || !ranked.length) {
                 console.log('🧠 [Imitation] eligible but rank() returned no candidates this tick');
                 pending = null; return;

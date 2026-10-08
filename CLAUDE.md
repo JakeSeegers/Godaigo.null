@@ -490,6 +490,9 @@ Order matters — later scripts depend on earlier ones.
                              base whenever the HOST is the hermit with the toggle on — same bots
                              already in the room, not a separate one; toggle off = plain base,
                              unchanged. Never touches the shared community champion itself.
+                             Cost (2026-10-08): it ranks once per board change (stateVersion bumped by every ActionLog entry), not
+                             every 300 ms (a full ranking late in a game took 1-5 s, so the hermit's own turn froze for minutes);
+                             after a ranking over 150 ms it waits 4x that long. Time shows as learnMs in the lag recorder.
 28. game-log-ui.js         ← Player-facing readable "Game Log" panel (#game-log-panel, left side), built
                              from ActionLog.onRecord() — colour-coded, collapses movement, never shows
                              discardScroll or anything else that would reveal another player's hand

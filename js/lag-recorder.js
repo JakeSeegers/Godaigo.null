@@ -22,7 +22,7 @@
     const recentIn = [];                       // last received messages (event, lag)
 
     function fresh() {
-        return { frames: 0, longMs: 0, longN: 0, longWorst: 0, longWhileBot: 0, botMs: 0, botN: 0,
+        return { frames: 0, longMs: 0, longN: 0, longWorst: 0, longWhileBot: 0, botMs: 0, botN: 0, learnMs: 0,
                  sent: 0, recv: 0, lagN: 0, lagSum: 0, lagMax: 0, late2s: 0, hiddenMs: 0, t0: Date.now() };
     }
     cur = fresh();
@@ -63,6 +63,8 @@
 
     // ── bot thinking (bot.js botAct calls this with its own time) ──
     function botThink(ms) { cur.botMs += ms; cur.botN++; }
+    // Learn from my moves (bot-imitation.js): ranking time on the hermit's own turn
+    function learnThink(ms) { cur.learnMs += ms; }
 
     // ── outgoing messages: stamp the send time ────────────────────
     function patchBroadcast() {
@@ -150,7 +152,7 @@
             t: new Date().toISOString().slice(11, 19),
             fps: Math.round(s.frames / secs),
             longMs: Math.round(s.longMs), longN: s.longN, longWorst: Math.round(s.longWorst), longWhileBot: Math.round(s.longWhileBot),
-            botMs: Math.round(s.botMs), botN: s.botN,
+            botMs: Math.round(s.botMs), botN: s.botN, learnMs: Math.round(s.learnMs),
             sent: s.sent, recv: s.recv,
             lagAvg: s.lagN ? Math.round(s.lagSum / s.lagN) : null, lagMax: s.lagN ? Math.round(s.lagMax) : null, late2s: s.late2s,
             hiddenMs: Math.round(s.hiddenMs),
@@ -202,5 +204,5 @@
         return { sampleEveryMs: SAMPLE_MS, samples: samples.slice(), moments: moments.slice() };
     }
 
-    window.LagRecorder = { botThink, mark, export: exportData, samples: () => samples.slice(), moments: () => moments.slice() };
+    window.LagRecorder = { botThink, learnThink, mark, export: exportData, samples: () => samples.slice(), moments: () => moments.slice() };
 })();
