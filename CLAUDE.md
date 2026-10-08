@@ -292,6 +292,9 @@ Order matters — later scripts depend on earlier ones.
                              StoneDropFx.collect(player, type, n): shrine collection (game-ui.js replenishShrineStones when >= 1
                              stone moved; other screens + replays via lobby.js 'turn-change' payload.collected, game-ui.js
                              takeShrineCollect()): shrine hex glows, light column, one mote per stone (max 8) spirals into the pawn.
+                             StoneDropFx.burn(x, y): fire destroying a stone (game-core.js fireBurnFx, before removal; replaced
+                             the 1.7 s effects-system.js 'fire_effect' sprite): copy chars dark and shrinks, flame tongues, crackle,
+                             embers, ~0.75 s. isBurning() also holds bot.js's next action like effectsSystem.isPlaying().
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen

@@ -4879,13 +4879,13 @@
         while (window.isGamePaused?.()) await sleep(250);
         const deadline = Date.now() + 25000;
         while (Date.now() < deadline) {
-            // Let a playing effect (fire burning stones, ~1.7 s) finish first:
+            // Let a playing effect (fire burning stones, ~0.75 s) finish first:
             // the bot's next decision runs on the main thread and can block
             // for a moment, which froze the animation mid-way. Real games
             // only: never in arena training, spectate or hill-climb (fast or
             // visual), so training speed is unchanged.
             const inArena = typeof window.BotArena?.isRunning === 'function' && window.BotArena.isRunning();
-            if (!inArena && (window.BotSystem?.speedScale ?? 1) >= 0.5 && window.effectsSystem?.isPlaying?.()) {
+            if (!inArena && (window.BotSystem?.speedScale ?? 1) >= 0.5 && (window.effectsSystem?.isPlaying?.() || window.StoneDropFx?.isBurning?.())) {
                 await sleep(100);
                 continue;
             }

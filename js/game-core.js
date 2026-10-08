@@ -8112,7 +8112,7 @@ function clearPlayerPath() {
                     stonesToDestroy.forEach(targetId => {
                         const target = placedStones.find(s => s.id === targetId);
                         if (target) {
-                            window.effectsSystem?.play('fire_effect', target.x, target.y);
+                            fireBurnFx(target.x, target.y);
                             target.element.remove();
                             placedStones = placedStones.filter(s => s.id !== targetId);
                             returnStoneToPool(target.type);
@@ -8121,6 +8121,14 @@ function clearPlayerPath() {
                     });
                 }
             });
+        }
+
+        // Fire burning a stone: the short SVG burn (js/stone-drop-fx.js), or
+        // the old sprite if that is not loaded. Call before the stone's element
+        // is removed.
+        function fireBurnFx(x, y) {
+            if (window.StoneDropFx?.burn) { window.StoneDropFx.burn(x, y); return; }
+            window.effectsSystem?.play('fire_effect', x, y);
         }
 
         function processStoneInteractions(x, y, type) {
@@ -8171,7 +8179,7 @@ function clearPlayerPath() {
                         if (Array.isArray(window._pendingFireDestroys)) {
                             window._pendingFireDestroys.push({ x: stone.x, y: stone.y, type: stone.type });
                         }
-                        window.effectsSystem?.play('fire_effect', stone.x, stone.y);
+                        fireBurnFx(stone.x, stone.y);
                         removeStone(stone.id);
                         updateStatus(`Fire destroyed ${stone.type} stone!`);
                     });
@@ -8185,7 +8193,7 @@ function clearPlayerPath() {
                     if (!hasVoid) {
                         const stoneToRemove = placedStones.find(s => s.x === x && s.y === y);
                         if (stoneToRemove) {
-                            window.effectsSystem?.play('fire_effect', x, y);
+                            fireBurnFx(x, y);
                             removeStone(stoneToRemove.id);
                             updateStatus(`Fire destroyed ${type} stone!`);
                         }

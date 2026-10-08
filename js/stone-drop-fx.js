@@ -54,6 +54,7 @@
 
     // A soft round glow in one colour (one gradient per colour, made once)
     function glowFill(svg, color) {
+        // (the centre is white, then the colour, then see-through)
         const id = 'sdfx-glow-' + color.replace(/[^0-9a-z]/gi, '');
         if (!document.getElementById(id)) {
             let defs = document.getElementById('sdfx-defs');
@@ -332,7 +333,89 @@
         } catch (e) { /* looks only */ }
     }
 
-    window.StoneDropFx = { play, collect };
+    // ── fire burns a stone (owner 2026-10-08) ────────────────────
+    // Replaces the old 1.7 s fire sprite (effects-system.js 'fire_effect').
+    // game-core.js calls burn(x, y) just before it removes a stone that fire
+    // destroyed. A copy of the stone stays for a moment: it flares, chars dark
+    // and shrinks away while flame tongues lick up around it (screen upright),
+    // with a crackle and rising embers. About 0.75 s.
+    let burning = 0;
+    function burn(x, y) {
+        try {
+            if (document.hidden || reduceMotion || !window.fxOn?.()) return false;
+            const st = stoneAt(x, y);
+            const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
+            if (!vp || !svg) return false;
+            burning++;
+            setTimeout(() => { burning--; }, 760);
+            const L = layer(vp, x, y, 1100);
+            const rot = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : 0;
+            // the stone itself chars and shrinks
+            if (st && st.element && st.element.isConnected) {
+                const copy = st.element.cloneNode(true);
+                copy.setAttribute('class', 'stone-burn-copy');
+                copy.style.pointerEvents = 'none';
+                copy.querySelectorAll('.mimicry-indicator, .chain-indicator, .void-nullification-indicator').forEach(n => n.remove());
+                vp.insertBefore(copy, L);
+                setTimeout(() => copy.remove(), 800);
+                animate(copy, [
+                    { filter: 'brightness(1)', opacity: 1 },
+                    { filter: 'brightness(1.6) saturate(1.3)', opacity: 1, offset: 0.12 },
+                    { filter: 'brightness(0.3) saturate(0.5)', opacity: 1, offset: 0.45 },
+                    { filter: 'brightness(0.15)', opacity: 0 },
+                ], { duration: 720, easing: 'ease-in', fill: 'forwards' });
+                scaleAnim(copy, [{ scale: '1' }, { scale: '1.05', offset: 0.15 }, { scale: '0.7' }],
+                    { duration: 720, easing: 'ease-in', fill: 'forwards' });
+            }
+            // fiery glow under it all
+            const glow = el('circle', { r: 24, fill: glowFill(svg, '#ff7a1a'), opacity: 0 }, L);
+            glow.style.mixBlendMode = 'screen';
+            animate(glow, [{ opacity: 0 }, { opacity: 0.95, offset: 0.15 }, { opacity: 0.6, offset: 0.5 }, { opacity: 0 }],
+                { duration: 750, easing: 'ease-out', fill: 'both' });
+            // flame tongues, pointing up the screen
+            const up = el('g', { transform: `rotate(${-rot})` }, L);
+            const outer = glowFill(svg, '#ff6a10'), inner = glowFill(svg, '#ffd36b');
+            const tongue = (w, h) => `M ${-w} 0 Q ${-w} ${-h * 0.45} 0 ${-h} Q ${w} ${-h * 0.45} ${w} 0 Q 0 ${w * 0.7} ${-w} 0 Z`;
+            for (let i = 0; i < 7; i++) {
+                const bx = (i - 3) * 3.6 + (Math.random() - 0.5) * 2, by = 4 - Math.abs(i - 3) * 1.6;
+                const h = 20 + Math.random() * 12 - Math.abs(i - 3) * 2.5, w = 4.5 + Math.random() * 2;
+                // plain blending: 'screen' washed the flames out on the light tiles
+                const f = el('path', { d: tongue(w, h), fill: i % 2 ? inner : outer, opacity: 0 }, up);
+                const sway = (Math.random() - 0.5) * 6;
+                animate(f, [
+                    { transform: `translate(${bx}px, ${by}px) scale(0.6, 0.15)`, opacity: 0 },
+                    { transform: `translate(${bx}px, ${by}px) scale(1, 1)`, opacity: 0.95, offset: 0.3 },
+                    { transform: `translate(${bx + sway * 0.5}px, ${by - 2}px) scale(0.8, 1.2)`, opacity: 0.8, offset: 0.55 },
+                    { transform: `translate(${bx + sway}px, ${by - 6}px) scale(0.3, 0.6)`, opacity: 0 },
+                ], { duration: 560 + Math.random() * 150, delay: i * 25, easing: 'ease-out', fill: 'both' });
+            }
+            // crackle, like the fire drop
+            for (let i = 0; i < 3; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const pts = [0, 1, 2, 3].map(j => {
+                    const rr = 8 + 3 * j, aa = a + (Math.random() - 0.5) * 0.6;
+                    return `${(Math.cos(aa) * rr).toFixed(1)},${(Math.sin(aa) * rr).toFixed(1)}`;
+                }).join(' ');
+                const z = el('polyline', { points: pts, fill: 'none', stroke: '#ffe2a0', 'stroke-width': 1.2, 'stroke-linecap': 'round', opacity: 0 }, L);
+                animate(z, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }],
+                    { duration: 150, delay: 40 + i * 110, fill: 'both' });
+            }
+            // embers rising
+            for (let i = 0; i < 8; i++) {
+                const sx = (Math.random() - 0.5) * 18, sy = (Math.random() - 0.5) * 8;
+                const rise = 20 + Math.random() * 18, drift = (Math.random() - 0.5) * 12;
+                const e = el('circle', { r: 0.8 + Math.random() * 0.9, fill: i % 3 ? '#ffb347' : '#fff1c4', opacity: 0 }, up);
+                animate(e, [
+                    { transform: `translate(${sx}px, ${sy}px)`, opacity: 0 },
+                    { opacity: 1, offset: 0.2 },
+                    { transform: `translate(${(sx + drift).toFixed(1)}px, ${(sy - rise).toFixed(1)}px)`, opacity: 0 },
+                ], { duration: 550 + Math.random() * 250, delay: 80 + i * 40, easing: 'ease-out', fill: 'both' });
+            }
+            return true;
+        } catch (e) { return false; }
+    }
+
+    window.StoneDropFx = { play, collect, burn, isBurning: () => burning > 0 };
 
     function hook() {
         if (!window.ActionLog?.onRecord) return false;
