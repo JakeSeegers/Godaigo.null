@@ -269,6 +269,12 @@ Order matters — later scripts depend on earlier ones.
                              (ground shadow + curved side band, gradient #puck-band) and .puck-over (rim + highlight on the top
                              face); the piece's own parts are moved up the screen (old transform kept in data-p3d; pawn
                              .pawn-cos-base stays on the ground). Counter-turned by getBoardRotation(). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
+                             (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
+                             (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),
+                             a rune ring turns, sparks drift; lines re-jag every frame, then break up and fade (~1.1 s). Layer
+                             .cast-fx in #viewport. Own casts: ActionLog 'cast_execute'; other players: lobby.js 'scroll-used'.
+                             Skipped with SoundSystem null (muted training), hidden tab, reduced motion; max 3 at once.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen

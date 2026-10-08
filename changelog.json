@@ -9,8 +9,8 @@
         "Turning the map now spins it around the middle of the board. Pawns zip across wind stones with a blurred trail.",
         "Undoing a stone break now also brings back stones the break destroyed (for example a wind stone burned once a void stone was gone).",
         "Bots only feel hurt by something you actually did, and notice (and push back) when you play fast: an early scroll, quick elements.",
-        "Telekinesis no longer leaves a dashed circle on the board after you move a tile.",
-        "The source pool number now goes up right away when a stone is broken or destroyed."
+        "Casting a scroll now crackles with magic: lines of the scroll's colour join you and the pattern stones, which flare up.",
+        "Small fixes: Telekinesis no longer leaves a dashed circle behind, and the source pool number goes up right away when a stone is broken or destroyed."
       ]
     },
     {

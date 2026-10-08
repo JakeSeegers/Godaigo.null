@@ -3852,6 +3852,9 @@
                 const { playerIndex, scrollName, fromCommonArea, forceToCommonArea } = payload;
                 if (playerIndex === myPlayerIndex) return; // Caster already handled it locally
 
+                // Cast effect for another player's cast (js/cast-fx.js; own casts play from the cast log)
+                window.CastFX?.play(playerIndex, scrollName);
+
                 spellSystem.ensurePlayerScrollsStructure(playerIndex);
 
                 if (fromCommonArea) {
