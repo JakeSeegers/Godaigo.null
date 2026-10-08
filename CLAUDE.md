@@ -429,6 +429,12 @@ Order matters — later scripts depend on earlier ones.
                              Bad sample (fps < 10 in front, 2 s+ blocked, ping or delay > 2 s) or Shift+L saves a moment (context,
                              last 8 actions, last messages). ActionLog.download() adds export() as "lag". Read: network = ping / delay
                              high, fps fine; computer = fps low, long tasks; bots = long tasks while botMs is high.
+25a3. stress-test.js     ← window.StressTest (hermit menu "Stress test (speed + network)", hermit only, start from the lobby): bot
+                             games (BotArena.spectate, speed 0.1) for 1-10 min with board effects forced on or off (window.fxOn
+                             swapped) and optional Bot Mind, while the lag recorder samples; network probe = its own Supabase
+                             Realtime channel (broadcast self + ack), a message every 500 ms + a burst of 10 every 10 s, echoed
+                             back: round trip, server ack, lost (5 s), plus HTTP ping. Results box with plain-words verdicts
+                             (drawing vs bot thinking vs network, late because the screen was busy) + Download report.
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
                              for 500g (buy_stream_mode -> 'feature_stream' in cosmetics_owned; owned(), Hermit free; locked
                              panel + Shop > Features card in gamification-ui.js). Lobby "Stream" button -> openPanel(): on/off, channel, vote time 10-45 s, mood / cast votes (localStorage

@@ -7952,6 +7952,9 @@ document.getElementById('undo-move').onclick = function() {
                 menu.appendChild(makeItem('Test games: reward and reports', () => {
                     window.TestGame?.openHermit();
                 }));
+                menu.appendChild(makeItem('Stress test (speed + network)', () => {
+                    window.StressTest?.open();
+                }));
                 // Experiment (js/ui-fit.js): smart sizing of the HUD and dock. Off by
                 // default; this browser only. Off = the hand-made layout, unchanged.
                 const uiFitLabel = () => `Smart UI fit (experiment): ${window.UiFit?.isEnabled?.() ? 'ON' : 'OFF'}`;
