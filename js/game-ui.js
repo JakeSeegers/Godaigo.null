@@ -2616,6 +2616,7 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                 updateCatacombIndicators();
                 return;
             }
+            window.PawnFx?.hint('catacomb', shrine.x, shrine.y); // teleport animation (js/piece-3d.js)
             placePlayer(shrine.x, shrine.y);
             updateStatus(`Teleported to the ${shrine.shrineType} shrine!`);
             if (window.isTutorialMode && window.TutorialMode?.onCatacombTeleport) {
@@ -3901,6 +3902,7 @@ document.getElementById('undo-move').onclick = function() {
 
                     // Teleport player (no AP cost). Not undoable, and Undo must not
                     // reverse the move before it (that refunded its AP).
+                    window.PawnFx?.hint('catacomb', shrine.x, shrine.y); // teleport animation (js/piece-3d.js)
                     placePlayer(shrine.x, shrine.y);
                     clearUndo();
                     updateStatus(`Teleported to the ${shrine.shrineType} shrine!`);

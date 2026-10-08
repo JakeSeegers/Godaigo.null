@@ -271,7 +271,12 @@ Order matters — later scripts depend on earlier ones.
                              a side HEIGHT * tan(tilt) tall (tilt 0 = no side). A MutationObserver on #viewport adds .puck-under
                              (ground shadow + curved side band, gradient #puck-band) and .puck-over (rim + highlight on the top
                              face); the piece's own parts are moved up the screen (old transform kept in data-p3d; pawn
-                             .pawn-cos-base stays on the ground). Counter-turned by getBoardRotation(). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+                             .pawn-cos-base stays on the ground). Counter-turned by getBoardRotation().
+                             Teleports: window.PawnFx.hint(kind, x, y, from?) ('catacomb' | 'flight'), called where the jump happens
+                             (game-ui.js catacomb clicks, bot-state.js teleport, scroll-effects.js takeFlightState.onComplete, lobby.js
+                             catacomb-teleport / take-flight handlers); the pawn glide that lands there plays it instead: catacomb =
+                             sink into a purple portal (mask hides below the ground line) and rise out of another; flight = fly up out
+                             of sight (bigger), land on the new hex, shadows + wind puffs. Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),

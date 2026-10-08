@@ -913,6 +913,7 @@
                 // (it also fires checkWinCondition() as a side effect, letting
                 // a home-adjacent teleport register a win the same way walking
                 // there would).
+                window.PawnFx?.hint('catacomb', a.x, a.y); // teleport animation (js/piece-3d.js)
                 placePlayer(a.x, a.y);
                 if (typeof isMultiplayer !== 'undefined' && isMultiplayer &&
                     typeof broadcastGameAction === 'function') {

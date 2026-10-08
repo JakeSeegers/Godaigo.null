@@ -565,8 +565,148 @@
                 setTimeout(() => g.remove(), ms + delay + 600); // safety
             }
         };
+        // ── Teleports (owner 2026-10-08) ─────────────────────────────────
+        // A catacomb teleport sinks the pawn into a glowing portal and raises
+        // it out of another at the new shrine; Take Flight flies it up out of
+        // sight and down onto the new hex. The game code that does the jump
+        // calls window.PawnFx.hint(kind, x, y) in the same moment (game-ui.js,
+        // bot-state.js, scroll-effects.js, lobby.js receive handlers); the
+        // pawn move seen here (glide) that lands on that spot plays it.
+        const hints = [];
+        const takeHint = (to) => {
+            const now = performance.now();
+            for (let i = hints.length - 1; i >= 0; i--) {
+                const h = hints[i];
+                if (now - h.t > 1500) { hints.splice(i, 1); continue; }
+                if (Math.hypot(h.x - to.x, h.y - to.y) < 5) { hints.splice(i, 1); return h; }
+            }
+            return null;
+        };
+        // from (optional): where the jump started, when the pawn was dragged
+        // most of the way before the game moved it (Take Flight drag)
+        window.PawnFx = { hint(kind, x, y, from) {
+            if (!Number.isFinite(+x) || !Number.isFinite(+y)) return;
+            const f = from && Number.isFinite(+from.x) && Number.isFinite(+from.y) ? { x: +from.x, y: +from.y } : null;
+            hints.push({ kind, x: +x, y: +y, from: f, t: performance.now() });
+        } };
+        let tpSeq = 0;
+        const screenUp = (len) => {
+            const r = (typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : rot) * Math.PI / 180;
+            return { x: -len * Math.sin(r), y: -len * Math.cos(r) };
+        };
+        const PORTAL = '#9b6bd6';
+        const portalAt = (p, delay, ms) => {
+            const g = el('g', { class: 'pawn-teleport-fx', transform: `translate(${p.x} ${p.y})` });
+            const first = vp.querySelector(':scope > g.player');
+            if (first) vp.insertBefore(g, first); else vp.appendChild(g);
+            setTimeout(() => g.remove(), delay + ms + 100);
+            const hole = el('circle', { r: 11, fill: '#140822', opacity: 0 });
+            const rim = el('circle', { r: 11, fill: 'none', stroke: PORTAL, 'stroke-width': 2.5, opacity: 0 });
+            const swirl = el('circle', { r: 15, fill: 'none', stroke: '#d9c2ff', 'stroke-width': 1, 'stroke-dasharray': '4 5', opacity: 0 });
+            g.append(hole, rim, swirl);
+            const o = { duration: ms, delay, easing: 'ease-in-out', fill: 'both' };
+            hole.animate([{ r: 2, opacity: 0 }, { r: 12, opacity: 0.85, offset: 0.25 }, { r: 12, opacity: 0.85, offset: 0.75 }, { r: 2, opacity: 0 }], o);
+            rim.animate([{ r: 2, opacity: 0 }, { r: 13, opacity: 1, offset: 0.25 }, { r: 13, opacity: 0.9, offset: 0.75 }, { r: 2, opacity: 0 }], o);
+            swirl.style.transformBox = 'fill-box'; swirl.style.transformOrigin = 'center';
+            swirl.animate([{ opacity: 0, rotate: '0deg' }, { opacity: 0.8, offset: 0.3 }, { opacity: 0.6, offset: 0.7 }, { opacity: 0, rotate: '240deg' }], o);
+            // a few motes swirling up out of it
+            for (let i = 0; i < 5; i++) {
+                const a = i / 5 * Math.PI * 2, u = screenUp(16 + Math.random() * 8);
+                const m = el('circle', { r: 1.4, fill: '#e6d8ff', opacity: 0 });
+                g.appendChild(m);
+                const sx = Math.cos(a) * 10, sy = Math.sin(a) * 6;
+                m.animate([
+                    { transform: `translate(${sx}px, ${sy}px)`, opacity: 0 },
+                    { opacity: 0.9, offset: 0.3 },
+                    { transform: `translate(${(sx * 0.3 + u.x).toFixed(1)}px, ${(sy * 0.3 + u.y).toFixed(1)}px)`, opacity: 0 },
+                ], { duration: ms * 0.8, delay: delay + i * 60, easing: 'ease-out', fill: 'both' });
+            }
+        };
+        // Catacomb: the pawn sinks below the ground into a portal (a mask hides
+        // whatever is below the ground line), then rises out of the other one.
+        const catacombFx = (n, from, to) => {
+            const T = 1150, H = 34;
+            const down = screenUp(-H);
+            const dx = from.x - to.x, dy = from.y - to.y;
+            portalAt(from, 0, 620);
+            portalAt(to, 430, 720);
+            // mask: shows only what is above the ground line, in screen
+            // directions (the pawn is drawn upright whatever the board's turn)
+            const id = 'tp-mask-' + (++tpSeq);
+            const r = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : rot;
+            const mask = el('mask', { id, maskUnits: 'userSpaceOnUse', x: -200, y: -200, width: 400, height: 400 });
+            const mg = el('g', { transform: `rotate(${-r})` });
+            const rect = el('rect', { x: -100, y: -150, width: 200, height: 150 + 2, fill: '#fff' });
+            mg.appendChild(rect); mask.appendChild(mg); n.insertBefore(mask, n.firstChild);
+            n.setAttribute('mask', `url(#${id})`);
+            const done = () => { n.removeAttribute('mask'); mask.remove(); };
+            // the ground line moves up (in the pawn's own frame) as the pawn sinks
+            rect.animate([
+                { height: '152px' }, { height: `${152 - H}px`, offset: 0.4 },
+                { height: `${152 - H}px`, offset: 0.52 }, { height: '152px' },
+            ], { duration: T, easing: 'linear' });
+            const a = n.animate([
+                { translate: `${dx}px ${dy}px`, easing: 'ease-in' },
+                { translate: `${(dx + down.x).toFixed(2)}px ${(dy + down.y).toFixed(2)}px`, offset: 0.4 },
+                { translate: `${down.x.toFixed(2)}px ${down.y.toFixed(2)}px`, offset: 0.41 },
+                { translate: `${down.x.toFixed(2)}px ${down.y.toFixed(2)}px`, offset: 0.52, easing: 'ease-out' },
+                { translate: '0px 0px' },
+            ], { duration: T });
+            a.onfinish = a.oncancel = done;
+            setTimeout(done, T + 300);
+        };
+        // Take Flight: up the screen out of sight (a little bigger, as if
+        // closer), then down onto the new hex; a shadow on the ground at both
+        // ends and a puff of wind on take-off and landing.
+        const flightFx = (n, from, to) => {
+            const T = 1300, up = screenUp(320);
+            const dx = from.x - to.x, dy = from.y - to.y;
+            const shadow = (p, grow, delay, ms) => {
+                const g = el('g', { class: 'pawn-teleport-fx', transform: `translate(${p.x} ${p.y})` });
+                const first = vp.querySelector(':scope > g.player');
+                if (first) vp.insertBefore(g, first); else vp.appendChild(g);
+                setTimeout(() => g.remove(), delay + ms + 100);
+                const e = el('ellipse', { rx: 10, ry: 6, fill: '#000', opacity: 0 });
+                g.appendChild(e);
+                e.animate(grow
+                    ? [{ rx: 2, ry: 1, opacity: 0 }, { rx: 10, ry: 6, opacity: 0.35 }]
+                    : [{ rx: 10, ry: 6, opacity: 0.35 }, { rx: 2, ry: 1, opacity: 0 }],
+                    { duration: ms, delay, easing: grow ? 'ease-in' : 'ease-out', fill: 'both' });
+                // wind puff
+                const ring = el('circle', { r: 8, fill: 'none', stroke: '#fff7c2', 'stroke-width': 1.5, opacity: 0 });
+                g.appendChild(ring);
+                // starts see-through: fill 'both' shows the first frame during the delay
+                ring.animate([{ r: 8, opacity: 0 }, { r: 9, opacity: 0.8, offset: 0.06 }, { r: 26, opacity: 0 }],
+                    { duration: 450, delay: grow ? delay + ms - 60 : delay, easing: 'ease-out', fill: 'both' });
+            };
+            shadow(from, false, 0, 520);
+            shadow(to, true, 700, 600);
+            n.style.transformBox = 'view-box';
+            n.style.transformOrigin = `${to.x}px ${to.y}px`;
+            const a = n.animate([
+                { translate: `${dx}px ${dy}px`, scale: '1', opacity: 1, easing: 'cubic-bezier(0.5, 0, 0.9, 0.6)' },
+                { translate: `${(dx + up.x).toFixed(2)}px ${(dy + up.y).toFixed(2)}px`, scale: '1.35', opacity: 0, offset: 0.42 },
+                { translate: `${up.x.toFixed(2)}px ${up.y.toFixed(2)}px`, scale: '1.35', opacity: 0, offset: 0.5, easing: 'cubic-bezier(0.1, 0.4, 0.5, 1)' },
+                { translate: `${(up.x * 0.02).toFixed(2)}px ${(up.y * 0.02).toFixed(2)}px`, scale: '1', opacity: 1, offset: 0.9 },
+                { translate: '0px 0px', scale: '1', opacity: 1 },
+            ], { duration: T });
+            const done = () => { n.style.transformBox = ''; n.style.transformOrigin = ''; };
+            a.onfinish = a.oncancel = done;
+        };
+
         const glide = (n, from, to) => {
             const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
+            const tp = takeHint(to);
+            if (tp && (d >= 5 || tp.from)) {
+                if (reduceMotion || document.hidden || !window.fxOn?.() || !n.animate) return;
+                const start = tp.from || from;
+                if (Math.hypot(start.x - to.x, start.y - to.y) < 5) return;
+                try {
+                    n.getAnimations?.().forEach(an => an.cancel());
+                    if (tp.kind === 'flight') flightFx(n, start, to); else catacombFx(n, start, to);
+                } catch (e) {}
+                return;
+            }
             if (d < 5 || d > 80 || reduceMotion || document.hidden || !window.fxOn?.() || !n.animate) return;
             const windy = !!(window.windStoneAt?.(to.x, to.y) || window.windStoneAt?.(from.x, from.y));
             const a = rot * Math.PI / 180, hop = windy ? 2 : 5;

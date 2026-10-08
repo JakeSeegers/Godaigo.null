@@ -4979,6 +4979,8 @@ const ScrollEffects = {
             indicators: [],
             startPos: { x: targetPlayer.x, y: targetPlayer.y },
             onComplete: (destX, destY) => {
+                // the pawn was just moved there: play the flight (js/piece-3d.js)
+                window.PawnFx?.hint('flight', destX, destY, window.takeFlightState?.startPos);
                 cleanup();
                 if (typeof onDone === 'function') onDone(destX, destY);
             },

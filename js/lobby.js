@@ -2498,7 +2498,9 @@
                 console.log('📄 Received take-flight:', payload);
                 const { casterIndex: tfCaster, targetPlayerIndex, x, y } = payload;
 
-                // Move the pawn
+                // Move the pawn (with the flight animation, js/piece-3d.js)
+                const tfFrom = playerPositions[targetPlayerIndex];
+                window.PawnFx?.hint('flight', x, y, tfFrom ? { x: tfFrom.x, y: tfFrom.y } : null);
                 if (typeof movePlayerVisually === 'function') {
                     movePlayerVisually(targetPlayerIndex, x, y, 0);
                 } else {
@@ -2578,6 +2580,7 @@
             gameChannel.on('broadcast', { event: 'catacomb-teleport' }, ({ payload }) => {
                 console.log('📄 Received catacomb-teleport:', payload);
                 const { playerIndex, x, y } = payload;
+                window.PawnFx?.hint('catacomb', x, y); // teleport animation (js/piece-3d.js)
                 if (typeof movePlayerVisually === 'function') {
                     movePlayerVisually(playerIndex, x, y, 0);
                 } else {
