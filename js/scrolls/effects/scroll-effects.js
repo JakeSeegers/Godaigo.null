@@ -99,8 +99,12 @@ window.TileMark = (function () {
         const g = mk('g', { id: 'tile-from-mark', class: 'tile-from-mark', transform: `translate(${x}, ${y})` });
         mk('circle', { cx: 0, cy: 0, r: 52, fill: color, 'fill-opacity': 0.08, stroke: color, 'stroke-width': 2.5, 'stroke-dasharray': '7 5', 'stroke-opacity': 0.9 }, g);
         vp.appendChild(g);
+        // Removes itself once no tile is being dragged, whatever way the drag
+        // ended (owner 2026-10-08: a ring was left on the board).
+        fromTimer = setInterval(() => { if (!document.querySelector('#viewport .ghost-tile')) clearFrom(); }, 150);
     }
-    function clearFrom() { document.getElementById('tile-from-mark')?.remove(); }
+    let fromTimer = 0;
+    function clearFrom() { clearInterval(fromTimer); fromTimer = 0; document.getElementById('tile-from-mark')?.remove(); }
     return { mark, unmark, fromMark, clearFrom };
 })();
 
