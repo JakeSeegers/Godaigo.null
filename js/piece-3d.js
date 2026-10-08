@@ -529,6 +529,57 @@
             if (list.some(m => [...m.addedNodes, ...m.removedNodes].some(n => n.nodeType === 1 && n.matches('g.placed-tile')))) sidesSoon();
         }).observe(vp, { childList: true });
         window.Piece3D_rebuildTileSides = sidesSoon;
+        // ── Tile flips (owner 2026-10-08) ─────────────────────────────────
+        // Turning a tile face up (stepping onto it, revealTile /
+        // flipTileVisually) or face down (Heavy Stomp, recreateTileAsFlipped)
+        // removes the tile's element and adds a new one with the same
+        // data-tile-id in the same moment. When the face changed (a shrine
+        // marker appeared or went away) the old face is put back on top for a
+        // moment: it lifts a little and turns edge-on, then the new face turns
+        // in and settles. Looks only.
+        const faceUp = (g) => !!g.querySelector('.shrine-marker');
+        const tileFlip = (oldG, newG) => {
+            if (reduceMotionT || document.hidden || !window.fxOn?.() || !newG.animate) return;
+            const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/.exec(newG.getAttribute('transform') || '');
+            if (!m) return;
+            const origin = `${m[1]}px ${m[2]}px`;
+            const r = (typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : rot) * Math.PI / 180;
+            const lift = (k) => `${(-k * Math.sin(r)).toFixed(2)}px ${(-k * Math.cos(r)).toFixed(2)}px`;
+            const T1 = 190, T2 = 260;
+            // the old face, back on top, no longer a real tile
+            oldG.setAttribute('class', 'tile-flip-fx');
+            oldG.removeAttribute('data-tile-id');
+            oldG.style.pointerEvents = 'none';
+            if (newG.nextSibling) vp.insertBefore(oldG, newG.nextSibling); else vp.appendChild(oldG);
+            for (const g of [oldG, newG]) { g.style.transformBox = 'view-box'; g.style.transformOrigin = origin; }
+            const a1 = oldG.animate([
+                { scale: '1 1', translate: '0px 0px' },
+                { scale: '0.02 1', translate: lift(6), filter: 'brightness(0.7)' },
+            ], { duration: T1, easing: 'ease-in', fill: 'forwards' });
+            a1.onfinish = a1.oncancel = () => oldG.remove();
+            setTimeout(() => oldG.remove(), T1 + 200);
+            const a2 = newG.animate([
+                { scale: '0.02 1', translate: lift(6), filter: 'brightness(1.4)' },
+                { scale: '1.04 1', translate: lift(1), filter: 'brightness(1.1)', offset: 0.75 },
+                { scale: '1 1', translate: '0px 0px', filter: 'brightness(1)' },
+            ], { duration: T2, delay: T1, easing: 'ease-out', fill: 'backwards' });
+            a2.onfinish = a2.oncancel = () => { newG.style.transformBox = ''; newG.style.transformOrigin = ''; };
+        };
+        const reduceMotionT = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        new MutationObserver(list => {
+            const removed = new Map();
+            for (const m of list) for (const n of m.removedNodes) {
+                if (n.nodeType === 1 && n.matches('g.placed-tile') && n.getAttribute('data-tile-id')) removed.set(n.getAttribute('data-tile-id'), n);
+            }
+            if (!removed.size) return;
+            for (const m of list) for (const n of m.addedNodes) {
+                if (n.nodeType !== 1 || !n.matches('g.placed-tile')) continue;
+                const old = removed.get(n.getAttribute('data-tile-id'));
+                if (!old || old.getAttribute('transform') !== n.getAttribute('transform')) continue;
+                if (faceUp(old) === faceUp(n)) continue;           // same face: a rebuild, not a flip
+                try { tileFlip(old, n); } catch (e) {}
+            }
+        }).observe(vp, { childList: true });
         sidesSoon();
         // ── Smooth pawn steps (owner 2026-10-07) ────────────────────────────
         // A pawn move (bots step one hex at a time) removes the pawn and adds a

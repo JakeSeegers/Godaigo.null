@@ -276,7 +276,11 @@ Order matters — later scripts depend on earlier ones.
                              (game-ui.js catacomb clicks, bot-state.js teleport, scroll-effects.js takeFlightState.onComplete, lobby.js
                              catacomb-teleport / take-flight handlers); the pawn glide that lands there plays it instead: catacomb =
                              sink into a purple portal (mask hides below the ground line) and rise out of another; flight = fly up out
-                             of sight (bigger), land on the new hex, shadows + wind puffs. Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+                             of sight (bigger), land on the new hex, shadows + wind puffs.
+                             Tile flips: an observer on #viewport sees a g.placed-tile removed and re-added with the same data-tile-id
+                             and transform but the other face (shrine marker there or not: revealTile, flipTileVisually,
+                             recreateTileAsFlipped / Heavy Stomp); the old face is put back on top as .tile-flip-fx and turns edge-on,
+                             then the new face turns in (~0.45 s). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),
