@@ -285,7 +285,8 @@ Order matters — later scripts depend on earlier ones.
                              countered cast shatters (grey lines + a bolt from the counter caster in the counter scroll's colour),
                              and the counter / response scroll plays its own effect.
 20b4. stone-drop-fx.js    ← window.StoneDropFx.play(x, y, type): stone drop animations on every ActionLog 'placeStone'. Earth: heavy
-                             drop + pawns 1-3 hexes away bounce (less with distance; board stays still; stones only when a void cancels them). Water: droplet bob, or the drop of the
+                             drop + stones / pawns 1-3 hexes away bounce (less with distance; board stays still; earth stones only when
+                             a void cancels them). Water: droplet bob, or the drop of the
                              stone whose ability it takes (window.stoneAbilityAt in game-core.js). Fire: flicker, crackle, sparks.
                              Wind: expands and contracts once. Water / fire / wind first drop lightly into place (softDrop).
                              Next to a void stone (non-void) = only the light drop (ability cancelled). Void: summoned with a spectral glow. Same skips as cast-fx.js.
