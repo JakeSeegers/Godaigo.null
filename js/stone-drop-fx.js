@@ -267,7 +267,72 @@
         } catch (e) { /* looks only */ }
     }
 
-    window.StoneDropFx = { play };
+    // ── shrine collection (owner 2026-10-08) ─────────────────────
+    // A pawn ends its turn on a shrine and takes stones from the source pool
+    // (game-ui.js replenishShrineStones, only when at least one stone moved):
+    // the shrine hex lights up in its element colour and one glowing mote per
+    // stone (max 8) rises from the ground and spirals into the pawn, each
+    // with a small flash. Other screens and replays: lobby.js 'turn-change'
+    // payload.collected.
+    function collect(playerIndex, type, n) {
+        try {
+            if (document.hidden || reduceMotion || !window.fxOn?.() || !(n > 0)) return;
+            const pos = (typeof playerPositions !== 'undefined') ? playerPositions[playerIndex] : null;
+            const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
+            if (!pos || !vp || !svg) return;
+            const color = colorOf(type);
+            const firstPawn = vp.querySelector(':scope > g.player');
+            // behind the pawn: the shrine's hex lights up
+            const back = el('g', { class: 'stone-drop-fx', transform: `translate(${pos.x} ${pos.y})` });
+            if (firstPawn) vp.insertBefore(back, firstPawn); else vp.appendChild(back);
+            setTimeout(() => back.remove(), 1800);
+            const hex = [0, 1, 2, 3, 4, 5].map(i => {
+                const a = Math.PI / 180 * (60 * i - 30);
+                return `${(19 * Math.cos(a)).toFixed(1)},${(19 * Math.sin(a)).toFixed(1)}`;
+            }).join(' ');
+            const fill = el('polygon', { points: hex, fill: glowFill(svg, color), opacity: 0 }, back);
+            fill.style.mixBlendMode = 'screen';
+            animate(fill, [{ opacity: 0 }, { opacity: 0.75, offset: 0.25 }, { opacity: 0.5, offset: 0.6 }, { opacity: 0 }],
+                { duration: 1500, easing: 'ease-out', fill: 'both' });
+            const edge = el('polygon', { points: hex, fill: 'none', stroke: color, 'stroke-width': 1.6, opacity: 0 }, back);
+            edge.style.mixBlendMode = 'screen';
+            animate(edge, [{ opacity: 0 }, { opacity: 0.9, offset: 0.2 }, { opacity: 0 }],
+                { duration: 1300, easing: 'ease-out', fill: 'both' });
+            // a soft column of light rising through the pawn (screen upright)
+            const rot = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : 0;
+            const col = el('g', { transform: `rotate(${-rot})` }, back);
+            const beam = el('ellipse', { cx: 0, cy: -16, rx: 10, ry: 26, fill: glowFill(svg, color), opacity: 0 }, col);
+            beam.style.mixBlendMode = 'screen';
+            animate(beam, [{ opacity: 0 }, { opacity: 0.7, offset: 0.3 }, { opacity: 0.45, offset: 0.65 }, { opacity: 0 }],
+                { duration: 1600, easing: 'ease-out', fill: 'both' });
+            // in front: motes spiral up into the pawn
+            const L = layer(vp, pos.x, pos.y, 2200);
+            const count = Math.min(8, n), top = upVec(13);
+            for (let i = 0; i < count; i++) {
+                const a0 = (i / count) * Math.PI * 2 + Math.random() * 0.4, delay = 150 + i * 110;
+                const frames = [];
+                for (let k = 0; k <= 8; k++) {
+                    const f = k / 8, rad = 26 * (1 - f), a = a0 + f * Math.PI * 1.6;
+                    const x = Math.cos(a) * rad + top.x * f, y = Math.sin(a) * rad * 0.85 + top.y * f;
+                    frames.push({ transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`,
+                        opacity: k === 0 ? 0 : k === 8 ? 0.2 : 1, offset: f });
+                }
+                const mote = el('circle', { r: 2.8, fill: '#ffffff', opacity: 0 }, L);
+                const halo = el('circle', { r: 8, fill: glowFill(svg, color), opacity: 0 }, L);
+                halo.style.mixBlendMode = 'screen';
+                animate(halo, frames, { duration: 750, delay, easing: 'ease-in', fill: 'both' });
+                animate(mote, frames, { duration: 750, delay, easing: 'ease-in', fill: 'both' });
+                // a small flash at the pawn as it arrives
+                const flash = el('circle', { r: 11, fill: glowFill(svg, color), opacity: 0,
+                    transform: `translate(${top.x.toFixed(2)} ${top.y.toFixed(2)})` }, L);
+                flash.style.mixBlendMode = 'screen';
+                animate(flash, [{ opacity: 0 }, { opacity: 0.9, offset: 0.3 }, { opacity: 0 }],
+                    { duration: 340, delay: delay + 700, fill: 'both' });
+            }
+        } catch (e) { /* looks only */ }
+    }
+
+    window.StoneDropFx = { play, collect };
 
     function hook() {
         if (!window.ActionLog?.onRecord) return false;

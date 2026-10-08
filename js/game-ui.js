@@ -3247,6 +3247,7 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
             }
 
             isEndingTurn = true;
+            lastShrineCollect = null;
 
             // Replenish shrine stones BEFORE clearing buffs (Mine buff doubles output)
             if (playerPosition) {
@@ -3310,7 +3311,8 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                             broadcastGameAction('turn-change', {
                                 playerIndex: activePlayerIndex,
                                 turnStartedAt: startedAt,
-                                turnNumber: currentTurnNumber
+                                turnNumber: currentTurnNumber,
+                                collected: takeShrineCollect()
                             });
                             persistCurrentTurnIndex(activePlayerIndex);
                         }
@@ -3430,7 +3432,8 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                     broadcastGameAction('turn-change', {
                         playerIndex: activePlayerIndex,
                         turnStartedAt: startedAt,
-                        turnNumber: currentTurnNumber
+                        turnNumber: currentTurnNumber,
+                        collected: takeShrineCollect()
                     });
                     persistCurrentTurnIndex(activePlayerIndex);
                 }
@@ -3704,6 +3707,11 @@ document.getElementById('undo-move').onclick = function() {
             return null;
         }
 
+        // Stones taken at a shrine this end of turn, sent once with the next
+        // turn-change so other screens (and replays) show the effect.
+        let lastShrineCollect = null;
+        function takeShrineCollect() { const c = lastShrineCollect; lastShrineCollect = null; return c; }
+
         function replenishShrineStones(shrineType) {
             // Stone rank determines replenishment amount
             const STONE_RANK = {
@@ -3735,6 +3743,10 @@ document.getElementById('undo-move').onclick = function() {
                 playerPool[shrineType] += actualReplenished;
                 updateStoneCount(shrineType);
                 window.SoundSystem?.play('collectstones');
+                // the collection effect here, and on other screens via the next
+                // turn-change message (payload.collected)
+                lastShrineCollect = { player: activePlayerIndex, type: shrineType, n: actualReplenished };
+                window.StoneDropFx?.collect?.(activePlayerIndex, shrineType, actualReplenished);
 
                 // Sync resources in multiplayer
                 syncPlayerState();

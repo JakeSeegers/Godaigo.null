@@ -289,6 +289,9 @@ Order matters — later scripts depend on earlier ones.
                              stone whose ability it takes (window.stoneAbilityAt in game-core.js). Fire: flicker, crackle, sparks.
                              Wind: expands and contracts once. Water / fire / wind first drop lightly into place (softDrop).
                              Next to a void stone (non-void) = only the light drop (ability cancelled). Void: summoned with a spectral glow. Same skips as cast-fx.js.
+                             StoneDropFx.collect(player, type, n): shrine collection (game-ui.js replenishShrineStones when >= 1
+                             stone moved; other screens + replays via lobby.js 'turn-change' payload.collected, game-ui.js
+                             takeShrineCollect()): shrine hex glows, light column, one mote per stone (max 8) spirals into the pawn.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
