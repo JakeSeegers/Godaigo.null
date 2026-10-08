@@ -549,6 +549,22 @@
         // moment: it lifts a little and turns edge-on, then the new face turns
         // in and settles. Looks only.
         const faceUp = (g) => !!g.querySelector('.shrine-marker');
+        // Tiles in the middle of a flip: a pawn stepping onto one waits on
+        // the hex it came from until the flip is done (glide below), and bots
+        // wait before their next action (bot.js waitForQuiescence).
+        const flipZones = [];
+        const flipZoneAt = (p) => {
+            const now = performance.now();
+            for (let i = flipZones.length - 1; i >= 0; i--) {
+                const z = flipZones[i];
+                if (z.until <= now) { flipZones.splice(i, 1); continue; }
+                if (Math.hypot(z.x - p.x, z.y - p.y) < 45) return z;
+            }
+            return null;
+        };
+        const lastGlides = new Map();     // pawn element -> { from, to, t } (glide)
+        let glideRef = () => {};
+        window.TileFlipFx = { isFlipping: () => flipZones.some(z => z.until > performance.now()) };
         const tileFlip = (oldG, newG) => {
             if (reduceMotionT || document.hidden || !window.fxOn?.() || !newG.animate) return;
             const m = /translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/.exec(newG.getAttribute('transform') || '');
@@ -557,6 +573,15 @@
             const r = (typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : rot) * Math.PI / 180;
             const lift = (k) => `${(-k * Math.sin(r)).toFixed(2)}px ${(-k * Math.cos(r)).toFixed(2)}px`;
             const T = 760, L = 26;
+            flipZones.push({ x: +m[1], y: +m[2], until: performance.now() + T });
+            // a pawn that already started stepping onto this tile (online, the
+            // move message can arrive just before the flip): send it back to
+            // wait like the others
+            lastGlides.forEach((g, pawn) => {
+                if (!pawn.isConnected || performance.now() - g.t > 2000) { lastGlides.delete(pawn); return; }
+                if (performance.now() - g.t > 400) return;
+                if (Math.hypot(g.to.x - +m[1], g.to.y - +m[2]) < 45) glideRef(pawn, g.from, g.to);
+            });
             // the tile leaves its spot: no slab there while it is up
             newG.setAttribute('data-flipping', '1');
             const sp = on ? slabPolys(newG) : null;
@@ -793,6 +818,25 @@
 
         const glide = (n, from, to) => {
             const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
+            // stepping onto a tile that is turning over: wait on the old hex
+            // until it has landed, then step on (owner 2026-10-08)
+            if (d >= 5) lastGlides.set(n, { from, to, t: performance.now() });
+            const zone = d >= 5 ? flipZoneAt(to) : null;
+            if (zone && !reduceMotion && !document.hidden && n.animate) {
+                const wait = Math.max(0, zone.until - performance.now()) + 40;
+                const a = rot * Math.PI / 180, hop = 5;
+                const ux = -hop * Math.sin(a), uy = -hop * Math.cos(a);
+                const ms = Math.min(420, 160 + d * 2.5);
+                try {
+                    n.getAnimations?.().forEach(an => an.cancel());
+                    n.animate([
+                        { translate: `${dx}px ${dy}px` },
+                        { translate: `${(dx / 2 + ux).toFixed(2)}px ${(dy / 2 + uy).toFixed(2)}px`, offset: 0.5 },
+                        { translate: '0px 0px' }
+                    ], { duration: ms, delay: wait, easing: 'ease-in-out', fill: 'backwards' });
+                } catch (e) {}
+                return;
+            }
             const tp = takeHint(to);
             if (tp && (d >= 5 || tp.from)) {
                 if (reduceMotion || document.hidden || !window.fxOn?.() || !n.animate) return;
@@ -819,6 +863,7 @@
                 if (windy) afterImages(n, from, to, ms);
             } catch (e) {}
         };
+        glideRef = glide;
         // the same pawn moved (its transform changed)
         new MutationObserver(list => {
             for (const m of list) {

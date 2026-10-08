@@ -4889,6 +4889,14 @@
                 await sleep(100);
                 continue;
             }
+            // A tile turning over (js/piece-3d.js tile flip, ~0.8 s): the pawn
+            // waits for it before stepping on, so the next action waits too.
+            // Also at Watchable training speed (the flip only plays when
+            // someone watches: window.fxOn()).
+            if ((window.BotSystem?.speedScale ?? 1) >= 0.5 && window.TileFlipFx?.isFlipping?.() && window.fxOn?.()) {
+                await sleep(80);
+                continue;
+            }
             // Cascade prompt (scroll drawn onto a full hand): choose like a
             // player would — keep the new scroll usable if possible
             const cascade = document.getElementById('cascade-popup');

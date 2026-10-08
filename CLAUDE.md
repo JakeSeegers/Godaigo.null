@@ -281,7 +281,10 @@ Order matters — later scripts depend on earlier ones.
                              and transform but the other face (shrine marker there or not: revealTile, flipTileVisually,
                              recreateTileAsFlipped / Heavy Stomp); the tile (data-flipping: left out of #tile-sides, own slab copy,
                              shadow in its empty spot) rises above the other tiles, turns over (old face first half, new face second
-                             half, scaleX through 0), and comes back down (~0.76 s). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+                             half, scaleX through 0), and comes back down (~0.76 s).
+                             A pawn stepping onto a flipping tile waits on its old hex until the flip ends, then glides on
+                             (flipZones; a glide started up to 0.4 s before the flip is redone); bot.js waitForQuiescence waits on
+                             window.TileFlipFx.isFlipping() (also in Watchable training). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),
