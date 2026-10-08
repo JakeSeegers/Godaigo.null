@@ -11,7 +11,7 @@
 // in the ActionLog (own placements, bots on this screen, other players'
 // 'stone-place' messages, replays). Undo restores do not record, so they do
 // not animate. Looks only: never touches game state. Skipped in muted
-// training (SoundSystem null), hidden tabs and with reduced motion.
+// training (window.fxOn() false: muted and not Watchable), hidden tabs and with reduced motion.
 (function () {
     'use strict';
     const NS = 'http://www.w3.org/2000/svg';
@@ -208,7 +208,7 @@
 
     function play(x, y, type) {
         try {
-            if (document.hidden || reduceMotion || !window.SoundSystem || running >= 6) return;
+            if (document.hidden || reduceMotion || !window.fxOn?.() || running >= 6) return;
             const stone = stoneAt(x, y);
             if (!stone || !stone.element || !stone.element.isConnected) return;
             const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');

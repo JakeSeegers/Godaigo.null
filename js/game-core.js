@@ -8044,6 +8044,13 @@ function clearPlayerPath() {
             if (st.type !== 'water') return false;
             try { return getEffectiveStoneType(st) === 'wind' || getChainedAbility(st.x, st.y) === 'wind'; } catch (e) { return false; }
         };
+        // Should board animations play? Sound is off (SoundSystem null) in muted
+        // bot training and quiet test games, so effects skip there, except
+        // when training is switched to Watchable speed (someone is watching).
+        window.fxOn = function () {
+            if (window.SoundSystem) return true;
+            return !!(window.BotArena?.isRunning?.() && (window.BotSystem?.speedScale ?? 0) >= 1);
+        };
         // The ability a stone shows (a water stone takes its neighbour's or a
         // chained one, unless a void stone next to it blocks that). Used by
         // js/stone-drop-fx.js to pick the drop animation.

@@ -7,7 +7,7 @@
 // Triggered from the cast log (game-core.js logScrollEvent 'cast_execute',
 // through ActionLog.onRecord) for casts on this screen, and from lobby.js's
 // 'scroll-used' handler for other players' casts. Looks only: never touches
-// game state. Skipped in muted training (SoundSystem null), hidden tabs and
+// game state. Skipped when window.fxOn() is false (muted training not set to Watchable), hidden tabs and
 // with reduced motion.
 (function () {
     'use strict';
@@ -96,7 +96,7 @@
 
     function play(playerIndex, scrollName) {
         try {
-            if (document.hidden || reduceMotion || !window.SoundSystem || running >= 3) return;
+            if (document.hidden || reduceMotion || !window.fxOn?.() || running >= 3) return;
             const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
             if (!vp || !svg) return;
             const pawn = (typeof playerPositions !== 'undefined') ? playerPositions[playerIndex] : null;

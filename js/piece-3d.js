@@ -567,7 +567,7 @@
         };
         const glide = (n, from, to) => {
             const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
-            if (d < 5 || d > 80 || reduceMotion || document.hidden || !window.SoundSystem || !n.animate) return;
+            if (d < 5 || d > 80 || reduceMotion || document.hidden || !window.fxOn?.() || !n.animate) return;
             const windy = !!(window.windStoneAt?.(to.x, to.y) || window.windStoneAt?.(from.x, from.y));
             const a = rot * Math.PI / 180, hop = windy ? 2 : 5;
             const ux = -hop * Math.sin(a), uy = -hop * Math.cos(a);   // "up" on screen
@@ -661,12 +661,12 @@
     // board for a moment: cracks run out from near the middle (0.28 s), then the
     // stone splits along those cracks into shards that fly apart, turn and
     // fade, with a little dust (0.5 s). Game logic never waits on it. Works with
-    // 3D pieces on or off. Skipped while the tab is hidden or sound is off
+    // 3D pieces on or off. Skipped while the tab is hidden or sound is off (window.fxOn(): muted training still shows it at Watchable speed)
     // (muted bot training, quiet test games), at most 6 at once.
     let breaking = 0, fxSeq = 0;
     function playStoneBreak(el) {
         try {
-            if (!el || !el.parentNode || document.hidden || !window.SoundSystem || breaking >= 6) return;
+            if (!el || !el.parentNode || document.hidden || !window.fxOn?.() || breaking >= 6) return;
             const disc = el.querySelector(':scope > circle.stone-piece');
             const color = disc?.getAttribute('stroke') || '#cccccc';
             const decorated = !!el.querySelector(':scope > .puck-under');

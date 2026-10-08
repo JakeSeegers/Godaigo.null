@@ -277,7 +277,8 @@ Order matters — later scripts depend on earlier ones.
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),
                              a rune ring turns, sparks drift; lines re-jag every frame, then break up and fade (~1.1 s). Layer
                              .cast-fx in #viewport. Own casts: ActionLog 'cast_execute'; other players: lobby.js 'scroll-used'.
-                             Skipped with SoundSystem null (muted training), hidden tab, reduced motion; max 3 at once.
+                             Skipped when window.fxOn() is false (game-core.js: sound off, i.e. muted training or quiet
+                             test games, unless training runs at Watchable speed), hidden tab, reduced motion; max 3 at once.
                              Two layers: lines, aura and the far half of three energy arcs wrapping the pawn go BEHIND pawns; stone
                              flares and the near half of the arcs go in front. While a response window is open on this cast the hold
                              keeps crackling (max 20 s). CastFX.resolve(results) (from response-window.js announceOutcome): a
