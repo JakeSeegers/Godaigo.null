@@ -8044,6 +8044,18 @@ function clearPlayerPath() {
             if (st.type !== 'water') return false;
             try { return getEffectiveStoneType(st) === 'wind' || getChainedAbility(st.x, st.y) === 'wind'; } catch (e) { return false; }
         };
+        // The ability a stone shows (a water stone takes its neighbour's or a
+        // chained one, unless a void stone next to it blocks that). Used by
+        // js/stone-drop-fx.js to pick the drop animation.
+        window.stoneAbilityAt = function (x, y) {
+            const st = placedStones.find(s => Math.hypot(s.x - x, s.y - y) < 5);
+            if (!st) return null;
+            if (st.type !== 'water') return st.type;
+            try {
+                if (hasAdjacentStoneType(st.x, st.y, 'void')) return 'water';
+                return getChainedAbility(st.x, st.y) || getEffectiveStoneType(st);
+            } catch (e) { return 'water'; }
+        };
         function getEffectiveStoneType(stone) {
             if (stone.type !== 'water') {
                 return stone.type;
