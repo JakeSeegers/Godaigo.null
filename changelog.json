@@ -6,7 +6,7 @@
       "date": "2026-10-08",
       "title": "Small fixes",
       "changes": [
-        "Turning the map now spins it around the middle of the board, so it stays in place.",
+        "Turning the map now spins it around the middle of the board. Pawns zip across wind stones with a blurred trail.",
         "Undoing a stone break now also brings back stones the break destroyed (for example a wind stone burned once a void stone was gone).",
         "Bots only feel hurt by something you actually did, and notice (and push back) when you play fast: an early scroll, quick elements.",
         "Telekinesis no longer leaves a dashed circle on the board after you move a tile.",

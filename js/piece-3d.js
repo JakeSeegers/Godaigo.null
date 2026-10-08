@@ -543,18 +543,43 @@
         const pawnKey = (g) => g.querySelector('circle.player-marker')?.getAttribute('fill') || '';
         const lastPawnPos = new Map();
         const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+        // Wind steps (owner 2026-10-08): stepping from or onto a wind stone, or
+        // a water stone using wind's ability, glides twice as fast with a lower
+        // hop and leaves fading after-images along the way.
+        const afterImages = (n, from, to, ms) => {
+            const parent = n.parentNode; if (!parent) return;
+            for (let i = 1; i <= 3; i++) {
+                const f = i / 4;
+                const g = el('g', { class: 'pawn-afterimage',
+                    transform: `translate(${(from.x + (to.x - from.x) * f).toFixed(2)}, ${(from.y + (to.y - from.y) * f).toFixed(2)})` });
+                Array.from(n.childNodes).forEach(c => { if (c.nodeType === 1) g.appendChild(c.cloneNode(true)); });
+                g.querySelector('.puck-under > ellipse')?.remove();             // no ground shadow on a ghost
+                g.querySelectorAll('*').forEach(c => { c.removeAttribute('id'); c.style.pointerEvents = 'none'; });
+                g.style.filter = 'blur(0.8px)';                                 // a little motion blur
+                parent.insertBefore(g, n);
+                // shows up as the pawn passes this spot, then fades
+                const delay = ms * f;
+                g.style.opacity = '0';
+                g.animate([{ opacity: 0.6 - i * 0.1 }, { opacity: 0 }],
+                    { duration: 320, delay, easing: 'ease-out', fill: 'both' }).onfinish = () => g.remove();
+                setTimeout(() => g.remove(), ms + delay + 600); // safety
+            }
+        };
         const glide = (n, from, to) => {
             const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
             if (d < 5 || d > 80 || reduceMotion || document.hidden || !window.SoundSystem || !n.animate) return;
-            const a = rot * Math.PI / 180, hop = 5;
+            const windy = !!(window.windStoneAt?.(to.x, to.y) || window.windStoneAt?.(from.x, from.y));
+            const a = rot * Math.PI / 180, hop = windy ? 2 : 5;
             const ux = -hop * Math.sin(a), uy = -hop * Math.cos(a);   // "up" on screen
+            const ms = Math.min(320, 160 + d * 2.5) / (windy ? 2 : 1);
             try {
                 n.getAnimations?.().forEach(an => an.cancel());
                 n.animate([
                     { translate: `${dx}px ${dy}px` },
                     { translate: `${(dx / 2 + ux).toFixed(2)}px ${(dy / 2 + uy).toFixed(2)}px`, offset: 0.5 },
                     { translate: '0px 0px' }
-                ], { duration: Math.min(320, 160 + d * 2.5), easing: 'ease-in-out' });
+                ], { duration: ms, easing: windy ? 'ease-out' : 'ease-in-out' });
+                if (windy) afterImages(n, from, to, ms);
             } catch (e) {}
         };
         // the same pawn moved (its transform changed)

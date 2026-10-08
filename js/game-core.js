@@ -8035,6 +8035,15 @@ function clearPlayerPath() {
         };
 
         // Get the effective type of a stone (considering water mimicry)
+        // Is there a wind stone at (x, y), or a water stone using wind's
+        // ability (copying or chained)? js/piece-3d.js speeds pawn steps there.
+        window.windStoneAt = function (x, y) {
+            const st = placedStones.find(s => Math.hypot(s.x - x, s.y - y) < 5);
+            if (!st) return false;
+            if (st.type === 'wind') return true;
+            if (st.type !== 'water') return false;
+            try { return getEffectiveStoneType(st) === 'wind' || getChainedAbility(st.x, st.y) === 'wind'; } catch (e) { return false; }
+        };
         function getEffectiveStoneType(stone) {
             if (stone.type !== 'water') {
                 return stone.type;
