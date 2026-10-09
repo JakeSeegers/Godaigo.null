@@ -1898,6 +1898,9 @@
                                                                   : (!s.is_bot && s.user_id === player.user_id));
                     return k >= 0 ? resumeSeats.splice(k, 1)[0] : null;
                 };
+                // Hermit spectate test (js/spectate.js): the chosen elemental bots, in order.
+                const forcedEls = (!resume && Array.isArray(window.__forcedBotElements)) ? window.__forcedBotElements.slice() : [];
+                window.__forcedBotElements = null;
                 for (let i = 0; i < players.length; i++) {
                     const player = players[i];
                     const saved = takeSeat(player);
@@ -1908,7 +1911,7 @@
                     const update = { player_index: assignedIndex, color: assignedColor };
 
                     if (!resume && elementalOk && window.isBotUsername?.(player.username)) {
-                        const el = window.BotElements.COLOR_ELEMENT[assignedColor];
+                        const el = forcedEls.length ? forcedEls.shift() : window.BotElements.COLOR_ELEMENT[assignedColor];
                         if (el) {
                             update.username = `${window.BOT_USERNAME_PREFIX || '🤖'} ${window.BotElements.NAMES[el]}`;
                             update.bot_weights = window.BotElements.elementalOverlay(elementalBase, el);

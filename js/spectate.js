@@ -56,7 +56,7 @@
                 row = document.createElement('div');
                 row.id = 'spectate-row';
                 row.className = 'test-mode-row';
-                row.innerHTML = `<label><input type="checkbox" id="spectate-toggle"> 👁 Allow spectators: anyone signed in can watch from the lobby (they never see hands)</label>`;
+                row.innerHTML = `<label><input type="checkbox" id="spectate-toggle"> Allow spectators: anyone signed in can watch from the lobby (they never see hands)</label>`;
                 hostBox.appendChild(row);
                 row.querySelector('input').addEventListener('change', async (e) => {
                     const on = e.target.checked;
@@ -80,7 +80,7 @@
             const info = document.getElementById('room-info-bar');
             if (info && info.parentNode) info.parentNode.insertBefore(n, info.nextSibling); else panel.appendChild(n);
         }
-        n.textContent = '👁 Spectators can watch this game (they only see what every player sees).';
+        n.textContent = 'Spectators can watch this game (they only see what every player sees).';
     }
 
     // ── Lobby: games you can watch ────────────────────────────────
@@ -105,7 +105,7 @@
             anchor.parentNode.insertBefore(sec, anchor.nextSibling);
         }
         const colorHex = (c) => (typeof PLAYER_COLORS !== 'undefined' && PLAYER_COLORS[c]) || '#ccc';
-        sec.innerHTML = `<h3 class="watch-games-title">👁 Games you can watch</h3>` + games.map(gm => {
+        sec.innerHTML = `<h3 class="watch-games-title">Games you can watch</h3>` + games.map(gm => {
             const who = (gm.players || []).map(p => `<span style="color:${colorHex(p.color)}">${esc(String(p.username || '').replace(/^🤖\s*/, ''))}</span>`).join(' · ');
             const mins = Math.max(1, Math.round((Date.now() - new Date(gm.started_at).getTime()) / 60000));
             return `<div class="game-room-card watch-game-card">
@@ -146,7 +146,7 @@
         const ch = realChannel('spectate-room-' + roomId, { config: { presence: { key }, broadcast: { self: true } } });
         ch.on('presence', { event: 'sync' }, () => {
             const n = Object.keys(ch.presenceState() || {}).length;
-            if (asSpectator) { const el = document.getElementById('spec-count'); if (el) el.textContent = `👁 ${n} watching`; }
+            if (asSpectator) { const el = document.getElementById('spec-count'); if (el) el.textContent = `${n} watching`; }
             else setPlayerCount(n);
         });
         if (asSpectator) ch.on('broadcast', { event: 'spec-emote' }, ({ payload }) => showEmote(payload));
@@ -164,8 +164,8 @@
         bar.id = 'spectate-bar';
         const names = (watching.match.players || []).map(p => String(p.username || '').replace(/^🤖\s*/, '')).join(' vs ');
         const follow = (() => { try { return localStorage.getItem('godaigo_spec_follow') !== 'off'; } catch (e) { return true; } })();
-        bar.innerHTML = `<span class="spec-live">● LIVE</span><span class="spec-title"></span>
-            <span id="spec-count">👁 1 watching</span>
+        bar.innerHTML = `<span class="spec-live">LIVE</span><span class="spec-title"></span>
+            <span id="spec-count">1 watching</span>
             <label class="spec-follow"><input type="checkbox" ${follow ? 'checked' : ''}> Follow camera</label>
             <button type="button" data-act="emote">Emotes</button>
             <button type="button" data-act="exit">Exit</button>
@@ -236,9 +236,9 @@
             const name = typeof getPlayerColorName === 'function' ? getPlayerColorName(i) : s.username;
             const hand = ps.hand ? ps.hand.size : 0, activeN = ps.active ? ps.active.size : 0;
             return `<div class="spec-row ${i === active ? 'turn' : ''}">
-                <div class="spec-name" style="color:${(typeof PLAYER_COLORS !== 'undefined' && PLAYER_COLORS[s.color]) || '#ccc'}">${i === active ? '▶ ' : ''}${esc(name)}</div>
+                <div class="spec-name" style="color:${(typeof PLAYER_COLORS !== 'undefined' && PLAYER_COLORS[s.color]) || '#ccc'}">${esc(name)}${i === active ? ' <span class="spec-turn-tag">turn</span>' : ''}</div>
                 <div class="spec-els" title="Elements activated (all 5, then reach your home shrine to win)">${els}<b>${act.size || 0}/5</b></div>
-                <div class="spec-meta"><span title="Stones in pool">◆ ${poolTotal}</span><span title="Scrolls: hand / active">📜 ${hand}/${activeN}</span>${homeTxt ? `<span title="AP to walk home">${esc(homeTxt)}</span>` : ''}${ap ? `<span class="spec-ap">${ap}</span>` : ''}</div>
+                <div class="spec-meta"><span title="Stones in pool">Pool ${poolTotal}</span><span title="Scrolls: hand / active">Scrolls ${hand}/${activeN}</span>${homeTxt ? `<span title="AP to walk home">${esc(homeTxt)}</span>` : ''}${ap ? `<span class="spec-ap">${ap}</span>` : ''}</div>
             </div>`;
         }).join('');
         const html = `<div class="spec-sb-title">Scoreboard · turn ${esc(g('currentTurnNumber') ?? '')}</div>${rows}`;
@@ -264,7 +264,7 @@
     }
     function onGameOver() {
         const t = document.querySelector('#spectate-bar .spec-live');
-        if (t) { t.textContent = '■ ENDED'; t.classList.add('ended'); }
+        if (t) { t.textContent = 'ENDED'; t.classList.add('ended'); }
     }
 
     // ── Players: "N watching" tag ─────────────────────────────────
@@ -278,7 +278,7 @@
             tag.title = 'People watching this game. They only see what every player sees.';
             document.body.appendChild(tag);
         }
-        tag.textContent = `👁 ${n} watching`;
+        tag.textContent = `${n} watching`;
     }
     async function playerTick() {
         if (watching) return;
@@ -301,6 +301,77 @@
         playerCh = joinSpecChannel(sb().channel.bind(sb()), room, false);
     }
 
+    // ── Hermit: spectate test ─────────────────────────────────────
+    // Like a training game, but online so it can be watched: pick 2-5 elemental
+    // bots. The first one plays this browser's own seat (test-game.js autopilot
+    // with that bot's weights), the others are normal bot seats (lobby.js
+    // hostStartGame uses window.__forcedBotElements for their elements). The room
+    // allows spectators; watch it from another window or device.
+    let seatWeights = null;
+    function openHermitTest() {
+        if (!(typeof window.isHermit === 'function' && window.isHermit())) return;
+        document.getElementById('spec-test-panel')?.remove();
+        const B = window.BotElements;
+        if (!B) { alert('Bots are not loaded yet.'); return; }
+        const o = document.createElement('div');
+        o.id = 'spec-test-panel';
+        o.className = 'retro-dlg-overlay';
+        o.innerHTML = `<div class="retro-dlg-box spec-test-box">
+            <div class="retro-dlg-title">Spectate test</div>
+            <div class="retro-dlg-line">Pick 2 to 5 bots. The first one you tick plays your own seat, so every seat is a bot. The game allows spectators: watch it from another window or device (Games you can watch, in the lobby).</div>
+            <div class="spec-test-bots">${B.ELEMENTS.map(el => `<label><input type="checkbox" value="${el}"> <span style="color:${EL_COLOR[el]}">${esc(B.NAMES[el])}</span> <span class="spec-test-order"></span></label>`).join('')}</div>
+            <div class="retro-dlg-line spec-test-msg"></div>
+            <div class="retro-dlg-btns"><button type="button" data-act="cancel">Cancel</button><button type="button" data-act="start">Start game</button></div>
+        </div>`;
+        document.body.appendChild(o);
+        const order = [];
+        const boxes = [...o.querySelectorAll('.spec-test-bots input')];
+        const paint = () => boxes.forEach(b => {
+            const k = order.indexOf(b.value);
+            b.parentNode.querySelector('.spec-test-order').textContent = k === 0 ? '(your seat)' : k > 0 ? `(seat ${k + 1})` : '';
+        });
+        boxes.forEach(b => b.onchange = () => {
+            const k = order.indexOf(b.value);
+            if (b.checked && k < 0) order.push(b.value);
+            if (!b.checked && k >= 0) order.splice(k, 1);
+            paint();
+        });
+        o.querySelector('[data-act=cancel]').onclick = () => o.remove();
+        o.querySelector('[data-act=start]').onclick = async (ev) => {
+            const msg = o.querySelector('.spec-test-msg');
+            if (order.length < 2) { msg.textContent = 'Pick at least 2 bots.'; return; }
+            if (document.getElementById('game-layout')?.classList.contains('active') || g('currentGameId') != null) {
+                msg.textContent = 'Start it from the lobby (leave your current room first).';
+                return;
+            }
+            ev.target.disabled = true;
+            msg.textContent = 'Creating the room...';
+            try {
+                const base = JSON.parse(JSON.stringify(window.BotSystem?.WEIGHTS || {}));
+                seatWeights = B.elementalOverlay(base, order[0]);
+                const create = window.createPrivateRoom || (typeof createPrivateRoom === 'function' ? createPrivateRoom : null);
+                await create();
+                const room = g('currentGameId');
+                if (room == null || !g('isHost')) throw new Error('could not create a room');
+                const { error } = await sb().from('game_room').update({ allow_spectators: true }).eq('id', room);
+                if (error) throw error;
+                msg.textContent = 'Adding bots...';
+                const add = window.addBotPlayer;
+                for (let k = 1; k < order.length; k++) await add();
+                window.__forcedBotElements = order.slice(1);
+                msg.textContent = 'Starting...';
+                const startGame = window.hostStartGame || (typeof hostStartGame === 'function' ? hostStartGame : null);
+                await startGame();
+                o.remove();
+                window.TestGame?.startWatchTest?.(room);
+            } catch (e) {
+                window.__forcedBotElements = null;
+                msg.textContent = 'Could not start: ' + (e?.message || e);
+                ev.target.disabled = false;
+            }
+        };
+    }
+
     setInterval(() => { waitingRoomTick(); lobbyTick(); playerTick(); }, 1000);
-    window.Spectate = { watch, isWatching: () => !!watching };
+    window.Spectate = { watch, isWatching: () => !!watching, openHermitTest, seatWeights: () => seatWeights };
 })();

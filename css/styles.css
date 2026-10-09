@@ -5191,3 +5191,9 @@ body.spectating #undo-move, body.spectating #cast-spell, body.spectating #end-tu
 #spectate-bar .spec-follow { font-size: 12px; }
 #spectate-bar .spec-follow input { width: 13px; height: 13px; margin: 0; }
 @media (max-width: 760px) { #spectate-bar { flex-wrap: wrap; white-space: normal; } }
+.spec-turn-tag { font-size: 10px; color: #ffce00; border: 1px solid #ffce00; border-radius: 6px; padding: 0 4px; margin-left: 4px; font-weight: normal; }
+.spec-test-box { max-width: 460px; }
+.spec-test-bots { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; text-align: left; }
+.spec-test-bots label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.spec-test-order { color: #aaa; font-size: 12px; }
+.spec-test-msg { min-height: 18px; color: #ffce00; }

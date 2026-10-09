@@ -60,6 +60,7 @@
     let busy = false;
     let lastTurnKey = null;
     let placedTile = false;
+    let watchTest = false;             // spectate test (js/spectate.js): autopilot only, no chaos / quiet / report
     let lastTurnSeen = -1;
     let chaosNow = null;               // { type, until }
     let slowUntil = 0, slowDelay = 0, sendChain = Promise.resolve(), pendingSlow = 0;
@@ -222,7 +223,7 @@
     // to the k-th human seat in turn, so two browsers never misbehave at once.
     function chaosOff() { try { return localStorage.getItem('godaigo_test_chaos') === 'off'; } catch (e) { return false; } }
     function maybeChaos(turn) {
-        if (!active || chaosNow || chaosOff() || turn < 4 || turn % CHAOS_PERIOD !== 3) return;
+        if (!active || watchTest || chaosNow || chaosOff() || turn < 4 || turn % CHAOS_PERIOD !== 3) return;
         const humans = humanSeats();
         if (!humans.length) return;
         const slot = Math.floor(turn / CHAOS_PERIOD) % humans.length;
@@ -279,7 +280,15 @@
         try {
             await new Promise(r => setTimeout(r, 900));      // let turn-change effects settle
             if (!active || g('activePlayerIndex') !== i) return;
-            await window.BotSystem.turn();
+            // spectate test: this seat plays as the elemental bot the hermit picked
+            let savedWeights = null;
+            const seatWeights = watchTest ? window.Spectate?.seatWeights?.() : null;
+            if (seatWeights) {
+                if (!window.BotArena && window.LazyScripts) { try { await window.LazyScripts.load('bot-arena'); } catch (e) {} }
+                if (window.BotArena?.applyWeights) { savedWeights = { ...window.BotSystem.WEIGHTS }; window.BotArena.applyWeights(seatWeights); }
+            }
+            try { await window.BotSystem.turn(); }
+            finally { if (savedWeights) window.BotArena.applyWeights(savedWeights); }
             note('turns_played');
             if (active && g('activePlayerIndex') === i && turnNo() + ':' + i === key && !window.isGamePaused?.()) {
                 const btn = document.getElementById('end-turn');
@@ -320,7 +329,7 @@
 
         const turn = turnNo();
         if (turn !== lastTurnSeen) { lastTurnSeen = turn; stats.turns = turn; maybeChaos(turn); }
-        if (turn >= TURN_CAP) { finish('turn cap'); return; }
+        if (turn >= TURN_CAP && !watchTest) { finish('turn cap'); return; }
         if (paused || stopForced) return;
 
         respond();
@@ -379,13 +388,18 @@
     }
 
     // ------------------------------------------------------------- lifecycle
-    function start(id) {
+    // opts.watch: the hermit's spectate test (js/spectate.js): the autopilot plays
+    // this browser's seat, nothing else (no chaos, no quiet mode, no report).
+    function start(id, opts) {
+        watchTest = !!(opts && opts.watch);
         active = true; reported = false; roomId = id; stopForced = false;
         busy = false; lastTurnKey = null; placedTile = false; lastTurnSeen = -1;
         chaosNow = null; slowUntil = 0; pausedSince = 0;
         stats = newStats();
         stats.wake_lock = wakeState;
-        patchBroadcast(); patchPause(); patchTakeFlight();
+        patchTakeFlight();
+        if (watchTest) { log('spectate test started in room', id); showBar(); return; }
+        patchBroadcast(); patchPause();
         quietOn();
         log('test game started in room', id);
         showBar();
@@ -396,6 +410,7 @@
         if (!active) return;
         active = false;
         doneRoom = roomId;
+        if (watchTest) { watchTest = false; hideBar(); return; }
         quietOff();
         if (pausedSince) { stats.paused_ms += Date.now() - pausedSince; pausedSince = 0; }
         if (hiddenSince) { stats.hidden_ms += Date.now() - hiddenSince; hiddenSince = Date.now(); }
@@ -444,11 +459,14 @@
         const bar = document.createElement('div');
         bar.id = 'test-game-bar';
         bar.className = 'test-game-bar';
-        bar.innerHTML = `<span>${icon(0.6)} Test game: bots are playing for everyone. Keep this tab open and in front.</span>
+        bar.innerHTML = watchTest
+            ? `<span>Spectate test: bots play every seat (yours too). Keep this window open and in front; watch from another window or device.</span>
+            <button type="button" id="test-game-stop">Stop test</button>`
+            : `<span>${icon(0.6)} Test game: bots are playing for everyone. Keep this tab open and in front.</span>
             <button type="button" id="test-game-stop">Stop test</button>`;
         document.body.appendChild(bar);
         bar.querySelector('#test-game-stop').onclick = async () => {
-            if (!confirm('Stop the test and leave the game? Your report is sent now.')) return;
+            if (!confirm(watchTest ? 'Stop the spectate test and leave the game?' : 'Stop the test and leave the game? Your report is sent now.')) return;
             stopForced = true;
             await finish('stopped');
             if (typeof window.leaveGame === 'function') window.leaveGame();
@@ -617,6 +635,7 @@
 
     window.TestGame = {
         isActive: () => active,
+        startWatchTest: (id) => { if (!active) start(id, { watch: true }); },
         openHermit,
         onGameOver(winner, winType) { if (active) finish('win:' + (winType || 'scrolls'), winner); },
         settings: () => settings,
