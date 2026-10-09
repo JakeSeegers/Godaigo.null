@@ -1,7 +1,9 @@
 // "Your Turn" banner (owner 2026-10-09): when your turn starts in an online game,
 // three thick diagonal stripes in your colour sweep across the screen (a wind
 // whoosh each), with YOUR TURN cut out of them. Once all three are drawn, black
-// outlines snap on around the stripes and the letters, then it all slides off.
+// outlines snap on around the stripes and the letters. It stays until the mouse
+// moves (or a key, click, wheel or touch), then plays backwards and goes. It also
+// goes when the turn ends or the game is left.
 // Never takes the mouse (pointer-events none). Watches the turn every 150 ms, no
 // game hooks. Skipped in replays (myPlayerIndex -1), while a saved game is being
 // rebuilt, during placement, and when window.fxOn() is false (quiet test games,
@@ -11,8 +13,8 @@
     'use strict';
     const NS = 'http://www.w3.org/2000/svg';
     const TILT = -12;                // degrees
-    const SWEEP = 190, STAGGER = 120, OUTLINE_AT = 520, HOLD_UNTIL = 1350, EXIT = 280;
-    let lastShownTurn = null, playing = false;
+    const SWEEP = 190, STAGGER = 120, OUTLINE_AT = 520, REVERSE_RATE = 1.4;
+    let lastShownTurn = null, playing = false, dismiss = null;
 
     function myRealIndex() {
         const d = window.BotDriver?.driverRealIndex?.();
@@ -111,13 +113,39 @@
             }
         } catch (e) {}
 
-        const done = () => { svg.remove(); playing = false; };
+        const done = () => { svg.remove(); playing = false; dismiss = null; };
+        // after the intro the banner stays until the mouse moves (or a key / click / wheel / touch);
+        // then the whole intro plays backwards (outlines off, stripes pull back, last one first)
+        let leaving = false;
+        function waitForInput(onGo) {
+            let x0 = null, y0 = null;
+            const off = () => EVENTS.forEach(([t, f]) => window.removeEventListener(t, f, true));
+            let gone = false;
+            const go = () => { if (gone) return; gone = true; off(); onGo(); };
+            const move = (e) => {
+                if (x0 == null) { x0 = e.clientX; y0 = e.clientY; return; }
+                if (Math.hypot(e.clientX - x0, e.clientY - y0) > 6) go();
+            };
+            const EVENTS = [['pointermove', move], ['pointerdown', go], ['keydown', go], ['wheel', go], ['touchstart', go]];
+            EVENTS.forEach(([t, f]) => window.addEventListener(t, f, { capture: true, passive: true }));
+            dismiss = go;
+        }
         if (reduce) {
             outlines.setAttribute('opacity', 1); letterLine.setAttribute('opacity', 1);
-            svg.animate([{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.85 }, { opacity: 0 }], { duration: 1600 }).onfinish = done;
+            svg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 }).onfinish = () => waitForInput(() => {
+                svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' }).onfinish = done;
+            });
             return;
         }
 
+        // every intro animation ends at TOTAL (endDelay), so reverse() mirrors the whole intro
+        const TOTAL = OUTLINE_AT + 260;
+        const intro = [];
+        const anim = (target, frames, o) => {
+            const a = target.animate(frames, { ...o, endDelay: TOTAL - (o.delay || 0) - o.duration });
+            intro.push(a);
+            return a;
+        };
         // 1) stripes sweep in, alternating sides, each with a whoosh
         stripes.forEach((r, i) => {
             const fromLeft = i % 2 === 0;
@@ -125,33 +153,34 @@
             parts.forEach(p => {
                 p.style.transformBox = 'fill-box';
                 p.style.transformOrigin = fromLeft ? 'left center' : 'right center';
-                p.animate([
+                anim(p, [
                     { transform: 'scaleX(0)' },
                     { transform: 'scaleX(1.02)', offset: 0.8 },
                     { transform: 'scaleX(1)' },
-                ], { duration: SWEEP, delay: i * STAGGER, easing: 'cubic-bezier(.2,.9,.25,1)', fill: 'backwards' });
+                ], { duration: SWEEP, delay: i * STAGGER, easing: 'cubic-bezier(.2,.9,.25,1)', fill: 'both' });
             });
             whoosh(i * STAGGER);
         });
         // 2) outlines snap on with a punch
-        [outlines, letterLine].forEach(o => o.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 70, delay: OUTLINE_AT, fill: 'forwards' }));
-        inner.animate([
+        [outlines, letterLine].forEach(o => anim(o, [{ opacity: 0 }, { opacity: 1 }], { duration: 70, delay: OUTLINE_AT, fill: 'both' }));
+        anim(inner, [
             { transform: 'scale(1)' },
             { transform: 'scale(1.07)', offset: 0.3 },
             { transform: 'scale(0.985)', offset: 0.7 },
             { transform: 'scale(1)' },
         ], { duration: 260, delay: OUTLINE_AT, easing: 'ease-out' });
-        // 3) slide off along the stripes and fade
-        const out = svg.animate([
-            { transform: 'translateX(0)', opacity: 1 },
-            { transform: `translateX(${-W * 0.25}px)`, opacity: 0 },
-        ], { duration: EXIT, delay: HOLD_UNTIL, easing: 'cubic-bezier(.5,0,.9,.4)', fill: 'forwards' });
-        out.onfinish = done;
-        setTimeout(() => { if (playing && svg.isConnected && out.playState !== 'paused') done(); }, HOLD_UNTIL + EXIT + 500);
+        // 3) hold, then reverse on the first input
+        intro[0].finished.then(() => waitForInput(() => {
+            if (leaving) return;
+            leaving = true;
+            intro.forEach(a => { a.reverse(); a.updatePlaybackRate(-REVERSE_RATE); });
+            stripes.forEach((r, i) => whoosh((TOTAL - i * STAGGER - SWEEP) / REVERSE_RATE));
+            setTimeout(done, TOTAL / REVERSE_RATE + 60);
+        })).catch(() => {});
     }
 
     setInterval(() => {
-        if (!isMyTurnNow()) return;
+        if (!isMyTurnNow()) { if (dismiss) dismiss(); return; }   // turn over or game left: pull it back
         const turn = (typeof currentTurnNumber !== 'undefined') ? currentTurnNumber : null;
         if (turn === lastShownTurn) return;
         if (document.hidden) return;            // play it when the player comes back
@@ -160,5 +189,5 @@
         play();
     }, 150);
 
-    window.TurnBanner = { play };
+    window.TurnBanner = { play, dismiss: () => dismiss && dismiss() };
 })();
