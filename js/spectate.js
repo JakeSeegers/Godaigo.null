@@ -186,6 +186,7 @@
             watching?.specCh?.send({ type: 'broadcast', event: 'spec-emote', payload: { i: +b.dataset.emote, name } });
         });
         bar.querySelector('[data-act=exit]').onclick = () => {
+            if (watching?.host && !confirm('Stop the spectate test? The game ends for everyone.')) return;
             try { sessionStorage.setItem('godaigo_skip_intro_once', '1'); } catch (e) {}
             location.reload();
         };
@@ -232,7 +233,7 @@
             const els = ELEMENTS.map(e => `<span class="spec-el ${act.has?.(e) ? 'on' : ''}" style="--el:${EL_COLOR[e]}" title="${e}"></span>`).join('');
             const ap = i === active ? `${(g('currentAP') || 0) + (g('voidAP') || 0)} AP` : '';
             const home = homeCache[i];
-            const homeTxt = Number.isFinite(home) && home < 99 ? `${home} to home` : '';
+            const homeTxt = Number.isFinite(home) && home < 99 ? `${Math.round(home)} to home` : '';
             const name = typeof getPlayerColorName === 'function' ? getPlayerColorName(i) : s.username;
             const hand = ps.hand ? ps.hand.size : 0, activeN = ps.active ? ps.active.size : 0;
             return `<div class="spec-row ${i === active ? 'turn' : ''}">
@@ -301,13 +302,12 @@
         playerCh = joinSpecChannel(sb().channel.bind(sb()), room, false);
     }
 
-    // ── Hermit: spectate test ─────────────────────────────────────
+    // -- Hermit: spectate test --
     // Like a training game, but online so it can be watched: pick 2-5 elemental
-    // bots. The first one plays this browser's own seat (test-game.js autopilot
-    // with that bot's weights), the others are normal bot seats (lobby.js
-    // hostStartGame uses window.__forcedBotElements for their elements). The room
-    // allows spectators; watch it from another window or device.
-    let seatWeights = null;
+    // bots, they take every seat. This browser hosts (runs the bots) WITHOUT a
+    // seat (window.__seatlessHost, read by lobby.js hostStartGame /
+    // handleGameStart) and shows the game as a spectator. The room allows
+    // spectators, so it can also be watched from another window or device.
     function openHermitTest() {
         if (!(typeof window.isHermit === 'function' && window.isHermit())) return;
         document.getElementById('spec-test-panel')?.remove();
@@ -318,23 +318,17 @@
         o.className = 'retro-dlg-overlay';
         o.innerHTML = `<div class="retro-dlg-box spec-test-box">
             <div class="retro-dlg-title">Spectate test</div>
-            <div class="retro-dlg-line">Pick 2 to 5 bots. The first one you tick plays your own seat, so every seat is a bot. The game allows spectators: watch it from another window or device (Games you can watch, in the lobby).</div>
-            <div class="spec-test-bots">${B.ELEMENTS.map(el => `<label><input type="checkbox" value="${el}"> <span style="color:${EL_COLOR[el]}">${esc(B.NAMES[el])}</span> <span class="spec-test-order"></span></label>`).join('')}</div>
+            <div class="retro-dlg-line">Pick 2 to 5 bots. They take every seat; you only watch (this window runs the bots, so keep it open). Others can watch too from Games you can watch in the lobby.</div>
+            <div class="spec-test-bots">${B.ELEMENTS.map(el => `<label><input type="checkbox" value="${el}"> <span style="color:${EL_COLOR[el]}">${esc(B.NAMES[el])}</span></label>`).join('')}</div>
             <div class="retro-dlg-line spec-test-msg"></div>
             <div class="retro-dlg-btns"><button type="button" data-act="cancel">Cancel</button><button type="button" data-act="start">Start game</button></div>
         </div>`;
         document.body.appendChild(o);
         const order = [];
-        const boxes = [...o.querySelectorAll('.spec-test-bots input')];
-        const paint = () => boxes.forEach(b => {
-            const k = order.indexOf(b.value);
-            b.parentNode.querySelector('.spec-test-order').textContent = k === 0 ? '(your seat)' : k > 0 ? `(seat ${k + 1})` : '';
-        });
-        boxes.forEach(b => b.onchange = () => {
+        o.querySelectorAll('.spec-test-bots input').forEach(b => b.onchange = () => {
             const k = order.indexOf(b.value);
             if (b.checked && k < 0) order.push(b.value);
             if (!b.checked && k >= 0) order.splice(k, 1);
-            paint();
         });
         o.querySelector('[data-act=cancel]').onclick = () => o.remove();
         o.querySelector('[data-act=start]').onclick = async (ev) => {
@@ -347,8 +341,6 @@
             ev.target.disabled = true;
             msg.textContent = 'Creating the room...';
             try {
-                const base = JSON.parse(JSON.stringify(window.BotSystem?.WEIGHTS || {}));
-                seatWeights = B.elementalOverlay(base, order[0]);
                 const create = window.createPrivateRoom || (typeof createPrivateRoom === 'function' ? createPrivateRoom : null);
                 await create();
                 const room = g('currentGameId');
@@ -356,22 +348,49 @@
                 const { error } = await sb().from('game_room').update({ allow_spectators: true }).eq('id', room);
                 if (error) throw error;
                 msg.textContent = 'Adding bots...';
-                const add = window.addBotPlayer;
-                for (let k = 1; k < order.length; k++) await add();
-                window.__forcedBotElements = order.slice(1);
+                // the room may hold 5 bots plus this seatless host, so bots are added
+                // here directly (addBotPlayer stops at 5 rows)
+                const prefix = window.BOT_USERNAME_PREFIX || '';
+                for (let k = 0; k < order.length; k++) {
+                    const { error: e2 } = await sb().from('players').insert([{
+                        username: `${prefix} Bot ${k + 1}`.trim(), is_ready: true, game_id: room, bot_weights: null, bot_source_id: null,
+                    }]);
+                    if (e2) throw e2;
+                }
+                window.__forcedBotElements = order.slice();
+                window.__seatlessHost = true;
                 msg.textContent = 'Starting...';
                 const startGame = window.hostStartGame || (typeof hostStartGame === 'function' ? hostStartGame : null);
                 await startGame();
                 o.remove();
-                window.TestGame?.startWatchTest?.(room);
             } catch (e) {
                 window.__forcedBotElements = null;
+                window.__seatlessHost = false;
                 msg.textContent = 'Could not start: ' + (e?.message || e);
                 ev.target.disabled = false;
             }
         };
     }
 
+    // lobby.js handleGameStart, seatless host: this window becomes a spectator
+    // view of its own game (it keeps running the bots as host).
+    function onSeatlessHostStart(roomId, seats) {
+        window.__liveSpectate = true;
+        watching = {
+            roomId,
+            host: true,
+            match: { seats: seats.map(p => ({ index: p.player_index, color: p.color, username: p.username })),
+                     players: seats.map(p => ({ username: p.username })) },
+            specCh: null,
+        };
+        try { watching.specCh = joinSpecChannel(sb().channel.bind(sb()), roomId, true); } catch (e) {}
+        document.body.classList.add('spectating');
+        buildBar();
+        buildScoreboard();
+        setInterval(tickSpectator, 500);
+        if (typeof updateStatus === 'function') updateStatus('Spectate test: the bots are playing');
+    }
+
     setInterval(() => { waitingRoomTick(); lobbyTick(); playerTick(); }, 1000);
-    window.Spectate = { watch, isWatching: () => !!watching, openHermitTest, seatWeights: () => seatWeights };
+    window.Spectate = { watch, isWatching: () => !!watching, openHermitTest, onSeatlessHostStart };
 })();

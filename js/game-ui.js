@@ -867,14 +867,19 @@
             // delegates from document level so this needs no wiring here).
 
             // Build ordered list: self first, then others
+            // The host's real seat, not a bot it is acting for right now
+            // (bot-driver.js asBot swaps myPlayerIndex); none (-1) for a
+            // spectator or the seatless host of a spectate test.
+            const dri = window.BotDriver?.driverRealIndex?.();
+            const meIdx = dri != null ? dri : myPlayerIndex;
             const playerOrder = [];
-            playerOrder.push(myPlayerIndex);
+            if (meIdx != null && meIdx >= 0) playerOrder.push(meIdx);
             for (let i = 0; i < totalPlayers; i++) {
-                if (i !== myPlayerIndex) playerOrder.push(i);
+                if (i !== meIdx) playerOrder.push(i);
             }
 
             for (const i of playerOrder) {
-                const isSelf = (i === myPlayerIndex);
+                const isSelf = (i === meIdx);
                 const playerData = allPlayersData.find(p => p.player_index === i);
                 const playerName = getPlayerColorName(i);
                 const playerColor = playerData ? PLAYER_COLORS[playerData.color] : '#666';

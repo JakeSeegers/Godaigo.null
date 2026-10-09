@@ -1812,12 +1812,15 @@
             if (startBtn) startBtn.disabled = true;
 
             try {
-                const { data: players, error } = await supabase
+                const { data: roomRows, error } = await supabase
                     .from('players')
                     .select('*')
                     .eq('game_id', currentGameId);
 
                 if (error) throw error;
+                // Hermit spectate test (js/spectate.js): the host runs the bots but has
+                // no seat; only the bot rows become players.
+                const players = window.__seatlessHost ? (roomRows || []).filter(p => p.id !== myPlayerId) : roomRows;
 
                 // Validate player count
                 if (players.length < 2) {
@@ -2045,6 +2048,9 @@
                 // Wait for player_index to be assigned (retry up to 10 times)
                 let myPlayer = null;
                 let attempts = 0;
+                // Seatless host (hermit spectate test, js/spectate.js): no seat to wait for.
+                const seatless = !!(window.__seatlessHost && isHost);
+                if (seatless) { myPlayer = { player_index: -1, color: null }; attempts = 10; }
                 
                 while (attempts < 10) {
                     const { data, error } = await supabase
@@ -2087,13 +2093,14 @@
 
                     if (allPlayersError) throw allPlayersError;
 
-                    if (data && data.every(p => p.player_index !== null && p.player_index !== undefined)) {
-                        allPlayers = data;
+                    const seats = seatless ? (data || []).filter(p => p.id !== myPlayerId) : data;
+                    if (seats && seats.every(p => p.player_index !== null && p.player_index !== undefined)) {
+                        allPlayers = seats;
                         break;
                     }
 
                     console.log(`⏳ Waiting for all players' index assignment (attempt ${attempt + 1}/10)...`);
-                    allPlayers = data; // keep the latest snapshot in case we exhaust retries
+                    allPlayers = seatless ? (data || []).filter(p => p.id !== myPlayerId) : data; // keep the latest snapshot in case we exhaust retries
                     await new Promise(resolve => setTimeout(resolve, 300));
                 }
 
@@ -2172,7 +2179,23 @@
                 startLastManStandingPoll();
 
                 // Initialize game with multiplayer players and shared deck seed
-                startMultiplayerGame(allPlayers, gameDeckSeed, scarceTiles);
+                if (seatless) {
+                    // start like a replay: seen from the first seat, then no seat at all
+                    // (startMultiplayerGame looks "me" up by myPlayerId, so borrow seat 0's
+                    // id for the start, as replay-viewer.js does; the real id is kept
+                    // for this window's heartbeat)
+                    const realId = myPlayerId;
+                    myPlayerId = allPlayers[0].id;
+                    myPlayerIndex = allPlayers[0].player_index;
+                    startMultiplayerGame(allPlayers, gameDeckSeed, scarceTiles);
+                    myPlayerId = realId;
+                    myPlayerIndex = -1;
+                    const tray = document.getElementById('new-player-tile-deck') || document.getElementById('player-tile-deck');
+                    if (tray) tray.innerHTML = '';
+                    window.Spectate?.onSeatlessHostStart?.(currentGameId, allPlayers);
+                } else {
+                    startMultiplayerGame(allPlayers, gameDeckSeed, scarceTiles);
+                }
 
                 // Host records the match (replays, cheat checks, stats).
                 if (isHost) {

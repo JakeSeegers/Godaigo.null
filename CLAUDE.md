@@ -342,10 +342,12 @@ Order matters — later scripts depend on earlier ones.
                              reloads), scoreboard (elements, AP, pool, hand/active counts, BotSystem.homeCost steps home), emote feed.
                              Count + emotes: channel 'spectate-room-<id>' (presence = spectators; players join without tracking and
                              show "N watching", never the emotes).
-                             Hermit menu "Spectate test": pick 2-5 elemental bots; a private room with allow_spectators, the bot
-                             seats get the picked elements (window.__forcedBotElements, read once by lobby.js hostStartGame), and the
-                             hermit's own seat is played by TestGame.startWatchTest (test-game.js autopilot, no chaos / quiet / report /
-                             turn cap) with the first bot's weights (Spectate.seatWeights). Watch from another window or device.
+                             Hermit menu "Spectate test": pick 2-5 elemental bots; they take EVERY seat (like a training game).
+                             A private room with allow_spectators; bot rows inserted directly (up to 5); window.__forcedBotElements
+                             gives them the picked elements; window.__seatlessHost: lobby.js hostStartGame / handleGameStart leave the
+                             host's own row out of the seats (it borrows seat 0's id for startMultiplayerGame like replay-viewer.js,
+                             then myPlayerIndex = -1); the host still drives every bot (BotDriver) and records the match, and its
+                             window becomes a spectator view (Spectate.onSeatlessHostStart). Also watchable from another device.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
