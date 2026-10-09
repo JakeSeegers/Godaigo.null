@@ -1027,7 +1027,8 @@
             }
 
             // End-of-turn overflow: hand or active over capacity.
-            // Opens the Hand + Active panels and shows a top banner until resolved.
+            // Opens the Hand + Active panels; the HUD End Turn button shows the status until resolved
+            // (top banner only when that button is not on screen).
             showEndTurnOverflowModal(onResolved) {
                 const self = this;
 
@@ -1068,6 +1069,76 @@
                         if (explainer.querySelector('.overflow-explainer-hide input').checked) window.gami?.hideTip?.('scroll_overflow');
                         explainer.remove();
                     });
+                }
+
+                // Owner 2026-10-09: the overflow status lives on the HUD End Turn
+                // button itself (red "Discard: Hand 3/2" while over, green "End Turn"
+                // once resolved) instead of a separate top banner. A window
+                // capture-phase click listener takes the click before the button's
+                // own handler (which would run the whole end-turn path again, shrine
+                // collection included) and before action-log.js's document listener.
+                // The old banner below stays as the fallback when the HUD button is
+                // not on screen.
+                const hudBtn = document.getElementById('end-turn');
+                if (hudBtn && hudBtn.offsetParent !== null) {
+                    document.getElementById('scroll-overflow-banner')?.remove();
+                    window.clearEndTurnPrompt?.();
+                    hudBtn.classList.add('overflow-pending');
+                    const counts = () => {
+                        const sc = self.getPlayerScrolls(false);
+                        return { sc, handOver: sc.hand.size > self.MAX_HAND_SIZE, activeOver: sc.active.size > self.MAX_ACTIVE_SIZE };
+                    };
+                    let lastText = null;
+                    const paint = () => {
+                        const { sc, handOver, activeOver } = counts();
+                        const over = handOver || activeOver;
+                        let text = 'End Turn';
+                        if (over) {
+                            const parts = [];
+                            if (handOver) parts.push(`Hand ${sc.hand.size}/${self.MAX_HAND_SIZE}`);
+                            if (activeOver) parts.push(`Active ${sc.active.size}/${self.MAX_ACTIVE_SIZE}`);
+                            text = `Discard: ${parts.join(', ')}`;
+                        }
+                        hudBtn.classList.toggle('overflow-over', over);
+                        hudBtn.classList.toggle('overflow-ok', !over);
+                        hudBtn.title = over
+                            ? `Over the scroll limit. Discard down to ${self.MAX_HAND_SIZE} in your Hand and ${self.MAX_ACTIVE_SIZE} in your Active Area to end your turn.`
+                            : `Resolved: Hand ${sc.hand.size}/${self.MAX_HAND_SIZE}, Active ${sc.active.size}/${self.MAX_ACTIVE_SIZE}`;
+                        if (text !== lastText) { hudBtn.textContent = text; lastText = text; }
+                        return over;
+                    };
+                    const cleanup = () => {
+                        clearInterval(hudPoll);
+                        window.removeEventListener('click', onClick, true);
+                        hudBtn.classList.remove('overflow-pending', 'overflow-over', 'overflow-ok', 'overflow-shake');
+                        hudBtn.title = '';
+                        hudBtn.textContent = 'End Turn';
+                    };
+                    const onClick = (e) => {
+                        if (!(e.target && e.target.closest && e.target.closest('#end-turn') === hudBtn)) return;
+                        e.stopImmediatePropagation();
+                        e.preventDefault();
+                        if (paint()) {
+                            window.SoundSystem?.play('error');
+                            if (typeof updateStatus === 'function') updateStatus('Discard down to your hand/active limits before your turn can end!');
+                            hudBtn.classList.remove('overflow-shake');
+                            void hudBtn.offsetWidth;
+                            hudBtn.classList.add('overflow-shake');
+                            return;
+                        }
+                        delete self.pendingEndTurnOverflow[playerIdx];
+                        cleanup();
+                        try { window.ActionLog?.record?.('endTurn', {}); } catch (err) {}
+                        onResolved();
+                    };
+                    window.addEventListener('click', onClick, true);
+                    // the turn moved on some other way (timeout, leaving): put the button back
+                    const hudPoll = setInterval(() => {
+                        if (!self.pendingEndTurnOverflow[playerIdx] || activePlayerIndex !== playerIdx || !hudBtn.isConnected) { cleanup(); return; }
+                        paint();
+                    }, 300);
+                    paint();
+                    return;
                 }
 
                 // Remove any stale banner from a previous call

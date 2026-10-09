@@ -263,15 +263,33 @@ body {
     box-shadow: none !important;
     transition: none !important;
 }
+/* Scroll overflow on the End Turn button (game-core.js showEndTurnOverflowModal) */
+.hud-end-turn.overflow-over:not(:disabled) {
+    border-color: #ed1b43 !important;
+    color: #ffb3c0 !important;
+    background: #2a0810 !important;
+    animation: end-turn-over-pulse 1.4s ease-in-out infinite;
+}
+.hud-end-turn.overflow-over.overflow-shake { animation: end-turn-shake 0.32s ease-out, end-turn-over-pulse 1.4s ease-in-out infinite; }
+@keyframes end-turn-over-pulse {
+    0%, 100% { box-shadow: 3px 3px 0 #000, 0 0 0 rgba(237, 27, 67, 0); }
+    50%      { box-shadow: 3px 3px 0 #000, 0 0 10px rgba(237, 27, 67, 0.6); }
+}
+@keyframes end-turn-shake {
+    0%, 100% { translate: 0 0; }
+    20% { translate: -4px 0; } 40% { translate: 4px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; }
+}
 /* Out of AP: green shimmer instead of a pop-up (game-ui.js showEndTurnPrompt) */
-.hud-end-turn.ap-out:not(:disabled) {
+.hud-end-turn.ap-out:not(:disabled),
+.hud-end-turn.overflow-ok:not(:disabled) {
     border-color: #6fdc8c !important;
     color: #c9f7d4 !important;
     background: linear-gradient(110deg, #10301a 0%, #10301a 40%, #2f7a45 50%, #10301a 60%, #10301a 100%) !important;
     background-size: 250% 100% !important;
     animation: end-turn-shimmer 2.4s linear infinite, end-turn-glow 2.4s ease-in-out infinite;
 }
-.hud-end-turn.ap-out:not(:disabled):hover {
+.hud-end-turn.ap-out:not(:disabled):hover,
+.hud-end-turn.overflow-ok:not(:disabled):hover {
     background-color: #1a4426 !important;
 }
 @keyframes end-turn-shimmer {
@@ -283,7 +301,7 @@ body {
     50%      { box-shadow: 3px 3px 0 #000, 0 0 10px rgba(111, 220, 140, 0.55); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .hud-end-turn.ap-out:not(:disabled) { animation: none; }
+    .hud-end-turn.ap-out:not(:disabled), .hud-end-turn.overflow-ok:not(:disabled), .hud-end-turn.overflow-over:not(:disabled) { animation: none; }
 }
 .hud-end-turn:disabled {
     background: #1a1a1a !important;

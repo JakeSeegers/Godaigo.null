@@ -809,7 +809,7 @@
             // reads true; the host's button must not shimmer for a bot's turn.
             if (window.BotDriver?.controlsActivePlayer?.()) return;
             const endTurnBtn = document.getElementById('end-turn');
-            if (!endTurnBtn || endTurnBtn.disabled || endTurnBtn.classList.contains('ap-out')) return;
+            if (!endTurnBtn || endTurnBtn.disabled || endTurnBtn.classList.contains('ap-out') || endTurnBtn.classList.contains('overflow-pending')) return;
             endTurnBtn.classList.add('ap-out');
             endTurnBtn.textContent = END_TURN_OUT_LABEL;
             apOutTimer = setInterval(() => {
