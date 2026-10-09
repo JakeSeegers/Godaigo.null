@@ -1498,5 +1498,16 @@ const ScrollPanelSystem = (() => {
         setTimeout(init, 0);
     }
 
+    // An open scroll choice (multiplayer-state.js pendingScrollChoice) must be
+    // finished first: the card buttons (cast, move to Active / Common) wait
+    // (owner 2026-10-09).
+    document.addEventListener('click', (e) => {
+        if (!e.target?.closest?.('.fsp-card-btn')) return;
+        if (!window.pendingScrollChoice?.() || typeof isMyTurn !== 'function' || !isMyTurn()) return;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (typeof notYourTurn === 'function') notYourTurn();
+    }, true);
+
     return { init, toggle, refresh, openPanel, closePanel, animateCardMove, animateCardToDeck, resetToDefaults };
 })();

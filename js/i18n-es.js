@@ -496,6 +496,7 @@ window.I18N_ES = {
     "End Turn": "Terminar turno",
     "End Turn to replace AP": "Termina el turno para recuperar PA",
     "Do not show on this account again": "No mostrar más en esta cuenta",
+    "Finish your scroll choice first (or cancel it).": "Termina primero la elección del pergamino (o cancélala).",
     "Discard: Hand {0}/{1}, Active {2}/{3}": "Descarta: Mano {0}/{1}, Activa {2}/{3}",
     "Discard: Hand {0}/{1}": "Descarta: Mano {0}/{1}",
     "Discard: Active {0}/{1}": "Descarta: Activa {0}/{1}",

@@ -121,6 +121,7 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-09: Scroll choices first.** multiplayer-state.js pendingScrollChoice() blocks moving / stones / casting / card moves / end turn while a scroll choice is open (Inspiring Draught let the pawn move: the choice overlays let clicks through). Exempt: Control the Current (this-turn mode), waiting on a remote Take Flight pick. Transmute pop-up compacted (2-column grids, Done / Cancel row): all options visible at 1366x768 without scrolling; button texts unchanged for bot-effects.js. 3 arena games ran clean.
 - **2026-10-09: End Turn always grey when not your turn.** game-ui.js watcher (real seat via BotDriver.driverRealIndex) toggles `.not-my-turn`; css beats the green / red states. Was lit during host-driven bot turns (myPlayerIndex swapped) and inconsistent between disabled + inline opacity.
 - **2026-10-09: Scroll overflow on the End Turn button.** game-core.js showEndTurnOverflowModal: no top banner (fallback only); the HUD End Turn button reads red "Discard: Hand 3/2" while over (click = shake + error), green "End Turn" once resolved (click ends the turn via onResolved). showEndTurnPrompt skips while `overflow-pending`.
 - **2026-10-09: Hide info pop-ups per account.** gami.tipHidden / hideTip / resetTips (user_profiles.stats.hidden_tips + localStorage mirror). Scroll Overflow explainer has a "Do not show on this account again" checkbox; Settings > Display > Info Pop-ups > Reset. Use the same ids for future help pop-ups.

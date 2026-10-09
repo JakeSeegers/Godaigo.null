@@ -4473,15 +4473,27 @@ const ScrollEffects = {
             backgroundColor: '#1a1a2e',
             border: '2px solid #ed1b43',
             borderRadius: '10px',
-            padding: '20px',
+            padding: '14px 16px',
             color: 'white',
-            minWidth: '320px',
-            maxWidth: '420px'
+            width: 'min(460px, calc(100vw - 40px))'
         });
+        // Owner 2026-10-09: every choice visible at once, no scrolling: stones and
+        // scrolls in small two-column grids, Done / Cancel side by side.
+        const grid = () => {
+            const g = document.createElement('div');
+            Object.assign(g.style, { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '5px' });
+            modal.appendChild(g);
+            return g;
+        };
+        const compactBtn = {
+            display: 'block', width: '100%', padding: '6px 8px', margin: '0',
+            backgroundColor: '#2d2d44', color: 'white', border: '1px solid #444',
+            borderRadius: '5px', fontSize: '12px', lineHeight: '1.25', textAlign: 'left'
+        };
 
         const titleEl = document.createElement('h3');
         titleEl.textContent = 'Transmute';
-        titleEl.style.marginBottom = '10px';
+        titleEl.style.margin = '0 0 6px';
         titleEl.style.textAlign = 'center';
         titleEl.style.color = '#ed1b43';
         modal.appendChild(titleEl);
@@ -4491,14 +4503,15 @@ const ScrollEffects = {
         subtitle.textContent = 'Discard stones or scrolls to gain 2 AP each.';
         subtitle.style.color = '#bdc3c7';
         subtitle.style.fontSize = '13px';
-        subtitle.style.marginBottom = '10px';
+        subtitle.style.marginBottom = '4px';
         subtitle.style.textAlign = 'center';
         modal.appendChild(subtitle);
 
         const gainedEl = document.createElement('div');
         gainedEl.textContent = 'AP gained: 0';
         gainedEl.style.textAlign = 'center';
-        gainedEl.style.marginBottom = '10px';
+        gainedEl.style.marginBottom = '4px';
+        gainedEl.style.fontSize = '15px';
         modal.appendChild(gainedEl);
 
         const clearSuppress = () => {
@@ -4515,8 +4528,9 @@ const ScrollEffects = {
         const sectionHeader = (text) => {
             const h = document.createElement('div');
             h.textContent = text;
-            h.style.marginTop = '10px';
-            h.style.marginBottom = '6px';
+            h.style.marginTop = '8px';
+            h.style.marginBottom = '4px';
+            h.style.fontSize = '14px';
             h.style.fontWeight = 'bold';
             h.style.color = '#f39c12';
             return h;
@@ -4524,20 +4538,13 @@ const ScrollEffects = {
 
         // Stones
         modal.appendChild(sectionHeader('Stones'));
+        const stoneGrid = grid();
         const stoneTypes = ['earth', 'water', 'fire', 'wind', 'void'];
         stoneTypes.forEach(type => {
             const count = pools?.[casterIndex]?.[type] || 0;
             const btn = document.createElement('button');
             btn.textContent = `Discard 1 ${type} (${count})`;
-            Object.assign(btn.style, {
-                display: 'block',
-                width: '100%',
-                padding: '8px',
-                margin: '4px 0',
-                backgroundColor: '#2d2d44',
-                color: 'white',
-                border: '1px solid #444',
-                borderRadius: '5px',
+            Object.assign(btn.style, compactBtn, {
                 cursor: count > 0 ? 'pointer' : 'not-allowed',
                 opacity: count > 0 ? '1' : '0.4'
             });
@@ -4560,11 +4567,12 @@ const ScrollEffects = {
                 updateGained();
                 if (typeof syncPlayerState === 'function') syncPlayerState();
             };
-            modal.appendChild(btn);
+            stoneGrid.appendChild(btn);
         });
 
         // Scrolls
         modal.appendChild(sectionHeader('Scrolls'));
+        const scrollGrid = grid();
         const renderScrollButtons = (label, scrollSet) => {
             const arr = Array.from(scrollSet || []);
             if (arr.length === 0) {
@@ -4572,25 +4580,15 @@ const ScrollEffects = {
                 empty.textContent = `No ${label} scrolls`;
                 empty.style.color = '#7f8c8d';
                 empty.style.fontSize = '12px';
-                empty.style.marginBottom = '4px';
-                modal.appendChild(empty);
+                empty.style.padding = '6px 2px';
+                scrollGrid.appendChild(empty);
                 return;
             }
             arr.forEach(scrollName => {
                 const def = self.spellSystem?.patterns?.[scrollName];
                 const btn = document.createElement('button');
                 btn.textContent = `Discard ${def?.name || scrollName} (${label})`;
-                Object.assign(btn.style, {
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px',
-                    margin: '4px 0',
-                    backgroundColor: '#2d2d44',
-                    color: 'white',
-                    border: '1px solid #444',
-                    borderRadius: '5px',
-                    cursor: 'pointer'
-                });
+                Object.assign(btn.style, compactBtn, { cursor: 'pointer' });
                 btn.onclick = () => {
                     if (atMaxAP()) {
                         updateStatus('Transmute: AP is already at max.');
@@ -4610,7 +4608,7 @@ const ScrollEffects = {
                     updateGained();
                     if (typeof syncPlayerState === 'function') syncPlayerState();
                 };
-                modal.appendChild(btn);
+                scrollGrid.appendChild(btn);
             });
         };
 
@@ -4618,13 +4616,15 @@ const ScrollEffects = {
         renderScrollButtons('active', playerScrolls.active);
 
         // Done button
+        const endRow = document.createElement('div');
+        Object.assign(endRow.style, { display: 'flex', gap: '8px', marginTop: '10px' });
         const doneBtn = document.createElement('button');
         doneBtn.textContent = 'Done';
         Object.assign(doneBtn.style, {
             display: 'block',
-            width: '100%',
-            padding: '10px',
-            margin: '10px 0 0 0',
+            flex: '1',
+            padding: '9px',
+            margin: '0',
             backgroundColor: '#27ae60',
             color: 'white',
             border: 'none',
@@ -4646,16 +4646,16 @@ const ScrollEffects = {
             // Refresh inventory popup so discarded scrolls no longer appear in hand/active lists
             refreshInventoryPopup();
         };
-        modal.appendChild(doneBtn);
+        endRow.appendChild(doneBtn);
 
         // Cancel button
         const cancelBtn = document.createElement('button');
         cancelBtn.textContent = 'Cancel';
         Object.assign(cancelBtn.style, {
             display: 'block',
-            width: '100%',
-            padding: '10px',
-            margin: '8px 0 0 0',
+            flex: '1',
+            padding: '9px',
+            margin: '0',
             backgroundColor: '#e74c3c',
             color: 'white',
             border: 'none',
@@ -4668,7 +4668,8 @@ const ScrollEffects = {
             // Refresh inventory even on Cancel — some items may have been discarded before cancelling
             refreshInventoryPopup();
         };
-        modal.appendChild(cancelBtn);
+        endRow.appendChild(cancelBtn);
+        modal.appendChild(endRow);
 
         overlay.appendChild(modal);
         document.body.appendChild(overlay);

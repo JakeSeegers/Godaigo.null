@@ -6892,7 +6892,8 @@ function clearPlayerPath() {
             const playerIndex = (typeof options.playerIndex === 'number') ? options.playerIndex : activePlayerIndex;
 
             // Check if it's this player's turn (unless Take Flight drag)
-            if (!takeFlight && !isMyTurn()) {
+            if (!takeFlight && (!isMyTurn() || window.pendingScrollChoice?.())) {
+                isDraggingPlayer = false;
                 notYourTurn();
                 return;
             }

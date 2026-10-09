@@ -413,8 +413,33 @@ function canTakeAction() {
     if (typeof spellSystem !== 'undefined' && spellSystem.hasPendingEndTurnOverflow(playerIdx)) {
         return false;
     }
+    // An unfinished scroll choice (owner 2026-10-09: "resolve it before making
+    // other choices"): no moving, placing, casting or ending the turn until it
+    // is picked or cancelled. The choice's own clicks do not come through here.
+    if (pendingScrollChoice()) return false;
     return true;
 }
+
+// The scroll choice the player in front of this screen still has to make, or
+// null: an effect selection mode (pick a tile / stone / hex) or one of the
+// effect pop-ups (pick a deck, an element, a scroll, an opponent, Transmute).
+// Left out: Control the Current ('water-transform', a "this turn" mode meant to
+// run alongside other actions) and waiting on another player's Take Flight pick.
+const FREE_SELECTION_MODES = new Set(['water-transform', 'take-flight-await-remote']);
+function pendingScrollChoice() {
+    try {
+        const se = (typeof spellSystem !== 'undefined' && spellSystem) ? spellSystem.scrollEffects : null;
+        if (!se) return null;
+        const sm = se.selectionMode;
+        if (sm && !FREE_SELECTION_MODES.has(sm.type)) return sm.type || 'scroll choice';
+        if (window.takeFlightState?.active) return 'take-flight';
+        for (const id of (se.EFFECT_MODAL_IDS || [])) {
+            if (document.getElementById(id)) return id;
+        }
+    } catch (e) {}
+    return null;
+}
+window.pendingScrollChoice = pendingScrollChoice;
 
 // Show "not your turn" or "cascade pending" message
 function notYourTurn() {
@@ -430,6 +455,19 @@ function notYourTurn() {
 
     if (typeof spellSystem !== 'undefined' && spellSystem.hasPendingEndTurnOverflow(playerIdx)) {
         updateStatus(`Discard down to your hand/active limits before your turn can end!`);
+        return;
+    }
+
+    if (isMyTurn() && pendingScrollChoice()) {
+        updateStatus('Finish your scroll choice first (or cancel it).');
+        // point at the open choice
+        try {
+            const se = spellSystem.scrollEffects;
+            const el = (se.EFFECT_MODAL_IDS || []).map(id => document.getElementById(id)).find(Boolean)
+                || document.getElementById('scroll-cancel-btn') || document.getElementById('telekinesis-done-btn');
+            const box = el && (el.firstElementChild && el.style.pointerEvents === 'none' ? el.firstElementChild : el);
+            box?.animate?.([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
+        } catch (e) {}
         return;
     }
 

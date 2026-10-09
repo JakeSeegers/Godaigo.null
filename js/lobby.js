@@ -4740,6 +4740,7 @@
 
                 stoneItem.addEventListener('touchstart', (e) => {
                     if (stoneCounts[type] <= 0) return;
+                    if (window.pendingScrollChoice?.() && typeof isMyTurn === 'function' && isMyTurn()) { notYourTurn(); return; }
                     e.preventDefault();
 
                     isDraggingFromDeck = true;
