@@ -78,18 +78,48 @@
         return null;
     }
 
+    // Game Log lines for every player (owner 2026-10-09: "who that player targeted
+    // and what happened"). Only public facts: the board, stone pools and Active
+    // scrolls are shown to everyone (Opponent panel), and a plundered scroll lands
+    // face up in the Common Area. Counters already have their own log line.
+    function logHits(event, p) {
+        if (!p || typeof p !== 'object') return [];
+        const now = (typeof activePlayerIndex !== 'undefined') ? activePlayerIndex : null;
+        const moved = (list, scroll) => (Array.isArray(list) ? list : [])
+            .map(m => m && (m.playerIndex ?? m.index))
+            .filter(i => i != null && i !== now)
+            .map(i => ({ kind: 'moved', actor: now, target: i, scroll }));
+        switch (event) {
+            case 'scroll-plundered':
+                return [{ kind: 'plunder', actor: p.casterIndex, target: p.targetIndex, scroll: p.scrollName }];
+            case 'opponent-stone-destroyed':
+                return [{ kind: 'arson', actor: now, target: p.opponentIndex, stone: p.stoneType }];
+            case 'take-flight':
+                return p.targetPlayerIndex === p.casterIndex ? []
+                    : [{ kind: 'flight', actor: p.casterIndex, target: p.targetPlayerIndex }];
+            case 'tile-swap': return moved(p.movedPlayers, 'Shifting Sands');
+            case 'telekinesis-move': return moved(p.movedPlayers, 'Telekinesis');
+        }
+        return [];
+    }
+
     function consider(event, payload) {
         try {
-            if (!active()) return;
-            const me = mySeat();
-            const hit = read(event, payload, me);
-            if (!hit || hit.target !== me) return;
-            if (hit.actor != null && hit.actor === me) return;     // your own scroll
+            if (typeof isMultiplayer === 'undefined' || !isMultiplayer || window.SaveGame?.isRebuilding?.()) return;
+            if (!payload || typeof payload !== 'object') return;
             const key = event + JSON.stringify(payload);
             const t = Date.now();
             for (const [k, at] of seen) if (t - at > 10000) seen.delete(k);
             if (seen.has(key)) return;
             seen.set(key, t);
+            logHits(event, payload).forEach(h => {
+                try { window.ActionLog?.record?.('targeted', h, h.actor != null ? h.actor : undefined); } catch (e) {}
+            });
+            if (!active()) return;
+            const me = mySeat();
+            const hit = read(event, payload, me);
+            if (!hit || hit.target !== me) return;
+            if (hit.actor != null && hit.actor === me) return;     // your own scroll
             show(hit);
         } catch (e) {}
     }

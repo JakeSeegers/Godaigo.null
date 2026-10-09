@@ -277,6 +277,8 @@
             }
             case 'effect_execute': {
                 if (entry.success === false) return null;
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer &&
+                    ['Arson', 'Plunder'].includes(scrollDisplayName(entry.scrollName))) return null;   // 'targeted' line instead
                 const text = entry.message || `${scrollDisplayName(entry.scrollName)} resolved.`;
                 return {
                     html: `<span style="${scrollStyle(entry.scrollName)}">${esc(text)}</span>`,
@@ -346,6 +348,26 @@
                         `<span style="color:${elColor('catacomb')}">Excavate</span>`,
                     className: 'gl-excavate',
                 };
+            }
+            // Another player hit by a scroll (js/target-notice.js): public facts only.
+            case 'targeted': {
+                const a = entry.actor != null ? playerSpan(entry.actor) : 'Someone';
+                const t = playerSpan(entry.target);
+                const sc = (name, label) => `<span style="${scrollStyle(name)}">${esc(label)}</span>`;
+                const byName = (label) => Object.keys(window.SCROLL_DEFINITIONS || {}).find(k => window.SCROLL_DEFINITIONS[k]?.name === label) || label;
+                if (entry.kind === 'plunder') return {
+                    html: `${a} used ${sc(byName('Plunder'), 'Plunder')} on ${t}: their ${sc(entry.scroll, scrollDisplayName(entry.scroll))} went to the Common Area`,
+                    className: 'gl-counter' };
+                if (entry.kind === 'arson') return {
+                    html: `${a} used ${sc(byName('Arson'), 'Arson')} on ${t}: 1 <span style="color:${elColor(entry.stone)}">${esc(entry.stone)}</span> stone burned from their pool`,
+                    className: 'gl-counter' };
+                if (entry.kind === 'flight') return {
+                    html: `${a} used ${sc(byName('Take Flight'), 'Take Flight')} on ${t}: their pawn was moved`,
+                    className: 'gl-effect' };
+                if (entry.kind === 'moved') return {
+                    html: `${a}'s ${sc(byName(entry.scroll), entry.scroll)} moved ${t}'s pawn with the tile`,
+                    className: 'gl-effect' };
+                return null;
             }
             case 'original_countered':
             case 'original_resolved':

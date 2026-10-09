@@ -327,6 +327,8 @@ Order matters — later scripts depend on earlier ones.
                              (+ -choose-request), tile-swap / telekinesis-move carrying your pawn (movedPlayers), scroll-countered. Reads
                              messages, no scroll hooks: wraps broadcastGameAction (outgoing, so a host-driven bot hitting the host
                              counts) and GamePause.note (incoming). Online only, not in replays / save rebuild; duplicates dropped.
+                             Also records ActionLog 'targeted' {kind plunder / arson / flight / moved, actor, target, scroll, stone} for
+                             EVERY player (public facts only) -> game-log-ui.js line "X used Arson on Y: ...".
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
