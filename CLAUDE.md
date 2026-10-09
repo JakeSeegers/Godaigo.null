@@ -316,6 +316,12 @@ Order matters — later scripts depend on earlier ones.
                              YOUR TURN (TU TURNO in Spanish) cut out of them by an SVG mask, then black outlines snap on around the
                              stripes and letters with a punch. It stays until the mouse moves (6 px+) or a key / click / wheel / touch,
                              or the turn ends; then the intro plays backwards (x1.15, whooshes mirrored). Stripes 70% opaque, slower softer sweep (2026-10-09). pointer-events none.
+20b6. buff-tags.js       <- window.BuffTags: tags under the top bar (#buff-tags) for every active scroll buff in
+                             spellSystem.scrollEffects.activeBuffs (BUFFS map key -> scroll name; owner colour dot, "this turn" /
+                             "until next turn", scroll text on hover) + queued Psychic steals. Same 400 ms watcher redraws the
+                             catacomb / Freedom teleport markers (updateCatacombIndicators) when the turn, freedom / excavateTeleport
+                             owner, canTakeAction() or the active pawn's spot changes (a Freedom stolen with Psychic starts at the top
+                             of a turn and showed no markers until the pawn was put down again).
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen

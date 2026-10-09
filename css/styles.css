@@ -5053,3 +5053,48 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
     content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px;
     border-radius: 50%; background: #e74c3c; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
+
+/* Buff tags (js/buff-tags.js): active scroll buffs, shown to every player */
+#buff-tags {
+    position: fixed;
+    top: 94px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 450;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    max-width: min(760px, calc(100vw - 32px));
+    pointer-events: none;
+}
+.buff-tag {
+    --buff-color: #c8a870;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px 3px 7px;
+    background: rgba(20, 16, 34, 0.88);
+    border: 1px solid var(--buff-color);
+    border-radius: 12px;
+    box-shadow: 0 0 8px color-mix(in srgb, var(--buff-color) 35%, transparent);
+    font-family: var(--font-terminal);
+    font-size: 12px;
+    color: #eee;
+    cursor: help;
+    animation: buff-tag-in 0.25s ease-out;
+}
+.buff-tag-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid #000;
+    flex-shrink: 0;
+}
+.buff-tag-name { color: var(--buff-color); font-weight: bold; }
+.buff-tag-when { color: #9a93b5; font-size: 11px; }
+@keyframes buff-tag-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
