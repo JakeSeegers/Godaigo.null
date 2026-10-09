@@ -4,8 +4,9 @@
     {
       "id": "2026-10-09",
       "date": "2026-10-09",
-      "title": "Gentler end of turn",
+      "title": "Your turn, with style",
       "changes": [
+        "When your turn starts, stripes in your colour sweep across the screen with a whoosh and stamp out YOUR TURN.",
         "No more pop-up when you run out of AP. The End Turn button glows green and reads \"End Turn to replace AP\" instead."
       ]
     },

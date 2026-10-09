@@ -310,6 +310,11 @@ Order matters — later scripts depend on earlier ones.
                              StoneDropFx.burn(x, y): fire destroying a stone (game-core.js fireBurnFx, before removal; replaced
                              the 1.7 s effects-system.js 'fire_effect' sprite): copy chars dark and shrinks, flame tongues, crackle,
                              embers, ~0.75 s. isBurning() also holds bot.js's next action like effectsSystem.isPlaying().
+20b5. turn-banner.js      <- window.TurnBanner.play(): "Your Turn" banner. A 150 ms watcher sees your turn start in an online
+                             game (real seat via BotDriver.driverRealIndex, not placement / replay / save rebuild / fxOn false; a
+                             hidden tab waits): three diagonal stripes in your colour sweep in (alternating sides, wind whoosh each),
+                             YOUR TURN (TU TURNO in Spanish) cut out of them by an SVG mask, then black outlines snap on around the
+                             stripes and letters with a punch, and it slides off (~1.6 s). pointer-events none.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
