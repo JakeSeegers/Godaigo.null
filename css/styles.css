@@ -4534,9 +4534,31 @@ label, .hud-ap-label, .hud-ap-value {
     line-height: 1.5;
     color: var(--text-primary);
 }
+.overflow-explainer-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+}
+.overflow-explainer-hide {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary, #b8b0d0);
+    cursor: pointer;
+    user-select: none;
+}
+.overflow-explainer-hide input {
+    accent-color: var(--accent-gold);
+    margin: 0;
+    cursor: pointer;
+}
 .overflow-explainer-btn {
     display: block;
-    margin: 10px 0 0 auto;
+    margin: 0 0 0 auto;
+    flex-shrink: 0;
     background: transparent;
     border: 2px solid var(--accent-gold);
     color: var(--accent-gold);

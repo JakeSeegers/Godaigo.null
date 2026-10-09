@@ -855,6 +855,13 @@ function _renderSettingsView(content) {
             <button class="gami-toggle ${crt.flicker ? 'on' : 'off'}"
                     onclick="_gami_toggleCrt('flicker', this)">${crt.flicker ? 'ON' : 'OFF'}</button>
         </div>
+        <div class="gami-settings-row">
+            <div class="gami-settings-label">
+                <div class="gami-settings-name">Info Pop-ups</div>
+                <div class="gami-settings-desc">Show again the help pop-ups you chose to hide</div>
+            </div>
+            <button class="gami-toggle on" onclick="_gami_resetTips(this)">Reset</button>
+        </div>
     `;
 
     const logConsent = localStorage.getItem('godaigo_log_consent') === 'granted';
@@ -942,6 +949,12 @@ function _renderSettingsView(content) {
     if (_gamiSettingsCategory === 'account') {
         window.AccountRecovery?.renderSettings(document.getElementById('acct-settings-slot'));
     }
+}
+
+function _gami_resetTips(btn) {
+    window.gami?.resetTips?.();
+    btn.textContent = 'Done';
+    btn.disabled = true;
 }
 
 function _gami_toggleCrt(key, btn) {

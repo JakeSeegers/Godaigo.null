@@ -62,6 +62,28 @@ window.gami = (function () {
         get userId() { return _userId; },
         get profile() { return _profile; },
 
+        // Info pop-ups the player ticked "do not show on this account again" (2026-10-09).
+        // Saved in user_profiles.stats.hidden_tips (follows the account) and mirrored in
+        // localStorage godaigo_hidden_tips (works signed out / before the profile loads).
+        tipHidden(id) {
+            const acct = _profile?.stats?.hidden_tips;
+            if (Array.isArray(acct)) return acct.includes(id);
+            try { return JSON.parse(localStorage.getItem('godaigo_hidden_tips') || '[]').includes(id); } catch (e) { return false; }
+        },
+        hideTip(id) {
+            try {
+                const local = JSON.parse(localStorage.getItem('godaigo_hidden_tips') || '[]');
+                if (!local.includes(id)) local.push(id);
+                localStorage.setItem('godaigo_hidden_tips', JSON.stringify(local));
+            } catch (e) {}
+            const acct = Array.isArray(_profile?.stats?.hidden_tips) ? _profile.stats.hidden_tips.slice() : [];
+            if (!acct.includes(id)) { acct.push(id); _patchStats({ hidden_tips: acct }); }
+        },
+        resetTips() {
+            try { localStorage.removeItem('godaigo_hidden_tips'); } catch (e) {}
+            if (_profile) _patchStats({ hidden_tips: [] });
+        },
+
         /**
          * init(userId, displayName)
          * Called from onAuthSuccess in lobby.js.

@@ -1049,7 +1049,7 @@
                 // First time a player hits overflow this session, explain what's
                 // going on — the banner alone says the counts, not why the limit
                 // exists or what discarding to the Common Area actually does.
-                if (!self._overflowExplained) {
+                if (!self._overflowExplained && !window.gami?.tipHidden?.('scroll_overflow')) {
                     self._overflowExplained = true;
                     const old2 = document.getElementById('scroll-overflow-explainer');
                     if (old2) old2.remove();
@@ -1058,10 +1058,16 @@
                     explainer.innerHTML = `
                         <div class="overflow-explainer-title">Scroll Overflow</div>
                         <div class="overflow-explainer-body">Your Hand and Active Area can each hold at most 2 scrolls. When you're over the limit, discard down to 2 before you can end your turn, sometimes down to the Common Area, where any player can use it. Sending a scroll to the Common Area replaces a scroll of the same type already there.</div>
-                        <button class="overflow-explainer-btn">Got it</button>
+                        <div class="overflow-explainer-foot">
+                            <label class="overflow-explainer-hide"><input type="checkbox"> Do not show on this account again</label>
+                            <button class="overflow-explainer-btn">Got it</button>
+                        </div>
                     `;
                     document.body.appendChild(explainer);
-                    explainer.querySelector('.overflow-explainer-btn').addEventListener('click', () => explainer.remove());
+                    explainer.querySelector('.overflow-explainer-btn').addEventListener('click', () => {
+                        if (explainer.querySelector('.overflow-explainer-hide input').checked) window.gami?.hideTip?.('scroll_overflow');
+                        explainer.remove();
+                    });
                 }
 
                 // Remove any stale banner from a previous call

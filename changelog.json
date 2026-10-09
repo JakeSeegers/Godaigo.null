@@ -7,7 +7,8 @@
       "title": "Your turn, with style",
       "changes": [
         "When your turn starts, stripes in your colour sweep across the screen with a whoosh and stamp out YOUR TURN. They stay until you move the mouse, then pull back.",
-        "No more pop-up when you run out of AP. The End Turn button glows green and reads \"End Turn to replace AP\" instead."
+        "No more pop-up when you run out of AP. The End Turn button glows green and reads \"End Turn to replace AP\" instead.",
+        "Help pop-ups (like Scroll Overflow) have a \"Do not show on this account again\" box. Settings > Display > Info Pop-ups brings them back."
       ]
     },
     {
