@@ -255,7 +255,8 @@
         const lit = mix(edge, 'white', 0.45);
         under.appendChild(el('circle', { cx: r * 0.15, cy: 1.5, r: r * 1.3, fill: 'url(#puck-shadow)' }));
         // a little of the inner light spills onto the board, low right
-        const spill = el('ellipse', { class: 'bead-halo', cx: r * 0.35, cy: r * 0.45, rx: r * 1.5, ry: r * 1.3, fill: edge, 'fill-opacity': 0.35 * L, mask: 'url(#bead-halo-mask)' });
+        const dimK = g.classList.contains('stone-voided') ? 0.7 : 1;   // voided: the light it spills is 30% dimmer too
+        const spill = el('ellipse', { class: 'bead-halo', cx: r * 0.35, cy: r * 0.45, rx: r * 1.5, ry: r * 1.3, fill: edge, 'fill-opacity': 0.35 * L * dimK, mask: 'url(#bead-halo-mask)' });
         spill.style.mixBlendMode = 'screen'; // light, not paint
         under.appendChild(spill);
         under.appendChild(el('path', { class: 'puck-side', d, fill }));
@@ -334,6 +335,13 @@
         // thin reflected rim, bottom right
         over.appendChild(el('path', { d: `M ${r * 0.85} ${-r * 0.1} A ${r * 0.95} ${r * 0.95} 0 0 1 ${r * 0.1} ${r * 0.9}`,
             fill: 'none', stroke: '#fff', 'stroke-opacity': 0.3, 'stroke-width': 0.8, 'stroke-linecap': 'round' }));
+        // A stone whose ability a void stone cancels (class stone-voided,
+        // game-core.js updateAllVoidNullificationVisuals) is 30% dimmer (owner
+        // 2026-10-09): a 30% black dome over the whole bead, shine included. A
+        // shape, not a CSS filter (filters went stale / blurry on zoom here).
+        if (g.classList.contains('stone-voided')) {
+            over.appendChild(el('path', { class: 'bead-voided', d: domePath(r, lift), fill: '#000', 'fill-opacity': 0.3 }));
+        }
     }
 
     // Shapes under the piece, drawn in screen direction (rotate(-rot)).
@@ -446,7 +454,7 @@
                     if (m.target.matches?.(DISC + ', image') && m.target.parentNode?.matches?.(PIECES)) redo.add(m.target.parentNode);
                     // a void stone starts / stops cancelling a neighbour
                     else if (m.attributeName === 'class' && m.target.matches?.('g.stone') && m.target.querySelector(':scope > .puck-under')
-                        && m.target.classList.contains('stone-active') !== (m.oldValue || '').split(/\s+/).includes('stone-active')) redo.add(m.target);
+                        && ['stone-active', 'stone-voided'].some(c => m.target.classList.contains(c) !== (m.oldValue || '').split(/\s+/).includes(c))) redo.add(m.target);
                     continue;
                 }
                 // an ability ring taken off a stone

@@ -5197,3 +5197,8 @@ body.spectating #undo-move, body.spectating #cast-spell, body.spectating #end-tu
 .spec-test-bots label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
 .spec-test-order { color: #aaa; font-size: 12px; }
 .spec-test-msg { min-height: 18px; color: #ffce00; }
+
+/* A stone whose ability a void stone cancels: 30% dimmer (flat pieces; the 3D
+   glass beads get a dark dome in js/piece-3d.js instead). */
+g.stone.stone-voided > circle.stone-piece,
+g.stone.stone-voided > image { filter: brightness(0.7); }

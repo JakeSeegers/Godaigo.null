@@ -7989,6 +7989,10 @@ function clearPlayerPath() {
 
                 // Check if this stone is nullified by adjacent void
                 // (Only fire, wind, and earth have abilities that can be nullified)
+                // 30% dimmer while cancelled (css/styles.css, piece-3d.js bead-voided)
+                const voided = (stone.type === 'fire' || stone.type === 'wind' || stone.type === 'earth')
+                    && hasAdjacentStoneType(stone.x, stone.y, 'void');
+                if (stone.element.classList.contains('stone-voided') !== voided) stone.element.classList.toggle('stone-voided', voided);
                 if (stone.type === 'fire' || stone.type === 'wind' || stone.type === 'earth') {
                     const hasVoid = hasAdjacentStoneType(stone.x, stone.y, 'void');
                     if (hasVoid) {

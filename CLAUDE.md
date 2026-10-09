@@ -281,6 +281,8 @@ Order matters — later scripts depend on earlier ones.
                              catacomb-teleport / take-flight handlers); the pawn glide that lands there plays it instead: catacomb =
                              sink into a purple portal (mask hides below the ground line) and rise out of another; flight = fly up out
                              of sight (bigger), land on the new hex, shadows + wind puffs.
+                             Voided stones (fire / wind / earth next to a void, game-core.js sets .stone-voided): 30% darker
+                             (.bead-voided dome, dimmer halo; flat mode css brightness 0.7).
                              Tile flips: an observer on #viewport sees a g.placed-tile removed and re-added with the same data-tile-id
                              and transform but the other face (shrine marker there or not: revealTile, flipTileVisually,
                              recreateTileAsFlipped / Heavy Stomp); the tile (data-flipping: left out of #tile-sides, own slab copy,
