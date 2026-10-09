@@ -496,6 +496,8 @@ window.I18N_ES = {
     "End Turn": "Terminar turno",
     "End Turn to replace AP": "Termina el turno para recuperar PA",
     "Do not show on this account again": "No mostrar más en esta cuenta",
+    "Plan": "Planear",
+    "Plan a game with {0}: pick times, they vote": "Planea una partida con {0}: tú eliges las horas y ellos votan",
     "In a world where the disciplined can harness the mystic energy that flows through the natural world into raw crystallized materia...": "En un mundo donde los disciplinados pueden encauzar la energía mística que fluye por la naturaleza hasta convertirla en materia cristalizada...",
     "There are those who overuse this ability and become consumed by the arcane properties that these fundamental forces embody.": "Hay quienes abusan de este don y acaban consumidos por las propiedades arcanas que encarnan estas fuerzas fundamentales.",
     "To others, these mystics seem to vanish, never to be seen again.": "Para los demás, estos místicos parecen desvanecerse, para no volver a ser vistos jamás.",

@@ -350,6 +350,8 @@ Order matters — later scripts depend on earlier ones.
                              creator Pick -> set_game_plan_time). Set: Google Calendar link + .ics file; from 30 min before the
                              creator's "Open the room" (createPrivateRoom + open_game_plan_room + send_game_invite) and a Join
                              button for others. Polls my_game_plans every 30 s; lobby pop-ups for new invites and 10-min reminder.
+                             From a friend: social.js Friends list "Plan" button and player card "Plan a game" -> planWith(id) ->
+                             openCreate({with: [id]}) (that friend already ticked).
 20d. rewards.js           ← window.Rewards: Hermit rewards, player side (sql/hermit-rewards.sql). Badge catalog (special badges:
                              criteria.type "special", picture images/badges/<badges.image>), badgesHtml() icons next to names
                              (cosmetics-system seatNameHtml, lobby waiting room, leaderboard; user_profiles.shown_badges),

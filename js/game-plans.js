@@ -124,7 +124,10 @@
     }
 
     // ------------------------------------------------------------ create
-    async function openCreate() {
+    // opts.with: user ids to tick at the start (Friends list "Plan" button /
+    // player card "Plan a game", js/social.js, owner 2026-10-09).
+    async function openCreate(opts) {
+        const preset = new Set((opts && opts.with) || []);
         const o = overlay('gp-create');
         o.innerHTML = `<div class="social-modal gp-modal" role="dialog" aria-label="Plan a game">
             <div class="social-title">Plan a game</div>
@@ -167,7 +170,7 @@
         } catch (e) {}
         people = people.filter(p => !/^Guest[A-Z0-9]{6}$/.test(p.name || ''));
         const box = o.querySelector('.gp-people');
-        box.innerHTML = people.length ? people.map(p => `<label class="gp-person"><input type="checkbox" value="${esc(p.id)}">
+        box.innerHTML = people.length ? people.map(p => `<label class="gp-person"><input type="checkbox" value="${esc(p.id)}"${preset.has(p.id) ? ' checked' : ''}>
                 <span class="social-name" style="${nameStyle(p.color)}">${esc(p.name)}</span><span class="social-sub">${esc(p.tag)}</span></label>`).join('')
             : '<div class="social-empty">No friends or recent players yet. Add friends in the Friends panel first.</div>';
         box.addEventListener('change', () => {

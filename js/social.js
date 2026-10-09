@@ -216,6 +216,7 @@
         return `<div class="social-row"><span class="social-dot ${st.cls}"></span>${name}<span class="social-sub">${esc(st.text)}</span>
             <span class="social-actions">
                 ${canInvite ? `<button class="acct-btn" data-act="invite" data-id="${esc(f.user_id)}">Invite</button>` : ''}
+                ${window.GamePlans ? `<button class="acct-btn acct-btn-secondary" data-act="plan" data-id="${esc(f.user_id)}" title="Plan a game with ${esc(f.name)}: pick times, they vote">Plan</button>` : ''}
                 <button class="acct-btn acct-btn-secondary social-remove" data-act="remove" data-id="${esc(f.user_id)}" data-name="${esc(f.name)}" title="Remove friend">&times;</button>
             </span></div>`;
     }
@@ -267,6 +268,10 @@
         } else if (b.dataset.act === 'remove') {
             if (!confirm(`Remove ${b.dataset.name} from your friends?`)) { b.disabled = false; return; }
             await supabase.rpc('remove_friend', { p_user: id });
+        } else if (b.dataset.act === 'plan') {
+            b.disabled = false;
+            planWith(id);
+            return;
         } else if (b.dataset.act === 'invite') {
             const { data, error } = await supabase.rpc('send_game_invite', { p_user: id });
             msg(error ? 'Could not invite: ' + error.message
@@ -276,6 +281,14 @@
             return;
         }
         loadFriends();
+    }
+
+    // Plan a game with one friend (js/game-plans.js): close the Friends panel /
+    // player card and open the plan form with that friend already ticked.
+    function planWith(userId) {
+        if (!window.GamePlans?.openCreate) return;
+        document.querySelectorAll('.social-overlay').forEach(x => x.remove());
+        window.GamePlans.openCreate({ with: [userId] });
     }
 
     async function setHidden(hide) {
@@ -348,7 +361,8 @@
             none: '<button class="acct-btn" data-act="add">Add friend</button>',
             outgoing: '<button class="acct-btn" disabled>Request sent</button>',
             incoming: '<button class="acct-btn" data-act="accept">Accept friend request</button>',
-            friend: '<button class="acct-btn acct-btn-secondary" disabled>Friends</button>',
+            friend: (window.GamePlans ? '<button class="acct-btn" data-act="plan">Plan a game</button>' : '')
+                + '<button class="acct-btn acct-btn-secondary" disabled>Friends</button>',
             self: '',
         }[c.friend_state] || '';
         const replays = (c.replays || []).map(r =>
@@ -374,6 +388,7 @@
         o.querySelector('.social-card').addEventListener('click', async (e) => {
             const b = e.target.closest('button[data-act]');
             if (!b) return;
+            if (b.dataset.act === 'plan') { planWith(c.user_id); return; }
             if (b.dataset.act === 'watch') {
                 if (whereAmI() !== 'lobby') { alert('Replays can be watched from the lobby.'); return; }
                 document.querySelectorAll('.social-overlay').forEach(x => x.remove());

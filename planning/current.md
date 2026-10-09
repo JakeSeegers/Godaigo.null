@@ -121,6 +121,7 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-09: Plan a game from a friend.** social.js Plan button on friend rows + "Plan a game" on a friend's player card open game-plans.js openCreate with that friend ticked.
 - **2026-10-09: Lore intro captions.** js/lore-intro.js PAGES: the baked-in captions are masked (bare paper below a per-clip cut) and the game types its own text (Spanish in i18n-es.js). chunkfour had two captions in a row: now two pages with a pause at 4.0 s. Tested with WebM copies of the clips (Playwright Chromium has no H.264).
 - **2026-10-09: Game Log in Spanish.** game-log-ui.js `L()` translates whole sentence templates before inserting coloured names; targeted lines, Game over, end reasons. Checked a Spanish bot game: no English left in the log.
 - **2026-10-09: Targeted notices.** New js/target-notice.js (after buff-tags.js): pop-up card when another player's scroll hits you (Plunder, Arson, Take Flight, tile swap / Telekinesis moving your pawn, your scroll countered). Message-based (outgoing + incoming). Add new targeting scrolls to `read()` and `logHits()`. Game Log 'targeted' lines for all players (public facts: board, pools, Active scrolls, Common Area).
