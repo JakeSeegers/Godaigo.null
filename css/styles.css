@@ -326,6 +326,23 @@ body {
     .hud-end-turn.ap-out:not(:disabled), .hud-end-turn.overflow-ok:not(:disabled), .hud-end-turn.overflow-over:not(:disabled),
     .hud-end-turn.ap-out:not(:disabled)::after, .hud-end-turn.overflow-ok:not(:disabled)::after, .hud-end-turn.overflow-over:not(:disabled)::after { animation: none; }
 }
+/* Not your turn (game-ui.js watcher): same grey as :disabled and it hides the green /
+   red states. A click still only says "not your turn" (game-ui.js handler), and bots
+   still end their own turns with a scripted click. */
+#end-turn.hud-end-turn.not-my-turn,
+#end-turn.hud-end-turn.not-my-turn:hover,
+#end-turn.hud-end-turn.not-my-turn:active {
+    background: #1a1a1a !important;
+    border-color: #444 !important;
+    color: #555 !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    animation: none !important;
+    transform: none !important;
+    cursor: not-allowed !important;
+}
+#end-turn.hud-end-turn.not-my-turn::after { display: none !important; }
 .hud-end-turn:disabled {
     background: #1a1a1a !important;
     border-color: #444 !important;

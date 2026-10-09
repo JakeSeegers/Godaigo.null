@@ -121,6 +121,7 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-09: End Turn always grey when not your turn.** game-ui.js watcher (real seat via BotDriver.driverRealIndex) toggles `.not-my-turn`; css beats the green / red states. Was lit during host-driven bot turns (myPlayerIndex swapped) and inconsistent between disabled + inline opacity.
 - **2026-10-09: Scroll overflow on the End Turn button.** game-core.js showEndTurnOverflowModal: no top banner (fallback only); the HUD End Turn button reads red "Discard: Hand 3/2" while over (click = shake + error), green "End Turn" once resolved (click ends the turn via onResolved). showEndTurnPrompt skips while `overflow-pending`.
 - **2026-10-09: Hide info pop-ups per account.** gami.tipHidden / hideTip / resetTips (user_profiles.stats.hidden_tips + localStorage mirror). Scroll Overflow explainer has a "Do not show on this account again" checkbox; Settings > Display > Info Pop-ups > Reset. Use the same ids for future help pop-ups.
 - **2026-10-09: Your Turn banner.** New js/turn-banner.js (after stone-drop-fx.js in index.html): diagonal stripes in your colour with YOUR TURN cut out, wind whoosh per stripe, black outlines punch in, then it holds until the mouse moves (or a key / click / turn end) and plays backwards. Screenshot-checked frame by frame (text size 1.25 x stripe height so the brush letters stay readable).

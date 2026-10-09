@@ -803,6 +803,26 @@
             btn.textContent = END_TURN_LABEL;
         }
 
+        // Not your turn (owner 2026-10-09): the End Turn button always looks grey
+        // and ignores the mouse. Checked every 200 ms against your REAL seat
+        // (while the host drives a bot, myPlayerIndex is the bot's, so `disabled`
+        // alone left the button lit during bot turns). Only a class, not
+        // `disabled`: bot turns end with a scripted click on this same button,
+        // which must still work. Online games only (local / training: unchanged).
+        setInterval(() => {
+            const btn = document.getElementById('end-turn');
+            if (!btn) return;
+            let notMine = false;
+            try {
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer) {
+                    const d = window.BotDriver?.driverRealIndex?.();
+                    const me = d != null ? d : myPlayerIndex;
+                    notMine = (typeof isPlacementPhase !== 'undefined' && isPlacementPhase) || me == null || me < 0 || me !== activePlayerIndex;
+                }
+            } catch (e) {}
+            if (btn.classList.contains('not-my-turn') !== notMine) btn.classList.toggle('not-my-turn', notMine);
+        }, 200);
+
         window.showEndTurnPrompt = function () {
             // Bot turns decide when to end on their own. asBot() swaps
             // myPlayerIndex to the bot's index while impersonating, so isMyTurn()

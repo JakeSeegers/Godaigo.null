@@ -8,7 +8,8 @@
       "changes": [
         "When your turn starts, stripes in your colour sweep across the screen with a whoosh and stamp out YOUR TURN. They stay until you move the mouse, then pull back.",
         "The End Turn button now tells you what you need: it glows green with \"End Turn to replace AP\" when you run out of AP (no more pop-up), and shows red \"Discard: Hand 3/2\" when you hold too many scrolls (no more top banner).",
-        "Help pop-ups (like Scroll Overflow) have a \"Do not show on this account again\" box. Settings > Display > Info Pop-ups brings them back."
+        "Help pop-ups (like Scroll Overflow) have a \"Do not show on this account again\" box. Settings > Display > Info Pop-ups brings them back.",
+        "Small fixes: the End Turn button is now always grey when it is not your turn (it sometimes lit up during bot turns)."
       ]
     },
     {
