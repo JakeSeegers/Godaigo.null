@@ -322,6 +322,11 @@ Order matters — later scripts depend on earlier ones.
                              catacomb / Freedom teleport markers (updateCatacombIndicators) when the turn, freedom / excavateTeleport
                              owner, canTakeAction() or the active pawn's spot changes (a Freedom stolen with Psychic starts at the top
                              of a turn and showed no markers until the pawn was put down again).
+20b7. target-notice.js   <- window.TargetNotice: "You were targeted!" cards (#target-notices, top right, 6 s, click closes) when
+                             another player's scroll hits your seat: scroll-plundered, opponent-stone-destroyed (Arson), take-flight
+                             (+ -choose-request), tile-swap / telekinesis-move carrying your pawn (movedPlayers), scroll-countered. Reads
+                             messages, no scroll hooks: wraps broadcastGameAction (outgoing, so a host-driven bot hitting the host
+                             counts) and GamePause.note (incoming). Online only, not in replays / save rebuild; duplicates dropped.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
