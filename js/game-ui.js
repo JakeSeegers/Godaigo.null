@@ -790,64 +790,37 @@
             _statusFlashTimer = setTimeout(() => { el.style.color = ''; }, 1800);
         }
 
-        let endTurnPromptShown = false;
+        // Out of AP (owner 2026-10-09): no pop-up any more. The End Turn button
+        // shimmers green and reads "End Turn to replace AP" until the turn ends
+        // or AP comes back (checked every 400 ms while it shows).
+        const END_TURN_LABEL = 'End Turn', END_TURN_OUT_LABEL = 'End Turn to replace AP';
+        let apOutTimer = null;
         function resetEndTurnPrompt() {
-            endTurnPromptShown = false;
+            if (apOutTimer) { clearInterval(apOutTimer); apOutTimer = null; }
+            const btn = document.getElementById('end-turn');
+            if (!btn || !btn.classList.contains('ap-out')) return;
+            btn.classList.remove('ap-out');
+            btn.textContent = END_TURN_LABEL;
         }
 
         window.showEndTurnPrompt = function () {
-            if (endTurnPromptShown) return;
-            // Bot turns decide when to end on their own (BotSystem's own scoring
-            // already weighs endTurn against remaining actions) — this modal is a
-            // human nudge only. asBot() swaps myPlayerIndex to the bot's index
-            // while impersonating, so isMyTurn() reads true and this would
-            // otherwise block the host's screen for every bot turn that spends
-            // its AP to 0 (the same class of bug as the scroll-overflow stall).
+            // Bot turns decide when to end on their own. asBot() swaps
+            // myPlayerIndex to the bot's index while impersonating, so isMyTurn()
+            // reads true; the host's button must not shimmer for a bot's turn.
             if (window.BotDriver?.controlsActivePlayer?.()) return;
             const endTurnBtn = document.getElementById('end-turn');
-            if (!endTurnBtn || endTurnBtn.disabled) return;
-
-            endTurnPromptShown = true;
-
-            const existing = document.getElementById('end-turn-empty-ap-modal');
-            if (existing) existing.remove();
-
-            const overlay = document.createElement('div');
-            overlay.id = 'end-turn-empty-ap-modal';
-            overlay.className = 'retro-dlg-overlay';
-
-            const modal = document.createElement('div');
-            modal.className = 'retro-dlg-box';
-
-            const title = document.createElement('div');
-            title.textContent = 'Out of AP';
-            title.className = 'retro-dlg-title';
-            modal.appendChild(title);
-
-            const message = document.createElement('div');
-            message.textContent = "You're out of AP. Do you want to end your turn?";
-            message.className = 'retro-dlg-line';
-            modal.appendChild(message);
-
-            const btnRow = document.createElement('div');
-            btnRow.className = 'retro-dlg-btns';
-
-            const cancelBtn = document.createElement('button');
-            cancelBtn.textContent = 'Keep Playing';
-            cancelBtn.className = 'retro-dlg-btn cancel';
-            cancelBtn.onclick = () => overlay.remove();
-
-            const confirmBtn = document.createElement('button');
-            confirmBtn.textContent = 'End Turn';
-            confirmBtn.className = 'retro-dlg-btn ok';
-            confirmBtn.onclick = () => { overlay.remove(); endTurnBtn.click(); };
-
-            btnRow.appendChild(cancelBtn);
-            btnRow.appendChild(confirmBtn);
-            modal.appendChild(btnRow);
-
-            overlay.appendChild(modal);
-            document.body.appendChild(overlay);
+            if (!endTurnBtn || endTurnBtn.disabled || endTurnBtn.classList.contains('ap-out')) return;
+            endTurnBtn.classList.add('ap-out');
+            endTurnBtn.textContent = END_TURN_OUT_LABEL;
+            apOutTimer = setInterval(() => {
+                let still = false;
+                try {
+                    still = !endTurnBtn.disabled && endTurnBtn.isConnected && getTotalAP() === 0
+                        && (typeof isMyTurn !== 'function' || isMyTurn())
+                        && !window.BotDriver?.controlsActivePlayer?.();
+                } catch (e) {}
+                if (!still) resetEndTurnPrompt();
+            }, 400);
         };
 
         // Update the opponent panel with current game state

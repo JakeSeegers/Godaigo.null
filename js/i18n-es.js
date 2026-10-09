@@ -494,6 +494,7 @@ window.I18N_ES = {
     "Empty Source Pools": "Reservas de origen vacías",
     "End Early → Test Now": "Terminar ya → Probar ahora",
     "End Turn": "Terminar turno",
+    "End Turn to replace AP": "Termina el turno para recuperar PA",
     "End of game": "Fin de la partida",
     "End turn": "Terminar turno",
     "End your turn on the Fire shrine center to collect Fire stones.": "Termina tu turno en el centro del santuario de Fuego para conseguir piedras de Fuego.",

@@ -263,6 +263,28 @@ body {
     box-shadow: none !important;
     transition: none !important;
 }
+/* Out of AP: green shimmer instead of a pop-up (game-ui.js showEndTurnPrompt) */
+.hud-end-turn.ap-out:not(:disabled) {
+    border-color: #6fdc8c !important;
+    color: #c9f7d4 !important;
+    background: linear-gradient(110deg, #10301a 0%, #10301a 40%, #2f7a45 50%, #10301a 60%, #10301a 100%) !important;
+    background-size: 250% 100% !important;
+    animation: end-turn-shimmer 2.4s linear infinite, end-turn-glow 2.4s ease-in-out infinite;
+}
+.hud-end-turn.ap-out:not(:disabled):hover {
+    background-color: #1a4426 !important;
+}
+@keyframes end-turn-shimmer {
+    from { background-position: 100% 0; }
+    to   { background-position: -150% 0; }
+}
+@keyframes end-turn-glow {
+    0%, 100% { box-shadow: 3px 3px 0 #000, 0 0 0 rgba(111, 220, 140, 0); }
+    50%      { box-shadow: 3px 3px 0 #000, 0 0 10px rgba(111, 220, 140, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hud-end-turn.ap-out:not(:disabled) { animation: none; }
+}
 .hud-end-turn:disabled {
     background: #1a1a1a !important;
     border-color: #444 !important;
@@ -3175,7 +3197,6 @@ body.bot-training-quiet #opponent-select-modal,
 body.bot-training-quiet #plunder-player-modal,
 body.bot-training-quiet #excavate-teleport-modal,
 body.bot-training-quiet #transmute-modal,
-body.bot-training-quiet #end-turn-empty-ap-modal,
 body.bot-training-quiet #cascade-popup,
 body.bot-training-quiet #scroll-cancel-btn,
 body.bot-training-quiet #telekinesis-done-btn,
