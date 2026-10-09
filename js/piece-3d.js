@@ -818,10 +818,9 @@
 
         const glide = (n, from, to) => {
             const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
-            // a catacomb / Take Flight jump plays its own animation, also when it
-            // lands on a tile that turns over (a flight onto a face-down tile: the
-            // pawn is still in the air while the tile flips). Checked before the
-            // flip wait below, which used to swallow these jumps (owner 2026-10-09).
+            // a catacomb / Take Flight jump plays its own animation. Checked before
+            // the flip wait below so a flip nearby can never turn it into a step
+            // (jumps never land on face-down tiles, this is only a safety order).
             const tp = takeHint(to);
             if (tp && (d >= 5 || tp.from)) {
                 lastGlides.delete(n);            // a flip must not redo this as a step
