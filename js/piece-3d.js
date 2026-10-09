@@ -818,6 +818,22 @@
 
         const glide = (n, from, to) => {
             const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
+            // a catacomb / Take Flight jump plays its own animation, also when it
+            // lands on a tile that turns over (a flight onto a face-down tile: the
+            // pawn is still in the air while the tile flips). Checked before the
+            // flip wait below, which used to swallow these jumps (owner 2026-10-09).
+            const tp = takeHint(to);
+            if (tp && (d >= 5 || tp.from)) {
+                lastGlides.delete(n);            // a flip must not redo this as a step
+                if (reduceMotion || document.hidden || !window.fxOn?.() || !n.animate) return;
+                const start = tp.from || from;
+                if (Math.hypot(start.x - to.x, start.y - to.y) < 5) return;
+                try {
+                    n.getAnimations?.().forEach(an => an.cancel());
+                    if (tp.kind === 'flight') flightFx(n, start, to); else catacombFx(n, start, to);
+                } catch (e) {}
+                return;
+            }
             // stepping onto a tile that is turning over: wait on the old hex
             // until it has landed, then step on (owner 2026-10-08)
             if (d >= 5) lastGlides.set(n, { from, to, t: performance.now() });
@@ -834,17 +850,6 @@
                         { translate: `${(dx / 2 + ux).toFixed(2)}px ${(dy / 2 + uy).toFixed(2)}px`, offset: 0.5 },
                         { translate: '0px 0px' }
                     ], { duration: ms, delay: wait, easing: 'ease-in-out', fill: 'backwards' });
-                } catch (e) {}
-                return;
-            }
-            const tp = takeHint(to);
-            if (tp && (d >= 5 || tp.from)) {
-                if (reduceMotion || document.hidden || !window.fxOn?.() || !n.animate) return;
-                const start = tp.from || from;
-                if (Math.hypot(start.x - to.x, start.y - to.y) < 5) return;
-                try {
-                    n.getAnimations?.().forEach(an => an.cancel());
-                    if (tp.kind === 'flight') flightFx(n, start, to); else catacombFx(n, start, to);
                 } catch (e) {}
                 return;
             }
