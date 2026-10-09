@@ -315,7 +315,7 @@ Order matters — later scripts depend on earlier ones.
                              hidden tab waits): three diagonal stripes in your colour sweep in (alternating sides, wind whoosh each),
                              YOUR TURN (TU TURNO in Spanish) cut out of them by an SVG mask, then black outlines snap on around the
                              stripes and letters with a punch. It stays until the mouse moves (6 px+) or a key / click / wheel / touch,
-                             or the turn ends; then the intro plays backwards (x1.4, whooshes mirrored). pointer-events none.
+                             or the turn ends; then the intro plays backwards (x1.15, whooshes mirrored). Stripes 70% opaque, slower softer sweep (2026-10-09). pointer-events none.
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen

@@ -13,7 +13,8 @@
     'use strict';
     const NS = 'http://www.w3.org/2000/svg';
     const TILT = -12;                // degrees
-    const SWEEP = 190, STAGGER = 120, OUTLINE_AT = 520, REVERSE_RATE = 1.4;
+    const SWEEP = 340, STAGGER = 170, OUTLINE_AT = 760, PUNCH = 360, REVERSE_RATE = 1.15;
+    const STRIPE_OPACITY = 0.7;      // owner 2026-10-09: softer, see-through stripes
     let lastShownTurn = null, playing = false, dismiss = null;
 
     function myRealIndex() {
@@ -96,9 +97,9 @@
         const outlines = el('g', { opacity: 0 }, inner);
         ys.forEach(y => el('rect', { x: -len / 2, y, width: len, height: band, fill: 'none', stroke: '#000', 'stroke-width': 7 }, outlines));
         const fills = el('g', { mask: 'url(#tb-mask)' }, inner);
-        const stripes = ys.map((y, i) => el('rect', { x: -len / 2, y, width: len, height: band, fill: color }, fills));
+        const stripes = ys.map((y, i) => el('rect', { x: -len / 2, y, width: len, height: band, fill: color, 'fill-opacity': STRIPE_OPACITY }, fills));
         // a light edge along the top of each stripe
-        const shine = el('g', { mask: 'url(#tb-mask)', opacity: 0.35 }, inner);
+        const shine = el('g', { mask: 'url(#tb-mask)', opacity: 0.2 }, inner);
         const shines = ys.map(y => el('rect', { x: -len / 2, y, width: len, height: band * 0.18, fill: '#fff' }, shine));
         const letterLine = el('text', { ...textAttrs, fill: 'none', stroke: '#000', 'stroke-width': Math.max(4, fontSize * 0.03), 'clip-path': 'url(#tb-clip)', opacity: 0 }, inner);
         letterLine.textContent = text;
@@ -139,7 +140,7 @@
         }
 
         // every intro animation ends at TOTAL (endDelay), so reverse() mirrors the whole intro
-        const TOTAL = OUTLINE_AT + 260;
+        const TOTAL = OUTLINE_AT + PUNCH;
         const intro = [];
         const anim = (target, frames, o) => {
             const a = target.animate(frames, { ...o, endDelay: TOTAL - (o.delay || 0) - o.duration });
@@ -155,20 +156,20 @@
                 p.style.transformOrigin = fromLeft ? 'left center' : 'right center';
                 anim(p, [
                     { transform: 'scaleX(0)' },
-                    { transform: 'scaleX(1.02)', offset: 0.8 },
+                    { transform: 'scaleX(1.008)', offset: 0.85 },
                     { transform: 'scaleX(1)' },
-                ], { duration: SWEEP, delay: i * STAGGER, easing: 'cubic-bezier(.2,.9,.25,1)', fill: 'both' });
+                ], { duration: SWEEP, delay: i * STAGGER, easing: 'cubic-bezier(.33,.8,.3,1)', fill: 'both' });
             });
             whoosh(i * STAGGER);
         });
         // 2) outlines snap on with a punch
-        [outlines, letterLine].forEach(o => anim(o, [{ opacity: 0 }, { opacity: 1 }], { duration: 70, delay: OUTLINE_AT, fill: 'both' }));
+        [outlines, letterLine].forEach(o => anim(o, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: OUTLINE_AT, easing: 'ease-out', fill: 'both' }));
         anim(inner, [
             { transform: 'scale(1)' },
-            { transform: 'scale(1.07)', offset: 0.3 },
-            { transform: 'scale(0.985)', offset: 0.7 },
+            { transform: 'scale(1.03)', offset: 0.35 },
+            { transform: 'scale(0.995)', offset: 0.75 },
             { transform: 'scale(1)' },
-        ], { duration: 260, delay: OUTLINE_AT, easing: 'ease-out' });
+        ], { duration: PUNCH, delay: OUTLINE_AT, easing: 'ease-in-out' });
         // 3) hold, then reverse on the first input
         intro[0].finished.then(() => waitForInput(() => {
             if (leaving) return;
