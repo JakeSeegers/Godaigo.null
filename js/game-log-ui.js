@@ -96,6 +96,15 @@
         const inner = window.cosmeticsSystem?.seatNameHtml ? window.cosmeticsSystem.seatNameHtml(playerIndex) : esc(playerName(playerIndex));
         return `<span style="color:${playerColorHex(playerIndex)}">${inner}</span>`;
     }
+    // A whole log sentence: the template (with {0} {1} ...) is translated as one
+    // piece (window.I18n, js/i18n-es.js), then the coloured HTML parts go in.
+    // Translating the finished line does not work: the words around the
+    // coloured names are separate text pieces that match no dictionary entry.
+    function L(tpl, ...parts) {
+        let t = tpl;
+        try { if (window.I18n && window.I18n.lang !== 'en') t = (window.I18N_ES && window.I18N_ES[tpl]) || window.I18n.t(tpl); } catch (e) {}
+        return esc(t).replace(/\{(\d+)\}/g, (m, n) => (parts[+n] != null ? parts[+n] : m));
+    }
     function aOrAn(word) {
         return /^[aeiou]/i.test(word || '') ? 'an' : 'a';
     }
@@ -351,21 +360,23 @@
             }
             // Another player hit by a scroll (js/target-notice.js): public facts only.
             case 'targeted': {
-                const a = entry.actor != null ? playerSpan(entry.actor) : 'Someone';
+                const a = entry.actor != null ? playerSpan(entry.actor) : esc('?');
                 const t = playerSpan(entry.target);
                 const sc = (name, label) => `<span style="${scrollStyle(name)}">${esc(label)}</span>`;
                 const byName = (label) => Object.keys(window.SCROLL_DEFINITIONS || {}).find(k => window.SCROLL_DEFINITIONS[k]?.name === label) || label;
                 if (entry.kind === 'plunder') return {
-                    html: `${a} used ${sc(byName('Plunder'), 'Plunder')} on ${t}: their ${sc(entry.scroll, scrollDisplayName(entry.scroll))} went to the Common Area`,
+                    html: L('{0} used {1} on {2}: their {3} went to the Common Area', a, sc(byName('Plunder'), 'Plunder'), t,
+                        sc(entry.scroll, scrollDisplayName(entry.scroll))),
                     className: 'gl-counter' };
                 if (entry.kind === 'arson') return {
-                    html: `${a} used ${sc(byName('Arson'), 'Arson')} on ${t}: 1 <span style="color:${elColor(entry.stone)}">${esc(entry.stone)}</span> stone burned from their pool`,
+                    html: L('{0} used {1} on {2}: 1 {3} stone burned from their pool', a, sc(byName('Arson'), 'Arson'), t,
+                        `<span style="color:${elColor(entry.stone)}">${esc(entry.stone)}</span>`),
                     className: 'gl-counter' };
                 if (entry.kind === 'flight') return {
-                    html: `${a} used ${sc(byName('Take Flight'), 'Take Flight')} on ${t}: their pawn was moved`,
+                    html: L('{0} used {1} on {2}: their pawn was moved', a, sc(byName('Take Flight'), 'Take Flight'), t),
                     className: 'gl-effect' };
                 if (entry.kind === 'moved') return {
-                    html: `${a}'s ${sc(byName(entry.scroll), entry.scroll)} moved ${t}'s pawn with the tile`,
+                    html: L("{0}'s {1} moved {2}'s pawn with the tile", a, sc(byName(entry.scroll), entry.scroll), t),
                     className: 'gl-effect' };
                 return null;
             }
@@ -387,7 +398,8 @@
             flushPendingMove();
             lastHeaderTurn = null;
             if (entry.type === 'gameStart') appendLine(`<b>New game (${esc(String(entry.nPlayers || ''))} players)</b>`, 'gl-talk');
-            else appendLine(`<b>Game over: ${entry.winner != null ? playerSpan(entry.winner) + ' wins' : 'no winner (' + esc(String(entry.endReason || '')) + ')'}${entry.turns ? `, ${entry.turns} turns` : ''}</b>`, 'gl-talk');
+            else appendLine(`<b>${entry.winner != null ? L('Game over: {0} wins', playerSpan(entry.winner))
+                : L('Game over: no winner ({0})', L(String(entry.endReason || '')))}${entry.turns ? L(', {0} turns', esc(String(entry.turns))) : ''}</b>`, 'gl-talk');
             return;
         }
         // Bot alliance talk (js/bot-diplomacy.js): may come from a bot whose
