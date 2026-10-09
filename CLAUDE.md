@@ -333,6 +333,15 @@ Order matters — later scripts depend on earlier ones.
                              counts) and GamePause.note (incoming). Online only, not in replays / save rebuild; duplicates dropped.
                              Also records ActionLog 'targeted' {kind plunder / arson / flight / moved, actor, target, scroll, stone} for
                              EVERY player (public facts only) -> game-log-ui.js line "X used Arson on Y: ...".
+20b8. spectate.js        <- window.Spectate: spectate mode (sql/spectate.sql). Host waiting-room switch "Allow spectators"
+                             (game_room.allow_spectators); lobby "Games you can watch" (list_watchable_games, every 10 s) -> Watch ->
+                             Replay.openLive(room) (replay-viewer.js: listens to 'game-room-<id>' first, waits one recorder flush,
+                             get_live_match = moves so far, replays them fast, then buffered + live messages, deduped by _mid).
+                             window.__liveSpectate: game-core.js getPlayerScrolls(forDisplay) hides hands (public info only).
+                             Spectator UI: LIVE bar (watcher count, Follow camera = window.panBoardTo on turn change, emotes, Exit
+                             reloads), scoreboard (elements, AP, pool, hand/active counts, BotSystem.homeCost steps home), emote feed.
+                             Count + emotes: channel 'spectate-room-<id>' (presence = spectators; players join without tracking and
+                             show "N watching", never the emotes).
 20c. social.js            ← window.Social: friends list (lobby "Friends" button, request badge), online status
                              (Realtime presence channel godaigo-online, key = user id, {status: lobby|room|game};
                              "appear offline" = user_profiles.hide_online, never joins), last seen (touch_last_seen
@@ -582,6 +591,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 |-------|-------------|---------|
 | `game_room` | lobby.js | Active game sessions. `test_mode` (test games), `stream_mode` (stream games, js/stream-votes.js; start_match copies it to `matches.stream_mode`, the combo miner skips those once sql/stream-games.sql part B is applied) |
 | `players` | lobby.js | Player slots in a session |
+| `game_room.allow_spectators` | spectate.js | Host switch (sql/spectate.sql). RPCs `list_watchable_games()` (playing, allow_spectators, started < 4 h, signed in) and `get_live_match(room)` (seats, deck seed, settings, moves so far; signed in, allowed, match playing). |
 | `matches` | match-recorder.js | One row per online game: players snapshot, deck seed, settings, winner, status (playing/finished/abandoned), move_count, `keep`. Written ONLY via RPCs `start_match` / `finish_match` (room host or hermit). Read ONLY via RPCs (sql/replay-access.sql): `list_my_matches`, `list_public_matches`, `get_match_replay` (finished + (player of it OR `is_public` OR hermit)), `set_match_public` (players of it). Posting sets `keep`. Finished matches older than 30 days are deleted unless `keep`. `game_room.match_id` points at the live one. |
 | `matches` (check) | replay-viewer.js | `check_status` / `check_detail` / `checked_at`: replay verification result. Hermit-only RPCs `list_matches_for_check`, `get_match_fingerprints`, `save_match_check` (sql/match-check.sql). |
 | `combo_candidates` | replay-viewer.js (miner) | Combo candidates mined from finished matches (seat, user, rank, games, trust, gain, turns, signature, steps). RLS on, no client policies; hermit-only RPCs `list_matches_for_mining`, `save_combo_candidates`, `hermit_combo_summary`, `hermit_reset_mining` (sql/combo-miner.sql). `matches.mined_at` marks mined games; `start_match` now saves each human's ladder `rank` in `matches.players`. |

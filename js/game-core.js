@@ -311,6 +311,12 @@
                 const displayIndex = (forDisplay && isMultiplayer && realIndex !== null && realIndex >= 0) ? realIndex : activePlayerIndex;
 
                 this.ensurePlayerScrollsStructure(displayIndex);
+                // Live spectator (js/spectate.js): public information only, so the
+                // Hand panel stays empty; Active scrolls are public anyway.
+                if (forDisplay && window.__liveSpectate) {
+                    const real = this.playerScrolls[displayIndex];
+                    return { hand: new Set(), active: real.active, activated: real.activated };
+                }
                 return this.playerScrolls[displayIndex];
             }
 
@@ -3095,6 +3101,25 @@
             updateViewport();
         }
         window.rotateBoardTo = rotateBoardTo;
+
+        // Glide the view so world point (x, y) sits in the middle of the board
+        // area (js/spectate.js follow camera). Screen point of world p is
+        // c + R(rot)(s p + v - c), so p is centred when v = c - s p.
+        let _panAnim = 0;
+        function panBoardTo(x, y, ms = 450) {
+            const cx = boardSvg.clientWidth / 2, cy = boardSvg.clientHeight / 2;
+            const tx = cx - viewportScale * x, ty = cy - viewportScale * y;
+            const fx = viewportX, fy = viewportY, t0 = performance.now(), id = ++_panAnim;
+            const tick = (now) => {
+                if (id !== _panAnim) return;
+                const k = Math.min(1, (now - t0) / ms), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+                viewportX = fx + (tx - fx) * e; viewportY = fy + (ty - fy) * e;
+                updateViewport();
+                if (k < 1) requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        }
+        window.panBoardTo = panBoardTo;
 
         // Hermit-only board tilt ("angle") tool (js/game-ui.js's
         // openBoardTiltPanel): a CSS 3D perspective tilt on the board

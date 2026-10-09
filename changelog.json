@@ -9,8 +9,8 @@
         "When your turn starts, stripes in your colour sweep across the screen with a whoosh and stamp out YOUR TURN. They stay until you move the mouse, then pull back.",
         "The End Turn button now tells you what you need: it glows green with \"End Turn to replace AP\" when you run out of AP (no more pop-up), and shows red \"Discard: Hand 3/2\" when you hold too many scrolls (no more top banner).",
         "Active scroll buffs (like Freedom) now show as tags at the top of the screen. When another player's scroll hits you (Plunder, Arson, Take Flight, a moved tile, a counter) a notice pops up, and the Game Log says who targeted whom and what happened.",
-        "Scroll choices (like Inspiring Draught) must be finished or cancelled before you move, place stones, cast or end your turn. Transmute shows every option at once.",
-        "Small fixes: End Turn is always grey when it is not your turn, a Freedom stolen with Psychic shows its teleport spots right away, help pop-ups can be hidden (Settings > Display > Info Pop-ups), the story intro text is clearer, the Game Log and intro read fully in Spanish, and you can plan a game straight from a friend (Plan button or their player card)."
+        "Spectate mode: the host can tick \"Allow spectators\", and anyone signed in can watch that game live from the lobby (no hands shown), with a scoreboard, follow camera, watcher count and spectator emotes.",
+        "Small fixes: scroll choices (like Inspiring Draught) must be finished before other actions, Transmute shows all options at once, End Turn is grey when it is not your turn, Freedom stolen with Psychic shows its spots right away, help pop-ups can be hidden, the story intro text is clearer, Spanish Game Log and intro, and you can plan a game straight from a friend."
       ]
     },
     {

@@ -5142,3 +5142,52 @@ img.name-badge[src*="/px-"], img.gami-badge-img[src*="/px-"], img.rn-badge-img[s
 @media (prefers-reduced-motion: reduce) {
     .target-notice, .target-notice.leaving { animation: none; }
 }
+
+/* Spectate mode (js/spectate.js) */
+.spectate-room-note { margin: 6px 0; padding: 6px 10px; border: 1px dashed #5894f4; border-radius: 6px; color: #b9d0ff; font-size: 13px; }
+#watch-games-section { margin: 4px 0 10px; }
+.watch-games-title { margin: 0 0 6px; font-size: 17px; }
+.watch-game-card { cursor: default; }
+.watch-game-players { font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watch-live { color: #ff5a5a; font-size: 11px; letter-spacing: 1px; animation: spec-blink 1.6s ease-in-out infinite; }
+@keyframes spec-blink { 50% { opacity: 0.35; } }
+#spectate-bar {
+    position: fixed; top: 54px; left: 50%; transform: translateX(-50%); z-index: 9400;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+    padding: 6px 14px; max-width: calc(100vw - 32px);
+    background: rgba(14, 10, 26, 0.92); border: 1px solid #5894f4; border-radius: 8px;
+    font-family: var(--font-terminal); font-size: 13px; color: #eee; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+#spectate-bar button { font-family: inherit; font-size: 12px; padding: 3px 10px; background: #1d1831; color: #eee; border: 1px solid #5894f4; border-radius: 4px; cursor: pointer; }
+#spectate-bar .spec-live { color: #ff5a5a; font-weight: bold; letter-spacing: 1px; animation: spec-blink 1.6s ease-in-out infinite; }
+#spectate-bar .spec-live.ended { color: #aaa; animation: none; }
+#spectate-bar .spec-title { font-weight: bold; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#spectate-bar .spec-follow { cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.spec-emote-picker { position: absolute; top: 100%; right: 0; margin-top: 6px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px; background: rgba(14, 10, 26, 0.95); border: 1px solid #5894f4; border-radius: 6px; }
+.spec-emote-picker[hidden] { display: none; }
+.spec-emote-picker button { padding: 2px !important; background: transparent !important; border-color: #333 !important; }
+#spec-emote-feed { position: fixed; right: 16px; bottom: 90px; z-index: 9400; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; }
+.spec-emote { display: flex; align-items: center; gap: 6px; padding: 3px 10px; background: rgba(14, 10, 26, 0.85); border: 1px solid #5894f4; border-radius: 14px; color: #ddd; font-family: var(--font-terminal); font-size: 12px; transition: opacity 0.6s; animation: target-notice-in 0.3s ease-out; }
+.spec-emote.leaving { opacity: 0; }
+#spectate-scoreboard {
+    position: fixed; left: 12px; bottom: 80px; z-index: 9300; width: 250px;
+    padding: 8px 10px; background: rgba(14, 10, 26, 0.9); border: 1px solid #5894f4; border-radius: 8px;
+    font-family: var(--font-terminal); color: #ddd; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.spec-sb-title { color: #b9d0ff; font-weight: bold; margin-bottom: 4px; }
+.spec-row { padding: 5px 6px; border-radius: 5px; margin-top: 3px; border: 1px solid transparent; }
+.spec-row.turn { border-color: #ffce00; background: rgba(255, 206, 0, 0.06); }
+.spec-name { font-weight: bold; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spec-els { display: flex; align-items: center; gap: 4px; margin: 3px 0; }
+.spec-els b { margin-left: 4px; font-size: 12px; }
+.spec-el { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--el); opacity: 0.35; }
+.spec-el.on { background: var(--el); opacity: 1; box-shadow: 0 0 6px var(--el); }
+.spec-meta { display: flex; flex-wrap: wrap; gap: 8px; color: #aaa; font-size: 11px; }
+.spec-ap { color: #ffce00; }
+#spectator-count-tag { position: fixed; top: 96px; left: 16px; z-index: 440; padding: 3px 10px; border-radius: 12px; background: rgba(14, 10, 26, 0.85); border: 1px solid #5894f4; color: #b9d0ff; font-family: var(--font-terminal); font-size: 12px; }
+body.spectating #buff-tags { top: 100px; }
+body.spectating #undo-move, body.spectating #cast-spell, body.spectating #end-turn, body.spectating #leave-game { display: none !important; }
+#spectate-bar { flex-wrap: nowrap; gap: 10px; white-space: nowrap; }
+#spectate-bar .spec-follow { font-size: 12px; }
+#spectate-bar .spec-follow input { width: 13px; height: 13px; margin: 0; }
+@media (max-width: 760px) { #spectate-bar { flex-wrap: wrap; white-space: normal; } }

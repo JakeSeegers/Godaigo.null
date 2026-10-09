@@ -1247,7 +1247,7 @@
             const xpAmt = isWinner ? 75 + (n - 1) * 25 : 20 + (n - 1) * 10;
             xpLine.textContent = isWinner ? `+${xpAmt} XP  -  VICTORY` : `+${xpAmt} XP  -  GAME COMPLETE`;
             // A replay viewer earns nothing (js/replay-viewer.js).
-            if (window.Replay?.state) xpLine.textContent = 'END OF REPLAY';
+            if (window.Replay?.state) xpLine.textContent = window.Replay.state.live ? 'THANKS FOR WATCHING' : 'END OF REPLAY';
             box.appendChild(xpLine);
 
             // (The personal-bot "capture a bot" picker was removed with the

@@ -229,6 +229,76 @@
         state.startTimer = setTimeout(play, 1500); // let the board finish its intro animation
     }
 
+    // ── Live spectating (js/spectate.js, sql/spectate.sql) ─────────
+    // Like open(), but for a game still being played: listen to the room's
+    // live channel first (buffering), wait one match-recorder flush (3 s) so
+    // moves sent before we listened are stored, load the stored moves, replay
+    // them quickly, then play the buffered and live messages as they come.
+    // Messages are matched by their _mid (game-pause.js) so none runs twice.
+    // Public information only: window.__liveSpectate makes game-core.js hide
+    // every hand. Returns { roomId, match } or null.
+    async function openLive(roomId, opts = {}) {
+        if (state) return null;
+        const realChannel = supabase.channel.bind(supabase);
+        const realRpc = supabase.rpc.bind(supabase);
+        const buffered = [];
+        let onLive = null;
+        const ch = realChannel('game-room-' + roomId, { config: { broadcast: { self: false } } });
+        ch.on('broadcast', { event: '*' }, (msg) => {
+            if (String(msg?.event || '').startsWith('gp-')) return;
+            const m = { event: msg.event, payload: msg.payload || {}, t: Date.now() };
+            if (onLive) onLive(m); else buffered.push(m);
+        });
+        await new Promise((res) => {
+            let done = false;
+            const fin = (v) => { if (!done) { done = true; res(v); } };
+            ch.subscribe((st) => { if (st === 'SUBSCRIBED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') fin(st); });
+            setTimeout(() => fin('timeout'), 8000);
+        });
+        opts.onStatus?.('Loading the game...');
+        await sleep(3500);
+        const { data: match, error } = await realRpc('get_live_match', { p_room: roomId });
+        if (error || !match) {
+            try { supabase.removeChannel(ch); } catch (e) {}
+            alert('Could not watch this game: ' + (error?.message || 'not found'));
+            return null;
+        }
+        const seats = (match.seats || []).slice().sort((a, b) => a.index - b.index);
+        try { await window.cosmeticsSystem?.loadNameColors(seats.map(x => x.user_id)); } catch (e) {}
+        // The spectate extras (count, emotes) need the real client after we go offline.
+        opts.beforeOffline?.(realChannel);
+
+        const handlers = [];
+        goOffline(handlers);
+        window.__liveSpectate = true;
+        document.getElementById('lobby-wrapper').style.display = 'none';
+        document.getElementById('multiplayer-lobby')?.style && (document.getElementById('multiplayer-lobby').style.display = 'none');
+        document.getElementById('game-layout').classList.add('active');
+        if (typeof updateDeckIndicatorVisibility === 'function') updateDeckIndicatorVisibility();
+        if (typeof initializeNewUI === 'function') initializeNewUI();
+        window.promptLogConsentIfNeeded = () => {};
+        startBoard(match, seats, handlers);
+        if (typeof updateStatus === 'function') updateStatus('Watching live');
+        state = { match, seats, moves: match.moves || [], index: 0, playing: false, speed: 1, timer: null, handlers, errors: [], shown: 0, logCount: 0, live: true };
+        window.ActionLog?.onRecord?.(() => { if (state) state.logCount++; });
+
+        const have = new Set(state.moves.map(m => m.payload?._mid).filter(Boolean));
+        const runLive = (m) => {
+            const mid = m.payload?._mid;
+            if (mid) { if (have.has(mid)) return; have.add(mid); }
+            dispatch(m);
+            opts.onMove?.(m);
+        };
+        await sleep(1500);   // the board's intro animation
+        opts.onStatus?.('Catching up...');
+        let n = 0;
+        while (step()) { if (++n % 15 === 0) await sleep(5); }
+        buffered.splice(0).forEach(runLive);
+        onLive = runLive;
+        opts.onStatus?.('');
+        return { roomId, match, channel: ch };
+    }
+
     // Set up the recorded game's starting board (also used by Restart, so a
     // restart rewinds in place instead of reloading the page).
     function startBoard(match, seats, handlers) {
@@ -1069,6 +1139,6 @@
         await open(id, { speed: 4 });
     }
 
-    window.Replay = { open, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, findCombos,
+    window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, findCombos,
         runPuzzle, solvePuzzles, puzzleSummary, puzzleScore, play, pause, step, get state() { return state; } };
 })();
