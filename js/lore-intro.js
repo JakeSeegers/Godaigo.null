@@ -53,6 +53,28 @@
     ];
     const CLIP_PATHS = CLIP_NAMES.map(n => `LoreIntroClips/${n}.mp4`);
 
+    // Captions (owner 2026-10-09): the typed text baked into the clips was hard
+    // to read and could not be translated. Everything from `cut` (fraction of the
+    // frame height, measured per clip: the gap between the drawing and the
+    // caption) down is drawn as bare paper, and the game types its own text
+    // there (window.I18n; Spanish in js/i18n-es.js). chunkfour had TWO captions
+    // one after the other (the second replaced the first at ~4.1 s), so it is
+    // two pages: the clip stops at `until` and waits for Space / a click, then
+    // plays on from there with the second caption.
+    const PAGES = [
+        { clip: 0, cut: 0.776, text: 'In a world where the disciplined can harness the mystic energy that flows through the natural world into raw crystallized materia...' },
+        { clip: 1, cut: 0.813, text: 'There are those who overuse this ability and become consumed by the arcane properties that these fundamental forces embody.' },
+        { clip: 2, cut: 0.748, text: 'To others, these mystics seem to vanish, never to be seen again.' },
+        { clip: 3, cut: 0.763, until: 4.0, text: 'They find themselves trapped on a chaotic plane between the realms of reality, a floating purgatory that takes the form of a mystic island,' },
+        { clip: 3, cut: 0.763, from: 4.0, text: 'beset by volcanic eruptions, floods, tornadoes, earthquakes, and temporal anomalies. A world out of time, whose inhabitants can neither find peace nor die.' },
+        { clip: 4, cut: 0.748, text: 'This cataclysmic landscape is now the home of these outcasts, who, through eons of exploration and testing,' },
+        { clip: 5, cut: 0.764, text: 'have unlocked the secrets of the Godaigo: a method of shaping the materia into arcane ritual patterns that release potent effects on the environment.' },
+        { clip: 6, cut: 0.676, text: 'These tests have revealed that under the right conditions, the island periodically offers escape to one who manages to demonstrate balance in their spell construction.' },
+        { clip: 7, cut: 0.659, text: 'This discovery brought ages of conflict and sparring, the mages training endlessly so that when the opportunity presents itself, they might be the one to break free from the curse of the mystic realm.' },
+        { clip: 8, cut: 0.667, text: 'When you arrive, there are but two weeks to prepare, or you stay trapped in this ruthless realm with wizards who have forgotten all else but vigilance and strategy.' },
+    ];
+    const TYPE_DELAY = 0.15;   // s after a page starts before the text begins
+
     // Measured from the actual exported clips (see conversation) — paper
     // background averages ~rgb(250,252,247); ink strokes go down toward 0,
     // but H.264 compression on dark ink strokes rarely hits pure black, so
@@ -94,7 +116,9 @@
 
     let overlay, frameEl, canvas, ctx, video, skipBtn, promptEl;
     let inkCanvas, inkCtx, paraCanvas, paraCtx, outCanvas, outCtx;
-    let clipIndex = 0;
+    let clipIndex = 0;          // index into PAGES
+    let loadedClip = -1;        // which video file is loaded
+    let captionEl = null, captionText = '', captionStart = 0, captionShown = -1;
     let onDone = null;
     let rafId = null;
     let started = false;
@@ -253,10 +277,12 @@
         const out = outCtx.createImageData(IW, IH);
         const od = out.data;
         const range = PAPER_LUM - INK_FLOOR;
+        const page = PAGES[clipIndex];
+        const cutAt = page ? Math.floor(page.cut * IH) * IW * 4 : ink.length;
 
         for (let i = 0; i < ink.length; i += 4) {
             const lum = (ink[i] + ink[i + 1] + ink[i + 2]) / 3;
-            const inkAmount = clamp01((PAPER_LUM - lum) / range);
+            const inkAmount = i >= cutAt ? 0 : clamp01((PAPER_LUM - lum) / range);
 
             const pr = para[i], pg = para[i + 1], pb = para[i + 2];
             const dimR = pr * AMBIENT_FACTOR, dimG = pg * AMBIENT_FACTOR, dimB = pb * AMBIENT_FACTOR;
@@ -281,20 +307,88 @@
     }
 
     function loop() {
+        const page = PAGES[clipIndex];
+        if (page && page.until != null && !waiting && video.currentTime >= page.until) {
+            video.pause();
+            onClipEnded();
+        }
         drawFrame();
+        typeCaption();
         rafId = requestAnimationFrame(loop);
+    }
+
+    // ── caption text ──
+    function placeCaption() {
+        const page = PAGES[clipIndex];
+        if (!captionEl || !page || !canvas) return;
+        const top = canvas.offsetTop + page.cut * canvas.clientHeight;
+        const bottom = canvas.offsetTop + canvas.clientHeight;
+        captionEl.style.top = top + 'px';
+        captionEl.style.height = Math.max(20, bottom - top - 6) + 'px';
+        captionEl.style.left = (canvas.offsetLeft + canvas.clientWidth * 0.05) + 'px';
+        captionEl.style.width = (canvas.clientWidth * 0.9) + 'px';
+        // biggest size that fits the full text in the space
+        let size = Math.max(12, canvas.clientWidth * 0.043);
+        captionEl.innerHTML = '';
+        const probe = document.createElement('div');
+        probe.textContent = captionText;
+        captionEl.appendChild(probe);
+        captionEl.style.fontSize = size + 'px';
+        while (size > 10 && captionEl.scrollHeight > captionEl.clientHeight + 1) {
+            size -= 0.5;
+            captionEl.style.fontSize = size + 'px';
+        }
+        captionShown = -1;
+    }
+    function setCaption() {
+        const page = PAGES[clipIndex];
+        let t = page ? page.text : '';
+        try { if (window.I18n && window.I18n.lang !== 'en') t = (window.I18N_ES && window.I18N_ES[t]) || window.I18n.t(t); } catch (e) {}
+        captionText = t;
+        captionStart = performance.now() + TYPE_DELAY * 1000;
+        placeCaption();
+    }
+    function typeCaption() {
+        if (!captionEl) return;
+        // the old captions typed in over ~1.8 s; long text a little longer
+        const total = captionText.length;
+        const dur = Math.min(2800, Math.max(1200, total * 16));
+        const n = waiting ? total : Math.max(0, Math.min(total, Math.round(total * (performance.now() - captionStart) / dur)));
+        if (n === captionShown) return;
+        captionShown = n;
+        // keep the full text in the layout (invisible rest) so lines never jump
+        captionEl.innerHTML = '';
+        const inner = document.createElement('div');
+        const shown = document.createElement('span');
+        shown.textContent = captionText.slice(0, n);
+        const rest = document.createElement('span');
+        rest.className = 'lore-intro-caption-rest';
+        rest.textContent = captionText.slice(n);
+        inner.append(shown, rest);
+        captionEl.appendChild(inner);
     }
 
     function loadClip(i) {
         waiting = false;
         if (promptEl) promptEl.classList.remove('lore-intro-prompt-visible');
-        video.src = CLIP_PATHS[i];
-        video.load();
-        video.play().catch(() => {
+        const page = PAGES[i];
+        const play = () => video.play().catch(() => {
             // Autoplay blocked (shouldn't happen — always called from a real
             // user gesture chain) — advance anyway rather than stall forever.
             advance();
         });
+        if (page.clip === loadedClip) {
+            // second page of the same clip: play on from where it stopped
+            if (page.from != null && video.currentTime < page.from) video.currentTime = page.from;
+            setCaption();
+            play();
+            return;
+        }
+        loadedClip = page.clip;
+        video.src = CLIP_PATHS[page.clip];
+        video.load();
+        setCaption();
+        play();
     }
 
     // A clip reached its natural end — hold on its last frame (drawFrame()
@@ -314,7 +408,7 @@
     // is never the "wrong" thing to do.
     function advance() {
         clipIndex++;
-        if (clipIndex >= CLIP_PATHS.length) { finish(); return; }
+        if (clipIndex >= PAGES.length) { finish(); return; }
         loadClip(clipIndex);
     }
 
@@ -343,6 +437,7 @@
         if (rafId) cancelAnimationFrame(rafId);
         video.pause();
         if (promptEl) promptEl.classList.remove('lore-intro-prompt-visible');
+        window.removeEventListener('resize', placeCaption);
         overlay.classList.add('lore-intro-hidden');
         const cb = onDone;
         onDone = null;
@@ -384,6 +479,7 @@
 
         started = true;
         clipIndex = 0;
+        loadedClip = -1;
         overlay.style.display = 'flex';
         overlay.classList.remove('lore-intro-hidden');
 
@@ -397,6 +493,17 @@
         const rect = canvas.getBoundingClientRect();
         canvas.width = Math.max(1, Math.round(rect.width));
         canvas.height = Math.max(1, Math.round(rect.height));
+
+        // the game's own caption, over the blanked caption area of the clip
+        captionEl = document.getElementById('lore-intro-caption');
+        if (!captionEl) {
+            captionEl = document.createElement('div');
+            captionEl.id = 'lore-intro-caption';
+            captionEl.className = 'lore-intro-caption no-i18n';
+            captionEl.setAttribute('translate', 'no');
+            canvas.parentNode.appendChild(captionEl);
+        }
+        window.addEventListener('resize', placeCaption);
 
         video.addEventListener('ended', onClipEnded);
         document.addEventListener('keydown', onKeyDown);

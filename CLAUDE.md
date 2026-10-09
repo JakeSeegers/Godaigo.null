@@ -145,6 +145,10 @@ Order matters — later scripts depend on earlier ones.
                              permanently taint the canvas, even with every image inlined as
                              a data URI) — placed after parallax.js for clarity only, no
                              actual parse-order dependency.
+                             Captions (2026-10-09): PAGES = 10 pages over the 9 clips; the clips' own typed caption area (below
+                             `cut`, measured per clip) is drawn as bare paper and #lore-intro-caption types the game's text
+                             (I18N_ES has the Spanish). chunkfour holds two captions: page 4 stops the clip at 4.0 s and waits
+                             for Space / click, page 5 plays on from there.
 14. gamification.js        ← window.gami — XP/gold/profiles (depends on Supabase)
 15. crt-overlay.js         ← CRT canvas effects (no game deps)
 16. gamification-ui.js     ← Profile modal UI (depends on gamification.js)

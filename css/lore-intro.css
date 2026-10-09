@@ -109,3 +109,25 @@
     width: 1px;
     height: 1px;
 }
+
+/* The game's own caption text (js/lore-intro.js PAGES), typed over the part of
+   each clip where its baked-in caption used to be (that part is drawn as bare
+   paper now). Same look as the glowing ink: light, small caps, soft glow. */
+.lore-intro-frame { position: relative; }
+.lore-intro-caption {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    overflow: hidden;
+    font-family: var(--font-sans, 'Immortal', serif);
+    font-variant: small-caps;
+    letter-spacing: 0.04em;
+    line-height: 1.32;
+    color: #f4ecd6;
+    text-shadow: 0 0 6px rgba(255, 240, 200, 0.55), 0 0 14px rgba(160, 190, 255, 0.35);
+    pointer-events: none;
+    white-space: normal;
+}
+.lore-intro-caption .lore-intro-caption-rest { visibility: hidden; }
