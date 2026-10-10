@@ -4641,6 +4641,24 @@ document.getElementById('undo-move').onclick = function() {
                 }
             }
 
+            // Learn from my play (js/bot-imitation.js, owner 2026-10-10): the
+            // champion plus this browser's learned adjustments joins round 1,
+            // once per set of adjustments and champion (it must still win).
+            if (!resume && window.BotImitation?.getDeltas) {
+                try {
+                    const d = window.BotImitation.getDeltas() || {};
+                    if (Object.values(d).some(v => typeof v === 'number' && Math.abs(v) > 1e-6)) {
+                        const w = window.BotImitation.applyDeltas({ ...window.BotSystem.DEFAULT_WEIGHTS, ...climbAnchor });
+                        let h = 0; for (const ch of JSON.stringify(w)) h = (h * 31 + ch.charCodeAt(0)) | 0;
+                        if (localStorage.getItem('godaigo_imitation_trained') !== String(h)) {
+                            localStorage.setItem('godaigo_imitation_trained', String(h));
+                            seedChallengers = [...(seedChallengers || []).slice(0, lambda - 1), w];
+                            stats.event('Learned from your play: joins round 1 as a challenger');
+                        }
+                    }
+                } catch (e) { console.warn('[train] learned adjustments skipped', e); }
+            }
+
             if (!(resume && resume.phase === 'climb')) persist({ phase: 'climb', climb: null, seedChallengers: seedChallengers || null, explored, termMutations });
             const result = await window.BotArena.hillClimb({
                 seedChallengers, termMutations,

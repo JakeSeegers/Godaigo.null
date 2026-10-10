@@ -547,7 +547,9 @@ Order matters — later scripts depend on earlier ones.
                              base whenever the HOST is the hermit with the toggle on — same bots
                              already in the room, not a separate one; toggle off = plain base,
                              unchanged. Never touches the shared community champion itself, except through idle training:
-                             an idling browser with deltas makes an 'imitation' challenger that must win like any other.
+                             an idling browser with deltas makes an 'imitation' challenger that must win like any other, and Train Bot
+                             (game-ui.js runHillClimbTraining) adds champion + deltas as a round-1 challenger once per set of
+                             deltas and champion (localStorage godaigo_imitation_trained = hash).
                              Cost (2026-10-08): it ranks once per board change (stateVersion bumped by every ActionLog entry), not
                              every 300 ms (a full ranking late in a game took 1-5 s, so the hermit's own turn froze for minutes);
                              after a ranking over 150 ms it waits 4x that long. Time shows as learnMs in the lag recorder.

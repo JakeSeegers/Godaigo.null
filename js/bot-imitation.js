@@ -12,6 +12,8 @@
 // Idle training (2026-10-10): js/idle-training.js turns these deltas into an
 // 'imitation' challenger (champion + deltas) for the shared pooled climb; it
 // becomes the champion only by winning there like any other challenger.
+// Train Bot (game-ui.js runHillClimbTraining) also adds champion + deltas as a
+// round-1 challenger, once per set of deltas and champion.
 //
 // DELTA, not a snapshot: what accumulates here is a small additive DELTA per
 // weight key (localStorage, `godaigo_bot_weight_deltas`), never a copy of the
