@@ -2207,14 +2207,25 @@
             // the banked state itself at simulation time (same input either way
             // within one ply).
             const svBanked = snap.turn.buffs?.steamVentsBanked;
+            // Mirrors bot-state.js: a step onto a non-void stone only when the
+            // AP left still reaches a hex the turn may end on.
+            const restStone = (x, y) => { const s = stoneAt(snap, x, y); return s && s.type !== 'void'; };
+            const canRestFrom = (from, apLeft, depth) => g.some(n => {
+                const dn = dist(n.x, n.y, from.x, from.y);
+                if (dn <= HEX_NEAR || dn >= HEX_STEP) return false;
+                const mv = canMoveTo(snap, n.x, n.y);
+                if (!mv.canMove || mv.cost > apLeft) return false;
+                if (!restStone(n.x, n.y)) return true;
+                return depth > 0 && canRestFrom(n, apLeft - mv.cost, depth - 1);
+            });
             for (const h of g) {
                 const d = dist(h.x, h.y, p.x, p.y);
                 if (d <= HEX_NEAR || d >= HEX_STEP) continue;
                 const mv = canMoveTo(snap, h.x, h.y);
                 const effCost = (svBanked && mv.cost > 0) ? 0 : mv.cost;
-                if (mv.canMove && effCost <= ap) {
-                    actions.push({ type: 'move', x: h.x, y: h.y, cost: mv.cost });
-                }
+                if (!mv.canMove || effCost > ap) continue;
+                if (restStone(h.x, h.y) && !canRestFrom(h, ap - effCost, 3)) continue;
+                actions.push({ type: 'move', x: h.x, y: h.y, cost: mv.cost });
             }
         }
 

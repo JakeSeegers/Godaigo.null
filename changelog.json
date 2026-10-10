@@ -4,10 +4,10 @@
     {
       "id": "2026-10-10",
       "date": "2026-10-10",
-      "title": "Idle training and a Combust fix",
+      "title": "Idle training and bot fixes",
       "changes": [
         "Idle training: leave the lobby alone for 3 minutes and it plays bot games you can watch. Every game helps train the bot everyone plays against. Move the mouse to stop. You can turn it off in Settings.",
-        "Stones destroyed by Combust now go back to the stone supply. Before, they were lost for the rest of the game, so an element could run out and nobody could finish it."
+        "Small fixes: stones destroyed by Combust now go back to the stone supply (before, an element could run out for the whole game), and bots can no longer end their turn standing on a stone."
       ]
     },
     {

@@ -177,6 +177,27 @@
     // Hex grid + Dijkstra cheapest path (stone terrain changes step costs).
     // ----------------------------------------------------------------
     let _grid = null, _gridKey = '';
+    // A step onto a non-void stone is only allowed when the AP left after it
+    // still reaches a hex the turn may end on (owner 2026-10-10: a bot walked
+    // onto an earth stone with its last AP, and the stranded rule then let it
+    // end the turn there; a human's move can never end on such a stone).
+    // Looks up to 3 more steps ahead (wind stones are free to cross).
+    function stepStrands(h, apLeft) {
+        const restStone = (x, y) => placedStones.some(s => Math.hypot(s.x - x, s.y - y) < HEX_NEAR && s.type !== 'void');
+        if (!restStone(h.x, h.y)) return false;
+        const grid = hexGrid();
+        const canRestFrom = (from, left, depth) => grid.some(n => {
+            const dn = Math.hypot(n.x - from.x, n.y - from.y);
+            if (dn <= HEX_NEAR || dn >= HEX_STEP) return false;
+            const mv = canPlayerMoveToHex(n.x, n.y, false);
+            const c = mv.cost ?? 1;
+            if (!mv.canMove || c > left) return false;
+            if (!restStone(n.x, n.y)) return true;
+            return depth > 0 && canRestFrom(n, left - c, depth - 1);
+        });
+        return !canRestFrom(h, apLeft, 3);
+    }
+
     function hexGrid() {
         // getAllHexagonPositions() is moderately expensive — cache it, but
         // invalidate on BOARD CHANGE, never on time. A time-based cache
@@ -609,6 +630,7 @@
         }
 
         // ── move: each affordable adjacent hex ──
+        // (no step onto a stone the bot could not walk off again: stepStrands)
         if (ap > 0) {
             for (const h of hexGrid()) {
                 const d = Math.hypot(h.x - player.x, h.y - player.y);
@@ -616,7 +638,8 @@
                 const mv = canPlayerMoveToHex(h.x, h.y, false);
                 if (!mv.canMove) continue;
                 const cost = mv.cost ?? 1;
-                if (cost <= ap) actions.push({ type: 'move', x: h.x, y: h.y, cost });
+                if (cost > ap || stepStrands(h, ap - cost)) continue;
+                actions.push({ type: 'move', x: h.x, y: h.y, cost });
             }
         }
 
@@ -884,6 +907,8 @@
                 const player = playerPositions[activePlayerIndex];
                 if (!player) return { ok: false, reason: 'pawn not found' };
                 if (getTotalAP() < a.cost) return { ok: false, reason: 'not enough AP' };
+                // plan-based steps (bot.js) come here without legalActions()
+                if (stepStrands(a, getTotalAP() - a.cost)) return { ok: false, reason: 'would end up stuck on a stone' };
                 player.x = a.x;
                 player.y = a.y;
                 player.element.setAttribute('transform', `translate(${a.x}, ${a.y})`);
