@@ -379,6 +379,16 @@
     // node and rebuilt the same grid again and again (a big part of a bot's
     // think time). Entries are never mutated by callers, so sharing is safe.
     const _gridByLayout = new Map();
+    // Neighbour lists per grid (grids are shared and never changed, see above).
+    const _nbrCache = new WeakMap();
+    function gridNeighbors(g) {
+        let m = _nbrCache.get(g);
+        if (m) return m;
+        m = new Map();
+        for (const h of g) m.set(h, g.filter(n => { const d = dist(n.x, n.y, h.x, h.y); return d > HEX_NEAR && d < HEX_STEP; }));
+        _nbrCache.set(g, m);
+        return m;
+    }
     function grid(snap) {
         let g = _gridCache.get(snap);
         if (g) return g;
@@ -2210,9 +2220,8 @@
             // Mirrors bot-state.js: a step onto a non-void stone only when the
             // AP left still reaches a hex the turn may end on.
             const restStone = (x, y) => { const s = stoneAt(snap, x, y); return s && s.type !== 'void'; };
-            const canRestFrom = (from, apLeft, depth) => g.some(n => {
-                const dn = dist(n.x, n.y, from.x, from.y);
-                if (dn <= HEX_NEAR || dn >= HEX_STEP) return false;
+            const nbrs = gridNeighbors(g);
+            const canRestFrom = (from, apLeft, depth) => (nbrs.get(from) || []).some(n => {
                 const mv = canMoveTo(snap, n.x, n.y);
                 if (!mv.canMove || mv.cost > apLeft) return false;
                 if (!restStone(n.x, n.y)) return true;

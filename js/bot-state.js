@@ -182,20 +182,23 @@
     // onto an earth stone with its last AP, and the stranded rule then let it
     // end the turn there; a human's move can never end on such a stone).
     // Looks up to 3 more steps ahead (wind stones are free to cross).
+    // Uses the path finder's cached neighbour lists and step costs, so it is
+    // cheap enough to run for every move the bot considers.
     function stepStrands(h, apLeft) {
-        const restStone = (x, y) => placedStones.some(s => Math.hypot(s.x - x, s.y - y) < HEX_NEAR && s.type !== 'void');
+        const restStone = (x, y) => placedStones.some(s => s.type !== 'void' && Math.hypot(s.x - x, s.y - y) < HEX_NEAR);
         if (!restStone(h.x, h.y)) return false;
-        const grid = hexGrid();
-        const canRestFrom = (from, left, depth) => grid.some(n => {
-            const dn = Math.hypot(n.x - from.x, n.y - from.y);
-            if (dn <= HEX_NEAR || dn >= HEX_STEP) return false;
-            const mv = canPlayerMoveToHex(n.x, n.y, false);
-            const c = mv.cost ?? 1;
-            if (!mv.canMove || c > left) return false;
+        const start = nearestHex(h.x, h.y);
+        if (!start) return false;
+        const key = moveStateKey();
+        if (key !== _pathKey) { _pathKey = key; _costs = new Map(); _trees = new Map(); }
+        const adj = adjacency();
+        const canRestFrom = (from, left, depth) => (adj.get(from.key) || []).some(n => {
+            const mv = stepCost(n);
+            if (!mv.canMove || mv.cost > left) return false;
             if (!restStone(n.x, n.y)) return true;
-            return depth > 0 && canRestFrom(n, left - c, depth - 1);
+            return depth > 0 && canRestFrom(n, left - mv.cost, depth - 1);
         });
-        return !canRestFrom(h, apLeft, 3);
+        return !canRestFrom(start, apLeft, 3);
     }
 
     function hexGrid() {
