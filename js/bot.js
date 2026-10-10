@@ -3180,7 +3180,33 @@
     }
     const kingmakerStats = { checks: 0, blocked: 0 };
 
-    function searchPick() {
+    // Time slicing (owner 2026-10-10, lag work): the decision runs as a
+    // generator that pauses at each root candidate. botTurn() drives it in
+    // ~8 ms slices so the screen keeps drawing while a bot thinks; every other
+    // caller runs it straight through (runSync), so choices are identical.
+    function runSync(gen) {
+        let r = gen.next();
+        while (!r.done) r = gen.next();
+        return r.value;
+    }
+    const SLICE_MS = 8;
+    async function runSliced(gen) {
+        let busy = 0, t = performance.now(), r;
+        for (;;) {
+            r = gen.next();
+            if (r.done) break;
+            const now = performance.now();
+            if (now - t >= SLICE_MS) {
+                busy += now - t;
+                await new Promise(res => setTimeout(res, 0));
+                t = performance.now();
+            }
+        }
+        busy += performance.now() - t;
+        return { value: r.value, busy };
+    }
+    function searchPick() { return runSync(searchPickGen()); }
+    function* searchPickGen() {
         const sim = window.BotSim;
         if (!sim) return null;
         const snap0 = window.BotState.snapshot();
@@ -3236,9 +3262,13 @@
         // Root: beam over the real legal actions, but move the bot's
         // anti-oscillation penalty into the root scores so search ties
         // break the same way greedy's do.
-        const scored = creditFilter(snap0, legal)
-            .map(a => { const s1 = sim.simulate(snap0, a); return { a, s1, v1: evaluateSnapshot(s1, meIdx) }; })
-            .sort((x, y) => y.v1 - x.v1);
+        const scored = [];
+        for (const a of creditFilter(snap0, legal)) {
+            const s1 = sim.simulate(snap0, a);
+            scored.push({ a, s1, v1: evaluateSnapshot(s1, meIdx) });
+            yield;
+        }
+        scored.sort((x, y) => y.v1 - x.v1);
         const rootChildren = keepCasts(scored, Math.max(breadth, 8)); // keep the root a little wider
         // Alliances: harming the leader is root-only too (the leaf eval does
         // not see it), and a break of its fresh stone always gets a look.
@@ -3270,6 +3300,7 @@
         for (const c of scored) if (stuckRoot(c.a) > 0 && !rootChildren.includes(c)) rootChildren.push(c);
         let best = null;
         for (const c of rootChildren) {
+            yield;
             const line = [];
             let v = value(c.s1, depth - 1, line) + harmRoot(c.a) + helpRoot(c.a) + stuckRoot(c.a);
             if (guardRes > 0 && snap0.turn.ap - actionApCost(snap0, c.a) < guardRes) v += WEIGHTS.guardKeepAp;
@@ -4534,19 +4565,36 @@
     // to tell a hard position from a search that goes in circles.
     let _slowMode = null, _slowParts = {};
     function botAct() {
-        const t0 = performance.now();               // js/lag-recorder.js: whole decision, Bot Mind included
+        const t0 = performance.now();
+        const act = runSync(botActGen());
+        botActDone(act, performance.now() - t0);
+        return act;
+    }
+    // botTurn(): the same decision in ~8 ms slices while the screen is shown
+    // (window.fxOn(): not in muted training, where full speed matters more).
+    async function botActSliced() {
+        const show = typeof window.fxOn === 'function' ? window.fxOn() : true;
+        if (!show || document.hidden) return botAct();
+        const { value, busy } = await runSliced(botActGen());
+        botActDone(value, busy);
+        return value;
+    }
+    function* botActGen() {
         _slowMode = null; _slowParts = {};
         _th = null;
         const snapBefore = (window.BotMind && window.BotMind.wants()) ? window.BotState.snapshot() : null;
         if (snapBefore) {
             try { _th = beginThought(snapBefore); } catch (e) { _th = null; }
         }
-        const act = botActCore();
+        const act = yield* botActCoreGen();
         if (_th) {
             try { window.BotMind.record(finishThought(_th, act)); } catch (e) { log('Bot Mind record failed', e); }
         }
         _th = null;
-        const took = performance.now() - t0;
+        return act;
+    }
+    // took = busy thinking time (js/lag-recorder.js), without the pauses
+    function botActDone(act, took) {
         window.LagRecorder?.botThink?.(took);
         if (took > 1000) {
             try {
@@ -4564,10 +4612,10 @@
                 });
             } catch (e) { /* diagnostics only */ }
         }
-        return act;
     }
 
-    function botActCore() {
+    function botActCore() { return runSync(botActCoreGen()); }
+    function* botActCoreGen() {
         if (typeof isMultiplayer !== 'undefined' && isMultiplayer &&
             typeof myPlayerIndex !== 'undefined' && activePlayerIndex !== myPlayerIndex) {
             log('Not this client\'s turn - refusing to act (multiplayer guard)');
@@ -4788,7 +4836,7 @@
                     (!!b.globalPlacement && legal.some(a => a.type === 'placeStone'));
             }
             if (useSearch) {
-                choice = searchPick();
+                choice = yield* searchPickGen();
                 if (choice) {
                     _slowMode = 'lookahead'; if (_th) { _th.mode = 'lookahead'; _th.line = choice.line || null; _th.depth = choice.depth; }
                     log(`Search (depth ${WEIGHTS.searchDepth | 0}${WEIGHTS.searchHybrid ? ', hybrid' : ''}) picked ${choice.action.type}`);
@@ -4818,7 +4866,7 @@
             m.recentPositions.length = 0;
             log('Anti-freeze: endTurn chosen with AP to spare - clearing move memory and re-deciding');
             const redo = (WEIGHTS.mctsEnabled && window.BotSim) ? mctsPick()
-                : ((WEIGHTS.searchDepth | 0) > 0 && window.BotSim) ? searchPick() : null;
+                : ((WEIGHTS.searchDepth | 0) > 0 && window.BotSim) ? (yield* searchPickGen()) : null;
             const rankedRedo = redo ? null : rankActions();
             choice = redo || (rankedRedo && rankedRedo.length ? rankedRedo[0] : choice);
             if (!redo && rankedRedo) noteIntent(idx, rankedRedo, choice.action);
@@ -4830,6 +4878,8 @@
             log('Chosen cast was vetoed by chat - next best instead');
             choice = alt[0];
         }
+        // sliced thinking: the turn may have moved on while the bot thought
+        if (activePlayerIndex !== idx) { log('Turn changed while thinking - not acting'); return null; }
         return applyChosen(snap, idx, choice);
     }
 
@@ -5076,7 +5126,7 @@
                     try { await window.StreamVotes.beforeAct(startingPlayer); } catch (err) { log('Cast vote failed: ' + err.message); }
                     if (activePlayerIndex !== startingPlayer) break;
                 }
-                const applied = botAct();
+                const applied = await botActSliced();
                 if (!applied) break;
                 if (applied.type === 'move') turnMoves.push(`${applied.x.toFixed(1)},${applied.y.toFixed(1)}`);
                 // Tactical (scroll:null) drops are terrain control, not

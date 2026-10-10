@@ -7,7 +7,7 @@
       "title": "Idle training and bot fixes",
       "changes": [
         "Idle training: leave the lobby alone for 3 minutes and it plays bot games you can watch. Every game helps train the bot everyone plays against. Move the mouse to stop. You can turn it off in Settings.",
-        "Small fixes: stones destroyed by Combust now go back to the stone supply (before, an element could run out for the whole game), and bots can no longer end their turn standing on a stone."
+        "Small fixes: stones destroyed by Combust now go back to the stone supply, bots can no longer end their turn standing on a stone, and games with bots stutter less while the bots think."
       ]
     },
     {
