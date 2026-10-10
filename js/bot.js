@@ -3227,13 +3227,16 @@
             }
             return top;
         }
+        yield;
         _fieldCtx = { cache: new Map() }; // path-aware leaf evaluation (leafField)
         const uctx = makeUnblockCtx(snap0);
+        yield;
         // Stage 4 terrain-control sets — root-only by design (see
         // tacticalContext): evaluateSnapshot() never sees them, so leaves
         // stay cheap; the bonus is folded into the root scores below the
         // same way revisitPenalty already is.
         const tac = legal.some(a => a.type === 'placeStone') ? tacticalContext(snap0) : null;
+        yield;
 
         // `pv` (optional array) receives the best line found below this node,
         // so the Bot Mind viewer can show what the search expects to play.
@@ -4148,7 +4151,8 @@
     // by js/bot-imitation.js's hermit-only learn-from-my-play feature. Every
     // existing call site omits opts, so this can never change default
     // behavior; it only adds a `.trace` object to each returned entry.
-    function rankActions(fixationTarget, opts) {
+    function rankActions(fixationTarget, opts) { return runSync(rankActionsGen(fixationTarget, opts)); }
+    function* rankActionsGen(fixationTarget, opts) {
         const withTrace = !!(opts && opts.withTrace);
         const snap = window.BotState.snapshot();
         const legal = noBacktrack(snap, kingmakerFilter(snap, window.BotState.legalActions())).filter(a => !vetoed(a));
@@ -4180,9 +4184,11 @@
             homePath: null,
             unblock: makeUnblockCtx(snap),
         };
+        yield;
         for (const t of ctx.shrines) {
             ctx.paths.set(t.id, window.BotState.findPath(self.x, self.y, t.x, t.y));
         }
+        yield;
         // Cheapest real path to any walkable hex of a hidden tile (their outer
         // rings ARE walkable). Hidden tile CENTRES are not on the hex grid, so
         // findPath to the centre returns null — target the ring hexes instead.
@@ -4298,10 +4304,12 @@
         }
         // Stage 4 terrain-control sets — only worth building when a stone
         // placement is actually on the table this decision.
+        yield;
         ctx.tac = legal.some(a => a.type === 'placeStone') ? tacticalContext(snap) : null;
+        yield;
 
-        const out = legal
-            .map(a => scoreWithOptionalTrace(a, ctx));
+        const out = [];
+        for (const a of legal) { out.push(scoreWithOptionalTrace(a, ctx)); yield; }
         // Guard: keep the AP a counter response costs.
         const reserve = guardReserve(snap, self);
         if (reserve > 0) {
@@ -4633,7 +4641,7 @@
             const maxHand = window.spellSystem?.MAX_HAND_SIZE ?? 2;
             const maxActive = window.spellSystem?.MAX_ACTIVE_SIZE ?? 2;
             if (self0.handCount > maxHand || self0.activeCount > maxActive) {
-                const ranked = rankActions(); // legalActions() returns discards only right now
+                const ranked = (yield* rankActionsGen()); // legalActions() returns discards only right now
                 if (ranked.length) {
                     const { action } = ranked[0];
                     _slowMode = 'overflow'; if (_th) _th.mode = 'overflow';
@@ -4762,7 +4770,7 @@
         if (stuckByRepeat || stuckByStall) {
             const fixationTarget = findFixationTarget(snap);
             if (fixationTarget) {
-                const ranked = rankActions(fixationTarget);
+                const ranked = (yield* rankActionsGen(fixationTarget));
                 if (ranked.length) {
                     choice = ranked[0];
                     _slowMode = 'unstuck'; if (_th) { _th.mode = 'unstuck'; _th.fixation = fixationTarget; }
@@ -4771,7 +4779,7 @@
                 }
             }
             if (!choice && stuckByRepeat) {
-                const ranked = rankActions().filter(r => r.action.type !== 'move');
+                const ranked = (yield* rankActionsGen()).filter(r => r.action.type !== 'move');
                 if (ranked.length) {
                     choice = ranked[0];
                     _slowMode = 'unstuck'; if (_th) _th.mode = 'unstuck';
@@ -4845,7 +4853,7 @@
             }
         }
         if (!choice) {
-            const ranked = rankActions();
+            const ranked = (yield* rankActionsGen());
             if (!ranked.length) { log('No legal actions found'); return null; }
             choice = ranked[0];
             noteIntent(idx, ranked, choice.action);
@@ -4867,13 +4875,13 @@
             log('Anti-freeze: endTurn chosen with AP to spare - clearing move memory and re-deciding');
             const redo = (WEIGHTS.mctsEnabled && window.BotSim) ? mctsPick()
                 : ((WEIGHTS.searchDepth | 0) > 0 && window.BotSim) ? (yield* searchPickGen()) : null;
-            const rankedRedo = redo ? null : rankActions();
+            const rankedRedo = redo ? null : (yield* rankActionsGen());
             choice = redo || (rankedRedo && rankedRedo.length ? rankedRedo[0] : choice);
             if (!redo && rankedRedo) noteIntent(idx, rankedRedo, choice.action);
         }
 
         if (vetoed(choice.action)) {
-            const alt = rankActions();
+            const alt = (yield* rankActionsGen());
             if (!alt.length) return null;
             log('Chosen cast was vetoed by chat - next best instead');
             choice = alt[0];

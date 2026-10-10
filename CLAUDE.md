@@ -427,8 +427,8 @@ Order matters — later scripts depend on earlier ones.
                              turns; comboStep / comboChoiceMatch bonus on the next cast in greedy + search root;
                              makePlan builds the next combo scroll's pattern; dropped when too slow or the next
                              scroll is gone; 3 own turns rest before the same combo again).
-                             Time slicing (2026-10-10): botAct / botActCore / searchPick are generators (botActGen, botActCoreGen,
-                             searchPickGen) that pause at each root candidate; botTurn() runs them with runSliced (~8 ms slices,
+                             Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
+                             searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (~8 ms slices,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
                              choices). A turn that moved on during the slices is not acted on.
                              Slow decisions: a decision over 1 s becomes a lag-recorder moment with its mode, time per helper
