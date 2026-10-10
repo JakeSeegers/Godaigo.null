@@ -2053,4 +2053,5 @@ window.I18N_ES = {
     "Challenger ({0})": "Aspirante ({0})",
     "Explore": "Explorar",
     "Formula": "Fórmula",
+    "Learned from a player": "Aprendido de un jugador",
 };

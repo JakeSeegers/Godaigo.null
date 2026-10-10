@@ -487,7 +487,8 @@ Order matters — later scripts depend on earlier ones.
                              for 3 min: plays watchable 2-player bot games (challenger vs champion) as an audience view
                              (Spectate.showLocal: scoreboard, follow camera, hands hidden; sound off) for a COMMUNAL "pooled climb":
                              idle_training_job / _new / _report, everyone's games add up on shared challengers ('explore' or
-                             'formula', picked at random, BotArena.makeChallenger). The server drops a challenger early when clearly
+                             'formula', picked at random, BotArena.makeChallenger; 'imitation' = champion + this browser's
+                             BotImitation deltas, 1 in 3 when it has any, one open per champion, never the same deltas twice). The server drops a challenger early when clearly
                              worse and promotes it (new promoted bot_champion_weights row) at 40 decided games with 58%+, from 2+ players. Any input
                              stops it and reloads to the lobby. Settings > Display "Idle Training" (localStorage godaigo_idle_training).
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
@@ -545,7 +546,8 @@ Order matters — later scripts depend on earlier ones.
                              hostStartGame() layers that delta onto every bot's normal (elemental-lean)
                              base whenever the HOST is the hermit with the toggle on — same bots
                              already in the room, not a separate one; toggle off = plain base,
-                             unchanged. Never touches the shared community champion itself.
+                             unchanged. Never touches the shared community champion itself, except through idle training:
+                             an idling browser with deltas makes an 'imitation' challenger that must win like any other.
                              Cost (2026-10-08): it ranks once per board change (stateVersion bumped by every ActionLog entry), not
                              every 300 ms (a full ranking late in a game took 1-5 s, so the hermit's own turn froze for minutes);
                              after a ranking over 150 ms it waits 4x that long. Time shows as learnMs in the lag recorder.

@@ -17,6 +17,11 @@
 --     decided games with 58% or more (a new bot_champion_weights row with
 --     promoted = true, so every bot uses it from the next page load), else
 --     dropped. 60 games in total without a verdict (draws) = dropped.
+--   * 'imitation' (owner, 2026-10-10): the champion plus the hermit's
+--     "Learn from my play" adjustments (js/bot-imitation.js, kept in that
+--     browser). Made by an idling browser that has adjustments; one open per
+--     champion, and the same adjustments are never tested twice against the
+--     same champion. It must win like any other challenger.
 --   * A new champion needs games from at least 2 different players (owner,
 --     2026-10-10): one person, or one broken browser, can never change
 --     everyone's bots alone. A challenger that passed with games from only one
@@ -31,7 +36,7 @@ create table if not exists public.idle_candidates (
   id bigserial primary key,
   champion_id bigint not null,
   weights jsonb not null,
-  kind text not null check (kind in ('explore', 'formula')),
+  kind text not null check (kind in ('explore', 'formula', 'imitation')),
   created_by uuid,
   created_at timestamptz not null default now(),
   wins int not null default 0,
@@ -41,6 +46,9 @@ create table if not exists public.idle_candidates (
   decided_at timestamptz,
   new_champion_id bigint
 );
+-- tables made before 'imitation' existed
+alter table public.idle_candidates drop constraint if exists idle_candidates_kind_check;
+alter table public.idle_candidates add constraint idle_candidates_kind_check check (kind in ('explore', 'formula', 'imitation'));
 create index if not exists idle_candidates_open on public.idle_candidates (champion_id) where status = 'open';
 
 create table if not exists public.idle_games (
@@ -135,8 +143,17 @@ begin
   if auth.uid() is null then raise exception 'sign in first'; end if;
   v_ch := _idle_champion();
   if v_ch.id is distinct from p_champion then raise exception 'the champion changed'; end if;
-  if p_kind not in ('explore', 'formula') then raise exception 'bad kind'; end if;
+  if p_kind not in ('explore', 'formula', 'imitation') then raise exception 'bad kind'; end if;
   if jsonb_typeof(p_weights) <> 'object' or length(p_weights::text) > 20000 then raise exception 'bad weights'; end if;
+  if p_kind = 'imitation' then
+    -- one open at a time: test that one
+    select * into v_c from idle_candidates where champion_id = v_ch.id and status = 'open' and kind = 'imitation' limit 1;
+    if v_c.id is not null then return _idle_cand_json(v_c); end if;
+    -- these exact adjustments were already judged against this champion
+    if exists (select 1 from idle_candidates where champion_id = v_ch.id and kind = 'imitation' and weights = p_weights) then
+      raise exception 'already tested';
+    end if;
+  end if;
   -- full: test one of the open ones instead
   if (select count(*) from idle_candidates where champion_id = v_ch.id and status = 'open') >= 6
      or (select count(*) from idle_candidates where created_by = auth.uid() and created_at > now() - interval '24 hours') >= 30 then

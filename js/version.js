@@ -17,7 +17,7 @@
 //   * in a waiting room: a banner with a Reload button (reloading on its own
 //     would pull the player out of the room).
 //   * in a game, tutorial or replay: nothing until the game is over.
-window.GAME_VERSION = '2026-10-10.2056';
+window.GAME_VERSION = '2026-10-10.2103';
 
 (function () {
     const CHECK_MS = 2 * 60 * 1000;

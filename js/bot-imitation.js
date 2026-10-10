@@ -9,6 +9,10 @@
 // picked to what the human actually did; when they disagree, nudge a small
 // step toward the human's choice, perceptron-style.
 //
+// Idle training (2026-10-10): js/idle-training.js turns these deltas into an
+// 'imitation' challenger (champion + deltas) for the shared pooled climb; it
+// becomes the champion only by winning there like any other challenger.
+//
 // DELTA, not a snapshot: what accumulates here is a small additive DELTA per
 // weight key (localStorage, `godaigo_bot_weight_deltas`), never a copy of the
 // base weights themselves. The base (shared community champion + each bot's

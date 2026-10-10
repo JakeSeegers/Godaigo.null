@@ -79,9 +79,21 @@
         if (error) throw error;
         let cand = data.candidate;
         if (!cand) {
-            const kind = Math.random() < 0.5 ? 'formula' : 'explore';
-            const w = window.BotArena.makeChallenger(data.champion, kind);
-            const r = await sb().rpc('idle_training_new', { p_champion: data.champion_id, p_weights: w, p_kind: kind });
+            // 'imitation': the champion plus "Learn from my play" adjustments
+            // (js/bot-imitation.js), when this browser has any. The server keeps
+            // one open per champion and never retests the same adjustments.
+            const d = window.BotImitation?.getDeltas?.() || {};
+            const hasDeltas = Object.values(d).some(v => typeof v === 'number' && Math.abs(v) > 1e-6);
+            let kind = Math.random() < 0.5 ? 'formula' : 'explore';
+            if (hasDeltas && Math.random() < 0.34) kind = 'imitation';
+            const make = (k) => k === 'imitation'
+                ? window.BotImitation.applyDeltas({ ...(window.BotSystem?.DEFAULT_WEIGHTS || {}), ...data.champion })
+                : window.BotArena.makeChallenger(data.champion, k);
+            let r = await sb().rpc('idle_training_new', { p_champion: data.champion_id, p_weights: make(kind), p_kind: kind });
+            if (r.error && kind === 'imitation') {          // already tested: a normal challenger instead
+                kind = 'explore';
+                r = await sb().rpc('idle_training_new', { p_champion: data.champion_id, p_weights: make(kind), p_kind: kind });
+            }
             if (r.error) throw r.error;
             cand = r.data;
         }
@@ -143,7 +155,7 @@
     }
 
     // ── Audience view ─────────────────────────────────────────────
-    const KIND = { explore: 'Explore', formula: 'Formula' };
+    const KIND = { explore: 'Explore', formula: 'Formula', imitation: 'Learned from a player' };
     function seatList() {
         const pos = (typeof playerPositions !== 'undefined' ? playerPositions : []) || [];
         const marked = window.BotArena?.markedSeat?.();
