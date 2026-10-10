@@ -876,17 +876,22 @@
             } catch (e) {}
         };
         glideRef = glide;
-        // the same pawn moved (its transform changed)
-        new MutationObserver(list => {
+        // the same pawn moved (its transform changed). Watches only the pawn
+        // groups (attached as they appear), not every transform on the board:
+        // effects and sparks change transforms many times a second.
+        const pawnMoveMO = new MutationObserver(list => {
             for (const m of list) {
                 if (!m.target.matches?.('#viewport > g.player') || !m.oldValue) continue;
                 const fake = { getAttribute: () => m.oldValue };
                 const from = posOf(fake), to = posOf(m.target);
                 if (from && to) glide(m.target, from, to);
             }
-        }).observe(vp, { subtree: true, attributes: true, attributeFilter: ['transform'], attributeOldValue: true });
+        });
+        const watchPawn = (g) => pawnMoveMO.observe(g, { attributes: true, attributeFilter: ['transform'], attributeOldValue: true });
+        vp.querySelectorAll(':scope > g.player').forEach(watchPawn);
         // a pawn re-created at its new hex
         new MutationObserver(list => {
+            for (const m of list) for (const n of m.addedNodes) if (n.nodeType === 1 && n.matches('g.player')) watchPawn(n);
             for (const m of list) for (const n of m.removedNodes) {
                 if (n.nodeType === 1 && n.matches('g.player')) { const p = posOf(n); if (p) lastPawnPos.set(pawnKey(n), { p, t: performance.now() }); }
             }

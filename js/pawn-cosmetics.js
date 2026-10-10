@@ -101,7 +101,9 @@
         return window.cosmeticsSystem?.pawnStyleForSeat?.(i) || {};
     }
 
+    let anyTrail = false;   // set by refresh(); the 50 ms trail watcher sleeps while nobody has a trail
     function refresh() {
+        anyTrail = pawns().some((p, i) => p && TRAILS[styleFor(i).trail]);
         pawns().forEach((p, i) => {
             const group = p?.element;
             if (!group || !group.isConnected) return;
@@ -241,7 +243,7 @@
     // Forget old positions then, so coming back does not spawn one big trail.
     setInterval(() => { if (!document.hidden) refresh(); }, 500);
     setInterval(() => {
-        if (document.hidden) { last.clear(); return; }
+        if (document.hidden || !anyTrail) { last.clear(); return; }
         watchMoves();
     }, 50);
 
