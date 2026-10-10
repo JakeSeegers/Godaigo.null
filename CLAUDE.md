@@ -479,6 +479,13 @@ Order matters — later scripts depend on earlier ones.
                              Realtime channel (broadcast self + ack), a message every 500 ms + a burst of 10 every 10 s, echoed
                              back: round trip, server ack, lost (5 s), plus HTTP ping. Results box with plain-words verdicts
                              (drawing vs bot thinking vs network, late because the screen was busy) + Download report.
+25a4. idle-training.js   <- window.IdleTraining: idle training screensaver (sql/idle-training.sql). Signed in, in the lobby, no input
+                             for 3 min: plays watchable 2-player bot games (challenger vs champion) as an audience view
+                             (Spectate.showLocal: scoreboard, follow camera, hands hidden; sound off) for a COMMUNAL "pooled climb":
+                             idle_training_job / _new / _report, everyone's games add up on shared challengers ('explore' or
+                             'formula', picked at random, BotArena.makeChallenger). The server drops a challenger early when clearly
+                             worse and promotes it (new promoted bot_champion_weights row) at 40 decided games with 58%+. Any input
+                             stops it and reloads to the lobby. Settings > Display "Idle Training" (localStorage godaigo_idle_training).
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
                              for 500g (buy_stream_mode -> 'feature_stream' in cosmetics_owned; owned(), Hermit free; locked
                              panel + Shop > Features card in gamification-ui.js). Lobby "Stream" button -> openPanel(): on/off, channel, vote time 10-45 s, mood / cast votes (localStorage
@@ -600,6 +607,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `game_room` | lobby.js | Active game sessions. `test_mode` (test games), `stream_mode` (stream games, js/stream-votes.js; start_match copies it to `matches.stream_mode`, the combo miner skips those once sql/stream-games.sql part B is applied) |
 | `players` | lobby.js | Player slots in a session |
 | `game_room.allow_spectators` | spectate.js | Host switch (sql/spectate.sql). RPCs `list_watchable_games()` (playing, allow_spectators, started < 4 h, signed in) and `get_live_match(room)` (seats, deck seed, settings, moves so far; signed in, allowed, match playing). |
+| `idle_candidates` / `idle_games` | idle-training.js | Idle training (sql/idle-training.sql): shared challengers of the current champion (weights, kind explore/formula, wins/losses/draws, status open/promoted/dropped/stale) and one row per reported game (user, result). RLS on, no client policies: `idle_training_job()`, `idle_training_new(champion, weights, kind)` (max 6 open per champion, 30 per account per day), `idle_training_report(candidate, result, turns)` (1 per 20 s per account; drop under 35% at 12 decided / 45% at 24, verdict at 40 decided: 58%+ = promoted, 60 games = dropped). |
 | `matches` | match-recorder.js | One row per online game: players snapshot, deck seed, settings, winner, status (playing/finished/abandoned), move_count, `keep`. Written ONLY via RPCs `start_match` / `finish_match` (room host or hermit). Read ONLY via RPCs (sql/replay-access.sql): `list_my_matches`, `list_public_matches`, `get_match_replay` (finished + (player of it OR `is_public` OR hermit)), `set_match_public` (players of it). Posting sets `keep`. Finished matches older than 30 days are deleted unless `keep`. `game_room.match_id` points at the live one. |
 | `matches` (check) | replay-viewer.js | `check_status` / `check_detail` / `checked_at`: replay verification result. Hermit-only RPCs `list_matches_for_check`, `get_match_fingerprints`, `save_match_check` (sql/match-check.sql). |
 | `combo_candidates` | replay-viewer.js (miner) | Combo candidates mined from finished matches (seat, user, rank, games, trust, gain, turns, signature, steps). RLS on, no client policies; hermit-only RPCs `list_matches_for_mining`, `save_combo_candidates`, `hermit_combo_summary`, `hermit_reset_mining` (sql/combo-miner.sql). `matches.mined_at` marks mined games; `start_match` now saves each human's ladder `rank` in `matches.players`. |

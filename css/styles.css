@@ -5202,3 +5202,18 @@ body.spectating #undo-move, body.spectating #cast-spell, body.spectating #end-tu
    glass beads get a dark dome in js/piece-3d.js instead). */
 g.stone.stone-voided > circle.stone-piece,
 g.stone.stone-voided > image { filter: brightness(0.7); }
+
+/* Idle training screensaver (js/idle-training.js) */
+#idle-training-bar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10060;
+    width: min(620px, calc(100vw - 32px)); box-sizing: border-box; padding: 10px 14px;
+    background: rgba(14, 10, 26, 0.92); border: 1px solid #9458f4; border-radius: 8px;
+    font-family: var(--font-terminal); color: #ddd; font-size: 13px; text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.55); pointer-events: none;
+}
+#idle-training-bar .idle-title { color: #e7dcff; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+#idle-training-bar .idle-tag { color: #0e0a1a; background: #9458f4; border-radius: 4px; padding: 1px 6px; margin-right: 6px; font-size: 12px; }
+#idle-training-bar .idle-line { color: #c9c2dc; margin-top: 2px; }
+#idle-training-bar .idle-verdict { margin-top: 6px; color: #ffb3b3; font-weight: bold; }
+#idle-training-bar .idle-verdict.win { color: #9dff7a; }
+#idle-training-bar .idle-hint { margin-top: 6px; color: #8d86a3; font-size: 12px; }

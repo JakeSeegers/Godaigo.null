@@ -862,6 +862,14 @@ function _renderSettingsView(content) {
             </div>
             <button class="gami-toggle on" onclick="_gami_resetTips(this)">Reset</button>
         </div>
+        <div class="gami-settings-row">
+            <div class="gami-settings-label">
+                <div class="gami-settings-name">Idle Training</div>
+                <div class="gami-settings-desc">After 3 minutes idle in the lobby, watch bot games that help train the shared bot</div>
+            </div>
+            <button class="gami-toggle ${window.IdleTraining?.enabled?.() !== false ? 'on' : 'off'}"
+                    onclick="_gami_toggleIdleTraining(this)">${window.IdleTraining?.enabled?.() !== false ? 'ON' : 'OFF'}</button>
+        </div>
     `;
 
     const logConsent = localStorage.getItem('godaigo_log_consent') === 'granted';
@@ -949,6 +957,13 @@ function _renderSettingsView(content) {
     if (_gamiSettingsCategory === 'account') {
         window.AccountRecovery?.renderSettings(document.getElementById('acct-settings-slot'));
     }
+}
+
+function _gami_toggleIdleTraining(btn) {
+    const on = !(window.IdleTraining?.enabled?.() !== false);
+    window.IdleTraining?.setEnabled?.(on);
+    btn.className = 'gami-toggle ' + (on ? 'on' : 'off');
+    btn.textContent = on ? 'ON' : 'OFF';
 }
 
 function _gami_resetTips(btn) {

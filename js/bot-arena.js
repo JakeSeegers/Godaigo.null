@@ -1524,12 +1524,23 @@
         return mutate({ ...table }, rng, sigma);
     }
 
+    // Idle training (js/idle-training.js): one challenger of the champion.
+    // 'explore' = numbers moved further than a Train Bot step; 'formula' = a
+    // normal step that may also gain / lose / change a formula term.
+    function makeChallenger(table, kind) {
+        const rng = mulberry32(((Date.now() >>> 0) ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
+        return kind === 'formula'
+            ? mutate({ ...table }, rng, 0.2, { structural: true })
+            : mutate({ ...table }, rng, 0.35);
+    }
+
     window.BotArena = {
         run, evolve, playGame, playMatch, spectate, stop,
         hillClimb, // champion-anchored monotonic climber (the reliable trainer)
         confirmAcrossSizes, // N-player champion-vs-field confirmation gate
         saveAndStop, saveRequested, // hillClimb: stop after this challenger, keep a checkpoint
         endEarly, // soft-stop: cuts evolve()'s / hillClimb()'s loop short but keeps its result usable
+        makeChallenger, // idle training: explore / formula challenger
         perturbWeights, // gaussian-perturbed copy of a weight table (Noisy anchor toggle)
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
         stopRequested: () => _stopRequested, // was stop() called for the run in progress (or the one that just ended)?

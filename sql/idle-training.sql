@@ -1,4 +1,3 @@
--- DRAFT, NOT APPLIED YET (2026-10-10). The client (js/idle-training.js) is not written yet.
 -- Idle training (screensaver), owner 2026-10-09. js/idle-training.js.
 --
 -- When a signed-in player sits idle in the lobby, their browser plays watchable

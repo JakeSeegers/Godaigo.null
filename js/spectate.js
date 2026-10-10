@@ -218,7 +218,7 @@
     function renderScoreboard() {
         const box = document.getElementById('spectate-scoreboard');
         if (!box) return;
-        const seats = (watching.match.seats || []).slice().sort((a, b) => a.index - b.index);
+        const seats = (watching.seatsFn ? watching.seatsFn() : (watching.match.seats || [])).slice().sort((a, b) => a.index - b.index);
         if (Date.now() - lastHomeAt > 2000 && window.BotSystem?.homeCost && window.BotState?.snapshot) {
             lastHomeAt = Date.now();
             try { const snap = window.BotState.snapshot(); seats.forEach(s => { homeCache[s.index] = window.BotSystem.homeCost(snap, s.index); }); } catch (e) {}
@@ -234,7 +234,7 @@
             const ap = i === active ? `${(g('currentAP') || 0) + (g('voidAP') || 0)} AP` : '';
             const home = homeCache[i];
             const homeTxt = Number.isFinite(home) && home < 99 ? `${Math.round(home)} to home` : '';
-            const name = typeof getPlayerColorName === 'function' ? getPlayerColorName(i) : s.username;
+            const name = s.label || (typeof getPlayerColorName === 'function' ? getPlayerColorName(i) : s.username);
             const hand = ps.hand ? ps.hand.size : 0, activeN = ps.active ? ps.active.size : 0;
             return `<div class="spec-row ${i === active ? 'turn' : ''}">
                 <div class="spec-name" style="color:${(typeof PLAYER_COLORS !== 'undefined' && PLAYER_COLORS[s.color]) || '#ccc'}">${esc(name)}${i === active ? ' <span class="spec-turn-tag">turn</span>' : ''}</div>
@@ -391,6 +391,28 @@
         if (typeof updateStatus === 'function') updateStatus('Spectate test: the bots are playing');
     }
 
+    // Local bot games watched as an audience (js/idle-training.js): the same
+    // scoreboard and follow camera, hands hidden, no channel and no emotes.
+    // opts: { seats: () => [{index, color, label}], bar: element to show on top }
+    let localTimer = null;
+    function showLocal(opts) {
+        hideLocal();
+        window.__liveSpectate = true;
+        watching = { local: true, seatsFn: opts.seats, match: { seats: [], players: [] }, specCh: null };
+        lastActive = null;
+        document.body.classList.add('spectating');
+        buildScoreboard();
+        localTimer = setInterval(tickSpectator, 500);
+    }
+    function hideLocal() {
+        if (!watching?.local) return;
+        clearInterval(localTimer); localTimer = null;
+        document.getElementById('spectate-scoreboard')?.remove();
+        document.body.classList.remove('spectating');
+        window.__liveSpectate = false;
+        watching = null;
+    }
+
     setInterval(() => { waitingRoomTick(); lobbyTick(); playerTick(); }, 1000);
-    window.Spectate = { watch, isWatching: () => !!watching, openHermitTest, onSeatlessHostStart };
+    window.Spectate = { watch, isWatching: () => !!watching && !watching.local, openHermitTest, onSeatlessHostStart, showLocal, hideLocal };
 })();
