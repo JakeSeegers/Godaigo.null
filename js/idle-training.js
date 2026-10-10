@@ -166,12 +166,15 @@
         const bar = document.getElementById('idle-training-bar');
         if (!bar || !run || run.stopping) return;
         const c = run.cand || {}, s = run.job?.summary || {};
+        const dec = (c.wins || 0) + (c.losses || 0);
+        const waiting = !run.verdict && c.status === 'open' && dec >= 40 && (c.players || 0) < 2 && c.wins / dec >= 0.58;
         const verdict = run.verdict === 'promoted' ? '<div class="idle-verdict win">This challenger beat the champion. It is the new champion!</div>'
-            : run.verdict === 'dropped' ? '<div class="idle-verdict">This challenger was not good enough. On to the next one.</div>' : '';
+            : run.verdict === 'dropped' ? '<div class="idle-verdict">This challenger was not good enough. On to the next one.</div>'
+            : waiting ? '<div class="idle-verdict">It passed. Waiting for games from a second player.</div>' : '';
         // one text node per line, so js/i18n.js can translate each pattern
         bar.innerHTML = `<div class="idle-title"><span class="idle-tag">IDLE TRAINING</span> <span>Challenger #${esc(c.id)} (${esc(KIND[c.kind] || '')}) vs Champion</span></div>
             <div class="idle-line">This challenger so far (all players): ${c.wins || 0} won, ${c.losses || 0} lost, ${c.draws || 0} drawn.</div>
-            <div class="idle-line">It needs 40 decided games at 58% or more to become the champion.</div>
+            <div class="idle-line">It needs 40 decided games at 58% or more, from at least 2 players, to become the champion.</div>
             <div class="idle-line">Last 24 hours: ${s.games_today || 0} games from ${s.players_today || 0} players. You: ${(s.my_games || 0) + run.games} games.</div>
             ${verdict}
             <div class="idle-hint">Move the mouse or press a key to go back to the lobby.</div>`;

@@ -17,6 +17,12 @@
 --     decided games with 58% or more (a new bot_champion_weights row with
 --     promoted = true, so every bot uses it from the next page load), else
 --     dropped. 60 games in total without a verdict (draws) = dropped.
+--   * A new champion needs games from at least 2 different players (owner,
+--     2026-10-10): one person, or one broken browser, can never change
+--     everyone's bots alone. A challenger that passed with games from only one
+--     player stays open ("waiting for a second player") and is handed to other
+--     players first; it is promoted when another player's game comes in and it
+--     still has 58% or more.
 --   * A new champion makes the old champion's open challengers 'stale'.
 -- Limits: one report per 20 s per account, 30 new challengers per account per
 -- day, 6 open challengers per champion.
@@ -98,11 +104,18 @@ begin
     where status = 'open' and champion_id <> v_ch.id;
   select count(*) into v_open from idle_candidates where champion_id = v_ch.id and status = 'open';
   -- some room left: sometimes ask for a new challenger, so the search keeps moving
-  if v_open = 0 or (v_open < 6 and random() < 0.3) then
+  if v_open = 0 or (v_open < 6 and random() < 0.3 and not exists (
+       select 1 from idle_candidates c where c.champion_id = v_ch.id and c.status = 'open' and c.wins + c.losses >= 40
+         and not exists (select 1 from idle_games g where g.candidate_id = c.id and g.user_id = auth.uid()))) then
     v_c := null;
   else
-    select * into v_c from idle_candidates where champion_id = v_ch.id and status = 'open'
-      order by (wins + losses + draws) + random() * 4 limit 1;
+    -- a challenger waiting for a second player goes to someone who has not played it yet
+    select c.* into v_c from idle_candidates c where c.champion_id = v_ch.id and c.status = 'open'
+      order by (case when c.wins + c.losses >= 40
+                      and not exists (select 1 from idle_games g where g.candidate_id = c.id and g.user_id = auth.uid())
+                     then 0 else 1 end),
+               (c.wins + c.losses + c.draws) + random() * 4
+      limit 1;
   end if;
   return jsonb_build_object(
     'champion_id', v_ch.id, 'champion', v_ch.weights,
@@ -148,6 +161,7 @@ declare
   v_rate float;
   v_new bigint;
   v_verdict text := null;
+  v_players int;
 begin
   if auth.uid() is null then raise exception 'sign in first'; end if;
   if p_result not in ('win', 'loss', 'draw') then raise exception 'bad result'; end if;
@@ -170,7 +184,11 @@ begin
   if (v_dec >= 12 and v_rate < 0.35) or (v_dec >= 24 and v_rate < 0.45) then
     v_verdict := 'dropped';
   elsif v_dec >= 40 then
-    v_verdict := case when v_rate >= 0.58 then 'promoted' else 'dropped' end;
+    select count(distinct user_id) into v_players from idle_games where candidate_id = v_c.id;
+    v_verdict := case when v_rate < 0.58 then 'dropped'
+                      when v_players >= 2 then 'promoted'
+                      when v_c.wins + v_c.losses + v_c.draws >= 80 then 'dropped'
+                      else null end;   -- passed, waiting for a second player
   elsif v_c.wins + v_c.losses + v_c.draws >= 60 then
     v_verdict := 'dropped';
   end if;
