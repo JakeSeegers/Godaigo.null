@@ -3930,10 +3930,16 @@
 
                             // Remove from array
                             placedStones.splice(stoneIndex, 1);
+                            // Mirror the caster: the stone goes back to the source pool
+                            if (typeof returnStoneToPool === 'function') returnStoneToPool(stone.type);
                             console.log(`💥 Removed stone ${stoneId} from board`);
                         }
                     });
 
+                    if (typeof updateTileClasses === 'function') updateTileClasses();
+                    if (typeof recheckAllStoneInteractions === 'function') recheckAllStoneInteractions();
+                    if (typeof updateAllWaterStoneVisuals === 'function') updateAllWaterStoneVisuals();
+                    if (typeof updateAllVoidNullificationVisuals === 'function') updateAllVoidNullificationVisuals();
                     console.log(`🔥 Combust destroyed ${stoneIds.length} stone${stoneIds.length === 1 ? '' : 's'} on tile ${tileId}`);
                 }
             });

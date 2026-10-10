@@ -5581,7 +5581,17 @@ const ScrollEffects = {
                 }
                 // Remove from array
                 placedStones.splice(i, 1);
+                // Back to the shared source pool, like every other way a stone
+                // leaves the board (owner 2026-10-09: Combust made earth stones
+                // vanish, so the source ran dry and nobody could finish earth).
+                if (typeof returnStoneToPool === 'function') returnStoneToPool(stone.type);
             }
+        }
+        if (removedStoneIds.length) {
+            if (typeof updateTileClasses === 'function') updateTileClasses();
+            if (typeof recheckAllStoneInteractions === 'function') recheckAllStoneInteractions();
+            if (typeof updateAllWaterStoneVisuals === 'function') updateAllWaterStoneVisuals();
+            if (typeof updateAllVoidNullificationVisuals === 'function') updateAllVoidNullificationVisuals();
         }
 
         // Broadcast in multiplayer
