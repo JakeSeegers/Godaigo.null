@@ -7,6 +7,7 @@
       "title": "Idle training and bot fixes",
       "changes": [
         "Idle training: leave the lobby alone for 3 minutes and it plays bot games you can watch. Every game helps train the bot everyone plays against. Move the mouse to stop. You can turn it off in Settings.",
+        "Idle in a game against bots for 10 minutes on your turn? The game is saved and idle training starts. Move the mouse to jump straight back into your game.",
         "Small fixes: stones destroyed by Combust go back to the stone supply, bots can no longer end their turn standing on a stone, games with bots stutter less while the bots think, and Train Bot runs about twice as fast."
       ]
     },

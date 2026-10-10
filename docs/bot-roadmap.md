@@ -26,7 +26,7 @@ different concerns and neither blocks the other:
 | 1 | Utility-scored bot (replaces rule ladder) | **DONE** | `js/bot.js` |
 | 1.5 | Multiplayer bot player (host-driven, any count up to 5-player cap) | **DONE** | `js/bot-driver.js` + lobby.js `addBotPlayer()`/`removeBotPlayer()` |
 | R1 | Narrow driver to pure adapter | **DONE** | `js/bot-driver.js` |
-| R2 | One backend path for move validation (shadow-mode, `endTurn` only) | **DONE** | `validate-end-turn` edge fn + `persistCurrentTurnIndex()` |
+| R2 | One backend path for move validation (shadow-mode, `endTurn` only) | **REMOVED 2026-10-10** | the `validate-end-turn` edge fn was gone (404); the client call is removed, `persistCurrentTurnIndex()` stays |
 | R3 | Backend-authoritative turn validation | TODO | Supabase edge function + game-core.js call sites |
 | R4 | Replace host-browser impersonation with backend-driven bot turns | TODO | `js/bot-driver.js` (removed), backend service |
 | R5 | Server-side bot execution + bot-vs-bot | TODO | backend service running `bot.js` logic headless |

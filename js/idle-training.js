@@ -22,6 +22,7 @@
     const sb = () => { try { return supabase; } catch (e) { return null; } };
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
+    const FAST_SPEED = 0.1;          // pause between bot actions, x of Watchable (1)
     let lastInput = Date.now(), lastX = null, lastY = null;
     let run = null;                 // { job, cand, champion, stopping }
     let backoffUntil = 0;
@@ -43,6 +44,8 @@
         }
         lastInput = Date.now();
         if (run && !run.stopping) wake();
+        // back before the idle run started: straight back to the saved game
+        else if (!run && flag(FLAG_RESUME) && !gameSaving && inLobby()) resumeSavedGame();
     }
     ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(t =>
         window.addEventListener(t, onInput, { capture: true, passive: true }));
@@ -65,6 +68,54 @@
         } catch (e) { return false; }
     }
     function signedIn() { return !!(window.gami?.userId); }
+
+    // ── Idle in a game against bots (owner 2026-10-10) ────────────
+    // Longer wait (10 min). Your turn, a game you could save (js/save-game.js):
+    // save it quietly, leave, start idle training at once; waking up loads the
+    // saved game again (sessionStorage flags survive the reloads).
+    const IDLE_GAME_MS = (() => {
+        try { const m = +localStorage.getItem('godaigo_idle_game_minutes'); if (m > 0) return m * 60000; } catch (e) {}
+        return 10 * 60000;
+    })();
+    const FLAG_START = 'godaigo_idle_start_now', FLAG_RESUME = 'godaigo_idle_resume_game', FLAG_WAKE = 'godaigo_idle_woke';
+    const flag = (k, v) => { try { if (v === undefined) return sessionStorage.getItem(k) === '1'; if (v) sessionStorage.setItem(k, '1'); else sessionStorage.removeItem(k); } catch (e) {} return false; };
+    let gameSaving = false;
+    setInterval(async () => {
+        if (run || gameSaving || !enabled() || document.hidden || !signedIn() || Date.now() < backoffUntil) return;
+        if (Date.now() - lastInput < IDLE_GAME_MS) return;
+        if (!window.SaveGame?.canSave?.()) return;
+        gameSaving = true;
+        flag(FLAG_START, true); flag(FLAG_RESUME, true);
+        try { sessionStorage.setItem('godaigo_skip_intro_once', '1'); } catch (e) {}
+        let ok = false;
+        try { ok = await window.SaveGame.saveAndQuit({ quiet: true }); } catch (e) {}
+        if (!ok) { flag(FLAG_START, false); flag(FLAG_RESUME, false); backoffUntil = Date.now() + 10 * 60000; lastInput = Date.now(); }
+        gameSaving = false;
+    }, 5000);
+    // Back in the lobby after an idle save: start right away.
+    setInterval(() => {
+        if (!flag(FLAG_START) || run || !signedIn() || !inLobby()) return;
+        flag(FLAG_START, false);
+        lastInput = 0;
+    }, 1000);
+    // Woke up from an idle run that saved a game (or before it started):
+    // continue that game. One attempt, then the flags are gone.
+    let resuming = false;
+    async function resumeSavedGame() {
+        if (resuming) return;
+        resuming = true;
+        flag(FLAG_RESUME, false); flag(FLAG_WAKE, false); flag(FLAG_START, false);
+        for (let i = 0; i < 120; i++) {           // up to 2 min for sign-in and the lobby
+            if (signedIn() && inLobby() && window.SaveGame?.resume) break;
+            await new Promise(r => setTimeout(r, 1000));
+        }
+        if (!signedIn() || !inLobby()) { resuming = false; return; }
+        lastInput = Date.now();
+        try { await window.SaveGame.refreshCard?.(); await window.SaveGame.resume(); }
+        catch (e) { console.warn('[idle] could not continue the saved game', e); }
+        resuming = false;
+    }
+    if (flag(FLAG_WAKE)) resumeSavedGame();
 
     setInterval(() => {
         if (run || !enabled() || document.hidden || Date.now() < backoffUntil) return;
@@ -109,18 +160,47 @@
         run = { ...first, stopping: false, games: 0, verdict: null };
         window.SoundSystem = null;                     // quiet screensaver (effects stay on at Watchable speed)
         buildBar();
-        window.Spectate?.showLocal?.({ seats: seatList });
+        // no follow camera (owner 2026-10-10: jarring)
+        window.Spectate?.showLocal?.({ seats: seatList, follow: false });
+        let played = 0;
         while (run && !run.stopping) {
-            const seed = (Date.now() % 1e6) >>> 0;
-            await window.BotArena.run(run.cand.weights, run.job.champion, 2, seed, {
-                visual: true, speed: 1, markChallenger: true,
-                onGame: (n, total, g, side) => report(g, side),
-            });
+            await mineOne();
             if (!run || run.stopping) break;
+            // One game per call, seats swapping (gameIndexOffset). After the first
+            // three, every other game is fast: short pauses, effects still shown
+            // and waited for (window.__arenaFx). Same moves at any speed.
+            const fast = played >= 3 && played % 2 === 1;
+            run.fast = fast; renderBar();
+            window.__arenaFx = fast;
+            const seed = (Date.now() % 1e6) >>> 0;
+            try {
+                await window.BotArena.run(run.cand.weights, run.job.champion, 1, seed, {
+                    visual: true, speed: fast ? FAST_SPEED : 1, markChallenger: true, gameIndexOffset: played,
+                    onGame: (n, total, g, side) => report(g, side),
+                });
+            } finally { window.__arenaFx = false; }
+            played++;
+            if (!run || run.stopping) break;
+            if (run.games < 2) continue;          // two games per challenger, then a new job
             try { Object.assign(run, await getJob(), { verdict: null, games: 0 }); }
             catch (e) { console.warn('[idle] next job failed', e); await new Promise(r => setTimeout(r, 30000)); }
             renderBar();
         }
+    }
+
+    // Combo miner (owner 2026-10-10): between training games, the hermit's
+    // browser mines one finished game for combos (Replay.mineMatches, the
+    // hermit-only RPCs of sql/combo-miner.sql). Nothing left = skipped.
+    let mineIdleUntil = 0;
+    async function mineOne() {
+        if (!window.isHermit?.() || !window.Replay?.mineMatches || Date.now() < mineIdleUntil) return;
+        run.mining = true; renderBar();
+        try {
+            const r = await window.Replay.mineMatches(null, { limit: 1, stop: () => !run || run.stopping });
+            if (r) { run.mined = (run.mined || 0) + r.done; run.combos = (run.combos || 0) + r.found; }
+            if (!r || !r.done) mineIdleUntil = Date.now() + 30 * 60000;   // all mined: look again later
+        } catch (e) { console.warn('[idle] mining failed', e); mineIdleUntil = Date.now() + 30 * 60000; }
+        if (run) { run.mining = false; renderBar(); }
     }
 
     async function report(g, side) {
@@ -145,6 +225,7 @@
         const bar = document.getElementById('idle-training-bar');
         if (bar) bar.innerHTML = '<div class="idle-title">Back to the lobby...</div>';
         try { sessionStorage.setItem('godaigo_skip_intro_once', '1'); } catch (e) {}
+        if (flag(FLAG_RESUME)) flag(FLAG_WAKE, true);
         setTimeout(() => location.reload(), 150);
     }
     function cleanupFailed() {
@@ -189,7 +270,11 @@
             <div class="idle-line">It needs 40 decided games at 58% or more, from at least 2 players, to become the champion.</div>
             <div class="idle-line">Last 24 hours: ${s.games_today || 0} games from ${s.players_today || 0} players. You: ${(s.my_games || 0) + run.games} games.</div>
             ${verdict}
-            <div class="idle-hint">Move the mouse or press a key to go back to the lobby.</div>`;
+            ${run.fast ? '<div class="idle-line">Fast game.</div>' : ''}
+            ${run.mining ? '<div class="idle-line">Looking for combos in a past game...</div>' : ''}
+            ${run.mined ? `<div class="idle-line">Past games checked for combos: ${run.mined}, combos found: ${run.combos || 0}.</div>` : ''}
+            ${flag(FLAG_RESUME) ? '<div class="idle-hint">Your game is saved. Move the mouse or press a key to go back to it.</div>'
+                : '<div class="idle-hint">Move the mouse or press a key to go back to the lobby.</div>'}`;
     }
 
     window.IdleTraining = { enabled, setEnabled, isRunning: () => !!run, startNow: () => { lastInput = 0; } };

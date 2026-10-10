@@ -4977,7 +4977,9 @@
             // only: never in arena training, spectate or hill-climb (fast or
             // visual), so training speed is unchanged.
             const inArena = typeof window.BotArena?.isRunning === 'function' && window.BotArena.isRunning();
-            if (!inArena && (window.BotSystem?.speedScale ?? 1) >= 0.5 && (window.effectsSystem?.isPlaying?.() || window.StoneDropFx?.isBurning?.())) {
+            // Fast idle training with effects (window.__arenaFx): wait for them too.
+            const fxWait = inArena ? !!(window.__arenaFx && window.fxOn?.()) : (window.BotSystem?.speedScale ?? 1) >= 0.5;
+            if (fxWait && (window.effectsSystem?.isPlaying?.() || window.StoneDropFx?.isBurning?.())) {
                 await sleep(100);
                 continue;
             }
@@ -4985,7 +4987,7 @@
             // waits for it before stepping on, so the next action waits too.
             // Also at Watchable training speed (the flip only plays when
             // someone watches: window.fxOn()).
-            if ((window.BotSystem?.speedScale ?? 1) >= 0.5 && window.TileFlipFx?.isFlipping?.() && window.fxOn?.()) {
+            if (((window.BotSystem?.speedScale ?? 1) >= 0.5 || window.__arenaFx) && window.TileFlipFx?.isFlipping?.() && window.fxOn?.()) {
                 await sleep(80);
                 continue;
             }

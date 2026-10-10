@@ -601,15 +601,18 @@
 
     // Parent side: mine every finished match not mined yet.
     let mining = false;
-    async function mineMatches(onProgress) {
+    // opts.limit: at most this many games; opts.stop(): checked before each game
+    // (idle training mines one game at a time, js/idle-training.js).
+    async function mineMatches(onProgress, opts = {}) {
         if (mining) return;
         mining = true;
         let done = 0, found = 0;
         try {
-            const { data, error } = await supabase.rpc('list_matches_for_mining', { p_limit: 50 });
+            const { data, error } = await supabase.rpc('list_matches_for_mining', { p_limit: opts.limit || 50 });
             if (error) throw error;
             const ids = (data || []).map(r => r.id);
             for (const id of ids) {
+                if (opts.stop?.()) break;
                 onProgress?.(`Mining #${id} (${done + 1} of ${ids.length})...`);
                 const run = await runInFrame(id, 300000, 'mine');
                 const rows = run.result?.candidates || [];

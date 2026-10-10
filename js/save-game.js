@@ -53,16 +53,33 @@
         const seats = S.allPlayersData || [];
         if (seats.filter(p => !isBotName(p.username)).length !== 1) return 'only games against bots can be saved';
         if (S.isPlacementPhase) return 'place your home tile first';
-        if (S.activePlayerIndex !== S.myPlayerIndex) return 'you can save at the start of your turn';
-        if ((S.currentAP || 0) < 5) return 'you can save before you act this turn';
-        const turn = S.currentTurnNumber, me = S.myPlayerIndex;
-        const acted = (window.ActionLog?.entries?.() || []).some(e => e.turn === turn && e.player === me && e.type !== 'botTalk');
-        if (acted) return 'you can save before you act this turn';
+        // Any time in your own turn (owner 2026-10-10: also mid-turn): the save
+        // keeps the AP you have left. Not while a scroll is half done.
+        // While a bot acts, js/bot-driver.js borrows its seat (myPlayerIndex = the bot).
+        if (window.BotDriver?.driverRealIndex?.() != null) return 'wait for the bots to finish';
+        if (S.activePlayerIndex !== S.myPlayerIndex) return 'you can save during your turn';
         if (window.spellSystem?.responseWindow?.isResponseWindowOpen) return 'wait for the response window to close';
+        if (busyScroll()) return 'finish the scroll you are casting first';
         if (window.isGamePaused?.()) return 'the game is paused';
         const b = window.PlayerBounty?.current?.();
         if (b && b.status === 'open' && b.total > 0) return 'games with a bounty cannot be saved';
         return null;
+    }
+
+    function actedThisTurn() {
+        const turn = S.currentTurnNumber, me = S.myPlayerIndex;
+        return (window.ActionLog?.entries?.() || []).some(e => e.turn === turn && e.player === me && e.type !== 'botTalk');
+    }
+    // A scroll waiting for a choice (same checks as bot.js waitForQuiescence).
+    function busyScroll() {
+        try {
+            const se = window.spellSystem?.scrollEffects;
+            if (se?.selectionMode || window.takeFlightState) return true;
+            if ((se?.EFFECT_MODAL_IDS || []).some(id => document.getElementById(id))) return true;
+            if (document.getElementById('transmute-modal') || document.getElementById('cascade-popup')) return true;
+            if (window.spellSystem?.hasPendingCascade?.(S.myPlayerIndex)) return true;
+        } catch (e) {}
+        return false;
     }
 
     // ------------------------------------------------------------ the Leave button
@@ -113,10 +130,13 @@
         };
     }
 
-    async function saveAndQuit() {
+    // opts.quiet (idle training, js/idle-training.js): no questions or alerts;
+    // returns true when saved.
+    async function saveAndQuit(opts = {}) {
+        const quiet = !!opts.quiet;
         const why = whyNot();
-        if (why) { alert('You cannot save right now: ' + why + '.'); return; }
-        if (saved && !confirm('You already have a saved game. Saving this one replaces it. Continue?')) return;
+        if (why) { if (!quiet) alert('You cannot save right now: ' + why + '.'); return false; }
+        if (!quiet && saved && !confirm('You already have a saved game. Saving this one replaces it. Continue?')) return false;
         saving = true;
         updateButton();
         try {
@@ -128,15 +148,27 @@
                 is_bot: isBotName(p.username), bot_weights: p.bot_weights || null, bot_source_id: p.bot_source_id ?? null,
             })).sort((a, b) => a.index - b.index);
             const fp = window.MatchWitness?.fingerprint?.() || null;
-            const { error } = await S.supabase.rpc('save_game', { p_room: S.currentGameId, p_seats: seats, p_turn: S.currentTurnNumber, p_fingerprint: fp });
+            // AP left this turn (mid-turn saves); resume() puts it back.
+            let state = null;
+            try { state = { ap: currentAP, void_ap: voidAP }; } catch (e) {}
+            const args = { p_room: S.currentGameId, p_seats: seats, p_turn: S.currentTurnNumber, p_fingerprint: fp };
+            let { error } = await S.supabase.rpc('save_game', { ...args, p_state: state });
+            // Server without p_state yet (sql/saved-games.sql): only a turn-start save is safe.
+            if (error && /p_state|could not find|PGRST202/i.test(error.message || error.code || '')) {
+                if (!state || state.ap < 5 || actedThisTurn()) throw new Error('you can save before you act this turn');
+                ({ error } = await S.supabase.rpc('save_game', args));
+            }
             if (error) throw new Error(/bots can be saved/.test(error.message) ? 'only games against bots can be saved'
                 : /bounty/.test(error.message) ? 'games with a bounty cannot be saved' : error.message);
             window.gami?.notify?.('Game saved. Continue it from the lobby.', 0, 'gold');
             if (typeof _doLeaveGame === 'function') await _doLeaveGame();
             else if (typeof window.leaveGame === 'function') window.leaveGame();
             setTimeout(refreshCard, 1500);
+            return true;
         } catch (e) {
+            if (quiet) { log('idle save failed', e?.message || e); return false; }
             alert('Could not save: ' + (e?.message || e));
+            return false;
         } finally {
             saving = false;
             updateButton();
@@ -234,8 +266,12 @@
             if (!inGame()) throw new Error('the game did not start');
             await sleep(600);
             // 3. Feed the saved moves through the game's own handlers, as a spectator,
-            //    with the host loops and bots quiet.
-            realIndex = S.myPlayerIndex;
+            //    with the host loops and bots quiet. A bot action the host started
+            //    before the rebuild (js/bot-driver.js plays a bot AS that seat: it
+            //    swaps myPlayerIndex and resets AP when it ends) must finish first,
+            //    or it puts the wrong seat and AP back afterwards (2026-10-10 test).
+            for (let i = 0; i < 120 && window.BotDriver?.driverRealIndex?.() != null; i++) await sleep(250);
+            realIndex = Number.isInteger(mySeat?.index) ? mySeat.index : S.myPlayerIndex;
             myPlayerIndex = -1;
             isHost = false;
             let n = 0;
@@ -256,8 +292,16 @@
             try { window.BotSystem?.resetMemory?.(); } catch (e) {}
             try { window.BotDiplomacy?.reset?.(); } catch (e) {}
             if (S.activePlayerIndex === realIndex) {
-                currentAP = 5;
+                const st = data.state || {};
+                currentAP = Number.isFinite(st.ap) ? st.ap : 5;
                 try { if (typeof refreshVoidAP === 'function') refreshVoidAP(); } catch (e) {}
+                try {
+                    if (Number.isFinite(st.void_ap) && st.void_ap < voidAP) {
+                        voidAP = st.void_ap;
+                        const vd = document.getElementById('void-ap-display');
+                        if (vd) { vd.textContent = `(+${voidAP} Void AP)`; vd.style.display = voidAP > 0 ? 'inline' : 'none'; }
+                    }
+                } catch (e) {}
                 const apEl = document.getElementById('ap-count');
                 if (apEl) apEl.textContent = currentAP;
             }

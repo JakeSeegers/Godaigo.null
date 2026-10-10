@@ -250,7 +250,7 @@
     function followActive(force) {
         let on = true;
         try { on = localStorage.getItem('godaigo_spec_follow') !== 'off'; } catch (e) {}
-        if (!on) return;
+        if (!on || watching?.noFollow) return;
         const i = g('activePlayerIndex');
         if (!force && i === lastActive) return;
         lastActive = i;
@@ -393,12 +393,12 @@
 
     // Local bot games watched as an audience (js/idle-training.js): the same
     // scoreboard and follow camera, hands hidden, no channel and no emotes.
-    // opts: { seats: () => [{index, color, label}], bar: element to show on top }
+    // opts: { seats: () => [{index, color, label}], follow: false = no follow camera }
     let localTimer = null;
     function showLocal(opts) {
         hideLocal();
         window.__liveSpectate = true;
-        watching = { local: true, seatsFn: opts.seats, match: { seats: [], players: [] }, specCh: null };
+        watching = { local: true, seatsFn: opts.seats, match: { seats: [], players: [] }, specCh: null, noFollow: opts.follow === false };
         lastActive = null;
         document.body.classList.add('spectating');
         buildScoreboard();

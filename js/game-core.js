@@ -8140,7 +8140,8 @@ function clearPlayerPath() {
         // when training is switched to Watchable speed (someone is watching).
         window.fxOn = function () {
             if (window.SoundSystem) return true;
-            return !!(window.BotArena?.isRunning?.() && (window.BotSystem?.speedScale ?? 0) >= 1);
+            // window.__arenaFx: fast idle training games keep the effects (js/idle-training.js)
+            return !!(window.BotArena?.isRunning?.() && ((window.BotSystem?.speedScale ?? 0) >= 1 || window.__arenaFx));
         };
         // The ability a stone shows (a water stone takes its neighbour's or a
         // chained one, unless a void stone next to it blocks that). Used by

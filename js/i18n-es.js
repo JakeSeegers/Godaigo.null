@@ -2054,4 +2054,11 @@ window.I18N_ES = {
     "Explore": "Explorar",
     "Formula": "Fórmula",
     "Learned from a player": "Aprendido de un jugador",
+    "Your game is saved. Move the mouse or press a key to go back to it.": "Tu partida está guardada. Mueve el ratón o pulsa una tecla para volver a ella.",
+    "Round {0}/{1}: puzzle check in the background (the board waits)": "Ronda {0}/{1}: prueba de puzles en segundo plano (el tablero espera)",
+    "Puzzle check: the would-be champion plays saved puzzles in the background (the board waits)": "Prueba de puzles: el posible campeón juega puzles guardados en segundo plano (el tablero espera)",
+    "Puzzle check done": "Prueba de puzles terminada",
+    "Fast game.": "Partida rápida.",
+    "Looking for combos in a past game...": "Buscando combos en una partida pasada...",
+    "Past games checked for combos: {0}, combos found: {1}.": "Partidas pasadas revisadas: {0}, combos encontrados: {1}.",
 };

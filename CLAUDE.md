@@ -237,10 +237,10 @@ Order matters — later scripts depend on earlier ones.
                              avg score on up to 6 training puzzles; BotArena.hillClimb opts.puzzleCheck gates a
                              would-be promotion on it (hermit Train Bot passes it).
 17e. save-game.js         ← window.SaveGame: save a game vs bots, continue later (docs/saved-games.md, sql/saved-games.sql,
-                             NOT applied yet: saving stays off until my_saved_game() exists). In games where you are the only human
+                             applied; 2026-10-10 adds saved_games.state + save_game p_state, see planning). In games where you are the only human
                              the Leave button reads "Save / Leave" (click caught in the capture phase) and asks Save & quit /
-                             Leave without saving / Cancel; other games keep plain Leave. Save & quit (own turn before acting,
-                             no bounty): MatchRecorder.flushAll + save_game
+                             Leave without saving / Cancel; other games keep plain Leave. Save & quit (any time in your own turn, not mid-scroll or while a bot acts; AP left kept in
+                             saved_games.state {ap, void_ap}; without that server part only before acting; no bounty): MatchRecorder.flushAll + save_game
                              (seats with bot weights, turn, MatchWitness fingerprint) + _doLeaveGame. Lobby card (after Quick Play):
                              Continue / Discard. Resume: createPrivateRoom, same bot rows, hostStartGame({resume}) (lobby.js: saved
                              seat index/colour, saved deck seed, settings.resumed_from), every saved move -> GamePause.dispatch with
@@ -485,12 +485,17 @@ Order matters — later scripts depend on earlier ones.
                              (drawing vs bot thinking vs network, late because the screen was busy) + Download report.
 25a4. idle-training.js   <- window.IdleTraining: idle training screensaver (sql/idle-training.sql). Signed in, in the lobby, no input
                              for 3 min: plays watchable 2-player bot games (challenger vs champion) as an audience view
-                             (Spectate.showLocal: scoreboard, follow camera, hands hidden; sound off) for a COMMUNAL "pooled climb":
+                             (Spectate.showLocal: scoreboard, no follow camera (follow: false), hands hidden; sound off; one game per
+                             BotArena.run call, 2 per challenger; after the first 3 games every other one is fast: speed 0.1 with
+                             window.__arenaFx = effects kept and waited for (game-core.js fxOn, bot.js waitForQuiescence), ~3.8x faster) for a COMMUNAL "pooled climb":
                              idle_training_job / _new / _report, everyone's games add up on shared challengers ('explore' or
                              'formula', picked at random, BotArena.makeChallenger; 'imitation' = champion + this browser's
                              BotImitation deltas, 1 in 3 when it has any, one open per champion, never the same deltas twice). The server drops a challenger early when clearly
                              worse and promotes it (new promoted bot_champion_weights row) at 40 decided games with 58%+, from 2+ players. Any input
-                             stops it and reloads to the lobby. Settings > Display "Idle Training" (localStorage godaigo_idle_training).
+                             stops it and reloads to the lobby. Hermit browser: mines one finished game for combos between
+                             training games (Replay.mineMatches({limit 1, stop})). In a solo game vs bots: 10 min idle on your turn
+                             (godaigo_idle_game_minutes) -> SaveGame.saveAndQuit({quiet}) -> lobby -> starts at once; waking up
+                             continues the saved game (sessionStorage godaigo_idle_start_now / _resume_game / _woke). Settings > Display "Idle Training" (localStorage godaigo_idle_training).
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
                              for 500g (buy_stream_mode -> 'feature_stream' in cosmetics_owned; owned(), Hermit free; locked
                              panel + Shop > Features card in gamification-ui.js). Lobby "Stream" button -> openPanel(): on/off, channel, vote time 10-45 s, mood / cast votes (localStorage
@@ -624,7 +629,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `featured_replay` | replay-viewer.js | One row: the hermit's featured match for the lobby button. RLS on, no client policies: `hermit_set_featured_match(id or null)`, `get_featured_match()` (sql/featured-replay.sql). |
 | `friend_links` / `friend_invites` | social.js | Friends (requester, addressee, pending/accepted) and room invites. RLS on, no client policies; RPCs `send_friend_request(p_user or p_name)`, `respond_friend_request`, `remove_friend`, `my_friends`, `send_game_invite` (friends, or anyone you shared a game with in the last 3 h; from your waiting room, 1 per friend per 20 s, 5/min), `my_recent_players` (sql/recent-players.sql), `my_game_invites`, `dismiss_game_invite`, `get_player_card(uid)`; `user_profiles.last_seen_at` / `hide_online` via `touch_last_seen` / `set_hide_online` (sql/friends.sql). |
 | `game_plans` / `game_plan_slots` / `game_plan_members` / `game_plan_votes` | game-plans.js | Game plans (sql/game-plans.sql): creator, title, status open/set/cancelled, final_slot, room_id; proposed times (UTC); members; votes (0 no / 1 if need be / 2 yes). RLS on, no client policies: `create_game_plan`, `my_game_plans`, `vote_game_plan`, `set_game_plan_time`, `cancel_game_plan`, `open_game_plan_room`; internal `_may_plan_with` (friends or a shared match in 30 days). |
-| `saved_games` | save-game.js | One saved game vs bots per account (sql/saved-games.sql, NOT applied yet): match_id, seats (with bot weights), deck_seed, turn, fingerprint. RLS on, no client policies: `save_game`, `my_saved_game`, `load_saved_game`, `resume_saved_game_started` (copies the old moves into the new match), `delete_saved_game`. The saved match has `keep = true` while saved. |
+| `saved_games` | save-game.js | One saved game vs bots per account (sql/saved-games.sql, applied; the `state` column + `save_game(..., p_state)` part of 2026-10-10 still needs applying): match_id, seats (with bot weights), deck_seed, turn, fingerprint, state (AP left). RLS on, no client policies: `save_game`, `my_saved_game`, `load_saved_game`, `resume_saved_game_started` (copies the old moves into the new match), `delete_saved_game`. The saved match has `keep = true` while saved. |
 | `match_moves` | match-recorder.js | Every broadcast message of a match in order (`seq` assigned by the server), with event name, sender seat, payload. Written ONLY via `append_match_moves` (room host or hermit, batches of 200 max, 32 KB per payload). |
 | `user_profiles` | gamification.js | XP, gold, level, stats. `stats.hidden_tips` = info pop-ups the player hid for the account (`gami.tipHidden(id)` / `hideTip(id)` / `resetTips()`, mirrored in localStorage godaigo_hidden_tips; Settings > Display > Info Pop-ups = Reset; first id: 'scroll_overflow'). Clients may only UPDATE `stats`, `updated_at`, `skip_intro`; gold/XP/level/badges change ONLY through server functions: `claim_daily_login()`, `claim_game_win(room)`, `claim_training_reward(amount)` (60/claim, 300/day), `spend_gold(amount)`. Name colours: `cosmetics_owned` / `name_color` (public read, changed only by `buy_cosmetic(id)` / `equip_cosmetic(id or null)`, prices in `cosmetic_price()`, sql/cosmetics.sql; the leaderboard colours names from `name_color`). Pawn items: `pawn_rim` / `pawn_base` / `pawn_trail` (public read, `equip_pawn(slot, id)`, sql/pawn-cosmetics.sql). Emojis: `emoji_<id>` entries in `cosmetics_owned`, bought with `buy_cosmetic` (sql/emoji-server.sql). Stream mode: `feature_stream` in `cosmetics_owned`, `buy_stream_mode()` 500g (sql/stream-games.sql part C). Bounties: `feature_bounty`, `buy_bounty_feature()` 300g (sql/player-bounties.sql). `award_gold` / `update_user_xp` / `award_badge` are server-internal (not client-callable). See `sql/secure-rewards.sql`. |
 | `user_activities` | gamification.js | Activity log for rewards. Clients may only insert `scroll_cast` / `element_activated` with no rewards; everything else is written by the server functions above. Inserts fire `check_badges_trigger` (badges). |

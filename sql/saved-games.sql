@@ -15,11 +15,14 @@ create table if not exists public.saved_games (
   deck_seed   bigint,
   turn        integer,
   fingerprint text,
+  state       jsonb,             -- mid-turn saves (2026-10-10): {ap, void_ap} left this turn
   saved_at    timestamptz not null default now()
 );
 alter table public.saved_games enable row level security;
+alter table public.saved_games add column if not exists state jsonb;
 
-create or replace function public.save_game(p_room integer, p_seats jsonb, p_turn integer, p_fingerprint text)
+drop function if exists public.save_game(integer, jsonb, integer, text);
+create or replace function public.save_game(p_room integer, p_seats jsonb, p_turn integer, p_fingerprint text, p_state jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -49,11 +52,14 @@ begin
   -- An older save is replaced: let its match be cleaned up again.
   update matches set keep = false
   where id = (select match_id from saved_games where user_id = me) and id <> v_match.id and not coalesce(is_public, false);
-  insert into saved_games (user_id, match_id, room_id, seats, deck_seed, turn, fingerprint, saved_at)
-  values (me, v_match.id, p_room, p_seats, v_match.deck_seed, p_turn, left(p_fingerprint, 64), now())
+  if p_state is not null and (jsonb_typeof(p_state) <> 'object' or length(p_state::text) > 2000) then
+    raise exception 'bad state';
+  end if;
+  insert into saved_games (user_id, match_id, room_id, seats, deck_seed, turn, fingerprint, state, saved_at)
+  values (me, v_match.id, p_room, p_seats, v_match.deck_seed, p_turn, left(p_fingerprint, 64), p_state, now())
   on conflict (user_id) do update set match_id = excluded.match_id, room_id = excluded.room_id,
     seats = excluded.seats, deck_seed = excluded.deck_seed, turn = excluded.turn,
-    fingerprint = excluded.fingerprint, saved_at = now();
+    fingerprint = excluded.fingerprint, state = excluded.state, saved_at = now();
   update matches set keep = true where id = v_match.id;
   return jsonb_build_object('saved', true, 'turn', p_turn,
                             'moves', (select count(*) from match_moves where match_id = v_match.id));
@@ -82,7 +88,7 @@ security definer
 set search_path to 'public'
 as $$
   select jsonb_build_object('match_id', s.match_id, 'seats', s.seats, 'deck_seed', s.deck_seed,
-           'turn', s.turn, 'fingerprint', s.fingerprint, 'settings', m.settings,
+           'turn', s.turn, 'fingerprint', s.fingerprint, 'state', s.state, 'settings', m.settings,
            'moves', coalesce((select jsonb_agg(jsonb_build_object('seq', mv.seq, 'event', mv.event,
                                 'sender', mv.sender, 'payload', mv.payload) order by mv.seq)
                               from match_moves mv where mv.match_id = s.match_id), '[]'::jsonb))
@@ -147,12 +153,12 @@ begin
 end;
 $$;
 
-revoke all on function public.save_game(integer, jsonb, integer, text) from public, anon;
+revoke all on function public.save_game(integer, jsonb, integer, text, jsonb) from public, anon;
 revoke all on function public.my_saved_game() from public, anon;
 revoke all on function public.load_saved_game() from public, anon;
 revoke all on function public.resume_saved_game_started(integer) from public, anon;
 revoke all on function public.delete_saved_game() from public, anon;
-grant execute on function public.save_game(integer, jsonb, integer, text) to authenticated;
+grant execute on function public.save_game(integer, jsonb, integer, text, jsonb) to authenticated;
 grant execute on function public.my_saved_game() to authenticated;
 grant execute on function public.load_saved_game() to authenticated;
 grant execute on function public.resume_saved_game_started(integer) to authenticated;

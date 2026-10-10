@@ -3228,24 +3228,9 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                 return;
             }
 
-            // R2 (docs/bot-roadmap.md, Runtime Track): shadow-mode backend validator.
-            // Asks the server (which only knows the LAST persisted turn owner — see
-            // persistCurrentTurnIndex below) whether it agrees this player currently
-            // holds the turn. Logged only, never blocks — proves the backend-authority
-            // path works before anything is made to depend on it.
-            if (isMultiplayer && typeof supabase !== 'undefined' && currentGameId) {
-                const endingPlayerIndex = activePlayerIndex;
-                supabase.functions.invoke('validate-end-turn', {
-                    body: { gameId: currentGameId, playerIndex: endingPlayerIndex }
-                }).then(({ data, error }) => {
-                    if (error) { console.warn('⚠️ [R2 shadow-validator] call failed:', error); return; }
-                    if (data?.legal === false) {
-                        console.warn(`⚠️ [R2 shadow-validator] DISAGREEMENT - DB says turn belongs to player ${data.currentTurnIndex}, client ended turn for player ${endingPlayerIndex}`);
-                    } else {
-                        console.log(`✅ [R2 shadow-validator] confirmed endTurn legal for player ${endingPlayerIndex}`);
-                    }
-                });
-            }
+            // R2 shadow validator (docs/bot-roadmap.md) removed 2026-10-10: its edge
+            // function validate-end-turn is gone (404 on every end turn, also in
+            // replay / puzzle frames), and it only ever logged.
 
             isEndingTurn = true;
             lastShrineCollect = null;
@@ -4672,7 +4657,14 @@ document.getElementById('undo-move').onclick = function() {
                 // Hermit only (puzzles are hermit-only data): a would-be new
                 // champion must also do at least as well on the puzzles
                 // (combos from players' games, Replays > Puzzles).
-                puzzleCheck: (window.isHermit?.() && window.Replay?.puzzleScore) ? (w => window.Replay.puzzleScore(w)) : undefined,
+                // The puzzles play in a hidden page, so the board here stands still
+                // meanwhile: say so (owner 2026-10-10, looked like a freeze).
+                puzzleCheck: (window.isHermit?.() && window.Replay?.puzzleScore) ? (async w => {
+                    stats.event('Puzzle check: the would-be champion plays saved puzzles in the background (the board waits)');
+                    report('puzzles');
+                    try { return await window.Replay.puzzleScore(w); }
+                    finally { stats.event('Puzzle check done'); report('training'); }
+                }) : undefined,
                 // onRound alone only updates once per ROUND — a round is
                 // lambda*gamesPerChallenge games (180 by default) played
                 // sequentially in this one tab (no --shards parallelism like
@@ -5102,6 +5094,7 @@ document.getElementById('undo-move').onclick = function() {
                 phaseLine = p.phase === 'confirming'
                     ? 'Confirming across 2–5 player tables'
                     : p.phase === 'starting' ? 'Starting…'
+                    : p.phase === 'puzzles' ? `Round ${p.round}/${p.rounds}: puzzle check in the background (the board waits)`
                     : p.phase === 'exploring'
                         ? `Explore: generation ${Math.min(p.gen + 1, p.generations)}/${p.generations} (Evolve search, 2-5 player games)`
                         : `Round ${p.round}/${p.rounds}`;

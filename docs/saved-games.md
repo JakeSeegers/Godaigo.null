@@ -21,7 +21,7 @@ the save lives on the account (any device).
 
 ## Server: sql/saved-games.sql
 saved_games (user_id pk), save_game, my_saved_game, load_saved_game, resume_saved_game_started,
-delete_saved_game. STATUS 2026-10-03: NOT APPLIED. The Supabase tool timed out once (nothing applied,
+delete_saved_game. STATUS: applied (the owner has used it). 2026-10-10: `state` column + `save_game(..., p_state jsonb default null)` for mid-turn saves, NOT applied yet (the tool call was cancelled); until then the client falls back to turn-start saves. Old note, 2026-10-03: NOT APPLIED. The Supabase tool timed out once (nothing applied,
 not retried, house rule 6). Until it is applied the Save button stays hidden (save-game.js asks
 my_saved_game first). Apply the file once in the Supabase SQL editor.
 
@@ -43,3 +43,14 @@ brain plays your seat, Save & quit at turn 14-24, page reload, Continue, then a 
   seat 1 with void stones), zero differences, screen counters included.
 - Note: the board fingerprint checked at resume covers tiles, board stones, pawns and activated
   elements, not the stone pools. The pools come from the last player-state-update of each player.
+
+## Mid-turn saves and idle training (2026-10-10)
+- Save works any time in your own turn: not while a scroll waits for a choice (selection mode, Take Flight,
+  effect modals, transmute, cascade) or the response window is open, and not while a bot acts (bot-driver.js
+  borrows the bot's seat then: myPlayerIndex = the bot). The save keeps {ap, void_ap}; resume() puts them back.
+- Resume fixes: waits for a bot action the host started before the rebuild to finish (it would put the wrong
+  seat and AP back), and takes your seat from the save (mySeat.index).
+- Tested (fake server): 4 mid-turn saves at turns 9-15, 3-5 seats: your seat, AP, pawn, board, hands equal; two
+  runs showed small bot-seat leftovers (a bot's shown AP once, a bot's stone pool off by one once), not chased yet.
+- Idle training (js/idle-training.js): 10 min idle on your turn in a solo game -> quiet save -> lobby -> idle
+  training at once; any input reloads and continues the saved game. Tested end to end: 0 differences.
