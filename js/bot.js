@@ -3189,17 +3189,21 @@
         while (!r.done) r = gen.next();
         return r.value;
     }
-    const SLICE_MS = 8;
+    // A slice lasts about as long as the last pause for drawing (8-50 ms), so
+    // the bot keeps at least half the time even when drawing is slow (an
+    // 8 ms fixed slice made bot games ~45% slower in wall time).
+    const SLICE_MIN = 8, SLICE_MAX = 50;
     async function runSliced(gen) {
-        let busy = 0, t = performance.now(), r;
+        let busy = 0, t = performance.now(), r, budget = SLICE_MIN;
         for (;;) {
             r = gen.next();
             if (r.done) break;
             const now = performance.now();
-            if (now - t >= SLICE_MS) {
+            if (now - t >= budget) {
                 busy += now - t;
                 await new Promise(res => setTimeout(res, 0));
                 t = performance.now();
+                budget = Math.max(SLICE_MIN, Math.min(SLICE_MAX, t - now));
             }
         }
         busy += performance.now() - t;

@@ -428,7 +428,7 @@ Order matters — later scripts depend on earlier ones.
                              makePlan builds the next combo scroll's pattern; dropped when too slow or the next
                              scroll is gone; 3 own turns rest before the same combo again).
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
-                             searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (~8 ms slices,
+                             searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
                              choices). A turn that moved on during the slices is not acted on.
                              Slow decisions: a decision over 1 s becomes a lag-recorder moment with its mode, time per helper
