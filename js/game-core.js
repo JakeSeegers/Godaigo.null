@@ -1291,30 +1291,14 @@
 
                 const playerHex = pixelToHex(pos.x, pos.y, TILE_SIZE);
 
-                console.log(`  Checking ${patternName} for player ${playerIndex}...`);
-
-                return pattern.patterns.some((patternVariant, variantIdx) => {
-                    const allMatch = patternVariant.every((req, reqIdx) => {
-                        const checkHex = hexToPixel(playerHex.q + req.q, playerHex.r + req.r, TILE_SIZE);
-                        const stone = placedStones.find(s => {
-                            const dist = Math.sqrt(Math.pow(s.x - checkHex.x, 2) + Math.pow(s.y - checkHex.y, 2));
-                            const matches = dist < 5 && s.type === req.type;
-                            if (matches) {
-                                console.log(`    ✓ Found ${s.type} stone at (${req.q}, ${req.r})`);
-                            }
-                            return matches;
-                        });
-                        if (!stone) {
-                            console.log(`    ✗ Missing ${req.type} stone at (${req.q}, ${req.r})`);
-                        }
-                        return !!stone;
-                    });
-
-                    if (allMatch) {
-                        console.log(`    ✓✓✓ PATTERN VARIANT ${variantIdx + 1} MATCHED!`);
-                    }
-                    return allMatch;
-                });
+                // No logging in here: this runs for every scroll many times per
+                // action (hand counts, bots), and the per-stone console lines
+                // were a visible part of bot training time (2026-10-10).
+                return pattern.patterns.some(patternVariant => patternVariant.every(req => {
+                    const checkHex = hexToPixel(playerHex.q + req.q, playerHex.r + req.r, TILE_SIZE);
+                    return placedStones.some(s =>
+                        Math.sqrt(Math.pow(s.x - checkHex.x, 2) + Math.pow(s.y - checkHex.y, 2)) < 5 && s.type === req.type);
+                }));
             }
 
             // Get current spell AP cost (may be reduced by buffs)

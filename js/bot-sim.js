@@ -295,7 +295,36 @@
         return Math.max(Math.abs(A.q - B.q), Math.abs(A.r - B.r), Math.abs((-A.q - A.r) - (-B.q - B.r)));
     }
     const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
-    const clone = snap => JSON.parse(JSON.stringify(snap));
+    // Deep copy with exactly the result of JSON.parse(JSON.stringify(v)) (the
+    // old clone), but without building the text in between: it ran for every
+    // simulated step and was the largest single cost of bot training
+    // (2026-10-10). Same rules as JSON: non-finite numbers become null, -0
+    // becomes 0, undefined / functions are dropped from objects and become
+    // null in arrays, toJSON() is used (Dates), Sets / Maps become {}.
+    function jsonCopy(v) {
+        switch (typeof v) {
+            case 'number': return Number.isFinite(v) ? (v === 0 ? 0 : v) : null;
+            case 'string': case 'boolean': return v;
+            case 'object': break;
+            default: return undefined;                     // undefined, function, symbol
+        }
+        if (v === null) return null;
+        if (typeof v.toJSON === 'function') return jsonCopy(v.toJSON());
+        if (Array.isArray(v)) {
+            const out = new Array(v.length);
+            for (let i = 0; i < v.length; i++) { const c = jsonCopy(v[i]); out[i] = c === undefined ? null : c; }
+            return out;
+        }
+        const out = {};
+        for (const k of Object.keys(v)) {
+            const c = jsonCopy(v[k]);
+            if (c === undefined) continue;
+            if (k === '__proto__') Object.defineProperty(out, k, { value: c, enumerable: true, writable: true, configurable: true });
+            else out[k] = c;
+        }
+        return out;
+    }
+    const clone = snap => jsonCopy(snap);
 
     function simNotes(snap) {
         if (!snap.sim) snap.sim = { unsimulatedCasts: [], notes: [], turnsEnded: 0 };
@@ -338,32 +367,40 @@
         _stoneIdx.set(arr, { n: arr.length, cells });
         return cells;
     }
-    // Array indexes of stones that may be within STONE_NEIGHBOR_MAX of (x, y), sorted.
-    function nearStoneIdx(snap, x, y) {
-        const cells = stoneCells(snap);
+    // stoneAt / neighborStones walk the 3x3 cells directly (no list to build
+    // and sort on every call: they run thousands of times per decision).
+    // Same results as before: the first match in array order (lowest index),
+    // and neighbours in array order.
+    function stoneAt(snap, x, y) {
+        const cells = stoneCells(snap), arr = snap.stones;
         const cx = Math.floor(x / STONE_NEIGHBOR_MAX), cy = Math.floor(y / STONE_NEIGHBOR_MAX);
-        const out = [];
+        let best = -1;
         for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
             const list = cells.get(cellKey(cx + dx, cy + dy));
-            if (list) for (const i of list) out.push(i);
+            if (!list) continue;
+            for (const i of list) {
+                if (best !== -1 && i >= best) break;     // lists are in index order
+                const s = arr[i];
+                if (dist(s.x, s.y, x, y) < HEX_NEAR) { best = i; break; }
+            }
         }
-        return out.length > 1 ? out.sort((a, b) => a - b) : out;
-    }
-    function stoneAt(snap, x, y) {
-        for (const i of nearStoneIdx(snap, x, y)) {
-            const s = snap.stones[i];
-            if (dist(s.x, s.y, x, y) < HEX_NEAR) return s;
-        }
-        return null;
+        return best === -1 ? null : arr[best];
     }
     function neighborStones(snap, x, y) {
-        const out = [];
-        for (const i of nearStoneIdx(snap, x, y)) {
-            const s = snap.stones[i];
-            const d = dist(s.x, s.y, x, y);
-            if (d > HEX_NEAR && d < STONE_NEIGHBOR_MAX) out.push(s);
+        const cells = stoneCells(snap), arr = snap.stones;
+        const cx = Math.floor(x / STONE_NEIGHBOR_MAX), cy = Math.floor(y / STONE_NEIGHBOR_MAX);
+        const hit = [];
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+            const list = cells.get(cellKey(cx + dx, cy + dy));
+            if (!list) continue;
+            for (const i of list) {
+                const s = arr[i];
+                const d = dist(s.x, s.y, x, y);
+                if (d > HEX_NEAR && d < STONE_NEIGHBOR_MAX) hit.push(i);
+            }
         }
-        return out;
+        if (hit.length > 1) hit.sort((a, b) => a - b);
+        return hit.map(i => arr[i]);
     }
     function hasAdjacentVoid(snap, x, y) {
         return neighborStones(snap, x, y).some(s => s.type === 'void');

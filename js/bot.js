@@ -24,7 +24,12 @@
     // English text of a button even when the player plays in Spanish (js/i18n.js).
     const srcText = el => (!el ? '' : window.I18n ? window.I18n.src(el) : el.textContent);
 
-    function log(...args) { console.log('🤖 [Bot]', ...args); }
+    // Quiet during muted training (arena running, nothing shown): thousands of
+    // lines per game that nobody reads, and a measurable part of training time.
+    function log(...args) {
+        if (window.BotArena?.isRunning?.() && typeof window.fxOn === 'function' && !window.fxOn()) return;
+        console.log('🤖 [Bot]', ...args);
+    }
 
     const ELEMENTS = ['earth', 'water', 'fire', 'wind', 'void'];
     // How much a won element counts toward a player's threat (owner,

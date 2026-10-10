@@ -512,6 +512,7 @@ Order matters — later scripts depend on earlier ones.
                              isMultiplayer identity from an incomplete online-game leave never kills a local
                              match); run/evolve/spectate all support opts.visual (watch instead of muted-fast)
                              and evolve supports opts.nPlayers (2-5). Roadmap for smarter stages: docs/bot-roadmap.md
+                             Muted runs use MUTED_SPEED 0.02 (pause between bot actions; 0.1 before 2026-10-10, same games, ~2x faster).
 27. action-log.js          ← window.ActionLog — in-memory record of every meaningful action this session
                              (human AND bot); record()/onRecord() feed both the hidden dev cheat-panel's
                              "Download Action Log" button and game-log-ui.js's player-facing panel

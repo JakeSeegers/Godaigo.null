@@ -242,6 +242,12 @@
     // Live speed switch (owner, 2026-09-29; training popup "Speed" button):
     // watchable = normal bot pace and pauses, else Extreme. Sound and other
     // muting stay as the run started. Reset at each run start.
+    // Muted runs (Train Bot, evolve, confirm): the pause between bot actions,
+    // as a share of the normal pace. 0.02 instead of 0.1 (2026-10-10): the
+    // same seeded games play out action for action identically and training
+    // runs about twice as fast; 0 was only a little faster still, so a short
+    // pause stays for the game's own delayed effects.
+    const MUTED_SPEED = 0.02;
     let _liveVisual = null;
     function setLiveSpeed(watchable) {
         _liveVisual = !!watchable;
@@ -798,7 +804,7 @@
         const visual = !!opts.visual;
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
-        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         _liveVisual = null; // live speed switch starts from the run's own speed
         try {
             const result = await _playSeries(weightsA, weightsB, nGames, seed, { ...opts, visual });
@@ -920,7 +926,7 @@
         _saveRequested = false;
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
-        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         _liveVisual = null; // live speed switch starts from the run's own speed
 
         // Every population member is tracked as {id, w, parentIds} so a UI
@@ -1159,7 +1165,7 @@
         _saveRequested = false;
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
-        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         _liveVisual = null; // live speed switch starts from the run's own speed
 
         let champion = opts.champion ? { ...opts.champion } : { ...window.BotSystem.WEIGHTS };
@@ -1463,7 +1469,7 @@
         _stopRequested = false;
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
-        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : 0.1);
+        window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         _liveVisual = null; // live speed switch starts from the run's own speed
 
         const perSize = [];
