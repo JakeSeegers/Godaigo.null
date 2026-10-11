@@ -2082,4 +2082,6 @@ window.I18N_ES = {
     "Gain {0} over {1} turns": "Ganancia de {0} en {1} turnos",
     "Gain {0} over {1} turn": "Ganancia de {0} en {1} turno",
     "Turn {0}:": "Turno {0}:",
+    "The trial combo won its way into the climbed bot": "El combo a prueba ganó y entró en el bot mejorado",
+    "The trial combo did not win": "El combo a prueba no ganó",
 };

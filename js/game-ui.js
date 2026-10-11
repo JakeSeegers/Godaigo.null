@@ -4681,6 +4681,10 @@ document.getElementById('undo-move').onclick = function() {
                             localStorage.setItem('godaigo_trial_combo_tried', String(h));
                             seedChallengers = [...(seedChallengers || []).slice(0, lambda - 1), w];
                             stats.event('Trial combo joins round 1: ' + sig);
+                            // Tell the server (sql/combo-train-trials.sql) so it names the next
+                            // combo; the result is sent when the climb ends (also after a continue).
+                            try { localStorage.setItem('godaigo_trial_combo_pending', sig); } catch (e) {}
+                            supabase.rpc('report_combo_trial', { p_signature: sig }).then(() => {}, () => {});
                         }
                     }
                 } catch (e) { console.warn('[train] trial combo skipped', e); }
@@ -4765,6 +4769,16 @@ document.getElementById('undo-move').onclick = function() {
             if (result.saved) return savedResult();
             // Past this point the run always ends: no save to continue.
             clearTrainSave();
+            // Trial combo result: won = the climbed champion carries it.
+            try {
+                const trialSig = localStorage.getItem('godaigo_trial_combo_pending');
+                if (trialSig) localStorage.removeItem('godaigo_trial_combo_pending');   // stopped = tried, no result
+                if (trialSig && !window.BotArena.stopRequested() && typeof supabase !== 'undefined' && supabase?.rpc) {
+                    const won = result.promotions > 0 && (result.champion?.extraCombos || []).includes(trialSig);
+                    stats.event(won ? 'The trial combo won its way into the climbed bot' : 'The trial combo did not win');
+                    supabase.rpc('report_combo_trial', { p_signature: trialSig, p_won: won }).then(() => {}, () => {});
+                }
+            } catch (e) {}
             if (window.BotArena.stopRequested()) {
                 window.BotArena.applyWeights(baselineWeights);
                 try {
