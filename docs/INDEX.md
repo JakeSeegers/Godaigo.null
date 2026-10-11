@@ -10,6 +10,7 @@
 |------|---------|
 | `game-design-document.md` | Canonical game rules: tile mechanics, shrine system, scroll patterns, win conditions, stone abilities, elemental hierarchy, balance notes |
 | `bot-roadmap.md` | Bot improvement pathway (Stages 0–3, written for AI executors). Stage status, API contracts for `BotState`/`BotSystem`, gotchas (globals not on window, pool aliases), and step-by-step specs for the forward model, self-play arena, and learning stages |
+| `player-strategies.md` | Strategies the owner described for the bots to learn (Mason's Savvy trap; Shifting Sands travel, positioning still to be shown in a recorded game). Not built yet. |
 | `network-resilience.md` | Plan for network drops, refreshes and rejoining a live game: what exists (refresh guard, reconnect grace, recorder, replay engine, fingerprints), Phase 1 catch-up after a short drop, Phase 2 rejoin after refresh + host Wait / Kick, Phase 3 host drops, owner decisions D1-D5, Playwright test plan |
 | `saved-games.md` | Save a game vs bots and continue later: how the rebuild works, server status (sql/saved-games.sql not applied yet), local test results |
 | `game-plans.md` | Game plans ("X invites you to play", Doodle style): step 1 built (in game), step 2 emails and step 3 calendar busy times planned |
