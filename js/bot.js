@@ -501,6 +501,7 @@
             // A champion without formula terms must not keep stale ones
             // from an older cached table.
             if (!('terms' in data[0].weights)) delete WEIGHTS.terms;
+            if (!('extraCombos' in data[0].weights)) delete WEIGHTS.extraCombos;
             applyBrainPreference();
             try { localStorage.setItem('godaigo_bot_weights', JSON.stringify(WEIGHTS)); } catch (e) {}
             log('Loaded best community champion from Supabase');
@@ -1002,6 +1003,21 @@
         COMBOS = (rows || []).map(r => parseCombo(r.signature, r.score)).filter(c => c.casts.length >= 2);
         log(`Combos loaded: ${COMBOS.length}`);
     }
+    // The taught list plus this bot's own trial combos (WEIGHTS.extraCombos:
+    // signatures carried in a challenger's weights, owner 2026-10-11; idle
+    // training tests a bot-found combo by giving it to ONE challenger only).
+    let _extraKey = '', _extraParsed = [];
+    function activeCombos() {
+        const ex = Array.isArray(WEIGHTS.extraCombos) ? WEIGHTS.extraCombos : null;
+        if (!ex || !ex.length) return COMBOS;
+        const key = ex.join('|');
+        if (key !== _extraKey) {
+            _extraKey = key;
+            const have = new Set(COMBOS.map(c => c.signature));
+            _extraParsed = ex.filter(s => typeof s === 'string' && !have.has(s)).map(s => parseCombo(s, 0)).filter(c => c.casts.length >= 2);
+        }
+        return _extraParsed.length ? COMBOS.concat(_extraParsed) : COMBOS;
+    }
     try { setCombos(JSON.parse(localStorage.getItem('godaigo_bot_combos') || '[]')); } catch (e) {}
     (async function loadCombos() {
         try {
@@ -1017,7 +1033,7 @@
     // holds, best combo: 0, 0.5 or 1. `extra` = a scroll the bot might gain.
     function comboPairShare(held, extra) {
         let best = 0;
-        for (const c of COMBOS) {
+        for (const c of activeCombos()) {
             const pair = [...new Set([c.casts[0].scroll, c.casts[1].scroll])];
             const have = pair.filter(s => held.has(s) || s === extra).length / pair.length;
             if (have > best) best = have;
@@ -1046,7 +1062,7 @@
             }
             return;
         }
-        for (const combo of COMBOS) {
+        for (const combo of activeCombos()) {
             if ((m.comboRest?.[combo.signature] || 0) > (m.ownTurns || 0)) continue; // just finished or dropped
             if (held.has(combo.casts[0].scroll) && held.has(combo.casts[1].scroll)) {
                 m.combo = { ...combo, next: 0, startTurn: m.ownTurns || 0 };
@@ -2949,7 +2965,7 @@
         const over = p.hand.length - (window.spellSystem?.MAX_HAND_SIZE ?? 2);
         if (over > 0) value -= over * WEIGHTS.evalHandOverflow;
         // Keeping the pieces of a taught combo (comboKeep, trained; 0 = off).
-        if (WEIGHTS.comboKeep && COMBOS.length) value += WEIGHTS.comboKeep * WEIGHTS.evalScrollCredit * comboPairShare(new Set(held));
+        if (WEIGHTS.comboKeep && activeCombos().length) value += WEIGHTS.comboKeep * WEIGHTS.evalScrollCredit * comboPairShare(new Set(held));
         return { value, cover };
     }
 
@@ -2984,7 +3000,7 @@
         // Going after a taught combo (comboSeek, trained; 0 = off): how much
         // closer this scroll brings its opening pair.
         let seek = 0;
-        if (WEIGHTS.comboSeek && COMBOS.length) {
+        if (WEIGHTS.comboSeek && activeCombos().length) {
             const held = heldScrolls(snap, p);
             seek = WEIGHTS.comboSeek * 100 * (comboPairShare(held, name) - comboPairShare(held));
         }

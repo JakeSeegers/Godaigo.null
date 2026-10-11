@@ -137,11 +137,19 @@
             const hasDeltas = Object.values(d).some(v => typeof v === 'number' && Math.abs(v) > 1e-6);
             let kind = Math.random() < 0.5 ? 'formula' : 'explore';
             if (hasDeltas && Math.random() < 0.34) kind = 'imitation';
-            const make = (k) => k === 'imitation'
-                ? window.BotImitation.applyDeltas({ ...(window.BotSystem?.DEFAULT_WEIGHTS || {}), ...data.champion })
+            // 'combo' (2026-10-11, sql/combo-trials.sql): the champion plus one
+            // combo bots found in training (idle_trial_combo), 1 in 4 times.
+            let trial = null;
+            if (kind !== 'imitation' && Math.random() < 0.25) {
+                try { const t = await sb().rpc('idle_trial_combo'); if (!t.error && typeof t.data === 'string' && t.data) trial = t.data; } catch (e) {}
+                if (trial) kind = 'combo';
+            }
+            const base = { ...(window.BotSystem?.DEFAULT_WEIGHTS || {}), ...data.champion };
+            const make = (k) => k === 'imitation' ? window.BotImitation.applyDeltas(base)
+                : k === 'combo' ? { ...base, extraCombos: [...(Array.isArray(base.extraCombos) ? base.extraCombos : []), trial] }
                 : window.BotArena.makeChallenger(data.champion, k);
             let r = await sb().rpc('idle_training_new', { p_champion: data.champion_id, p_weights: make(kind), p_kind: kind });
-            if (r.error && kind === 'imitation') {          // already tested: a normal challenger instead
+            if (r.error && (kind === 'imitation' || kind === 'combo')) {   // already tested: a normal challenger instead
                 kind = 'explore';
                 r = await sb().rpc('idle_training_new', { p_champion: data.champion_id, p_weights: make(kind), p_kind: kind });
             }
@@ -272,7 +280,7 @@
     }
 
     // ── Audience view ─────────────────────────────────────────────
-    const KIND = { explore: 'Explore', formula: 'Formula', imitation: 'Learned from a player' };
+    const KIND = { explore: 'Explore', formula: 'Formula', imitation: 'Learned from a player', combo: 'Trial combo' };
     function seatList() {
         const pos = (typeof playerPositions !== 'undefined' ? playerPositions : []) || [];
         const marked = window.BotArena?.markedSeat?.();

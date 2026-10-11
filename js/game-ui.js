@@ -4644,6 +4644,25 @@ document.getElementById('undo-move').onclick = function() {
                 } catch (e) { console.warn('[train] learned adjustments skipped', e); }
             }
 
+            // Trial combo (2026-10-11, sql/combo-trials.sql): the champion plus one
+            // combo bots found in training joins round 1, once per combo and champion.
+            if (!resume && typeof supabase !== 'undefined' && supabase?.rpc) {
+                try {
+                    const t = await supabase.rpc('idle_trial_combo');
+                    const sig = !t.error && typeof t.data === 'string' ? t.data : null;
+                    if (sig) {
+                        const extra = Array.isArray(climbAnchor.extraCombos) ? climbAnchor.extraCombos : [];
+                        const w = { ...window.BotSystem.DEFAULT_WEIGHTS, ...climbAnchor, extraCombos: [...extra, sig] };
+                        let h = 0; for (const ch of JSON.stringify(w)) h = (h * 31 + ch.charCodeAt(0)) | 0;
+                        if (localStorage.getItem('godaigo_trial_combo_tried') !== String(h)) {
+                            localStorage.setItem('godaigo_trial_combo_tried', String(h));
+                            seedChallengers = [...(seedChallengers || []).slice(0, lambda - 1), w];
+                            stats.event('Trial combo joins round 1: ' + sig);
+                        }
+                    }
+                } catch (e) { console.warn('[train] trial combo skipped', e); }
+            }
+
             if (!(resume && resume.phase === 'climb')) persist({ phase: 'climb', climb: null, seedChallengers: seedChallengers || null, explored, termMutations });
             const result = await window.BotArena.hillClimb({
                 seedChallengers, termMutations,

@@ -2054,6 +2054,8 @@ window.I18N_ES = {
     "Explore": "Explorar",
     "Formula": "Fórmula",
     "Learned from a player": "Aprendido de un jugador",
+    "Trial combo": "Combo a prueba",
+    "Trial combo joins round 1: {0}": "Un combo a prueba entra en la ronda 1: {0}",
     "Your game is saved. Move the mouse or press a key to go back to it.": "Tu partida está guardada. Mueve el ratón o pulsa una tecla para volver a ella.",
     "Round {0}/{1}: puzzle check in the background (the board waits)": "Ronda {0}/{1}: prueba de puzles en segundo plano (el tablero espera)",
     "Puzzle check: the would-be champion plays saved puzzles in the background (the board waits)": "Prueba de puzles: el posible campeón juega puzles guardados en segundo plano (el tablero espera)",

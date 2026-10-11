@@ -430,6 +430,8 @@ Order matters — later scripts depend on earlier ones.
                              default 0 = no change): comboKeep (handValue + comboKeep x evalScrollCredit x share of a taught combo's opening
                              pair held, comboPairShare) and comboSeek (scrollPickScore + comboSeek x 100 x how much closer a picked scroll
                              brings the pair). bot-arena.js makeChallenger fills settings missing from the saved champion with defaults.
+                             Trial combos (2026-10-11): WEIGHTS.extraCombos = signatures this bot follows on top of the taught list
+                             (activeCombos(); per seat, since setWeights replaces the table); a champion without it clears it on load.
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
@@ -492,7 +494,9 @@ Order matters — later scripts depend on earlier ones.
                              BotArena.run call, 2 per challenger; after the first 3 games every other one is fast: speed 0.1 with
                              window.__arenaFx = effects kept and waited for (game-core.js fxOn, bot.js waitForQuiescence), ~3.8x faster) for a COMMUNAL "pooled climb":
                              idle_training_job / _new / _report, everyone's games add up on shared challengers ('explore' or
-                             'formula', picked at random, BotArena.makeChallenger; 'imitation' = champion + this browser's
+                             'formula', picked at random, BotArena.makeChallenger; 'combo' = champion + extraCombos [idle_trial_combo()], 1 in 4 when
+                             one is due (sql/combo-trials.sql: found by bots 5+ times from 2+ accounts, not taught, not tried vs this champion;
+                             Train Bot adds it as a round-1 challenger too); 'imitation' = champion + this browser's
                              BotImitation deltas, 1 in 3 when it has any, one open per champion, never the same deltas twice). The server drops a challenger early when clearly
                              worse and promotes it (new promoted bot_champion_weights row) at 40 decided games with 58%+, from 2+ players. Any input
                              stops it and reloads to the lobby. Between training games each browser mines one finished game for

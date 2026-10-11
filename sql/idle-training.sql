@@ -36,7 +36,7 @@ create table if not exists public.idle_candidates (
   id bigserial primary key,
   champion_id bigint not null,
   weights jsonb not null,
-  kind text not null check (kind in ('explore', 'formula', 'imitation')),
+  kind text not null check (kind in ('explore', 'formula', 'imitation', 'combo')),
   created_by uuid,
   created_at timestamptz not null default now(),
   wins int not null default 0,
@@ -48,7 +48,7 @@ create table if not exists public.idle_candidates (
 );
 -- tables made before 'imitation' existed
 alter table public.idle_candidates drop constraint if exists idle_candidates_kind_check;
-alter table public.idle_candidates add constraint idle_candidates_kind_check check (kind in ('explore', 'formula', 'imitation'));
+alter table public.idle_candidates add constraint idle_candidates_kind_check check (kind in ('explore', 'formula', 'imitation', 'combo'));
 create index if not exists idle_candidates_open on public.idle_candidates (champion_id) where status = 'open';
 
 create table if not exists public.idle_games (
@@ -143,7 +143,7 @@ begin
   if auth.uid() is null then raise exception 'sign in first'; end if;
   v_ch := _idle_champion();
   if v_ch.id is distinct from p_champion then raise exception 'the champion changed'; end if;
-  if p_kind not in ('explore', 'formula', 'imitation') then raise exception 'bad kind'; end if;
+  if p_kind not in ('explore', 'formula', 'imitation', 'combo') then raise exception 'bad kind'; end if;
   if jsonb_typeof(p_weights) <> 'object' or length(p_weights::text) > 20000 then raise exception 'bad weights'; end if;
   if p_kind = 'imitation' then
     -- one open at a time: test that one
@@ -151,6 +151,15 @@ begin
     if v_c.id is not null then return _idle_cand_json(v_c); end if;
     -- these exact adjustments were already judged against this champion
     if exists (select 1 from idle_candidates where champion_id = v_ch.id and kind = 'imitation' and weights = p_weights) then
+      raise exception 'already tested';
+    end if;
+  end if;
+  if p_kind = 'combo' then
+    -- trial combo (sql/combo-trials.sql): one open at a time, never the same combo twice per champion
+    select * into v_c from idle_candidates where champion_id = v_ch.id and status = 'open' and kind = 'combo' limit 1;
+    if v_c.id is not null then return _idle_cand_json(v_c); end if;
+    if exists (select 1 from idle_candidates where champion_id = v_ch.id and kind = 'combo'
+                 and weights->'extraCombos' = p_weights->'extraCombos') then
       raise exception 'already tested';
     end if;
   end if;
