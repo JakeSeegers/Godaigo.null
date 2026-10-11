@@ -54,6 +54,8 @@
         if (mine(raw.steamVents)) out.steamVentsBanked = !!raw.steamVents.freeStepBanked;
         if (mine(raw.mudslide)) out.mudslide = true;
         if (mine(raw.reflectingPool)) out.reflectingPool = true;
+        // Call to Adventure: reveals pay shrine stones this turn (bot.js strategyParts)
+        if (mine(raw.callToAdventure)) out.callToAdventure = true;
         return Object.keys(out).length ? out : undefined;
     }
 

@@ -8,6 +8,7 @@
       "changes": [
         "You can now save a game against bots at any point in your turn, not only before you act. The AP you have left is kept.",
         "The Train Bot window now shows the combos bots find while they train.",
+        "Bots learned player tricks: walling you in with Mason's Savvy, the Burning Motivation stone loop, Call to Adventure before Heavy Stomp, and riding Shifting Sands across the board.",
         "Small fixes: loading a saved game no longer puts the wrong AP back if a bot was moving, and you can't save while a bot is moving."
       ]
     },

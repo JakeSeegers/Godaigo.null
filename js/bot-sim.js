@@ -997,6 +997,19 @@
         return out;
     }
 
+    // Shifting Sands travel set-up (owner strategy 2): the tiles under hex
+    // (x, y) that could carry player `idx` if it stood there with stones
+    // `extra` added (a pattern it plans to build): non-player tile, no stone
+    // within TILE_RADIUS, no other pawn on it. On a half hex there can be two.
+    function travelTilesAt(snap, x, y, extra, idx) {
+        const h = grid(snap).find(g => dist(g.x, g.y, x, y) < HEX_NEAR);
+        if (!h) return [];
+        const stones = [...snap.stones, ...(extra || [])];
+        return snap.tiles.filter(t => h.tileIds.includes(t.id) && !t.isPlayerTile &&
+            !stones.some(st => dist(st.x, st.y, t.x, t.y) < TILE_RADIUS) &&
+            !snap.players.some((q, j) => q && j !== idx && dist(q.x, q.y, t.x, t.y) < TILE_RADIUS));
+    }
+
     // Shifting Sands (EARTH_SCROLL_2): eligible = non-player tiles, no
     // stones, AT MOST 1 player (looser than Heavy Stomp/Combust's "zero
     // players" — isTileEligibleForShiftingSands allows one lone occupant,
@@ -1853,14 +1866,31 @@
     //     away). VOID_SCROLL_2 Telekinesis: {tileId, x, y} (such a tile moved
     //     into a free slot next to the pawn's tile).
     // ----------------------------------------------------------------
-    function castChoices(snap, name) {
-        const base = castChoicesBase(snap, name);
+    // Where the active player wants to be next (Shifting Sands travel):
+    // home once all five are activated, else the nearest revealed shrine of
+    // an element it still needs, else the nearest face-down tile.
+    function travelGoalPoint(snap, p) {
+        const nearest = list => list.reduce((a, b) => (!a || dist(p.x, p.y, b.x, b.y) < dist(p.x, p.y, a.x, a.y)) ? b : a, null);
+        let t = null;
+        if (ELEMENTS.every(el => p.activated.includes(el))) {
+            t = snap.tiles.find(x => x.isPlayerTile && x.playerIndex === p.index) || null;
+        } else {
+            t = nearest(snap.tiles.filter(x => x.revealed && !x.isPlayerTile && ELEMENTS.includes(x.shrineType) &&
+                !p.activated.includes(x.shrineType) && (snap.sourcePool[x.shrineType] || 0) > 0 &&
+                (p.pool[x.shrineType] || 0) < POOL_CAP))
+                || nearest(snap.tiles.filter(x => !x.revealed && !x.isPlayerTile));
+        }
+        return t ? { x: t.x, y: t.y, tileId: t.id } : null;
+    }
+
+    function castChoices(snap, name, opts) {
+        const base = castChoicesBase(snap, name, opts);
         // Harm choices aimed at the leader (bot.js harmChoices, 2026-09-28).
         let harm = [];
         try { harm = window.BotSystem?.harmChoices?.(snap, name) || []; } catch (e) {}
         return harm.length ? [...base, ...harm] : base;
     }
-    function castChoicesBase(snap, name) {
+    function castChoicesBase(snap, name, opts) {
         const p = activePlayer(snap);
         if (!p) return [];
         const near = (a, b) => dist(a.x, a.y, p.x, p.y) - dist(b.x, b.y, p.x, p.y);
@@ -1950,8 +1980,24 @@
             const far = elig.filter(t => worth(t) && t !== pawnTile && !near.includes(t))
                 .sort((a, b) => nearPawn(b, a)).slice(0, 3);
             const out = [];
+            // Travel (owner strategy 2, docs/player-strategies.md): a lone pawn
+            // rides along with its tile. On a half hex the pawn counts as on
+            // both tiles, so each one under it may carry it. Partner = the
+            // eligible tile whose centre (the landing spot) is nearest the goal.
+            const goal = opts?.goal || travelGoalPoint(snap, p);
+            if (goal && pawnHex) {
+                const mine = snap.tiles.filter(t => pawnHex.tileIds.includes(t.id) && elig.includes(t) &&
+                    tilePlayerIndices(snap, t).every(i => i === p.index));
+                const byGoal = (a, b) => dist(a.x, a.y, goal.x, goal.y) - dist(b.x, b.y, goal.x, goal.y);
+                for (const a of mine.slice(0, 2)) {
+                    elig.filter(b => b !== a && !(goal.tileId != null && Number(b.id) === Number(goal.tileId)) &&
+                            dist(b.x, b.y, goal.x, goal.y) + HEX_NEAR < dist(p.x, p.y, goal.x, goal.y))
+                        .sort(byGoal).slice(0, 2)
+                        .forEach(b => out.push({ a: a.id, b: b.id, travel: true }));
+                }
+            }
             for (const a of near) for (const b of far) out.push({ a: a.id, b: b.id });
-            return out.slice(0, 6);
+            return out.slice(0, 8);
         }
         if (name === 'VOID_SCROLL_2') {
             // Telekinesis: move a far tile worth having into a free slot next to the pawn's tile.
@@ -2480,6 +2526,7 @@
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
         stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
         SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, isUnknownScroll, unknownScrollElement,
+        travelTilesAt, travelGoalPoint,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');
 })();

@@ -437,6 +437,14 @@ Order matters — later scripts depend on earlier ones.
                              brings the pair). bot-arena.js makeChallenger fills settings missing from the saved champion with defaults.
                              Trial combos (2026-10-11): WEIGHTS.extraCombos = signatures this bot follows on top of the taught list
                              (activeCombos(); per seat, since setWeights replaces the table); a champion without it clears it on load.
+                             Owner strategies (2026-10-11, docs/player-strategies.md): strategyParts / strategyBonus, greedy + search root
+                             (children with a bonus always looked at), weights stratTravel / stratAdventure / stratBurn / stratTrap (0 = off):
+                             travel = Shifting Sands on its own tile (BotSim castChoices {a, b, travel}; reviewSands plans the build on a
+                             half-hex spot that leaves a tile clean, makePlan opts.travelSpot + BotSim.travelTilesAt; shortcut kind 'sands');
+                             adventure = Call to Adventure before Heavy Stomp, reveals while it is up (bot-state maps the callToAdventure buff);
+                             burn = under Burning Motivation a spare stone next to an unvoided fire still pays AP (no placeDoomed), draw-stones
+                             scrolls recast, AP room only (cap 5 + void), 6 loops per turn; trap = Mason's Savvy near an opponent whose exits
+                             earth can hold, earth on those exits (rangedTargets). BotSystem.strategyStats(). Tested vs champion 16: 98-93-11.
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same

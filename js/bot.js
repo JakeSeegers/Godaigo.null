@@ -374,6 +374,11 @@
         comboKeep:           0,   // x evalScrollCredit: holding part of a taught combo's opening pair
         comboSeek:           0,   // x 100: picking a scroll (Scholar's Insight, Inspiring Draught)
                                   // that joins or completes a taught combo's opening pair
+        // Owner strategies (docs/player-strategies.md, 2026-10-11), strategyParts().
+        stratTravel:        12,   // x AP saved: Shifting Sands swaps the bot's own tile toward its goal
+        stratAdventure:     60,   // Call to Adventure before Heavy Stomp; reveals while it is up
+        stratBurn:           1,   // x AP gained (x STRAT_AP_WORTH): Burning Motivation burn loop
+        stratTrap:          40,   // x threat: Mason's Savvy earth closing an opponent's exits
         castChoiceNeed:     20,   // greedy tie-break between a scroll's choices (River / Stomp):
                                   // x scroll need of the element the choice would draw
         evalAp:              2,   // per remaining AP (own turn only)
@@ -829,7 +834,8 @@
     function rangedTargets(snap) {
         const self = me(snap);
         if (!self) return [];
-        const key = `${snap.turn.activePlayerIndex}|${self.x},${self.y}|` + snap.stones.map(s => s.type[0] + Math.round(s.x) + ',' + Math.round(s.y)).join(';');
+        const key = `${snap.turn.activePlayerIndex}|${self.x},${self.y}|` + snap.stones.map(s => s.type[0] + Math.round(s.x) + ',' + Math.round(s.y)).join(';')
+            + '|' + snap.players.map(q => q ? Math.round(q.x) + ',' + Math.round(q.y) : '-').join(';');
         if (_rangedCache.key === key) return _rangedCache.list;
         const tac = tacticalContext(snap);
         const out = new Map();
@@ -840,6 +846,15 @@
             out.set(k, e);
         };
         const fromKey = k => { const [x, y] = k.split(',').map(Number); return { x, y }; };
+        // Owner strategy "trap": an opponent's exits within Mason's Savvy reach (earth).
+        if (WEIGHTS.stratTrap) {
+            for (const o of snap.players) {
+                if (!o || o.index === snap.turn.activePlayerIndex) continue;
+                if (Math.hypot(o.x - self.x, o.y - self.y) > 6 * 35 + 5) continue;
+                const ex = trapExits(snap, o);
+                if (ex.length && ex.every(e => e.holds)) ex.forEach(e => add(e.x, e.y, ['earth']));
+            }
+        }
         if (tac) {
             [...tac.oppPathCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
                 .forEach(([k]) => { const h = fromKey(k); add(h.x, h.y, ['earth', 'water']); });
@@ -1144,6 +1159,7 @@
                 let s = contrib('castBase', 1) + contrib('castLevel', def?.level || 0);
                 if (a.choice) s += castChoiceBonus(a, snap);
                 s += comboBonus(a, snap);
+                s += strategyBonus(a, snap);
                 if (mem(snap.turn.activePlayerIndex).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap, self, a.scroll)) {
                     s += contrib('castStuckTool', 1);
                 }
@@ -1177,10 +1193,12 @@
                     // taking when a tacticalPlaceBonus() term fires.
                     s = WEIGHTS.placeTacticalBase;
                 }
-                // The bot KNOWS the fire rule — don't pay stones to relearn it
-                if (window.BotSim && !window.BotSim.stoneWouldSurvive(snap, a.x, a.y, a.stoneType)) {
+                // The bot KNOWS the fire rule - don't pay stones to relearn it
+                // (unless it is a burn the Burning Motivation loop wants).
+                if (window.BotSim && !window.BotSim.stoneWouldSurvive(snap, a.x, a.y, a.stoneType) && !wantedBurn(a, snap)) {
                     s += WEIGHTS.placeDoomed;
                 }
+                s += strategyBonus(a, snap);
                 if (a.stoneType === 'void') s += WEIGHTS.placeVoidSpendPenalty;
                 if (mem(snap.turn.activePlayerIndex).brokeThisTurn?.has(`${hexKey(a.x, a.y)}:${a.stoneType}`)) s -= 80; // just broke that very stone
                 s += tacticalPlaceBonus(a, snap, ctx.tac);
@@ -1283,7 +1301,8 @@
                 if (kept) commit = contrib('moveCommit', kept.v);
                 if (ctx.pulls) ctx.pulls.set(hexKey(a.x, a.y), kept || main);
                 return contrib('moveBase', 1) + shrineV
-                     + contrib('moveApPenalty', a.cost) + explore + revisit + home + fixation + harm + commit;
+                     + contrib('moveApPenalty', a.cost) + explore + revisit + home + fixation + harm + commit
+                     + strategyBonus(a, snap);
             }
 
             case 'teleport': {
@@ -1826,6 +1845,12 @@
             for (const variant of def.patterns) for (const { hex: anchorHex, steps } of anchors) {
                 const v = viable(variant, anchorHex);
                 if (!v) continue;
+                // Shifting Sands travel set-up: only spots where, with this
+                // shape built, a tile under the centre stays clean to ride.
+                if (opts?.travelSpot) {
+                    const ap = hexToPixel(anchorHex.q, anchorHex.r, TILE_SIZE);
+                    if (!window.BotSim?.travelTilesAt?.(snap, ap.x, ap.y, v.cells, snap.turn.activePlayerIndex)?.length) continue;
+                }
                 const totalDeficit = Object.values(v.deficit).reduce((a, b) => a + b, 0);
                 // Missing stone types are fine — planNextAction() routes
                 // through a collect leg (see stepTowardCollect()) — as long
@@ -1923,6 +1948,68 @@
         log(`Take Flight trip: ${viaFlight} AP instead of ${direct === Infinity ? 'no path' : direct}`);
         m.plan = { ...tp, travel: true, goal, resume: m.plan || null, madeTurn: m.ownTurns || 0 };
         _shortcutStats.flightPlans++;
+        return true;
+    }
+    // Shifting Sands travel (owner strategy 2, docs/player-strategies.md):
+    // a lone pawn rides along with its tile. The bot builds the pattern on a
+    // spot where a tile under it stays clean (on a half hex it is on two
+    // tiles: makePlan opts.travelSpot), then swaps that tile next to its
+    // goal. Same shape and limits as the Take Flight trip above.
+    const SANDS = 'EARTH_SCROLL_2';
+    function sandsLanding(snap, goal) {
+        let best = null;
+        for (const c of window.BotSim?.castChoices?.(snap, SANDS, { goal }) || []) {
+            if (!c.travel) continue;
+            const t = snap.tiles.find(x => Number(x.id) === Number(c.b));
+            if (!t) continue;
+            const path = Math.hypot(t.x - goal.x, t.y - goal.y) < 5 ? [] : window.BotState.findPath(t.x, t.y, goal.x, goal.y);
+            if (!path) continue;
+            const cost = pathCost(path);
+            if (!best || cost < best.cost) best = { choice: c, cost };
+        }
+        return best;
+    }
+    function reviewSands(snap, idx, m, self) {
+        if (!WEIGHTS.stratTravel) return false;
+        if (m.plan && m.plan.travel) return false; // reviewTravel looks after a running trip
+        const reach = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])];
+        if (!reach.includes(SANDS) || m.noCreditScrolls?.has(SANDS)) { _tw('sands:noScroll'); return false; }
+        if (m.sandsTried === (m.ownTurns || 0)) return false; // once per own turn
+        m.sandsTried = m.ownTurns || 0;
+        const goal = travelGoal(snap, self, m);
+        if (!goal) { _tw('sands:noGoal'); return false; }
+        const p0 = window.BotState.findPath(self.x, self.y, goal.x, goal.y);
+        const direct = p0 && p0.length ? pathCost(p0) : (Math.hypot(self.x - goal.x, self.y - goal.y) < 5 ? 0 : Infinity);
+        if (direct < TRAVEL_MIN) { _tw('sands:near'); return false; }
+        const def = window.SCROLL_DEFINITIONS?.[SANDS];
+        if (!def) return false;
+        const tp = makePlan(snap, { only: new Set([SANDS]), near: 5, extra: [{ name: SANDS, def, credit: 0 }], travelSpot: true });
+        if (!tp) { _tw('sands:noSpot'); return false; }
+        // Landing: the clean partner tile nearest the goal, seen from the spot.
+        const ap = hexToPixel(tp.anchor.q, tp.anchor.r, TILE_SIZE);
+        const built = tp.cells.map(c => ({ x: c.x, y: c.y, type: c.type }));
+        const mine = new Set(window.BotSim.travelTilesAt(snap, ap.x, ap.y, built, idx).map(t => t.id));
+        let land = null;
+        for (const t of snap.tiles) {
+            if (t.isPlayerTile || mine.has(t.id)) continue;
+            if ([...snap.stones, ...built].some(st => Math.hypot(st.x - t.x, st.y - t.y) < 80)) continue;
+            if (snap.players.some(q => q && Math.hypot(q.x - t.x, q.y - t.y) < 80)) continue;
+            const path = Math.hypot(t.x - goal.x, t.y - goal.y) < 5 ? [] : window.BotState.findPath(t.x, t.y, goal.x, goal.y);
+            if (!path) continue;
+            const cost = pathCost(path);
+            if (!land || cost < land.cost) land = { cost };
+        }
+        if (!land) { _tw('sands:noLanding'); return false; }
+        const missing = tp.cells.filter(c => !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5));
+        const need = {};
+        for (const c of missing) need[c.type] = (need[c.type] || 0) + 1;
+        let short = 0;
+        for (const [t, n] of Object.entries(need)) short += Math.max(0, n - (self.pool[t] || 0));
+        const viaSands = (tp.steps || 0) + 3 * short + 2 + land.cost;
+        if (viaSands > direct - TRAVEL_SAVE) { _tw('sands:notFaster'); return false; }
+        log(`Shifting Sands trip: ${viaSands} AP instead of ${direct === Infinity ? 'no path' : direct}`);
+        m.plan = { ...tp, travel: true, sands: true, goal, resume: m.plan || null, madeTurn: m.ownTurns || 0 };
+        _shortcutStats.sandsPlans++;
         return true;
     }
     // Builder (pact role, owner 2026-09-30): build the pact's attack scroll
@@ -2124,6 +2211,7 @@
             }
         }
         if (reviewTravel(snap, idx, m, self)) return;
+        if (reviewSands(snap, idx, m, self)) return;
         if (reviewBuilder(snap, idx, m, self)) return;
         const attacks = attackTools(snap, self);
         if (m.plan && m.plan.attack) {
@@ -2246,7 +2334,7 @@
     // action of the best route when it saves at least 2 AP, else null.
     const SHORTCUT_MIN_SAVE = 2;
     const TELEPORT_AP_VALUE = 12;   // greedy teleport score per AP saved toward the goal
-    const _shortcutStats = { teleport: 0, gate: 0, flight: 0, flightPlans: 0, flightCasts: 0, why: {} }; // tests
+    const _shortcutStats = { teleport: 0, gate: 0, flight: 0, flightPlans: 0, flightCasts: 0, sands: 0, sandsPlans: 0, sandsCasts: 0, why: {} }; // tests
     function shortcut(snap, self, tx, ty, direct) {
         if (!(direct > SHORTCUT_MIN_SAVE)) return null;
         const costTo = (x, y) => {
@@ -2291,6 +2379,11 @@
                     offer(2 + costTo(c.x, c.y), { type: 'cast', scroll: 'WIND_SCROLL_4', choice: c }, 'flight');
                 }
             }
+        }
+        // (4) Shifting Sands on my own tile, castable right here (owner strategy 2).
+        if (WEIGHTS.stratTravel && snap.turn.ap >= 2 && legal.some(a => a.type === 'cast' && a.scroll === SANDS)) {
+            const land = sandsLanding(snap, { x: tx, y: ty });
+            if (land) offer(2 + land.cost, { type: 'cast', scroll: SANDS, choice: land.choice }, 'sands');
         }
         if (!best) return null;
         _shortcutStats[best.kind]++;
@@ -2512,6 +2605,12 @@
                 if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
                     return { type: 'cast', scroll: plan.scroll, choice: { target: L, harm: hurt } }; // throw the target, not myself
                 }
+            }
+            if (plan.travel && plan.sands) {
+                const land = sandsLanding(snap, plan.goal);
+                if (land) { _shortcutStats.sandsCasts++; return { type: 'cast', scroll: plan.scroll, choice: land.choice }; }
+                m.plan = plan.resume || null;
+                return null;
             }
             if (plan.travel) {
                 const land = flightLanding(snap, plan.goal);
@@ -3352,6 +3451,13 @@
             return 0;
         };
         if (harm) for (const c of scored) if (harmRoot(c.a) > 0 && !rootChildren.includes(c)) rootChildren.push(c);
+        // Owner strategies are root-only too: a child they favour always gets a look.
+        const stratRoot = new Map();
+        for (const c of scored) {
+            const sb = strategyBonus(c.a, snap0);
+            if (sb) stratRoot.set(c, sb);
+            if (sb > 0 && !rootChildren.includes(c)) rootChildren.push(c);
+        }
         for (const c of scored) if (stuckRoot(c.a) > 0 && !rootChildren.includes(c)) rootChildren.push(c);
         let best = null;
         for (const c of rootChildren) {
@@ -3367,6 +3473,7 @@
             if (c.a.type === 'teleport') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.teleportRevisitPenalty);
             if (c.a.type === 'breakStone' || c.a.type === 'placeStone') v += unblockBonus(c.a, snap0, uctx);
             if (c.a.type === 'cast') v += comboBonus(c.a, snap0);
+            v += stratRoot.get(c) || 0;
             if (c.a.type === 'placeStone') {
                 v += tacticalPlaceBonus(c.a, snap0, tac);
                 // Tactical placements have no pattern value the eval could
@@ -3894,6 +4001,162 @@
         const path = pathToOrNear(lp.x, lp.y, goal.x, goal.y) || [];
         const reach = path.some(st => Math.hypot(st.x - self.x, st.y - self.y) <= 5 * 35 + 5);
         return reach ? WEIGHTS.castHarmWall * h.push : 0;
+    }
+
+    // ----------------------------------------------------------------
+    // Owner strategies (docs/player-strategies.md, 2026-10-11). One bonus per
+    // strategy, added in greedy scoring and at the search root (the leaf
+    // evaluation does not see them), each scaled by its own weight so
+    // training can tune or switch it off (0):
+    //   travel     Shifting Sands on the bot's OWN tile toward its goal
+    //              (BotSim castChoices adds {a, b, travel} choices)
+    //   adventure  Call to Adventure before Heavy Stomp; while it is up,
+    //              every reveal (Stomp or a step onto a face-down tile) pays
+    //   burn       Burning Motivation: a spare stone placed next to an
+    //              active fire burns at once but still pays AP; draw-stones
+    //              scrolls (Mason's Savvy, Seed the Skies, Respirate) refill
+    //              the stones. AP is capped (5 + void), so only AP that fits
+    //              counts, and at most BURN_LOOPS draw casts per turn.
+    //   trap       Mason's Savvy near an opponent whose exits earth can hold
+    //              (no fire or void next to them), then earth on those exits
+    // ----------------------------------------------------------------
+    const DRAW_STONE_SCROLLS = { EARTH_SCROLL_3: 'earth', CATACOMB_SCROLL_6: 'water', WIND_SCROLL_3: 'wind' };
+    const STRAT_AP_WORTH = 6;   // greedy / root value of one AP gained
+    const BURN_LOOPS = 6;
+    const _stratCount = { travel: 0, adventure: 0, burn: 0, trap: 0 };
+    function apRoom(snap, self) { return Math.max(0, 5 + (self.pool.void || 0) - (snap.turn.ap || 0)); }
+    // Free hexes next to the pawn that are next to an unvoided fire stone.
+    function burnSpots(snap, self) {
+        const st = snap.stones;
+        const fires = st.filter(f => f.type === 'fire' &&
+            !st.some(v => v.type === 'void' && Math.hypot(v.x - f.x, v.y - f.y) > 5 && Math.hypot(v.x - f.x, v.y - f.y) < 50));
+        if (!fires.length) return [];
+        return window.BotSim.grid(snap).filter(h => {
+            const d = Math.hypot(h.x - self.x, h.y - self.y);
+            if (d <= 5 || d >= 40) return false;
+            if (st.some(s => Math.hypot(s.x - h.x, s.y - h.y) < 5)) return false;
+            if (snap.players.some(q => q && Math.hypot(q.x - h.x, q.y - h.y) < 5)) return false;
+            return fires.some(f => { const e = Math.hypot(f.x - h.x, f.y - h.y); return e > 5 && e < 50; });
+        });
+    }
+    // A stone of this type the build plan does not need.
+    function spareStone(snap, idx, self, type) {
+        if (type === 'fire' || type === 'void') return false; // fire does not burn these
+        const plan = mem(idx).plan;
+        const need = plan ? plan.cells.filter(c => c.type === type &&
+            !snap.stones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5)).length : 0;
+        return (self.pool[type] || 0) - 1 >= need;
+    }
+    function burnLoopsLeft(idx) {
+        const m = mem(idx);
+        return !(m.burnTurn === m.ownTurns && (m.burnCasts || 0) >= BURN_LOOPS);
+    }
+    // Free hexes next to an opponent, and whether earth there would hold.
+    function trapExits(snap, o) {
+        const st = snap.stones;
+        const out = [];
+        for (const h of window.BotSim.grid(snap)) {
+            const d = Math.hypot(h.x - o.x, h.y - o.y);
+            if (d <= 5 || d >= 40) continue;
+            if (st.some(s => Math.hypot(s.x - h.x, s.y - h.y) < 5)) continue;
+            if (snap.players.some(q => q && Math.hypot(q.x - h.x, q.y - h.y) < 5)) continue;
+            const holds = !st.some(s => (s.type === 'fire' || s.type === 'void') &&
+                Math.hypot(s.x - h.x, s.y - h.y) > 5 && Math.hypot(s.x - h.x, s.y - h.y) < 50);
+            out.push({ x: h.x, y: h.y, holds });
+        }
+        return out;
+    }
+    function trapThreat(snap, idx, o) {
+        const press = window.BotDiplomacy?.pressures?.(idx);
+        const w = press && press[o.index] != null ? press[o.index] : 1;
+        return w * (0.5 + o.activated.length / 5);
+    }
+    // Best opponent to wall in with `earth` stones: near enough, every exit holds.
+    function trapTarget(snap, idx, self, earth) {
+        let best = null;
+        for (const o of snap.players) {
+            if (!o || o.index === idx) continue;
+            if (Math.hypot(o.x - self.x, o.y - self.y) > 5 * 35 + 5) continue;
+            const ex = trapExits(snap, o);
+            if (!ex.length || ex.some(e => !e.holds) || ex.length > earth) continue;
+            const t = trapThreat(snap, idx, o);
+            if (!best || t > best.threat) best = { o, threat: t };
+        }
+        return best;
+    }
+    function strategyParts(a, snap) {
+        const out = { travel: 0, adventure: 0, burn: 0, trap: 0 };
+        const self = me(snap);
+        const sim = window.BotSim;
+        if (!self || !sim || !a) return out;
+        const idx = snap.turn.activePlayerIndex;
+        const b = snap.turn.buffs || {};
+        const stacks = b.burningMotivationStacks || 0;
+        if (a.type === 'cast') {
+            const held = heldScrolls(snap, self);
+            if (WEIGHTS.stratAdventure) {
+                const hidden = snap.tiles.filter(t => !t.isPlayerTile && !t.revealed).length;
+                if (a.scroll === 'CATACOMB_SCROLL_3' && !b.callToAdventure && held.has('EARTH_SCROLL_4') && hidden >= 2) out.adventure += WEIGHTS.stratAdventure;
+                if (a.scroll === 'EARTH_SCROLL_4' && a.choice?.tileId != null) {
+                    if (b.callToAdventure) out.adventure += WEIGHTS.stratAdventure;
+                    else if (held.has('CATACOMB_SCROLL_3') && sim.checkPattern(snap, 'CATACOMB_SCROLL_3', idx)) out.adventure -= WEIGHTS.stratAdventure;
+                }
+            }
+            if (WEIGHTS.stratBurn) {
+                const type = DRAW_STONE_SCROLLS[a.scroll];
+                if (type && stacks > 0 && (snap.sourcePool[type] || 0) > 0 && burnLoopsLeft(idx) && burnSpots(snap, self).length) {
+                    const drawn = Math.min(a.scroll === 'WIND_SCROLL_3' ? 3 : 5, snap.sourcePool[type], POOL_CAP - (self.pool[type] || 0));
+                    const gain = Math.min(drawn * 2 * stacks, 5 + (self.pool.void || 0)) - 2;
+                    if (gain > 0) out.burn += WEIGHTS.stratBurn * STRAT_AP_WORTH * gain;
+                }
+                if (a.scroll === 'FIRE_SCROLL_2' && stacks === 0 && Object.keys(DRAW_STONE_SCROLLS).some(s => held.has(s))) {
+                    out.burn += WEIGHTS.stratBurn * STRAT_AP_WORTH * 3;
+                }
+            }
+            if (WEIGHTS.stratTravel && a.scroll === 'EARTH_SCROLL_2' && a.choice?.travel) {
+                const all = ELEMENTS.every(el => self.activated.includes(el));
+                const cost = s => all ? homeCost(s, idx) : goalCost(s, idx);
+                const before = cost(snap);
+                const after = cost(sim.simulate(snap, a));
+                if (before != null && after != null && before - after > 0) {
+                    out.travel += WEIGHTS.stratTravel * Math.min(12, before - after);
+                }
+            }
+            if (WEIGHTS.stratTrap && a.scroll === 'EARTH_SCROLL_3') {
+                const earth = Math.min(POOL_CAP, (self.pool.earth || 0) + Math.min(5, snap.sourcePool.earth || 0));
+                const t = trapTarget(snap, idx, self, earth);
+                if (t) out.trap += WEIGHTS.stratTrap * t.threat;
+            }
+        } else if (a.type === 'placeStone') {
+            if (WEIGHTS.stratBurn && stacks > 0 && !a.scroll && !sim.stoneWouldSurvive(snap, a.x, a.y, a.stoneType) &&
+                spareStone(snap, idx, self, a.stoneType)) {
+                const gain = Math.min(stacks * 2, apRoom(snap, self));
+                if (gain > 0) out.burn += WEIGHTS.stratBurn * STRAT_AP_WORTH * gain;
+            }
+            if (WEIGHTS.stratTrap && a.stoneType === 'earth') {
+                for (const o of snap.players) {
+                    if (!o || o.index === idx) continue;
+                    const ex = trapExits(snap, o);
+                    if (!ex.length || ex.some(e => !e.holds)) continue;
+                    if (!ex.some(e => Math.hypot(e.x - a.x, e.y - a.y) < 5)) continue;
+                    const t = trapThreat(snap, idx, o);
+                    out.trap += WEIGHTS.stratTrap * t * (1 / ex.length + (ex.length === 1 ? 1 : 0));
+                }
+            }
+        } else if (a.type === 'move' && WEIGHTS.stratAdventure && b.callToAdventure) {
+            if (snap.tiles.some(t => !t.isPlayerTile && !t.revealed && Math.hypot(t.x - a.x, t.y - a.y) < 70)) {
+                out.adventure += WEIGHTS.stratAdventure * 0.5;
+            }
+        }
+        return out;
+    }
+    function strategyBonus(a, snap) {
+        const p = strategyParts(a, snap);
+        return p.travel + p.adventure + p.burn + p.trap;
+    }
+    // A burn the loop wants: the doomed-stone penalty does not apply to it.
+    function wantedBurn(a, snap) {
+        return a.type === 'placeStone' && strategyParts(a, snap).burn > 0;
     }
 
     // Stuck tools (owner, 2026-09-28): about 1 in 5 two-bot games deadlocked
@@ -4966,8 +5229,18 @@
         if (harmLogOn()) { try { harmEntry = harmMeasure(snap, action, idx); } catch (e) { harmEntry = null; } }
         let harmCast = false;
         if (action.type === 'cast') { try { harmCast = !!snap.players[idx] && harmCastBonus(snap, snap.players[idx], action) > 0; } catch (e) {} }
+        let strat = null;
+        try { strat = strategyParts(action, snap); } catch (e) { strat = null; }
         const res = window.BotState.applyAction(action);
         if (!res.ok) { log(`Action failed: ${res.reason}`); return null; }
+        if (strat) {
+            for (const k of Object.keys(_stratCount)) if (strat[k] > 0) _stratCount[k]++;
+            if (strat.burn > 0 && action.type === 'cast' && DRAW_STONE_SCROLLS[action.scroll]) {
+                const m = mem(idx);
+                if (m.burnTurn !== m.ownTurns) { m.burnTurn = m.ownTurns; m.burnCasts = 0; }
+                m.burnCasts++;
+            }
+        }
         if (harmEntry) { try { harmAfter(harmEntry); } catch (e) {} }
         // Remember stones broken this turn: putting the same stone back on the
         // same hex is a wasted loop (2026-09-29: a bot broke and re-placed its
@@ -5368,6 +5641,8 @@
         handValue,            // value of a player's held scrolls + per-element cover
         scrollPickScore,      // value of gaining one scroll now (bot-effects.js picks)
         rangedTargets,        // board-wide placement targets while a range buff is live
+        strategyStats: () => ({ ..._stratCount }), // owner strategies taken this page load
+        resetStrategyStats: () => { for (const k of Object.keys(_stratCount)) _stratCount[k] = 0; },
         setCombos,            // [{signature, score}] combos to follow (normally from get_bot_combos)
         combos: () => COMBOS,
         combosCompleted: () => _combosCompleted,

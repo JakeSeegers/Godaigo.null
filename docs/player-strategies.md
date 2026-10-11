@@ -1,9 +1,14 @@
 # Player strategies to teach the bots
 
-Strategies the owner described (2026-10-11), to build into bots as hand-taught
-plans. Each one must prove itself against the champion before bots use it for
-real (same idea as the combo screening: 8 fast games, then a trial challenger).
-Not built yet: collect them first, then build together.
+Strategies the owner described (2026-10-11), built into the bots the same day
+(js/bot.js strategyParts, one weight each: stratTravel, stratAdventure,
+stratBurn, stratTrap; 0 = off, training can tune them).
+
+Test, champion 16 + strategies vs champion 16 (strategy weights 0), muted
+2-player arena games, 202 games: 98 won, 93 lost, 11 drawn (no harm, gain
+within luck). Fired: trap and burn often; adventure never (rarely hold both
+scrolls); travel never (rarely hold Shifting Sands, goal often near, spots rare:
+on an empty board 5 of 110 hexes work, all on half hexes).
 
 ## 1. Mason's Savvy trap (clear)
 
@@ -21,7 +26,7 @@ Bot pieces: a target picker (near opponent, no fire / wind / void around), a
 build plan that starts the pattern next to the target, and a placement driver
 for the 5-hex earth placement that closes every exit.
 
-## 2. Shifting Sands travel (positioning NOT understood yet)
+## 2. Shifting Sands travel (built; positioning derived from the code)
 
 Owner: "if you set it up correctly you can use it to fly across the board."
 "You move yourself if you put the stones on two tiles that have the casting
@@ -38,9 +43,12 @@ What the code says (js/scrolls/effects/scroll-effects.js):
 My reading (owner says it is still wrong): cast from a half hex, keep the
 pattern stones off one of the two tiles under you, swap that tile far away.
 
-Next step: the owner pulls it off once in a recorded online game (vs bots is
-fine) and names the turn; read only that cast from match_moves (pawn spot,
-pattern stones, the two tiles swapped, landing spot) and derive the rule.
+Built 2026-10-11: the pattern is 2 stones on opposite sides, 2 hexes out. The
+pawn must stand on a half hex and the stones must point along the shared edge,
+so neither lands within TILE_RADIUS (80 px) of one of the two tiles under it
+(bot-sim.js travelTilesAt). reviewSands plans such a build within 5 steps when
+the trip beats walking by TRAVEL_SAVE AP; shortcut() casts it when ready.
+Still worth checking against a recorded game where the owner does it.
 
 Bot gap found: bot-effects.js driveTileSwap picks the two closest eligible
 tiles ("least disruptive"), so bots never travel with Shifting Sands.
