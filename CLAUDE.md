@@ -227,7 +227,7 @@ Order matters — later scripts depend on earlier ones.
                              >= max(300, 75th percentile) -> save_combo_candidates (server sets trust from ladder
                              rank + games played, bots 0) -> hermit_combo_summary (sql/combo-miner.sql).
                              Per combo Auto / On / Off (hermit_set_combo_state, sql/combo-teach.sql): Auto = bots
-                             use it once seen in 2 different games; bots load get_bot_combos() (public, no player
+                             use it once seen in 2 different games with trust adding up to 1.0+ (2026-10-11); bots load get_bot_combos() (public, no player
                              data) in bot.js (Phase 4, see bot.js row).
                              Hermit-only "Puzzles" tab (Phase 4b): hermit_list_puzzles (sql/combo-puzzles.sql) =
                              mined combo moments; Replay.solvePuzzles() runs each in a hidden frame

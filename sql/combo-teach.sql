@@ -2,8 +2,11 @@
 -- (migration combo_teach).
 --
 -- A combo from combo_candidates (sql/combo-miner.sql) is taught to the bots
--- when it has shown up at least twice, in at least two games, from players
--- (never bots). The hermit can force a combo on (to try one seen once) or
+-- when it has shown up in at least two games, from players (never bots), and
+-- its trust adds up to 1.0 or more (owner 2026-10-11; before: seen twice in two
+-- games, trust ignored). Trust = rank factor x experience per sighting (0.04 to
+-- 1), so one strong, experienced player's combo seen in two games counts, and a
+-- new player's needs many more sightings. The hermit can force a combo on (to try one seen once) or
 -- off (to block a bad one) from the Replays > Combos tab.
 -- get_bot_combos() is what bot.js loads at game start. It is public (bots
 -- run in any host's browser) and holds no player data: just the sequence,
@@ -54,14 +57,16 @@ begin
              sum(c.gain * c.trust)::real as score,
              (array_agg(c.match_id order by c.gain * c.trust desc))[1] as best_match,
              (array_agg(c.steps order by c.gain * c.trust desc))[1] as best_steps,
-             max(c.created_at) as last_seen
+             max(c.created_at) as last_seen,
+             sum(c.trust)::real as trust_sum
       from combo_candidates c
       where not c.is_bot
       group by c.signature
     )
-    select s.*, coalesce(f.state, 'auto'),
+    select s.signature, s.times, s.matches, s.players, s.avg_gain, s.avg_trust, s.score, s.best_match,
+           s.best_steps, s.last_seen, coalesce(f.state, 'auto'),
            case when f.state = 'on' then true when f.state = 'off' then false
-                else s.times >= 2 and s.matches >= 2 end
+                else s.matches >= 2 and s.trust_sum >= 1.0 end
     from s left join combo_flags f on f.signature = s.signature
     where s.times >= greatest(1, coalesce(p_min_count, 1))
     order by s.score desc
@@ -76,14 +81,14 @@ language sql stable security definer set search_path to 'public'
 as $$
   with s as (
     select c.signature, count(*)::integer as times, count(distinct c.match_id)::integer as matches,
-           sum(c.gain * c.trust)::real as score
+           sum(c.gain * c.trust)::real as score, sum(c.trust)::real as trust_sum
     from combo_candidates c
     where not c.is_bot
     group by c.signature
   )
   select s.signature, s.times, s.score
   from s left join combo_flags f on f.signature = s.signature
-  where f.state = 'on' or (f.state is null and s.times >= 2 and s.matches >= 2)
+  where f.state = 'on' or (f.state is null and s.matches >= 2 and s.trust_sum >= 1.0)
   union all
   -- forced on but not (or no longer) in the candidates
   select f.signature, 0, 0::real from combo_flags f
