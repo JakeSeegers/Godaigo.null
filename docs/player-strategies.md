@@ -44,3 +44,19 @@ pattern stones, the two tiles swapped, landing spot) and derive the rule.
 
 Bot gap found: bot-effects.js driveTileSwap picks the two closest eligible
 tiles ("least disruptive"), so bots never travel with Shifting Sands.
+
+## 3. Call to Adventure + Heavy Stomp (to confirm order and tile choice)
+
+Owner: "Heavy Stomp combos with Call to Adventure."
+- Call to Adventure (CATACOMB_SCROLL_3): flip one unoccupied tile; until end of
+  turn, revealing a tile draws elemental stones as if you ended your turn on
+  its center.
+- Heavy Stomp (EARTH_SCROLL_4): flip a tile; a hidden tile revealed = draw a
+  scroll.
+My reading: cast Call to Adventure first, then Heavy Stomp a face-down tile in
+the same turn (scroll + that shrine's stones); walking onto face-down tiles
+that turn also pays out stones. Asked the owner: always this order? which tile?
+
+Bot gap: both scrolls already work (bot-effects.js driveTileFlip: nearest
+face-down tile), but nothing pairs them in one turn. Teach: holding both ->
+cast together, Call to Adventure first.
