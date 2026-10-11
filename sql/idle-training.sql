@@ -1,3 +1,5 @@
+-- NOTE 2026-10-11: the "2+ players" promotion rule below was removed by
+-- sql/combo-families.sql (idle_training_report). Run that file after this one.
 -- Idle training (screensaver), owner 2026-10-09. js/idle-training.js.
 --
 -- When a signed-in player sits idle in the lobby, their browser plays watchable
