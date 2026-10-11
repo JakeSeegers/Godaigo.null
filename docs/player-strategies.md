@@ -60,3 +60,17 @@ that turn also pays out stones. Asked the owner: always this order? which tile?
 Bot gap: both scrolls already work (bot-effects.js driveTileFlip: nearest
 face-down tile), but nothing pairs them in one turn. Teach: holding both ->
 cast together, Call to Adventure first.
+
+## 4. Burning Motivation + Mason's Savvy + Avalanche (big AP turn)
+
+Owner: "Avalanche plus Burning Motivation plus Mason's Savvy = infinite AP?"
+- Burning Motivation (FIRE_SCROLL_2): until end of turn, +2 AP per stone
+  placed; stacks (game-core.js after a stone is placed: buff.stacks * 2).
+- Placing a stone costs no AP. Mason's Savvy (EARTH_SCROLL_3): draw up to 5
+  earth. Avalanche (EARTH_SCROLL_5): place stones anywhere this turn.
+- Not infinite by the code: AP stops when your pool is empty. Breaking a stone
+  costs AP (earth 5) and returns it to the SOURCE pool, not yours. Asked the
+  owner if they know a way to get stones back (that would be a bug).
+Order: Burning Motivation first, Mason's Savvy, Avalanche, then place every
+stone held (own patterns, blocks). ~ +2 AP per stone per Burning Motivation.
+Bot teach: holding these -> cast together in this order, then dump stones.
