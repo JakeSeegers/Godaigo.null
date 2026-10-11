@@ -525,10 +525,45 @@
         if (found.length) _lastFinds = found;
         if (!found.length || !window.gami?.userId || typeof supabase === 'undefined' || !supabase?.rpc) return;
         const rows = found.slice(0, 20).map(c => ({ signature: c.signature, gain: c.gain, turns: c.turns, steps: c.steps }));
-        supabase.rpc('report_bot_combos', { p_rows: rows, p_source: opts.comboSource || (opts.visual ? 'watch' : 'train') })
-            .then(({ error }) => { if (error) log('bot combos not saved:', error.message); }, () => {});
+        const source = opts.comboSource || (opts.visual ? 'watch' : 'train');
+        supabase.rpc('report_bot_combos', { p_rows: rows, p_source: source, p_game: cw.key })
+            .then(({ error }) => {
+                if (!error) return;
+                // server without p_game yet (sql/combo-screening.sql)
+                if (/p_game|could not find|PGRST202/i.test(error.message || error.code || '')) {
+                    return supabase.rpc('report_bot_combos', { p_rows: rows, p_source: source }).then(() => {}, () => {});
+                }
+                log('bot combos not saved:', error.message);
+            }, () => {});
     }
     let _comboFinds = 0, _lastFinds = [];
+
+    // ── Combo screening (owner 2026-10-11, sql/combo-screening.sql) ─────
+    // Gate 2 for bot-found combos: combo_screen_due() names a combo found in
+    // 5+ different games; this plays `games` fast hidden games, champion +
+    // that combo (its own extraCombos) against the champion, seats swapped,
+    // and reports the record. Passed (wins >= losses) = it may become a trial
+    // combo. Train Bot screens one at the start of a run, idle training
+    // between games. null = nothing due (or no server part yet).
+    async function screenDueCombo(champion, opts = {}) {
+        if (isRunning() || typeof supabase === 'undefined' || !supabase?.rpc) return null;
+        const { data: due, error } = await supabase.rpc('combo_screen_due');
+        if (error || !due?.signature) return null;
+        const base = { ...window.BotSystem.DEFAULT_WEIGHTS, ...champion };
+        const extra = Array.isArray(base.extraCombos) ? base.extraCombos : [];
+        const withCombo = { ...base, extraCombos: [...extra, due.signature] };
+        opts.onStart?.(due.signature);
+        const games = opts.games || 8;
+        const r = await run(withCombo, base, games, (Date.now() % 100000) >>> 0, { visual: false, comboWatch: false });
+        if (_stopRequested || !r || r.aWins + r.bWins + r.draws < 4) return { signature: due.signature, stopped: true };
+        const rep = await supabase.rpc('report_combo_screen', {
+            p_signature: due.signature, p_champion: due.champion_id, p_wins: r.aWins, p_losses: r.bWins, p_draws: r.draws,
+        });
+        const out = { signature: due.signature, wins: r.aWins, losses: r.bWins, draws: r.draws, passed: r.aWins >= r.bWins,
+            saved: !rep.error && !!rep.data?.ok };
+        opts.onDone?.(out);
+        return out;
+    }
 
     async function _playMatchOnce(weightsPerPlayer, opts = {}) {
         const nPlayers = weightsPerPlayer.length;
@@ -598,6 +633,13 @@
 
         const result = { winner: null, turns: 0, activated: new Array(nPlayers).fill(0), stuckTurns, stalled: false, stallers: [] };
         const cw = (opts.comboWatch !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
+        if (cw) {
+            // one id per game: seed + seats + weights (the same game played
+            // again gets the same id, so repeats do not count as new games)
+            let h = 0;
+            for (const ch of JSON.stringify(weightsPerPlayer)) h = (h * 31 + ch.charCodeAt(0)) | 0;
+            cw.key = `${seed}:${nPlayers}:${(h >>> 0).toString(36)}`;
+        }
         if (cw) cwHook();
         try {
             // Also break on _endEarlyRequested so "End Early → Test Now" aborts
@@ -1638,6 +1680,7 @@
         makeChallenger, // idle training: explore / formula challenger
         comboFinds: () => _comboFinds, // combos the watcher found this page load
         lastComboFinds: () => _lastFinds, // the last game's finds (debugging)
+        screenDueCombo, // gate 2: screen the next bot-found combo against a champion
         perturbWeights, // gaussian-perturbed copy of a weight table (Noisy anchor toggle)
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
         stopRequested: () => _stopRequested, // was stop() called for the run in progress (or the one that just ended)?

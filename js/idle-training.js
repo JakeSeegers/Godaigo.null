@@ -178,6 +178,20 @@
             // third slot tries a practice duel on a spot where a player pulled
             // off a taught combo. No taught combo yet = a normal game instead.
             slot++;
+            // Combo screening (2026-10-11, sql/combo-screening.sql): every 4th slot
+            // after the first three games, 8 fast games for a combo bots keep finding.
+            if (played >= 3 && slot % 4 === 0 && window.BotArena.screenDueCombo) {
+                let scr = null;
+                try {
+                    scr = await window.BotArena.screenDueCombo(run.job.champion, {
+                        onStart: () => { run.screening = true; renderBar(); },
+                    });
+                } catch (e) { console.warn('[idle] screening failed', e); }
+                run.screening = false;
+                if (!run || run.stopping) break;
+                if (scr && !scr.stopped) { run.lastScreen = scr; renderBar(); continue; }
+                renderBar();
+            }
             if (played >= 3 && slot % 3 === 0 && window.Replay?.practiceDuel) {
                 run.practice = true; renderBar();
                 let duel = null;
@@ -315,6 +329,8 @@
             <div class="idle-line">Last 24 hours: ${s.games_today || 0} games from ${s.players_today || 0} players. You: ${(s.my_games || 0) + run.games} games.</div>
             ${verdict}
             ${run.fast ? '<div class="idle-line">Fast game.</div>' : ''}
+            ${run.screening ? '<div class="idle-line">Screening a combo bots found: 8 fast games, champion with the combo against the champion.</div>' : ''}
+            ${run.lastScreen ? `<div class="idle-line">Last combo screening: ${run.lastScreen.wins} won, ${run.lastScreen.losses} lost, ${run.lastScreen.draws} drawn (${run.lastScreen.passed ? 'passed' : 'not passed'}).</div>` : ''}
             ${run.practice ? '<div class="idle-line">Combo practice in the background: the challenger and the champion each play a spot where a player pulled off a combo.</div>' : ''}
             ${run.lastPractice ? `<div class="idle-line">Last combo practice: challenger ${run.lastPractice.challengerGain}, champion ${run.lastPractice.championGain} (${esc(run.lastPractice.result)}).</div>` : ''}
             ${run.mining ? '<div class="idle-line">Looking for combos in a past game...</div>' : ''}

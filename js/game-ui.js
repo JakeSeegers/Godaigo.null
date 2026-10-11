@@ -4644,6 +4644,18 @@ document.getElementById('undo-move').onclick = function() {
                 } catch (e) { console.warn('[train] learned adjustments skipped', e); }
             }
 
+            // Combo screening (2026-10-11, sql/combo-screening.sql): one combo bots
+            // found in 5+ different games gets 8 fast games against the champion;
+            // passing makes it a trial combo (just below and in idle training).
+            if (!resume && window.BotArena.screenDueCombo) {
+                try {
+                    await window.BotArena.screenDueCombo(climbAnchor, {
+                        onStart: (sig) => { stats.event('Screening a combo bots found (8 fast games): ' + sig); report('screening'); },
+                        onDone: (r) => { stats.event(`Combo screening: ${r.wins} won, ${r.losses} lost, ${r.draws} drawn, ${r.passed ? 'passed, it becomes a trial combo' : 'not passed'}`); report('training'); },
+                    });
+                } catch (e) { console.warn('[train] combo screening skipped', e); }
+            }
+
             // Trial combo (2026-10-11, sql/combo-trials.sql): the champion plus one
             // combo bots found in training joins round 1, once per combo and champion.
             if (!resume && typeof supabase !== 'undefined' && supabase?.rpc) {
@@ -5135,6 +5147,7 @@ document.getElementById('undo-move').onclick = function() {
                     ? 'Confirming across 2–5 player tables'
                     : p.phase === 'starting' ? 'Starting…'
                     : p.phase === 'puzzles' ? `Round ${p.round}/${p.rounds}: puzzle check in the background (the board waits)`
+                    : p.phase === 'screening' ? 'Screening a combo bots found (8 fast games)'
                     : p.phase === 'exploring'
                         ? `Explore: generation ${Math.min(p.gen + 1, p.generations)}/${p.generations} (Evolve search, 2-5 player games)`
                         : `Round ${p.round}/${p.rounds}`;
