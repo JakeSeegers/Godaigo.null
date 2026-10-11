@@ -53,7 +53,7 @@ Still worth checking against a recorded game where the owner does it.
 Bot gap found: bot-effects.js driveTileSwap picks the two closest eligible
 tiles ("least disruptive"), so bots never travel with Shifting Sands.
 
-## 3. Call to Adventure + Heavy Stomp (to confirm order and tile choice)
+## 3. Call to Adventure + Heavy Stomp (not a real combo, owner)
 
 Owner: "Heavy Stomp combos with Call to Adventure."
 - Call to Adventure (CATACOMB_SCROLL_3): flip one unoccupied tile; until end of
@@ -68,6 +68,10 @@ that turn also pays out stones. Asked the owner: always this order? which tile?
 Bot gap: both scrolls already work (bot-effects.js driveTileFlip: nearest
 face-down tile), but nothing pairs them in one turn. Teach: holding both ->
 cast together, Call to Adventure first.
+Owner 2026-10-11: Call to Adventure already flips a tile itself (the buff is
+set before its own flip, so that reveal pays), so Heavy Stomp after it is only
+one more paid reveal. The bots no longer force the order or hold Stomp back;
+they only value reveals (Stomp, steps onto face-down tiles) while it is up.
 
 ## 4. Burning Motivation + Mason's Savvy (big AP turn)
 

@@ -376,7 +376,7 @@
                                   // that joins or completes a taught combo's opening pair
         // Owner strategies (docs/player-strategies.md, 2026-10-11), strategyParts().
         stratTravel:        12,   // x AP saved: Shifting Sands swaps the bot's own tile toward its goal
-        stratAdventure:     60,   // Call to Adventure before Heavy Stomp; reveals while it is up
+        stratAdventure:     60,   // reveals (Heavy Stomp, steps onto face-down tiles) while Call to Adventure is up
         stratBurn:           1,   // x AP gained (x STRAT_AP_WORTH): Burning Motivation burn loop
         stratTrap:          40,   // x threat: Mason's Savvy earth closing an opponent's exits
         castChoiceNeed:     20,   // greedy tie-break between a scroll's choices (River / Stomp):
@@ -4010,8 +4010,8 @@
     // training can tune or switch it off (0):
     //   travel     Shifting Sands on the bot's OWN tile toward its goal
     //              (BotSim castChoices adds {a, b, travel} choices)
-    //   adventure  Call to Adventure before Heavy Stomp; while it is up,
-    //              every reveal (Stomp or a step onto a face-down tile) pays
+    //   adventure  while Call to Adventure is up, every reveal (a Heavy Stomp
+    //              or a step onto a face-down tile) pays shrine stones
     //   burn       Burning Motivation: a spare stone placed next to an
     //              active fire burns at once but still pays AP; draw-stones
     //              scrolls (Mason's Savvy, Seed the Skies, Respirate) refill
@@ -4095,12 +4095,10 @@
         if (a.type === 'cast') {
             const held = heldScrolls(snap, self);
             if (WEIGHTS.stratAdventure) {
-                const hidden = snap.tiles.filter(t => !t.isPlayerTile && !t.revealed).length;
-                if (a.scroll === 'CATACOMB_SCROLL_3' && !b.callToAdventure && held.has('EARTH_SCROLL_4') && hidden >= 2) out.adventure += WEIGHTS.stratAdventure;
-                if (a.scroll === 'EARTH_SCROLL_4' && a.choice?.tileId != null) {
-                    if (b.callToAdventure) out.adventure += WEIGHTS.stratAdventure;
-                    else if (held.has('CATACOMB_SCROLL_3') && sim.checkPattern(snap, 'CATACOMB_SCROLL_3', idx)) out.adventure -= WEIGHTS.stratAdventure;
-                }
+                // Call to Adventure's own flip already pays (the buff is set
+                // before the flip), so no fixed order with Heavy Stomp (owner):
+                // only a reveal made while it is up gets the bonus.
+                if (a.scroll === 'EARTH_SCROLL_4' && a.choice?.tileId != null && b.callToAdventure) out.adventure += WEIGHTS.stratAdventure;
             }
             if (WEIGHTS.stratBurn) {
                 const type = DRAW_STONE_SCROLLS[a.scroll];

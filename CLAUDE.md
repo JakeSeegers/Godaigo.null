@@ -441,7 +441,7 @@ Order matters — later scripts depend on earlier ones.
                              (children with a bonus always looked at), weights stratTravel / stratAdventure / stratBurn / stratTrap (0 = off):
                              travel = Shifting Sands on its own tile (BotSim castChoices {a, b, travel}; reviewSands plans the build on a
                              half-hex spot that leaves a tile clean, makePlan opts.travelSpot + BotSim.travelTilesAt; shortcut kind 'sands');
-                             adventure = Call to Adventure before Heavy Stomp, reveals while it is up (bot-state maps the callToAdventure buff);
+                             adventure = reveals (Heavy Stomp, steps onto face-down tiles) while Call to Adventure is up, no fixed order (owner: its own flip already pays) (bot-state maps the callToAdventure buff);
                              burn = under Burning Motivation a spare stone next to an unvoided fire still pays AP (no placeDoomed), draw-stones
                              scrolls recast, AP room only (cap 5 + void), 6 loops per turn; trap = Mason's Savvy near an opponent whose exits
                              earth can hold, earth on those exits (rangedTargets). BotSystem.strategyStats(). Tested vs champion 16: 98-93-11.
