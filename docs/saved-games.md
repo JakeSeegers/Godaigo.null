@@ -21,7 +21,7 @@ the save lives on the account (any device).
 
 ## Server: sql/saved-games.sql
 saved_games (user_id pk), save_game, my_saved_game, load_saved_game, resume_saved_game_started,
-delete_saved_game. STATUS: applied (the owner has used it). 2026-10-10: `state` column + `save_game(..., p_state jsonb default null)` for mid-turn saves, NOT applied yet (the tool call was cancelled); until then the client falls back to turn-start saves. Old note, 2026-10-03: NOT APPLIED. The Supabase tool timed out once (nothing applied,
+delete_saved_game. STATUS: applied (the owner has used it). 2026-10-10: `state` column + `save_game(..., p_state jsonb default null)` for mid-turn saves, applied 2026-10-11 by the owner in the SQL editor (the tool calls timed out). Old note, 2026-10-03: NOT APPLIED. The Supabase tool timed out once (nothing applied,
 not retried, house rule 6). Until it is applied the Save button stays hidden (save-game.js asks
 my_saved_game first). Apply the file once in the Supabase SQL editor.
 
