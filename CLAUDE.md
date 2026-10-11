@@ -39,6 +39,11 @@ These apply to all work on this repo. `tools/claude-hooks/` enforces rules 1 and
    If a call times out, check the result once, then stop and tell the owner instead of
    retrying again and again (2026-10-01: function changes on `start_match` and
    `_ladder_apply_match` timed out several times; nothing was applied).
+   **Big SQL goes to the owner (2026-10-11).** Calls over about 3 KB (a whole function, a
+   whole sql/ file) often time out in the Supabase connector, not in the database (nothing
+   locked, the SQL editor runs the same file in a second). So: write the change as a
+   re-runnable sql/ file and ask the owner to run it in the SQL editor, saying so up front.
+   Do small reads and checks yourself, and check once after the owner runs a file.
 
 ### How the rules are enforced
 - This file is loaded into every Claude session automatically.
