@@ -77,3 +77,10 @@ stone (+10 AP, +20 with two Burning Motivations). Pattern stones placed after
 Burning Motivation count too. The earth left on the board can wall in an
 opponent (ties into #1).
 Bot teach: holding both -> Burning Motivation first, Mason's Savvy, dump stones.
+Fire (owner): fire destroys adjacent earth, but removeStone -> returnStoneToPool
+puts it back in the SHARED source pool, not the player's (game-ui.js; dragging a
+board stone back to your own pool was closed 2026-10-01). So no loop by itself;
+it adds +2 AP per fire stone placed and refills the shared earth so Mason's
+Savvy draws a full 5, and a second Mason's Savvy (second copy or Reflect,
+WATER_SCROLL_1) draws the burnt earth back. Asked the owner if they have seen
+it go on forever in a real game (that would mean a bug).
