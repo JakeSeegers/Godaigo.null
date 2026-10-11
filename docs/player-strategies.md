@@ -85,7 +85,7 @@ Savvy draws a full 5, and a second Mason's Savvy (second copy or Reflect,
 WATER_SCROLL_1) draws the burnt earth back. Asked the owner if they have seen
 it go on forever in a real game (that would mean a bug).
 
-### 4b. The infinite AP loop (owner, confirmed by the code) - DO NOT TEACH YET
+### 4b. The infinite AP loop (owner, confirmed by the code) - KEPT, teachable
 Scrolls stay in the Active Area after casting and Burning Motivation / Mason's
 Savvy have no once-per-turn limit; a cast costs 2 AP (game-core.js
 SPELL_AP_COST). Earth placed next to an active fire stone is destroyed at once
@@ -96,4 +96,7 @@ Loop: cast Mason's Savvy (-2), place 5 earth next to the fire stone (+10, all
 burn back) = +8 AP per loop, unlimited; re-casting Burning Motivation stacks
 the payout. Fix options given to the owner: (1) burnt-on-placement stones pay
 nothing (recommended), (2) Mason's Savvy once per turn, (3) cap Burning
-Motivation AP per turn, (4) keep it. Waiting on the owner's choice.
+Motivation AP per turn, (4) keep it. Owner 2026-10-11: KEEP IT, it's a fun
+combo (rare to hold both; Iron Stance can counter it). Bots may learn it.
+Bot teach: keep a fire stone placed where the Mason's Savvy pattern stays
+intact, then loop Mason's Savvy + 5 earth next to the fire while it pays.
