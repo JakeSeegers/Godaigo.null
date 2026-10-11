@@ -3886,7 +3886,7 @@
         return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
     }
     function harmChoices(snap, name) {
-        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4'].includes(name)) return [];
+        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4', 'EARTH_SCROLL_2'].includes(name)) return [];
         const self = snap.players[snap.turn.activePlayerIndex];
         const h = self ? harmContext(snap, self) : null;
         if (!h) return [];
@@ -3896,6 +3896,27 @@
             const f = takeFlightHarm(snap, h.L);
             if (f >= 0.3) out.push({ target: h.L, harm: f });
             return out;
+        }
+        if (name === 'EARTH_SCROLL_2') {
+            // Shifting Sands on the leader (owner 2026-10-11): a lone pawn rides
+            // along with its tile, so if the leader stands alone on a tile with
+            // no stones, swap that tile to the clean tile farthest from where
+            // it is heading (home with five elements, else its key shrine).
+            const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
+            const clean = t => !t.isPlayerTile && !snap.stones.some(q => onTile(t, q));
+            const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === h.L);
+            const goal = ELEMENTS.every(el => lp.activated.includes(el)) ? home : keyShrines(snap, lp)[0];
+            if (!goal) return out;
+            const gd = (x, y) => Math.hypot(x - goal.x, y - goal.y);
+            for (const a of snap.tiles.filter(t => clean(t) && onTile(t, lp) && t.id !== goal.id &&
+                    snap.players.every((q, j) => !q || j === h.L || !onTile(t, q)))) {
+                const free = snap.tiles.filter(t => t.id !== a.id && t.id !== goal.id && clean(t) && !snap.players.some(q => q && onTile(t, q)));
+                const b = free.reduce((x, y) => (!x || gd(y.x, y.y) > gd(x.x, x.y)) ? y : x, null);
+                if (!b) continue;
+                const farther = (gd(b.x, b.y) - gd(lp.x, lp.y)) / 35; // hexes further from its goal
+                if (farther >= 3) out.push({ a: a.id, b: b.id, harm: Math.min(1.5, farther / 6) });
+            }
+            return out.slice(0, 2);
         }
         if (name === 'EARTH_SCROLL_4') {
             // Face-down, no stones or pawns, and clearly closer to the leader

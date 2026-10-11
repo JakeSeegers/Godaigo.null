@@ -445,6 +445,7 @@ Order matters — later scripts depend on earlier ones.
                              burn = under Burning Motivation a spare stone next to an unvoided fire still pays AP (no placeDoomed), draw-stones
                              scrolls recast, AP room only (cap 5 + void), 6 loops per turn; trap = Mason's Savvy near an opponent whose exits
                              earth can hold, earth on those exits (rangedTargets). BotSystem.strategyStats(). Tested vs champion 16: 98-93-11.
+                             harmChoices also has Shifting Sands on the leader: its lone, stone-free tile swapped to the clean tile farthest from its goal.
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same

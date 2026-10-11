@@ -56,6 +56,11 @@ between the two centres. Both tiles under the pawn stayed clean.
 
 Bot gap found: bot-effects.js driveTileSwap picks the two closest eligible
 tiles ("least disruptive"), so bots never travel with Shifting Sands.
+On opponents too (owner): a lone opponent on a stone-free tile rides along as
+well. bot.js harmChoices now offers Shifting Sands {a: the leader's tile,
+b: the clean tile farthest from its goal (home with five, else its key
+shrine)}, at least 3 hexes further, harm = hexes / 6 (max 1.5), scored by
+harmCastBonus like the other attack scrolls (one attack cast per turn).
 
 ## 3. Call to Adventure + Heavy Stomp (not a real combo, owner)
 
