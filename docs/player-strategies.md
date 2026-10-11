@@ -40,15 +40,19 @@ What the code says (js/scrolls/effects/scroll-effects.js):
   (TILE_SIZE * 4), so a pawn on a half hex (shared tile edge) counts as on
   both tiles.
 
-My reading (owner says it is still wrong): cast from a half hex, keep the
-pattern stones off one of the two tiles under you, swap that tile far away.
+My reading: cast from a half hex, keep the pattern stones off one of the two
+tiles under you, swap that tile far away (confirmed below).
 
 Built 2026-10-11: the pattern is 2 stones on opposite sides, 2 hexes out. The
 pawn must stand on a half hex and the stones must point along the shared edge,
 so neither lands within TILE_RADIUS (80 px) of one of the two tiles under it
 (bot-sim.js travelTilesAt). reviewSands plans such a build within 5 steps when
 the trip beats walking by TRAVEL_SAVE AP; shortcut() casts it when ready.
-Still worth checking against a recorded game where the owner does it.
+Confirmed by the owner's game (room 982, match 146, turn 9): earth at
+(155.9, 90) and (52, 30), pawn at their midpoint (103.9, 60) = a half hex
+69.3 px from tile centres (138.6, 0) and (69.3, 120); each stone is 91.6 px
+from both centres (> 80), and the stone line is at right angles to the line
+between the two centres. Both tiles under the pawn stayed clean.
 
 Bot gap found: bot-effects.js driveTileSwap picks the two closest eligible
 tiles ("least disruptive"), so bots never travel with Shifting Sands.
