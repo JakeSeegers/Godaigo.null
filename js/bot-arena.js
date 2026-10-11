@@ -1535,6 +1535,9 @@
     // normal step that may also gain / lose / change a formula term.
     function makeChallenger(table, kind) {
         const rng = mulberry32(((Date.now() >>> 0) ^ Math.floor(Math.random() * 0xffffffff)) >>> 0);
+        // settings newer than the saved champion start at their defaults, so
+        // they can be tried too (e.g. comboKeep / comboSeek, 2026-10-11)
+        table = { ...window.BotSystem.DEFAULT_WEIGHTS, ...table };
         return kind === 'formula'
             ? mutate({ ...table }, rng, 0.2, { structural: true })
             : mutate({ ...table }, rng, 0.35);

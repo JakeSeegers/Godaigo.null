@@ -368,6 +368,12 @@
                                   // (Phase 4: combos mined from players' games, sql/combo-teach.sql)
         comboChoiceMatch:   20,   // + when that cast's choice matches the combo (e.g. River on a hidden tile)
         comboExtraTurns:     1,   // own turns allowed beyond the combo's length before it is dropped
+        // Going after combos (owner 2026-10-11). Both start at 0 (= no change);
+        // training (idle training, Train Bot) tries other values and keeps them
+        // only when they win.
+        comboKeep:           0,   // x evalScrollCredit: holding part of a taught combo's opening pair
+        comboSeek:           0,   // x 100: picking a scroll (Scholar's Insight, Inspiring Draught)
+                                  // that joins or completes a taught combo's opening pair
         castChoiceNeed:     20,   // greedy tie-break between a scroll's choices (River / Stomp):
                                   // x scroll need of the element the choice would draw
         evalAp:              2,   // per remaining AP (own turn only)
@@ -1006,6 +1012,18 @@
             try { localStorage.setItem('godaigo_bot_combos', JSON.stringify(data)); } catch (e) {}
         } catch (e) { /* offline: keep the cached list */ }
     })();
+
+    // How much of a taught combo's opening pair (its first two casts) the set
+    // holds, best combo: 0, 0.5 or 1. `extra` = a scroll the bot might gain.
+    function comboPairShare(held, extra) {
+        let best = 0;
+        for (const c of COMBOS) {
+            const pair = [...new Set([c.casts[0].scroll, c.casts[1].scroll])];
+            const have = pair.filter(s => held.has(s) || s === extra).length / pair.length;
+            if (have > best) best = have;
+        }
+        return best;
+    }
 
     function heldScrolls(snap, self) {
         return new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]);
@@ -2930,6 +2948,8 @@
         }
         const over = p.hand.length - (window.spellSystem?.MAX_HAND_SIZE ?? 2);
         if (over > 0) value -= over * WEIGHTS.evalHandOverflow;
+        // Keeping the pieces of a taught combo (comboKeep, trained; 0 = off).
+        if (WEIGHTS.comboKeep && COMBOS.length) value += WEIGHTS.comboKeep * WEIGHTS.evalScrollCredit * comboPairShare(new Set(held));
         return { value, cover };
     }
 
@@ -2961,7 +2981,14 @@
         const need = scrollNeed(snap, idx);
         const els = scrollCreditElements(snap, p, { ...def, id: name }, idx);
         const ease = scrollEase(p, def);
-        return els.reduce((a, el) => a + 100 * need[el] * ease, 0) + (def.level || 0);
+        // Going after a taught combo (comboSeek, trained; 0 = off): how much
+        // closer this scroll brings its opening pair.
+        let seek = 0;
+        if (WEIGHTS.comboSeek && COMBOS.length) {
+            const held = heldScrolls(snap, p);
+            seek = WEIGHTS.comboSeek * 100 * (comboPairShare(held, name) - comboPairShare(held));
+        }
+        return els.reduce((a, el) => a + 100 * need[el] * ease, 0) + (def.level || 0) + seek;
     }
 
     // Real cost for player i to walk home from where they stand (steps; a

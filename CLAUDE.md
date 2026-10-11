@@ -426,7 +426,10 @@ Order matters — later scripts depend on earlier ones.
                              holding a combo's first two cast scrolls follows it (mem.combo, step kept across
                              turns; comboStep / comboChoiceMatch bonus on the next cast in greedy + search root;
                              makePlan builds the next combo scroll's pattern; dropped when too slow or the next
-                             scroll is gone; 3 own turns rest before the same combo again).
+                             scroll is gone; 3 own turns rest before the same combo again). Going after combos (2026-10-11, trained, both
+                             default 0 = no change): comboKeep (handValue + comboKeep x evalScrollCredit x share of a taught combo's opening
+                             pair held, comboPairShare) and comboSeek (scrollPickScore + comboSeek x 100 x how much closer a picked scroll
+                             brings the pair). bot-arena.js makeChallenger fills settings missing from the saved champion with defaults.
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
