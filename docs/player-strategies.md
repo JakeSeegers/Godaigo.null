@@ -100,3 +100,8 @@ Motivation AP per turn, (4) keep it. Owner 2026-10-11: KEEP IT, it's a fun
 combo (rare to hold both; Iron Stance can counter it). Bots may learn it.
 Bot teach: keep a fire stone placed where the Mason's Savvy pattern stays
 intact, then loop Mason's Savvy + 5 earth next to the fire while it pays.
+Not an instant win (owner): AP alone gives no other stones. Each element needs
+its own pattern from its own stones, which come from shrines; the loop only
+recycles earth. A bot should spend the AP on what it can use: reaching needed
+shrines, breaking opponents' patterns, walling someone in (#1), casting what it
+already can.
