@@ -468,6 +468,68 @@
     // THIS attempt's stall (only meaningful when stalled is true) — see the
     // ATTRIBUTION note at the top of the file.
     // ----------------------------------------------------------------
+    // ── Combo watcher (owner 2026-10-11, sql/bot-combo-finds.sql) ──────
+    // Training games are not recorded, so the replay miner never sees what
+    // bots stumble on. This watches each game as it is played: every seat's
+    // position (BotSystem.evaluateSnapshot) at the start and end of every
+    // turn, and each cast with what came before it in that turn (moves, AP
+    // walked, stones placed, stones broken). At game end the miner's own rule
+    // (Replay.findCombos) picks combo windows; they go to bot_combo_finds,
+    // kept apart from the players' combos (bots never teach themselves).
+    // Read-only: no randomness, no game state changed (same seeded games).
+    // opts.comboWatch = false turns it off.
+    const comboWatch = { seg: null };
+    let cwHooked = false;
+    const cwFresh = () => ({ moves: 0, ap: 0, stones: [], breaks: 0 });
+    function cwValues(snap, n) {
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            try { out.push(Math.round(window.BotSystem.evaluateSnapshot(snap, i))); } catch (e) { out.push(null); }
+        }
+        return out;
+    }
+    function cwHook() {
+        if (cwHooked || !window.ActionLog?.onRecord) return;
+        cwHooked = true;
+        window.ActionLog.onRecord((e) => {
+            const s = comboWatch.seg;
+            if (!s || e.player !== s.seat) return;
+            if (e.type === 'move') { s.ctx.moves++; s.ctx.ap += +e.apSpent || 0; }
+            else if (e.type === 'placeStone') s.ctx.stones.push(e.stoneType);
+            else if (e.type === 'breakStone') { s.ctx.breaks++; s.steps.push({ kind: 'break', seat: s.seat }); }
+            else if (e.type === 'cast_execute' && e.scrollName) {
+                s.steps.push({ kind: 'cast', seat: s.seat, scroll: e.scrollName, ctx: { ...s.ctx, stones: s.ctx.stones.slice() } });
+                s.ctx = cwFresh();
+            }
+        });
+    }
+    function cwStart(turn, idx, n) {
+        try { comboWatch.seg = { turn, seat: idx, v0: cwValues(window.BotState.snapshot(), n), steps: [], ctx: cwFresh() }; }
+        catch (e) { comboWatch.seg = null; }
+    }
+    function cwEnd(cw, snap, n) {
+        const s = comboWatch.seg;
+        comboWatch.seg = null;
+        if (!s) return;
+        s.v1 = cwValues(snap, n);
+        delete s.ctx;
+        cw.segs.push(s);
+    }
+    function cwFinish(cw, result, n, opts) {
+        comboWatch.seg = null;
+        if (!(result.endReason === 'win' || result.endReason === 'turn_cap') || !cw.segs.length) return;
+        let found = [];
+        try { found = window.Replay.findCombos(cw.segs, Array.from({ length: n }, (_, i) => i)); } catch (e) { return; }
+        cw.found = found;
+        _comboFinds += found.length;
+        if (found.length) _lastFinds = found;
+        if (!found.length || !window.gami?.userId || typeof supabase === 'undefined' || !supabase?.rpc) return;
+        const rows = found.slice(0, 20).map(c => ({ signature: c.signature, gain: c.gain, turns: c.turns, steps: c.steps }));
+        supabase.rpc('report_bot_combos', { p_rows: rows, p_source: opts.comboSource || (opts.visual ? 'watch' : 'train') })
+            .then(({ error }) => { if (error) log('bot combos not saved:', error.message); }, () => {});
+    }
+    let _comboFinds = 0, _lastFinds = [];
+
     async function _playMatchOnce(weightsPerPlayer, opts = {}) {
         const nPlayers = weightsPerPlayer.length;
         const visual0 = !!opts.visual;
@@ -535,6 +597,8 @@
         window.showEndTurnPrompt = () => {};
 
         const result = { winner: null, turns: 0, activated: new Array(nPlayers).fill(0), stuckTurns, stalled: false, stallers: [] };
+        const cw = (opts.comboWatch !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
+        if (cw) cwHook();
         try {
             // Also break on _endEarlyRequested so "End Early → Test Now" aborts
             // the in-progress game immediately rather than waiting for it to
@@ -551,10 +615,12 @@
                 const idx = activePlayerIndex;
                 if (weightsPerPlayer[idx] !== undefined) setWeights(weightsPerPlayer[idx]);
                 refillAP();
+                if (cw) cwStart(turn + 1, idx, nPlayers);
                 await window.BotSystem.turn();
                 result.turns = turn + 1;
 
                 const snap = window.BotState.snapshot();
+                if (cw) cwEnd(cw, snap, nPlayers);
                 result.activated = snap.players.map(p => p.activated.length);
                 const w = window.BotSim.winner(snap);
                 if (w !== null) { result.winner = w; break; }
@@ -642,6 +708,7 @@
                 : (_stopRequested || _endEarlyRequested) ? 'stopped'
                 : result.turns >= turnCap ? 'turn_cap' : 'stopped';
         }
+        if (cw) cwFinish(cw, result, nPlayers, opts);
         // Round over: bot talk, emotes and the Bot Mind view go at once.
         try {
             const w = result.winner;
@@ -1569,6 +1636,8 @@
         saveAndStop, saveRequested, // hillClimb: stop after this challenger, keep a checkpoint
         endEarly, // soft-stop: cuts evolve()'s / hillClimb()'s loop short but keeps its result usable
         makeChallenger, // idle training: explore / formula challenger
+        comboFinds: () => _comboFinds, // combos the watcher found this page load
+        lastComboFinds: () => _lastFinds, // the last game's finds (debugging)
         perturbWeights, // gaussian-perturbed copy of a weight table (Noisy anchor toggle)
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
         stopRequested: () => _stopRequested, // was stop() called for the run in progress (or the one that just ended)?

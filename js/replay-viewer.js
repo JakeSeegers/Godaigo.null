@@ -597,7 +597,7 @@
             return {
                 seat: c.seat, gain: c.gain, turns: c.turns, start_turn: c.start_turn, end_turn: c.end_turn,
                 signature: parts.filter(p => p.length).map(p => p.join(' > ')).join(' / '),
-                steps: c.steps.map(({ kind, scroll, choice, shrine, t }) => ({ kind, scroll, choice, shrine, t })),
+                steps: c.steps.map(({ kind, scroll, choice, shrine, t, ctx }) => ({ kind, scroll, choice, shrine, t, ...(ctx ? { ctx } : {}) })),
             };
         });
     }
@@ -961,10 +961,29 @@
             </div>
             <div class="replay-row-actions">
                 <button class="replay-watch" data-id="${c.best_match}">Watch</button>
-                <div class="replay-combo-state" title="Auto: bots use it once it shows up in 2 games">
+                <div class="replay-combo-state" title="Auto: bots use it once it shows up in 2 games with trust adding up to 1.0">
                     ${['auto', 'on', 'off'].map(st => `<button class="replay-combo-set${(c.state || 'auto') === st ? ' active' : ''}" data-sig="${esc(c.signature)}" data-state="${st}">${st === 'auto' ? 'Auto' : st === 'on' ? 'On' : 'Off'}</button>`).join('')}
                 </div>
                 <div class="replay-info">${c.taught ? 'Bots use it' : 'Bots do not use it'}</div>
+            </div>
+        </div>`;
+    }
+
+    // Combos bots stumbled on in training games (bot_combo_finds, 2026-10-11).
+    // Look only: never taught. Each cast shows what came before it that turn.
+    function botComboRowHtml(c) {
+        const ctxText = (c.best_steps || []).filter(s => s.kind === 'cast' && s.ctx).map(s => {
+            const x = s.ctx, parts = [];
+            if (x.moves) parts.push(`${x.moves} move${x.moves === 1 ? '' : 's'} (${x.ap} AP)`);
+            if (x.stones?.length) parts.push(`stones ${x.stones.join(', ')}`);
+            if (x.breaks) parts.push(`${x.breaks} broken`);
+            return `${esc(s.scroll)}: ${parts.length ? esc(parts.join(', ')) : 'nothing before'}`;
+        }).join(' · ');
+        return `<div class="replay-row replay-combo-row">
+            <div class="replay-row-main">
+                <div class="replay-combo-sig">${prettySignature(c.signature)}</div>
+                <div class="replay-info">Found ${c.times} time${c.times === 1 ? '' : 's'} by ${c.finders} player${c.finders === 1 ? "'s" : "s'"} training · avg gain ${Math.round(c.avg_gain)}</div>
+                ${ctxText ? `<div class="replay-info">Before each cast (best one): ${ctxText}</div>` : ''}
             </div>
         </div>`;
     }
@@ -1086,8 +1105,17 @@
                     <button class="replay-mine-all">Mine everything again</button>
                     <span class="replay-check-progress">${mining ? 'Mining...' : ''}</span>
                 </div>
-                <div class="replay-note">Each finished game is replayed in a hidden frame. When a player's position jumps within 1 to 3 of their turns and they cast 2 or more scrolls, those casts (with their choices) are saved as a combo. Score = gain x trust, where trust comes from the player's ladder rank and games played. Bots never count. Bots learn a combo once it shows up in 2 different games (Auto). On teaches it now, Off never.</div>
-                ${rows.map(comboRowHtml).join('') || '<div class="replay-empty">No combos found yet. Press "Mine new games".</div>'}`;
+                <div class="replay-note">Each finished game is replayed in a hidden frame. When a player's position jumps within 1 to 3 of their turns and they cast 2 or more scrolls, those casts (with their choices) are saved as a combo. Score = gain x trust, where trust comes from the player's ladder rank and games played. Bots never count. Bots learn a combo once it shows up in 2 different games and its trust adds up to 1.0 (Auto). On teaches it now, Off never.</div>
+                ${rows.map(comboRowHtml).join('') || '<div class="replay-empty">No combos found yet. Press "Mine new games".</div>'}
+                <h3 class="replay-subhead">Found by bots in training</h3>
+                <div class="replay-note">Combos bots stumbled on in Train Bot and idle training games, with what they did before each cast. Kept apart: bots never learn these on their own.</div>
+                <div class="replay-bot-combos"><div class="replay-empty">Loading...</div></div>`;
+            supabase.rpc('hermit_bot_combo_summary', { p_limit: 40 }).then(({ data: found, error: e2 }) => {
+                const box = list.querySelector('.replay-bot-combos');
+                if (!box || browserTab !== 'combos') return;
+                box.innerHTML = e2 ? `<div class="replay-empty">Could not load: ${esc(e2.message)}</div>`
+                    : (found || []).map(botComboRowHtml).join('') || '<div class="replay-empty">Nothing yet. Run Train Bot or let idle training play.</div>';
+            });
             return;
         }
         if (browserTab === 'check') {

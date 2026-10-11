@@ -2063,6 +2063,7 @@ window.I18N_ES = {
     "Round {0}: challenger won {1}% but lost the combo practice ({2}-{3}), champion stays": "Ronda {0}: el aspirante ganó el {1} % pero perdió la práctica de combos ({2}-{3}); el campeón sigue",
     "Combo practice: no taught combos yet": "Práctica de combos: aún no hay combos aprendidos",
     "Fast game.": "Partida rápida.",
+    "Found by bots in training": "Encontrados por los bots al entrenar",
     "Combo practice in the background: the challenger and the champion each play a spot where a player pulled off a combo.": "Práctica de combos en segundo plano: el aspirante y el campeón juegan cada uno un momento en que un jugador hizo un combo.",
     "Last combo practice: challenger {0}, champion {1} ({2}).": "Última práctica de combos: aspirante {0}, campeón {1} ({2}).",
     "Looking for combos in a past game...": "Buscando combos en una partida pasada...",
