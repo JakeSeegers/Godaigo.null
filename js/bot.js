@@ -4008,7 +4008,12 @@
     // "when is an attack worth it". Greedy ranking is used for both sides.
     const HARM_KEYS = ['castHarmChoice', 'castHarmWall', 'breakLeaderPattern', 'moveToBreak', 'moveCamp', 'campLeave', 'endTurnCamp'];
     const harmPending = {}; // seat -> entries waiting for the leader's next-round change
+    // Off by default (owner 2026-10-10: 20 test games logged nothing, ~6% of
+    // training time). Turn on for a study: localStorage godaigo_harm_log = 'on'.
+    let harmLogWanted = false;
+    try { harmLogWanted = localStorage.getItem('godaigo_harm_log') === 'on'; } catch (e) {}
     function harmLogOn() {
+        if (!harmLogWanted) return false;
         const A = window.BotArena;
         return !!(A && (A.isEvolving?.() || A.isClimbing?.() || A.isRunning?.()) && window.ActionLog?.record && window.BotDiplomacy?.progressOf);
     }

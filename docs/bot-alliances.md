@@ -318,6 +318,9 @@ Built so far (js/bot-diplomacy.js, bot.js, bot-effects.js, bot-mind.js):
   training. First check, 4 four-bot games: 18 attacks, 15 moves toward a
   harm target (cost to the attacker about 5 points, 60% were its best plain
   move anyway) and 3 shrine holds (free).
+  2026-10-10: 20 games (attackers vs bots with harm weights 0) logged nothing and
+  attackers did not win more or less (2-bot 6-5-1, 4-bot 5 of 8). The log is now
+  off by default (about 6% of training time); localStorage godaigo_harm_log = 'on'.
 
 1. **Memory only.** Favor / Trust / Threat per bot, updated from real actions. No
    behaviour change. The Bot Mind viewer (hermit) shows each bot's view of every
