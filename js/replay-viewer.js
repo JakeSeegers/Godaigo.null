@@ -194,7 +194,10 @@
     // autoplay, errors are thrown instead of shown.
     async function open(matchId, opts = {}) {
         if (state) { console.warn('[replay] already running; reload to start another'); return; }
-        const { data: match, error } = await supabase.rpc('get_match_replay', { p_match_id: matchId });
+        // opts.data: a game handed over already (pooled combo mining: an
+        // anonymous game from idle_mine_job, sql/combo-mine-pool.sql)
+        const { data: match, error } = opts.data ? { data: opts.data, error: null }
+            : await supabase.rpc('get_match_replay', { p_match_id: matchId });
         if (error || !match) {
             if (opts.check) throw new Error('could not load: ' + (error?.message || 'not found'));
             alert('Could not load this replay: ' + (error?.message || 'not found'));
@@ -503,8 +506,8 @@
         return null;
     }
 
-    async function runMine(matchId) {
-        await open(matchId, { check: true });
+    async function runMine(matchId, data) {
+        await open(matchId, { check: true, data });
         if (!state) throw new Error('replay did not start');
         await sleep(300);
         const seats = state.seats.map(x => x.index);
@@ -628,6 +631,33 @@
     }
 
 
+    // Pooled mining (owner 2026-10-11, sql/combo-mine-pool.sql): any signed-in
+    // browser mines one ANONYMOUS game (no match id, no names or account ids)
+    // and reports what it found; the server counts a game's combos once two
+    // accounts found the same. Returns null when there is nothing to do (or
+    // the server part is not installed).
+    let poolSeq = 0;
+    async function minePooled() {
+        if (mining) return null;
+        const { data, error } = await supabase.rpc('idle_mine_job');
+        if (error || !data?.job || !data.replay) return null;
+        mining = true;
+        const id = -(++poolSeq);
+        (window.__replayData ||= {})[id] = data.replay;
+        try {
+            const run = await runInFrame(id, 300000, 'mine');
+            if (run.error || !run.result) { log('pooled mine:', run.error || 'no result'); return { done: 0, found: 0 }; }
+            const rows = run.result.candidates || [];
+            const { data: rep, error: e2 } = await supabase.rpc('idle_mine_report', { p_job: data.job, p_rows: rows });
+            if (e2) log('pooled mine report failed', e2.message);
+            return { done: 1, found: rows.length, accepted: !!rep?.accepted };
+        } finally {
+            delete window.__replayData[id];
+            mining = false;
+        }
+    }
+
+
     // ── Puzzle training (hermit, bot combo plan Phase 4b) ────────
     // A puzzle = a mined combo moment (hermit_list_puzzles). In a hidden
     // frame (?replaypuzzle=MATCH&seat=&turn=&turns=&wkey=) the match is
@@ -722,7 +752,7 @@
         const mineMode = params.has('replaymine');
         const puzzleMode = params.has('replaypuzzle');
         const id = +(mineMode ? params.get('replaymine') : puzzleMode ? params.get('replaypuzzle') : params.get('replaycheck'));
-        if (!id || window.parent === window) return;
+        if (!id || !Number.isFinite(id) || window.parent === window) return;
         const post = (payload) => window.parent.postMessage({ type: 'godaigo-replay-check', matchId: id, ...payload }, location.origin);
         try {
             ['boot-splash', 'lore-intro'].forEach(x => document.getElementById(x)?.remove());
@@ -741,6 +771,11 @@
                 try { const k = params.get('wkey'); if (k) weights = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {}
                 result = await runPuzzle({ id: +params.get('pid'), match_id: id, seat: +params.get('seat'),
                     start_turn: +params.get('turn'), turns: +params.get('turns'), gain: +params.get('gain') }, weights);
+            } else if (mineMode && id < 0) {
+                // pooled mining: the parent page holds the anonymous game
+                const data = window.parent.__replayData?.[id];
+                if (!data) throw new Error('no game data');
+                result = await runMine(id, data);
             } else result = mineMode ? await runMine(id) : await runCheck(id);
             post({ result });
         } catch (e) {
@@ -1142,6 +1177,6 @@
         await open(id, { speed: 4 });
     }
 
-    window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, findCombos,
+    window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, minePooled, findCombos,
         runPuzzle, solvePuzzles, puzzleSummary, puzzleScore, play, pause, step, get state() { return state; } };
 })();

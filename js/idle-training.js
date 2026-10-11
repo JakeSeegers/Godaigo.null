@@ -188,15 +188,21 @@
         }
     }
 
-    // Combo miner (owner 2026-10-10): between training games, the hermit's
-    // browser mines one finished game for combos (Replay.mineMatches, the
-    // hermit-only RPCs of sql/combo-miner.sql). Nothing left = skipped.
+    // Combo miner: between training games this browser mines one finished
+    // game for combos. The hermit's browser (2026-10-10) uses its own trusted
+    // path (Replay.mineMatches, sql/combo-miner.sql); everyone else (2026-10-11)
+    // gets an anonymous game (Replay.minePooled, sql/combo-mine-pool.sql) whose
+    // combos count once a second account found the same. Nothing left = wait.
     let mineIdleUntil = 0;
     async function mineOne() {
-        if (!window.isHermit?.() || !window.Replay?.mineMatches || Date.now() < mineIdleUntil) return;
+        if (!window.Replay || Date.now() < mineIdleUntil) return;
+        const hermit = !!window.isHermit?.();
+        if (hermit ? !window.Replay.mineMatches : !window.Replay.minePooled) return;
         run.mining = true; renderBar();
         try {
-            const r = await window.Replay.mineMatches(null, { limit: 1, stop: () => !run || run.stopping });
+            const r = hermit
+                ? await window.Replay.mineMatches(null, { limit: 1, stop: () => !run || run.stopping })
+                : await window.Replay.minePooled();
             if (r) { run.mined = (run.mined || 0) + r.done; run.combos = (run.combos || 0) + r.found; }
             if (!r || !r.done) mineIdleUntil = Date.now() + 30 * 60000;   // all mined: look again later
         } catch (e) { console.warn('[idle] mining failed', e); mineIdleUntil = Date.now() + 30 * 60000; }
