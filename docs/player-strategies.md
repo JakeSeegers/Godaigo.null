@@ -84,3 +84,16 @@ it adds +2 AP per fire stone placed and refills the shared earth so Mason's
 Savvy draws a full 5, and a second Mason's Savvy (second copy or Reflect,
 WATER_SCROLL_1) draws the burnt earth back. Asked the owner if they have seen
 it go on forever in a real game (that would mean a bug).
+
+### 4b. The infinite AP loop (owner, confirmed by the code) - DO NOT TEACH YET
+Scrolls stay in the Active Area after casting and Burning Motivation / Mason's
+Savvy have no once-per-turn limit; a cast costs 2 AP (game-core.js
+SPELL_AP_COST). Earth placed next to an active fire stone is destroyed at once
+(processStoneInteractions "incoming threats") and returns to the shared pool,
+which Mason's Savvy draws from. Burning Motivation pays on placement, even for
+a stone that burns right away.
+Loop: cast Mason's Savvy (-2), place 5 earth next to the fire stone (+10, all
+burn back) = +8 AP per loop, unlimited; re-casting Burning Motivation stacks
+the payout. Fix options given to the owner: (1) burnt-on-placement stones pay
+nothing (recommended), (2) Mason's Savvy once per turn, (3) cap Burning
+Motivation AP per turn, (4) keep it. Waiting on the owner's choice.
