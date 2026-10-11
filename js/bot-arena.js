@@ -1322,6 +1322,25 @@
                         log('puzzle check failed (ignored):', e?.message || e);
                     }
                 }
+                // opts.practiceCheck (2026-10-11): combo practice duels on spots
+                // where players pulled off taught combos; a would-be champion that
+                // loses more of them than it wins stays a challenger.
+                if (promoted && typeof opts.practiceCheck === 'function') {
+                    try {
+                        const pr = await opts.practiceCheck(best.w, champion);
+                        if (pr && pr.played) {
+                            puzzleNote = { ...(puzzleNote || {}), practice: pr };
+                            if (pr.losses > pr.wins) {
+                                promoted = false;
+                                puzzleNote.blocked = true;
+                                log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but lost the combo practice ` +
+                                    `(${pr.wins}-${pr.losses}) - champion holds`);
+                            }
+                        }
+                    } catch (e) {
+                        log('practice check failed (ignored):', e?.message || e);
+                    }
+                }
                 if (promoted) {
                     champion = best.w;
                     promotions++;

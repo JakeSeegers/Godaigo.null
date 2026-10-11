@@ -4665,6 +4665,25 @@ document.getElementById('undo-move').onclick = function() {
                     try { return await window.Replay.puzzleScore(w); }
                     finally { stats.event('Puzzle check done'); report('training'); }
                 }) : undefined,
+                // Combo practice (2026-10-11, Replay.practiceDuel): up to 3 duels on
+                // spots where players pulled off taught combos. Nothing taught = skipped.
+                practiceCheck: window.Replay?.practiceDuel ? (async (challenger, champion) => {
+                    const out = { played: 0, wins: 0, losses: 0, draws: 0 };
+                    stats.event('Combo practice: the would-be champion plays combo spots in the background (the board waits)');
+                    report('puzzles');
+                    try {
+                        for (let i = 0; i < 3; i++) {
+                            const d = await window.Replay.practiceDuel(challenger, champion);
+                            if (!d) break;            // no taught combo yet
+                            if (d.error) continue;
+                            out.played++; out[d.result === 'win' ? 'wins' : d.result === 'loss' ? 'losses' : 'draws']++;
+                        }
+                    } finally {
+                        stats.event(out.played ? `Combo practice: ${out.wins} won, ${out.losses} lost, ${out.draws} drawn` : 'Combo practice: no taught combos yet');
+                        report('training');
+                    }
+                    return out;
+                }) : undefined,
                 // onRound alone only updates once per ROUND — a round is
                 // lambda*gamesPerChallenge games (180 by default) played
                 // sequentially in this one tab (no --shards parallelism like
@@ -4692,6 +4711,8 @@ document.getElementById('undo-move').onclick = function() {
                     const fromExplore = explored && round === 1 && info.bestChallenger === 1;
                     stats.event(info.promoted
                         ? `Round ${round}: new champion${fromExplore ? ' (the explored bot)' : ''}! It won ${pctBest}% of ${info.bestDecided} decided games`
+                        : info.puzzle?.blocked && info.puzzle.practice && info.puzzle.practice.losses > info.puzzle.practice.wins
+                            ? `Round ${round}: challenger won ${pctBest}% but lost the combo practice (${info.puzzle.practice.wins}-${info.puzzle.practice.losses}), champion stays`
                         : info.puzzle?.blocked
                             ? `Round ${round}: challenger won ${pctBest}% but did worse on the puzzles (${info.puzzle.challenger} vs ${info.puzzle.champion}), champion stays`
                             : `Round ${round}: champion stays. Best challenger won ${pctBest}% of ${info.bestDecided} (needs ${needPct}%)`);

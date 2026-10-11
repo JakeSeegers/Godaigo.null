@@ -162,10 +162,33 @@
         buildBar();
         // no follow camera (owner 2026-10-10: jarring)
         window.Spectate?.showLocal?.({ seats: seatList, follow: false });
-        let played = 0;
+        let played = 0, slot = 0;
         while (run && !run.stopping) {
             await mineOne();
             if (!run || run.stopping) break;
+            // Combo practice (2026-10-11): after the first three games, every
+            // third slot tries a practice duel on a spot where a player pulled
+            // off a taught combo. No taught combo yet = a normal game instead.
+            slot++;
+            if (played >= 3 && slot % 3 === 0 && window.Replay?.practiceDuel) {
+                run.practice = true; renderBar();
+                let duel = null;
+                try { duel = await window.Replay.practiceDuel(run.cand.weights, { ...window.BotSystem.DEFAULT_WEIGHTS, ...run.job.champion }); }
+                catch (e) { console.warn('[idle] practice failed', e); }
+                run.practice = false;
+                if (!run || run.stopping) break;
+                if (duel?.result) {
+                    run.lastPractice = duel;
+                    await sendResult(duel.result, 0, 'practice');
+                    if (run.games >= 2) {
+                        try { Object.assign(run, await getJob(), { verdict: null, games: 0 }); }
+                        catch (e) { console.warn('[idle] next job failed', e); await new Promise(r => setTimeout(r, 30000)); }
+                    }
+                    renderBar();
+                    continue;
+                }
+                renderBar();
+            }
             // One game per call, seats swapping (gameIndexOffset). After the first
             // three, every other game is fast: short pauses, effects still shown
             // and waited for (window.__arenaFx). Same moves at any speed.
@@ -213,9 +236,16 @@
         if (!run || run.stopping || window.BotArena.stopRequested?.()) return;
         if (g.endReason === 'stopped') return;
         const result = g.winner === null ? 'draw' : (side.aWon ? 'win' : 'loss');
+        await sendResult(result, g.turns | 0, 'game');
+    }
+    // kind 'practice' = a combo practice duel (sql/combo-practice.sql adds
+    // p_kind; an older server without it does not get practice results).
+    async function sendResult(result, turns, kind) {
+        if (!run || run.stopping) return;
         run.games++;
         try {
-            const { data, error } = await sb().rpc('idle_training_report', { p_candidate: run.cand.id, p_result: result, p_turns: g.turns | 0 });
+            const args = { p_candidate: run.cand.id, p_result: result, p_turns: turns };
+            const { data, error } = await sb().rpc('idle_training_report', kind === 'game' ? args : { ...args, p_kind: kind });
             if (error) throw error;
             if (data?.candidate) run.cand = { ...run.cand, ...data.candidate, weights: run.cand.weights };
             if (data?.new_champion_id) run.verdict = 'promoted';
@@ -277,6 +307,8 @@
             <div class="idle-line">Last 24 hours: ${s.games_today || 0} games from ${s.players_today || 0} players. You: ${(s.my_games || 0) + run.games} games.</div>
             ${verdict}
             ${run.fast ? '<div class="idle-line">Fast game.</div>' : ''}
+            ${run.practice ? '<div class="idle-line">Combo practice in the background: the challenger and the champion each play a spot where a player pulled off a combo.</div>' : ''}
+            ${run.lastPractice ? `<div class="idle-line">Last combo practice: challenger ${run.lastPractice.challengerGain}, champion ${run.lastPractice.championGain} (${esc(run.lastPractice.result)}).</div>` : ''}
             ${run.mining ? '<div class="idle-line">Looking for combos in a past game...</div>' : ''}
             ${run.mined ? `<div class="idle-line">Past games checked for combos: ${run.mined}, combos found: ${run.combos || 0}.</div>` : ''}
             ${flag(FLAG_RESUME) ? '<div class="idle-hint">Your game is saved. Move the mouse or press a key to go back to it.</div>'

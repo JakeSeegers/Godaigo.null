@@ -658,6 +658,37 @@
     }
 
 
+    // Combo practice duel (owner 2026-10-11, sql/combo-practice.sql): an
+    // anonymous spot where a player pulled off a TAUGHT combo
+    // (idle_practice_job). The challenger plays that seat with the champion on
+    // every other seat, then the champion plays it; the bigger gain for that
+    // seat wins. Close results are a draw (draws do not count toward the 58%
+    // rule), so one lucky run decides little. null = no job.
+    async function practiceDuel(challenger, champion) {
+        if (mining) return null;
+        const { data: job, error } = await supabase.rpc('idle_practice_job');
+        if (error || !job?.replay) return null;
+        mining = true;
+        const runSide = async (w) => {
+            const id = -(++poolSeq);
+            (window.__replayData ||= {})[id] = { ...job, weights: w, others: champion };
+            try { return await runInFrame(id, 240000, 'puzzle'); }
+            finally { delete window.__replayData[id]; }
+        };
+        try {
+            const a = await runSide(challenger);
+            const b = await runSide(champion);
+            if (a.error || b.error || !a.result || !b.result) { log('practice duel:', a.error || b.error || 'no result'); return { error: true }; }
+            const ga = a.result.botGain, gb = b.result.botGain;
+            const margin = Math.max(20, Math.abs(gb) * 0.1);
+            const result = ga > gb + margin ? 'win' : ga < gb - margin ? 'loss' : 'draw';
+            return { result, challengerGain: ga, championGain: gb, playerGain: job.gain, signature: job.signature };
+        } finally {
+            mining = false;
+        }
+    }
+
+
     // ── Puzzle training (hermit, bot combo plan Phase 4b) ────────
     // A puzzle = a mined combo moment (hermit_list_puzzles). In a hidden
     // frame (?replaypuzzle=MATCH&seat=&turn=&turns=&wkey=) the match is
@@ -668,8 +699,11 @@
     // wkey: localStorage key holding the weights to test (default: current).
     const PUZZLE_SOLVED = 0.9;
 
-    async function runPuzzle(p, weights) {
-        await open(p.match_id, { check: true });
+    // opts.data: the game handed over (pooled practice, anonymous);
+    // opts.others: weights for every OTHER seat (practice duels: the puzzle
+    // seat plays `weights`, the rest play the champion).
+    async function runPuzzle(p, weights, opts = {}) {
+        await open(p.match_id, { check: true, data: opts.data });
         if (!state) throw new Error('replay did not start');
         await sleep(300);
         const seat = +p.seat;
@@ -690,6 +724,7 @@
         while (own < (+p.turns || 1) && guard++ < 6 * ((+p.turns || 1) + 1)) {
             const who = activePlayerIndex;
             myPlayerIndex = who;              // the bot plays whoever's turn it is
+            if (opts.others && window.BotArena?.applyWeights) window.BotArena.applyWeights(who === seat ? (weights || opts.others) : opts.others);
             if (endBtn) { endBtn.style.display = ''; endBtn.disabled = false; }
             if (typeof updateEndTurnButtonVisibility === 'function') updateEndTurnButtonVisibility();
             await window.BotSystem.turn();
@@ -766,7 +801,13 @@
             }
             await sleep(1500);
             let result;
-            if (puzzleMode) {
+            if (puzzleMode && id < 0) {
+                // practice duel: the parent page holds the anonymous game and the weights
+                const d = window.parent.__replayData?.[id];
+                if (!d) throw new Error('no game data');
+                result = await runPuzzle({ id: 0, match_id: id, seat: d.seat, start_turn: d.start_turn, turns: d.turns, gain: d.gain },
+                    d.weights, { data: d.replay, others: d.others });
+            } else if (puzzleMode) {
                 let weights = null;
                 try { const k = params.get('wkey'); if (k) weights = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {}
                 result = await runPuzzle({ id: +params.get('pid'), match_id: id, seat: +params.get('seat'),
@@ -1177,6 +1218,6 @@
         await open(id, { speed: 4 });
     }
 
-    window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, minePooled, findCombos,
+    window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, minePooled, practiceDuel, findCombos,
         runPuzzle, solvePuzzles, puzzleSummary, puzzleScore, play, pause, step, get state() { return state; } };
 })();

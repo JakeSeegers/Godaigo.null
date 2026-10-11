@@ -2058,7 +2058,13 @@ window.I18N_ES = {
     "Round {0}/{1}: puzzle check in the background (the board waits)": "Ronda {0}/{1}: prueba de puzles en segundo plano (el tablero espera)",
     "Puzzle check: the would-be champion plays saved puzzles in the background (the board waits)": "Prueba de puzles: el posible campeón juega puzles guardados en segundo plano (el tablero espera)",
     "Puzzle check done": "Prueba de puzles terminada",
+    "Combo practice: the would-be champion plays combo spots in the background (the board waits)": "Práctica de combos: el posible campeón juega momentos de combos en segundo plano (el tablero espera)",
+    "Combo practice: {0} won, {1} lost, {2} drawn": "Práctica de combos: {0} ganadas, {1} perdidas, {2} empatadas",
+    "Round {0}: challenger won {1}% but lost the combo practice ({2}-{3}), champion stays": "Ronda {0}: el aspirante ganó el {1} % pero perdió la práctica de combos ({2}-{3}); el campeón sigue",
+    "Combo practice: no taught combos yet": "Práctica de combos: aún no hay combos aprendidos",
     "Fast game.": "Partida rápida.",
+    "Combo practice in the background: the challenger and the champion each play a spot where a player pulled off a combo.": "Práctica de combos en segundo plano: el aspirante y el campeón juegan cada uno un momento en que un jugador hizo un combo.",
+    "Last combo practice: challenger {0}, champion {1} ({2}).": "Última práctica de combos: aspirante {0}, campeón {1} ({2}).",
     "Looking for combos in a past game...": "Buscando combos en una partida pasada...",
     "Past games checked for combos: {0}, combos found: {1}.": "Partidas pasadas revisadas: {0}, combos encontrados: {1}.",
 };
