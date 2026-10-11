@@ -105,3 +105,10 @@ its own pattern from its own stones, which come from shrines; the loop only
 recycles earth. A bot should spend the AP on what it can use: reaching needed
 shrines, breaking opponents' patterns, walling someone in (#1), casting what it
 already can.
+General rule (owner): ANY recastable draw-stones scroll + Burning Motivation +
+an active fire stone to burn on = an AP loop.
+- Mason's Savvy (5 earth): +8 AP per loop.
+- Seed the Skies (CATACOMB_SCROLL_6, 5 water, place water / wind anywhere): +8.
+- Respirate (WIND_SCROLL_3, 3 wind; all wind returns at end of turn anyway): +4.
+Water next to fire has special rules (water copies a neighbour's ability,
+processStoneInteractions); by the code it still burns, least sure of this one.
