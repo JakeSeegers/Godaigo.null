@@ -4417,6 +4417,17 @@ document.getElementById('undo-move').onclick = function() {
             trainTalk.length = 0;
             window.BotDiplomacy?.setTalkInTraining?.(show !== false);
         }
+        // Combos the bots found in this run's games (BotArena combo watcher, 2026-10-11).
+        function renderTrainingCombos(el, p) {
+            const list = el.querySelector('#bt-popup-combos-list');
+            if (!list) return;
+            const finds = (window.BotArena?.comboFindLog?.() || []).filter(c => c.at >= (p.startedAt || 0));
+            if (!finds.length) { list.innerHTML = '<span style="color:#aaa;">None yet this run.</span>'; return; }
+            const pretty = window.Replay?.prettySignature || (sig => String(sig).replace(/[&<>]/g, ''));
+            list.innerHTML = `<div style="color:#bbb;margin-bottom:2px;">${finds.length} this run. Newest:</div>`
+                + finds.slice(-3).reverse().map(c => `<div style="margin:4px 0;padding-top:4px;border-top:1px solid #3a2e20;">`
+                    + `${pretty(c.signature)}<div style="color:#aaa;">Gain ${Math.round(c.gain)} over ${c.turns} turn${c.turns === 1 ? '' : 's'}</div></div>`).join('');
+        }
         function renderTrainingTalk(el) {
             const box = el.querySelector('#bt-popup-talk');
             const label = el.querySelector('#bt-popup-talk-label');
@@ -5022,6 +5033,11 @@ document.getElementById('undo-move').onclick = function() {
                         <div style="color:#b8c6d2;margin-bottom:6px;">Bots can invent new things to notice about the board. One is kept only if its bot beats the champion. <span style="color:#8a9aa8;">[ ] = only when true.</span></div>
                         <div id="bt-popup-formulas-list"></div>
                     </div>
+                    <div id="bt-popup-combos" style="font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:8px 10px;background:#1a1410;border:1px solid #4a3a28;border-radius:5px;">
+                        <div style="color:#e8c48c;font-weight:600;font-size:13px;">Combos found</div>
+                        <div style="color:#c8b8a0;margin-bottom:6px;">2 or more casts in 1 to 3 turns that clearly pay off. One found in 5 different games gets tested against the champion.</div>
+                        <div id="bt-popup-combos-list"></div>
+                    </div>
                     <div id="bt-popup-talk-label" style="font-size:12px;font-weight:600;color:#bbb;margin-bottom:3px;display:none;">What the bots said</div>
                     <div id="bt-popup-talk" style="font-size:12px;color:#ccc;line-height:1.5;margin-bottom:10px;font-style:italic;"></div>
                     <div id="bt-popup-events-label" style="font-size:12px;font-weight:600;color:#bbb;margin-bottom:3px;display:none;">What happened</div>
@@ -5216,6 +5232,7 @@ document.getElementById('undo-move').onclick = function() {
                     ? ` · about ${fmtPopupTime(elapsedS / p.gamesDone * (p.totalGames - p.gamesDone))} left` : '');
             el.querySelector('#bt-popup-summary').textContent = summaryLine || '';
             renderTrainingStats(el, p);
+            renderTrainingCombos(el, p);
             renderTrainingTalk(el);
             // Nothing left to "skip ahead to" once already confirming —
             // and breeding has no confirmation phase to jump to at all, so

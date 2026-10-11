@@ -1246,6 +1246,6 @@
         await open(id, { speed: 4 });
     }
 
-    window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, minePooled, practiceDuel, findCombos,
+    window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, minePooled, practiceDuel, findCombos, prettySignature,
         runPuzzle, solvePuzzles, puzzleSummary, puzzleScore, play, pause, step, get state() { return state; } };
 })();

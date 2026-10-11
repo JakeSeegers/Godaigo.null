@@ -2075,4 +2075,11 @@ window.I18N_ES = {
     "Last combo practice: challenger {0}, champion {1} ({2}).": "Última práctica de combos: aspirante {0}, campeón {1} ({2}).",
     "Looking for combos in a past game...": "Buscando combos en una partida pasada...",
     "Past games checked for combos: {0}, combos found: {1}.": "Partidas pasadas revisadas: {0}, combos encontrados: {1}.",
+    "Combos found": "Combos encontrados",
+    "2 or more casts in 1 to 3 turns that clearly pay off. One found in 5 different games gets tested against the champion.": "2 o más hechizos en 1 a 3 turnos que valen claramente la pena. Uno encontrado en 5 partidas distintas se prueba contra el campeón.",
+    "None yet this run.": "Ninguno todavía en esta sesión.",
+    "{0} this run. Newest:": "{0} en esta sesión. Los más nuevos:",
+    "Gain {0} over {1} turns": "Ganancia de {0} en {1} turnos",
+    "Gain {0} over {1} turn": "Ganancia de {0} en {1} turno",
+    "Turn {0}:": "Turno {0}:",
 };

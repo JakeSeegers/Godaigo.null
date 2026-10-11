@@ -543,6 +543,7 @@ Order matters — later scripts depend on earlier ones.
                              each turn and notes casts with what came before them that turn (moves, AP, stones placed, breaks); at game end
                              (win / turn cap) Replay.findCombos picks windows -> report_bot_combos (bot_combo_finds, never taught; hermit
                              Combos tab "Found by bots in training"). Read-only: seeds 777 / 9001 / 31337 identical. opts.comboWatch false = off.
+                             The Train Bot window lists this run's finds ("Combos found" box, BotArena.comboFindLog()).
 27. action-log.js          ← window.ActionLog — in-memory record of every meaningful action this session
                              (human AND bot); record()/onRecord() feed both the hidden dev cheat-panel's
                              "Download Action Log" button and game-log-ui.js's player-facing panel

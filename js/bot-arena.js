@@ -523,6 +523,10 @@
         cw.found = found;
         _comboFinds += found.length;
         if (found.length) _lastFinds = found;
+        // Every find this page load (newest last, max 30) for the Train Bot window.
+        const at = Date.now();
+        for (const c of found) _findLog.push({ at, signature: c.signature, gain: c.gain, turns: c.turns, steps: c.steps });
+        if (_findLog.length > 30) _findLog.splice(0, _findLog.length - 30);
         if (!found.length || !window.gami?.userId || typeof supabase === 'undefined' || !supabase?.rpc) return;
         const rows = found.slice(0, 20).map(c => ({ signature: c.signature, gain: c.gain, turns: c.turns, steps: c.steps }));
         const source = opts.comboSource || (opts.visual ? 'watch' : 'train');
@@ -536,7 +540,7 @@
                 log('bot combos not saved:', error.message);
             }, () => {});
     }
-    let _comboFinds = 0, _lastFinds = [];
+    let _comboFinds = 0, _lastFinds = [], _findLog = [];
 
     // ── Combo screening (owner 2026-10-11, sql/combo-screening.sql) ─────
     // Gate 2 for bot-found combos: combo_screen_due() names a combo found in
@@ -1680,6 +1684,7 @@
         makeChallenger, // idle training: explore / formula challenger
         comboFinds: () => _comboFinds, // combos the watcher found this page load
         lastComboFinds: () => _lastFinds, // the last game's finds (debugging)
+        comboFindLog: () => _findLog.slice(), // every find this page load, newest last (Train Bot window)
         screenDueCombo, // gate 2: screen the next bot-found combo against a champion
         perturbWeights, // gaussian-perturbed copy of a weight table (Noisy anchor toggle)
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
