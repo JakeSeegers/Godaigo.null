@@ -527,7 +527,9 @@
         const at = Date.now();
         for (const c of found) _findLog.push({ at, signature: c.signature, gain: c.gain, turns: c.turns, steps: c.steps });
         if (_findLog.length > 30) _findLog.splice(0, _findLog.length - 30);
-        if (!found.length || !window.gami?.userId || typeof supabase === 'undefined' || !supabase?.rpc) return;
+        // Not window.gami: muteEnvironment() nulls it during muted runs (no gold for
+        // arena games), which silently skipped every report. The server checks sign-in.
+        if (!found.length || typeof supabase === 'undefined' || !supabase?.rpc) return;
         const rows = found.slice(0, 20).map(c => ({ signature: c.signature, gain: c.gain, turns: c.turns, steps: c.steps }));
         const source = opts.comboSource || (opts.visual ? 'watch' : 'train');
         supabase.rpc('report_bot_combos', { p_rows: rows, p_source: source, p_game: cw.key })
