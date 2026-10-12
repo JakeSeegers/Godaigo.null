@@ -803,6 +803,13 @@
         try {
             ['boot-splash', 'lore-intro'].forEach(x => document.getElementById(x)?.remove());
             document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} });
+            // Quick and quiet (owner 2026-10-12): no sound and so no board effects
+            // (window.fxOn reads SoundSystem), no CSS animations or transitions.
+            const quiet = () => { window.SoundSystem = null; };
+            quiet();
+            const css = document.createElement('style');
+            css.textContent = '*,*::before,*::after{transition:none!important;animation:none!important}';
+            document.head.appendChild(css);
             // Wait for sign-in and the lobby start-up, so nothing resets the
             // game after the replay has started.
             for (let i = 0; i < 60; i++) {
@@ -811,6 +818,7 @@
                 await sleep(500);
             }
             await sleep(1500);
+            quiet(); // start-up code may have set it again
             let result;
             if (puzzleMode && id < 0) {
                 // practice duel: the parent page holds the anonymous game and the weights

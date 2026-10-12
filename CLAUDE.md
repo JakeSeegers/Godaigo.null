@@ -558,6 +558,7 @@ Order matters — later scripts depend on earlier ones.
                              Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /
                              Combo mining = Replay.openMiner(): window that mines past games one by one, the replay shown in a scaled iframe
                              (runInFrame host; mineMatches / minePooled opts.frameHost + onGame), combos listed, Stop; sets window.__trainMining.
+                             Replay pages (?replaymine / ?replaycheck / ?replaypuzzle) run quiet: SoundSystem null (fxOn false), no CSS animations, no Learn from my play.
 27. action-log.js          ← window.ActionLog — in-memory record of every meaningful action this session
                              (human AND bot); record()/onRecord() feed both the hidden dev cheat-panel's
                              "Download Action Log" button and game-log-ui.js's player-facing panel

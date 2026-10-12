@@ -106,7 +106,10 @@
         console.log(`🧠 [Imitation] ${enabled ? 'ON - watching your play' : 'OFF'}`);
         renderBadge();
     }
-    function isEnabled() { return enabled && isHermitUser(); }
+    // Never inside the hidden replay pages (combo mining, replay checks, puzzles):
+    // they replay old games, often the hermit's own (owner 2026-10-12).
+    const IN_REPLAY_FRAME = /[?&]replay(mine|check|puzzle)=/.test(location.search);
+    function isEnabled() { return enabled && !IN_REPLAY_FRAME && isHermitUser(); }
 
     // ── the learned delta — a sparse {weightKey: additiveShift} map, NOT a
     // full weight table. Starts empty; grows one small nudge at a time. ──
