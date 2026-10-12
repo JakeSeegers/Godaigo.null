@@ -392,10 +392,13 @@
     }
 
     // Parent side: run one match in a hidden iframe and wait for its result.
-    function runInFrame(matchId, timeoutMs = 180000, mode = 'check', extraQuery = '') {
+    function runInFrame(matchId, timeoutMs = 180000, mode = 'check', extraQuery = '', host = null) {
         return new Promise((resolve) => {
             const frame = document.createElement('iframe');
-            frame.style.cssText = 'position:fixed;left:-4000px;top:0;width:1400px;height:900px;border:0;';
+            // host: show the replay (combo mining window), scaled down to fit.
+            frame.style.cssText = host
+                ? `position:absolute;left:0;top:0;width:1400px;height:900px;border:0;transform:scale(${(host.clientWidth || 448) / 1400});transform-origin:0 0;pointer-events:none;`
+                : 'position:fixed;left:-4000px;top:0;width:1400px;height:900px;border:0;';
             frame.setAttribute('aria-hidden', 'true');
             const done = (result) => {
                 clearTimeout(timer);
@@ -413,7 +416,7 @@
             // to the folder and drop the query string.
             const key = mode === 'mine' ? 'replaymine' : mode === 'puzzle' ? 'replaypuzzle' : 'replaycheck';
             frame.src = new URL('.', location.href).pathname + `?${key}=` + encodeURIComponent(matchId) + extraQuery;
-            document.body.appendChild(frame);
+            (host || document.body).appendChild(frame);
         });
     }
 
@@ -617,8 +620,9 @@
             for (const id of ids) {
                 if (opts.stop?.()) break;
                 onProgress?.(`Mining #${id} (${done + 1} of ${ids.length})...`);
-                const run = await runInFrame(id, 300000, 'mine');
+                const run = await runInFrame(id, 300000, 'mine', '', opts.frameHost || null);
                 const rows = run.result?.candidates || [];
+                try { opts.onGame?.(id, rows, run.error || null); } catch (e) {}
                 if (run.error) log(`mine ${id}: ${run.error}`);
                 const { error: e2 } = await supabase.rpc('save_combo_candidates', { p_match_id: id, p_rows: rows });
                 if (e2) log(`mine ${id}: save failed`, e2.message);
@@ -637,7 +641,7 @@
     // accounts found the same. Returns null when there is nothing to do (or
     // the server part is not installed).
     let poolSeq = 0;
-    async function minePooled() {
+    async function minePooled(opts = {}) {
         if (mining) return null;
         const { data, error } = await supabase.rpc('idle_mine_job');
         if (error || !data?.job || !data.replay) return null;
@@ -645,9 +649,10 @@
         const id = -(++poolSeq);
         (window.__replayData ||= {})[id] = data.replay;
         try {
-            const run = await runInFrame(id, 300000, 'mine');
+            const run = await runInFrame(id, 300000, 'mine', '', opts.frameHost || null);
             if (run.error || !run.result) { log('pooled mine:', run.error || 'no result'); return { done: 0, found: 0 }; }
             const rows = run.result.candidates || [];
+            try { opts.onGame?.(null, rows, null); } catch (e) {}
             const { data: rep, error: e2 } = await supabase.rpc('idle_mine_report', { p_job: data.job, p_rows: rows });
             if (e2) log('pooled mine report failed', e2.message);
             return { done: 1, found: rows.length, accepted: !!rep?.accepted };
@@ -1246,7 +1251,75 @@
         await open(id, { speed: 4 });
     }
 
+    // Combo mining window (owner 2026-10-12, Train Bot "Focus: Combo mining"):
+    // works through past games one at a time, showing each replay as it is
+    // checked, with the combos found listed below. The hermit mines through the
+    // trusted path (mineMatches), everyone else anonymous games (minePooled).
+    // Idle training does not start while it runs (window.__trainMining).
+    let minerOpen = false;
+    async function openMiner() {
+        if (minerOpen) return;
+        minerOpen = true;
+        const hermit = !!window.isHermit?.();
+        const box = document.createElement('div');
+        box.id = 'combo-miner-window';
+        box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10050;width:480px;max-width:calc(100vw - 32px);' +
+            'background:#16161f;border:1px solid #5a4a30;border-radius:8px;padding:14px 16px;color:#ddd;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.6);';
+        box.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <b style="color:#e8c48c;font-size:15px;">Combo mining</b>
+                <button class="cmw-stop" style="padding:4px 12px;font-size:13px;line-height:1.2;min-width:0;width:auto;height:auto;margin:0;background:#4a2a2a;color:#eee;border:1px solid #855;border-radius:5px;cursor:pointer;">Stop</button>
+            </div>
+            <div style="color:#bba;margin-bottom:8px;">Past games are replayed at full speed to find combos players used. Combos that show up in 2 different games are taught to the bots.</div>
+            <div class="cmw-status" style="margin-bottom:6px;">Starting...</div>
+            <div class="cmw-frame" style="position:relative;width:100%;aspect-ratio:1400/900;overflow:hidden;background:#0b0b12;border:1px solid #333;border-radius:4px;margin-bottom:8px;"></div>
+            <div class="cmw-tally" style="color:#bbb;margin-bottom:4px;"></div>
+            <div class="cmw-list" style="max-height:180px;overflow:auto;"></div>`;
+        document.body.appendChild(box);
+        const q = sel => box.querySelector(sel);
+        let stopped = false, done = 0, found = 0, left = null;
+        const finds = [];
+        q('.cmw-stop').onclick = () => {
+            if (stopped) { box.remove(); return; }
+            stopped = true;
+            q('.cmw-stop').textContent = 'Close';
+            q('.cmw-status').textContent = 'Stopping after this game...';
+        };
+        const tally = () => {
+            q('.cmw-tally').textContent = `Games checked: ${done}${left != null ? `, about ${Math.max(0, left - done)} left` : ''}. Combos found: ${found}.`;
+            q('.cmw-list').innerHTML = finds.slice(-12).reverse().map(c =>
+                `<div style="padding:4px 0;border-top:1px solid #2a2a38;">${prettySignature(c.signature)}<div style="color:#999;">Gain ${Math.round(c.gain)}</div></div>`).join('')
+                || '<div style="color:#888;">No combos yet.</div>';
+        };
+        window.__trainMining = true;
+        try {
+            if (hermit) {
+                try { const r = await supabase.rpc('list_matches_for_mining', { p_limit: 200 }); left = (r.data || []).length; } catch (e) {}
+            }
+            tally();
+            while (!stopped) {
+                q('.cmw-status').textContent = `Checking game ${done + 1}${left != null ? ` of about ${left}` : ''}...`;
+                const onGame = (id, rows) => { rows.forEach(r => finds.push(r)); };
+                const r = hermit
+                    ? await mineMatches(null, { limit: 1, frameHost: q('.cmw-frame'), onGame, stop: () => stopped })
+                    : await minePooled({ frameHost: q('.cmw-frame'), onGame });
+                if (!r || !r.done) { q('.cmw-status').textContent = 'All past games are checked. Nothing left to mine.'; break; }
+                done += r.done; found += r.found;
+                tally();
+            }
+            if (stopped) q('.cmw-status').textContent = `Stopped. ${done} game${done === 1 ? '' : 's'} checked this time.`;
+        } catch (e) {
+            q('.cmw-status').textContent = 'Mining stopped: ' + (e.message || e);
+        } finally {
+            window.__trainMining = false;
+            minerOpen = false;
+            q('.cmw-stop').textContent = 'Close';
+            stopped = true;
+            q('.cmw-frame').innerHTML = '';
+        }
+    }
+
     window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, minePooled, practiceDuel, findCombos, prettySignature,
-        isMining: () => mining,
+        isMining: () => mining, openMiner,
         runPuzzle, solvePuzzles, puzzleSummary, puzzleScore, play, pause, step, get state() { return state; } };
 })();

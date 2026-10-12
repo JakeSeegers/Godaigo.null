@@ -2090,4 +2090,13 @@ window.I18N_ES = {
     "Checked a past game: {0} combo found": "Partida pasada revisada: {0} combo encontrado",
     "Past games checked: {0}, combos found in them: {1}": "Partidas pasadas revisadas: {0}, combos encontrados en ellas: {1}",
     "Past games checked: {0}, combos found in them: {1} (none left to check)": "Partidas pasadas revisadas: {0}, combos encontrados en ellas: {1} (no quedan más)",
+    "Focus:": "Enfoque:",
+    "Training + mining": "Entrenar + minar",
+    "Training only": "Solo entrenar",
+    "Combo mining": "Minar combos",
+    "Past games are replayed at full speed to find combos players used. Combos that show up in 2 different games are taught to the bots.": "Las partidas pasadas se repiten a toda velocidad para encontrar combos que usaron los jugadores. Los combos que aparecen en 2 partidas distintas se enseñan a los bots.",
+    "Stopping after this game...": "Deteniendo después de esta partida...",
+    "No combos yet.": "Todavía no hay combos.",
+    "All past games are checked. Nothing left to mine.": "Todas las partidas pasadas están revisadas. No queda nada por minar.",
+    "Gain {0}": "Ganancia {0}",
 };

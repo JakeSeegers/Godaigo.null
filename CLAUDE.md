@@ -555,6 +555,9 @@ Order matters — later scripts depend on earlier ones.
                              The Train Bot window lists this run's finds ("Combos found" box, BotArena.comboFindLog()).
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
+                             Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /
+                             Combo mining = Replay.openMiner(): window that mines past games one by one, the replay shown in a scaled iframe
+                             (runInFrame host; mineMatches / minePooled opts.frameHost + onGame), combos listed, Stop; sets window.__trainMining.
 27. action-log.js          ← window.ActionLog — in-memory record of every meaningful action this session
                              (human AND bot); record()/onRecord() feed both the hidden dev cheat-panel's
                              "Download Action Log" button and game-log-ui.js's player-facing panel

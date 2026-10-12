@@ -4697,7 +4697,7 @@ document.getElementById('undo-move').onclick = function() {
             // challenger series this browser checks one past game for combos, the
             // same way idle training does (hermit: trusted path; others: anonymous).
             const mineHermit = !!window.isHermit?.();
-            const canMine = !!(window.Replay && (mineHermit ? window.Replay.mineMatches : window.Replay.minePooled));
+            const canMine = opts.mine !== false && !!(window.Replay && (mineHermit ? window.Replay.mineMatches : window.Replay.minePooled));
             const mineTally = window.__trainMine = { n: 0, found: 0, idle: false, k: 0 };
             const result = await window.BotArena.hillClimb({
                 betweenSeries: canMine ? (async () => {
@@ -6205,7 +6205,8 @@ document.getElementById('undo-move').onclick = function() {
         (function initBotTrainingPanel() {
             let clickCount = 0;
             let clickTimer = null;
-            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, talk: true, _public: false };
+            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, talk: true, _public: false,
+                focus: (() => { try { return localStorage.getItem('godaigo_train_focus') || 'both'; } catch (e) { return 'both'; } })() };
 
             // Weight groupings mirror the section comments in bot.js's
             // DEFAULT_WEIGHTS — used purely for the drill-down diagram, so
@@ -6397,6 +6398,14 @@ document.getElementById('undo-move').onclick = function() {
                         'How many bots play each training game. "All" trains across mixed 2–5-player arenas and confirms the champion at every size. The POPULATION (the pool of competing weight-tables) is a separate number - see the roster below - this only controls how many are sampled into any one game. Fixed at 2 for Hill Climb, which has no population/nPlayers concept.',
                         () => state.method === 'hillclimb');
                 }
+
+                // Focus (owner 2026-10-12): train, mine past games for combos, or both.
+                makeChoiceRow('Focus:', [
+                    { value: 'both', text: 'Training + mining', title: 'Train as usual, and check one past game for combos before every other challenger (the board waits meanwhile).' },
+                    { value: 'train', text: 'Training only', title: 'Train without stopping to check past games. Faster.' },
+                    { value: 'mine', text: 'Combo mining', title: 'No training: check past games for combos, one after another, and watch each one being replayed. Combos that show up in 2 different games are taught to the bots.' },
+                ], () => state.focus, (v) => { state.focus = v; try { localStorage.setItem('godaigo_train_focus', v); } catch (e) {} },
+                    'Combo mining replays past games at full speed to find the scroll combos players used. The other settings below only matter for training.');
 
                 makeChoiceRow('Speed:', [
                     { value: true, text: 'Watchable', title: 'Normal pacing - watch the board play out' },
@@ -6726,6 +6735,12 @@ document.getElementById('undo-move').onclick = function() {
 
                 startBtn.onclick = async () => {
                     const resumeSave = resumeNext; resumeNext = null;
+                    if (state.focus === 'mine' && !resumeSave) {
+                        if (window.BotArena?.isRunning?.()) { updateStatus('A bot job is already running - use Stop first'); return; }
+                        overlay.remove();
+                        window.Replay?.openMiner?.();
+                        return;
+                    }
                     if (window.BotArena.isRunning()) { updateStatus('A bot job is already running - use Stop first'); return; }
                     if (!await stopAnyRunningBotJob()) return;
                     hideLeaveTrainingButton();
@@ -6771,7 +6786,7 @@ document.getElementById('undo-move').onclick = function() {
                             const preset = { ...p, confirmSizes: [2, 3, 4, 5] };
                             const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, formulaGold, formulaKept, totalGold, endedEarly, saveInfo } = await runHillClimbTraining(preset, renderProgress, {
                                 visual: state.watchable, noisyAnchor: state.noisyAnchor, explore: state.explore, formulas: state.formulas,
-                                public: !!state._public, resume: resumeSave,
+                                public: !!state._public, resume: resumeSave, mine: state.focus !== 'train',
                             });
                             progressText.style.display = 'none';
                             const formulaTail = formulaGold
