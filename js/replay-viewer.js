@@ -567,7 +567,9 @@
                 for (let L = 1; L <= 3 && e - L + 1 >= 0; L++) {
                     const first = own[e - L + 1], last = own[e];
                     const a = first.v0?.[pos], b = last.v1?.[pos];
-                    if (a == null || b == null) continue;
+                    // A seat with no pawn yet (game start) scores -Infinity: no window there
+                    // (2026-10-12: "Gain Infinity" rows that could not be saved).
+                    if (a == null || b == null || !Number.isFinite(a) || !Number.isFinite(b)) continue;
                     const steps = own.slice(e - L + 1, e + 1)
                         .flatMap((s, j) => s.steps.filter(x => x.seat === seat).map(x => ({ ...x, t: j })));
                     if (steps.filter(x => x.kind === 'cast').length < 2) continue;
@@ -609,14 +611,18 @@
     let mining = false;
     // opts.limit: at most this many games; opts.stop(): checked before each game
     // (idle training mines one game at a time, js/idle-training.js).
+    // Games whose save failed this page load: skipped, never retried in a loop
+    // (2026-10-12: one bad game was mined again and again).
+    const mineFailed = new Set();
     async function mineMatches(onProgress, opts = {}) {
         if (mining) return;
         mining = true;
         let done = 0, found = 0;
         try {
-            const { data, error } = await supabase.rpc('list_matches_for_mining', { p_limit: opts.limit || 50 });
+            const want = opts.limit || 50;
+            const { data, error } = await supabase.rpc('list_matches_for_mining', { p_limit: want + mineFailed.size });
             if (error) throw error;
-            const ids = (data || []).map(r => r.id);
+            const ids = (data || []).map(r => r.id).filter(id => !mineFailed.has(id)).slice(0, want);
             for (const id of ids) {
                 if (opts.stop?.()) break;
                 onProgress?.(`Mining #${id} (${done + 1} of ${ids.length})...`);
@@ -625,7 +631,7 @@
                 try { opts.onGame?.(id, rows, run.error || null); } catch (e) {}
                 if (run.error) log(`mine ${id}: ${run.error}`);
                 const { error: e2 } = await supabase.rpc('save_combo_candidates', { p_match_id: id, p_rows: rows });
-                if (e2) log(`mine ${id}: save failed`, e2.message);
+                if (e2) { log(`mine ${id}: save failed`, e2.message); mineFailed.add(id); }
                 done++; found += rows.length;
             }
         } finally {
