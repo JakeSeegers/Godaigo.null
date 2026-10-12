@@ -556,7 +556,7 @@ Order matters — later scripts depend on earlier ones.
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
                              Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /
-                             Combo mining = Replay.openMiner(): window that mines past games one by one, the replay shown in a scaled iframe
+                             Combo mining = Replay.openMiner(): mines past games one by one, the replay full screen (iframe in #combo-miner-stage, host.dataset.fill) with a corner panel
                              (runInFrame host; mineMatches / minePooled opts.frameHost + onGame), combos listed, Stop; sets window.__trainMining.
                              Replay pages (?replaymine / ?replaycheck / ?replaypuzzle) run quiet: SoundSystem null (fxOn false), no CSS animations, no Learn from my play.
 27. action-log.js          ← window.ActionLog — in-memory record of every meaningful action this session

@@ -397,7 +397,9 @@
             const frame = document.createElement('iframe');
             // host: show the replay (combo mining window), scaled down to fit.
             frame.style.cssText = host
-                ? `position:absolute;left:0;top:0;width:1400px;height:900px;border:0;transform:scale(${(host.clientWidth || 448) / 1400});transform-origin:0 0;pointer-events:none;`
+                ? (host.dataset.fill
+                    ? 'position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;'   // full screen (combo mining)
+                    : `position:absolute;left:0;top:0;width:1400px;height:900px;border:0;transform:scale(${(host.clientWidth || 448) / 1400});transform-origin:0 0;pointer-events:none;`)
                 : 'position:fixed;left:-4000px;top:0;width:1400px;height:900px;border:0;';
             frame.setAttribute('aria-hidden', 'true');
             const done = (result) => {
@@ -1278,10 +1280,17 @@
         if (minerOpen) return;
         minerOpen = true;
         const hermit = !!window.isHermit?.();
+        // Like a training run (owner 2026-10-12): the replay fills the screen,
+        // a small panel in the corner says what is happening.
+        const stage = document.createElement('div');
+        stage.id = 'combo-miner-stage';
+        stage.dataset.fill = '1';
+        stage.style.cssText = 'position:fixed;inset:0;z-index:10040;background:#0b0b12;';
+        document.body.appendChild(stage);
         const box = document.createElement('div');
         box.id = 'combo-miner-window';
-        box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10050;width:480px;max-width:calc(100vw - 32px);' +
-            'background:#16161f;border:1px solid #5a4a30;border-radius:8px;padding:14px 16px;color:#ddd;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.6);';
+        box.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:10050;width:340px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow:auto;' +
+            'background:rgba(22,22,31,0.94);border:1px solid #5a4a30;border-radius:8px;padding:12px 14px;color:#ddd;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.6);';
         box.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                 <b style="color:#e8c48c;font-size:15px;">Combo mining</b>
@@ -1289,15 +1298,14 @@
             </div>
             <div style="color:#bba;margin-bottom:8px;">Past games are replayed at full speed to find combos players used. Combos that show up in 2 different games are taught to the bots.</div>
             <div class="cmw-status" style="margin-bottom:6px;">Starting...</div>
-            <div class="cmw-frame" style="position:relative;width:100%;aspect-ratio:1400/900;overflow:hidden;background:#0b0b12;border:1px solid #333;border-radius:4px;margin-bottom:8px;"></div>
             <div class="cmw-tally" style="color:#bbb;margin-bottom:4px;"></div>
-            <div class="cmw-list" style="max-height:180px;overflow:auto;"></div>`;
+            <div class="cmw-list" style="max-height:220px;overflow:auto;"></div>`;
         document.body.appendChild(box);
         const q = sel => box.querySelector(sel);
         let stopped = false, done = 0, found = 0, left = null;
         const finds = [];
         q('.cmw-stop').onclick = () => {
-            if (stopped) { box.remove(); return; }
+            if (stopped) { box.remove(); stage.remove(); return; }
             stopped = true;
             q('.cmw-stop').textContent = 'Close';
             q('.cmw-status').textContent = 'Stopping after this game...';
@@ -1318,8 +1326,8 @@
                 q('.cmw-status').textContent = `Checking game ${done + 1}${left != null ? ` of about ${left}` : ''}...`;
                 const onGame = (id, rows) => { rows.forEach(r => finds.push(r)); };
                 const r = hermit
-                    ? await mineMatches(null, { limit: 1, frameHost: q('.cmw-frame'), onGame, stop: () => stopped })
-                    : await minePooled({ frameHost: q('.cmw-frame'), onGame });
+                    ? await mineMatches(null, { limit: 1, frameHost: stage, onGame, stop: () => stopped })
+                    : await minePooled({ frameHost: stage, onGame });
                 if (!r || !r.done) { q('.cmw-status').textContent = 'All past games are checked. Nothing left to mine.'; break; }
                 done += r.done; found += r.found;
                 tally();
@@ -1332,7 +1340,7 @@
             minerOpen = false;
             q('.cmw-stop').textContent = 'Close';
             stopped = true;
-            q('.cmw-frame').innerHTML = '';
+            stage.innerHTML = '';
         }
     }
 
