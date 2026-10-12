@@ -1247,5 +1247,6 @@
     }
 
     window.Replay = { open, openLive, openFeatured, openBrowser, checkMatch, runCheck, runMine, mineMatches, minePooled, practiceDuel, findCombos, prettySignature,
+        isMining: () => mining,
         runPuzzle, solvePuzzles, puzzleSummary, puzzleScore, play, pause, step, get state() { return state; } };
 })();

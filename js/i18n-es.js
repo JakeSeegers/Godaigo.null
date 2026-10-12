@@ -2084,4 +2084,10 @@ window.I18N_ES = {
     "Turn {0}:": "Turno {0}:",
     "The trial combo won its way into the climbed bot": "El combo a prueba ganó y entró en el bot mejorado",
     "The trial combo did not win": "El combo a prueba no ganó",
+    "Checking a past game for combos (the board waits)": "Revisando una partida pasada en busca de combos (el tablero espera)",
+    "No past games left to check for combos": "No quedan partidas pasadas por revisar",
+    "Checked a past game: {0} combos found": "Partida pasada revisada: {0} combos encontrados",
+    "Checked a past game: {0} combo found": "Partida pasada revisada: {0} combo encontrado",
+    "Past games checked: {0}, combos found in them: {1}": "Partidas pasadas revisadas: {0}, combos encontrados en ellas: {1}",
+    "Past games checked: {0}, combos found in them: {1} (none left to check)": "Partidas pasadas revisadas: {0}, combos encontrados en ellas: {1} (no quedan más)",
 };

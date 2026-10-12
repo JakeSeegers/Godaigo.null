@@ -4422,9 +4422,11 @@ document.getElementById('undo-move').onclick = function() {
             const list = el.querySelector('#bt-popup-combos-list');
             if (!list) return;
             const finds = (window.BotArena?.comboFindLog?.() || []).filter(c => c.at >= (p.startedAt || 0));
-            if (!finds.length) { list.innerHTML = '<span style="color:#aaa;">None yet this run.</span>'; return; }
+            const mt = window.__trainMine;
+            const mined = mt && (mt.n || mt.idle) ? `<div style="color:#bbb;margin-bottom:4px;">Past games checked: ${mt.n}, combos found in them: ${mt.found}${mt.idle ? ' (none left to check)' : ''}</div>` : '';
+            if (!finds.length) { list.innerHTML = mined + '<span style="color:#aaa;">None yet this run.</span>'; return; }
             const pretty = window.Replay?.prettySignature || (sig => String(sig).replace(/[&<>]/g, ''));
-            list.innerHTML = `<div style="color:#bbb;margin-bottom:2px;">${finds.length} this run. Newest:</div>`
+            list.innerHTML = mined + `<div style="color:#bbb;margin-bottom:2px;">${finds.length} this run. Newest:</div>`
                 + finds.slice(-3).reverse().map(c => `<div style="margin:4px 0;padding-top:4px;border-top:1px solid #3a2e20;">`
                     + `${pretty(c.signature)}<div style="color:#aaa;">Gain ${Math.round(c.gain)} over ${c.turns} turn${c.turns === 1 ? '' : 's'}</div></div>`).join('');
         }
@@ -4691,7 +4693,28 @@ document.getElementById('undo-move').onclick = function() {
             }
 
             if (!(resume && resume.phase === 'climb')) persist({ phase: 'climb', climb: null, seedChallengers: seedChallengers || null, explored, termMutations });
+            // Combo mining during the run (owner 2026-10-12): before every other
+            // challenger series this browser checks one past game for combos, the
+            // same way idle training does (hermit: trusted path; others: anonymous).
+            const mineHermit = !!window.isHermit?.();
+            const canMine = !!(window.Replay && (mineHermit ? window.Replay.mineMatches : window.Replay.minePooled));
+            const mineTally = window.__trainMine = { n: 0, found: 0, idle: false, k: 0 };
             const result = await window.BotArena.hillClimb({
+                betweenSeries: canMine ? (async () => {
+                    if (mineTally.idle || window.Replay.isMining?.()) return;
+                    if ((mineTally.k++ % 2) !== 0) return;
+                    stats.event('Checking a past game for combos (the board waits)');
+                    report('mining');
+                    window.__trainMining = true;
+                    try {
+                        const r = mineHermit
+                            ? await window.Replay.mineMatches(null, { limit: 1, stop: () => window.BotArena.stopRequested() })
+                            : await window.Replay.minePooled();
+                        if (!r || !r.done) { mineTally.idle = true; stats.event('No past games left to check for combos'); }
+                        else { mineTally.n += r.done; mineTally.found += r.found; stats.event(`Checked a past game: ${r.found} combo${r.found === 1 ? '' : 's'} found`); }
+                    } catch (e) { mineTally.idle = true; console.warn('[train] mining failed', e); }
+                    finally { window.__trainMining = false; report('training'); }
+                }) : undefined,
                 seedChallengers, termMutations,
                 champion: resume?.climb?.champion || climbAnchor, rounds, lambda, gamesPerChallenge, visual,
                 resume: resume?.phase === 'climb' ? resume.climb : null,
@@ -5178,6 +5201,7 @@ document.getElementById('undo-move').onclick = function() {
                     : p.phase === 'starting' ? 'Starting…'
                     : p.phase === 'puzzles' ? `Round ${p.round}/${p.rounds}: puzzle check in the background (the board waits)`
                     : p.phase === 'screening' ? 'Screening a combo bots found (8 fast games)'
+                    : p.phase === 'mining' ? 'Checking a past game for combos (the board waits)'
                     : p.phase === 'exploring'
                         ? `Explore: generation ${Math.min(p.gen + 1, p.generations)}/${p.generations} (Evolve search, 2-5 player games)`
                         : `Round ${p.round}/${p.rounds}`;

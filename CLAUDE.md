@@ -524,7 +524,7 @@ Order matters — later scripts depend on earlier ones.
                              reports it with p_kind 'practice' (idle_games.kind); no taught combo = normal game. Train Bot: hillClimb
                              opts.practiceCheck (game-ui.js: up to 3 duels) blocks a promotion that loses more duels than it wins. In a solo game vs bots: 10 min idle on your turn
                              (godaigo_idle_game_minutes) -> SaveGame.saveAndQuit({quiet}) -> lobby -> starts at once; waking up
-                             continues the saved game (sessionStorage godaigo_idle_start_now / _resume_game / _woke). Settings > Display "Idle Training" (localStorage godaigo_idle_training).
+                             continues the saved game (sessionStorage godaigo_idle_start_now / _resume_game / _woke). Never starts while Replay.isMining() or Train Bot mining (window.__trainMining): the reload on wake killed a hand-started mining run. Settings > Display "Idle Training" (localStorage godaigo_idle_training).
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
                              for 500g (buy_stream_mode -> 'feature_stream' in cosmetics_owned; owned(), Hermit free; locked
                              panel + Shop > Features card in gamification-ui.js). Lobby "Stream" button -> openPanel(): on/off, channel, vote time 10-45 s, mood / cast votes (localStorage
@@ -553,6 +553,8 @@ Order matters — later scripts depend on earlier ones.
                              (win / turn cap) Replay.findCombos picks windows -> report_bot_combos (bot_combo_finds, never taught; hermit
                              Combos tab "Found by bots in training"). Read-only: seeds 777 / 9001 / 31337 identical. opts.comboWatch false = off.
                              The Train Bot window lists this run's finds ("Combos found" box, BotArena.comboFindLog()).
+                             hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
+                             other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
 27. action-log.js          ← window.ActionLog — in-memory record of every meaningful action this session
                              (human AND bot); record()/onRecord() feed both the hidden dev cheat-panel's
                              "Download Action Log" button and game-log-ui.js's player-facing panel

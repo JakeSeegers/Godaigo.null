@@ -121,6 +121,9 @@
         if (run || !enabled() || document.hidden || Date.now() < backoffUntil) return;
         if (Date.now() - lastInput < IDLE_MS) return;
         if (!signedIn() || !inLobby()) return;
+        // A mining run started by hand (Replays > Combos) is not interrupted:
+        // starting here, and the reload when the player comes back, would kill it.
+        if (window.Replay?.isMining?.() || window.__trainMining) return;
         start().catch(err => { console.warn('[idle] could not start', err); backoffUntil = Date.now() + 10 * 60000; cleanupFailed(); });
     }, 5000);
 

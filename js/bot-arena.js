@@ -1360,6 +1360,12 @@
                     const st = stages[s];
                     for (let k = (s === sStart ? kStart : 0); k < survivors.length && !_stopRequested && !_endEarlyRequested && !_saveRequested; k++) {
                         const cand = survivors[k];
+                        // Between series (owner 2026-10-12): Train Bot mines one past
+                        // game for combos here (game-ui.js). Awaited; never aborts a run.
+                        if (typeof opts.betweenSeries === 'function') {
+                            try { await opts.betweenSeries(); } catch (e) { /* never aborts a run */ }
+                            if (_stopRequested || _endEarlyRequested || _saveRequested) break;
+                        }
                         // Fired per challenger before its series — lets the UI
                         // say which challenger (of the current stage's
                         // survivors) is playing; onGame's own count resets per
