@@ -558,6 +558,7 @@
         return st.scroll + tag;
     }
 
+    const GAIN_CAP = 2000;   // about 10 activated elements' worth
     function findCombos(segs, seats) {
         const all = [];
         for (const seat of seats) {
@@ -573,7 +574,9 @@
                     const steps = own.slice(e - L + 1, e + 1)
                         .flatMap((s, j) => s.steps.filter(x => x.seat === seat).map(x => ({ ...x, t: j })));
                     if (steps.filter(x => x.kind === 'cast').length < 2) continue;
-                    all.push({ seat, gain: b - a, turns: L, start_turn: first.turn, end_turn: last.turn, steps });
+                    // Capped (owner 2026-10-12): a window that ends in a win is worth the
+                    // win weight (~65,000), which would drown every other combo.
+                    all.push({ seat, gain: Math.min(b - a, GAIN_CAP), turns: L, start_turn: first.turn, end_turn: last.turn, steps });
                 }
             }
         }

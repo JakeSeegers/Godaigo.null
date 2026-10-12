@@ -228,7 +228,7 @@ Order matters — later scripts depend on earlier ones.
                              unmined finished match in a hidden frame (index.html?replaymine=ID, runMine): scores
                              each seat with BotSystem.evaluateSnapshot at every turn change, records casts
                              (scroll-used) with their choices (wandering-river-apply, create-stones, ...) and
-                             reveals; findCombos() keeps windows of 1-3 own turns with >= 2 casts and a gain
+                             reveals; findCombos() keeps windows of 1-3 own turns with >= 2 casts (gain capped at GAIN_CAP 2000: a win is ~65,000) and a gain
                              >= max(300, 75th percentile) -> save_combo_candidates (server sets trust from ladder
                              rank + games played, bots 0) -> hermit_combo_summary (sql/combo-miner.sql).
                              Per combo Auto / On / Off (hermit_set_combo_state, sql/combo-teach.sql): Auto = bots
