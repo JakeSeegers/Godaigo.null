@@ -538,30 +538,39 @@
     // Position features for the bot network (2026-10-13, sql/position-samples.sql):
     // a fixed list of numbers about the board from the view of player i. The
     // order is part of FEATURE_VERSION; change the list = bump the version.
-    const FEATURE_VERSION = 1;
-    const FEATURE_NAMES = [
-        ...INPUT_NAMES,
-        ...ELEMENTS.map(el => `myPool(${el})`),
-        ...ELEMENTS.map(el => `oppNeeds(${el})`),
-        ...ELEMENTS.map(el => `stonesOf(${el})`),
-        ...ELEMENTS.map(el => `commonFor(${el})`),
-        ...ELEMENTS.map(el => `iHave(${el})`),
-    ];
+    // Version 2 leaves out homeCost (a path search: 90% of the time, and the
+    // network runs at every search leaf) and myAP (changes within a turn, so it
+    // pushed moves the wrong way). toCurrent() converts version 1 rows.
+    const FEATURE_VERSION = 2;
+    const NET_SKIP = ['homeCost', 'myAP'];
+    const NET_INPUTS = INPUT_NAMES.filter(k => !NET_SKIP.includes(k));
+    const PER_ELEMENT = ['myPool', 'oppNeeds', 'stonesOf', 'commonFor'];
+    const tail = [...PER_ELEMENT.flatMap(n => ELEMENTS.map(el => `${n}(${el})`)), ...ELEMENTS.map(el => `iHave(${el})`)];
+    const FEATURE_NAMES = [...NET_INPUTS, ...tail];
+    const V1_NAMES = [...INPUT_NAMES, ...tail];
     function features(snap, i) {
         const p = snap?.players?.[i];
         if (!p) return null;
         const ctx = makeCtx(snap, i);
-        const out = INPUT_NAMES.map(k => ctx.get(k));
-        for (const name of ['myPool', 'oppNeeds', 'stonesOf', 'commonFor']) {
+        const out = NET_INPUTS.map(k => ctx.get(k));
+        for (const name of PER_ELEMENT) {
             for (const el of ELEMENTS) out.push(ctx.getP(`${name}(${el})`, name, [el]));
         }
         for (const el of ELEMENTS) out.push(p.activated.includes(el) ? 1 : 0);
         return out.map(v => Math.round(v * 1000) / 1000);
     }
+    // A saved row in the current layout (null if the version is unknown).
+    function toCurrent(f, version) {
+        if (version === FEATURE_VERSION) return f;
+        if (version === 1 && Array.isArray(f) && f.length === V1_NAMES.length) {
+            return FEATURE_NAMES.map(name => f[V1_NAMES.indexOf(name)]);
+        }
+        return null;
+    }
 
     window.BotTerms = {
         INPUTS, MAX_TERMS, MAX_NODES,
-        FEATURE_VERSION, FEATURE_NAMES, features,
+        FEATURE_VERSION, FEATURE_NAMES, features, toCurrent,
         inputList: () => [...INPUT_NAMES.map(k => ({ name: k, label: INPUTS[k].label })),
             ...PARAM_NAMES.map(k => ({ name: PARAM_INPUTS[k].sig, label: PARAM_INPUTS[k].label }))],
         parse, toText, describe, compile, score, explain,

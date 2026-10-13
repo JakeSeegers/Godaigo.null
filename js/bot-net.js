@@ -189,11 +189,12 @@
             if (!data?.length) break;
             for (const r of data) {
                 after = Math.max(after, r.id);
-                if (r.version !== window.BotTerms?.FEATURE_VERSION) continue;
+                const f = window.BotTerms?.toCurrent?.(r.features, r.version);
+                if (!f) continue;
                 const owner = seen.get(r.game_key);
                 if (owner && owner !== r.created_by) continue;
                 seen.set(r.game_key, r.created_by);
-                out.push({ f: r.features, ev: r.eval, result: r.result, game: r.game_key, source: r.source, players: r.n_players });
+                out.push({ f, ev: r.eval, result: r.result, game: r.game_key, source: r.source, players: r.n_players });
             }
             onProgress?.(out.length);
             if (data.length < 5000) break;

@@ -564,7 +564,7 @@ Order matters — later scripts depend on earlier ones.
                              Combos tab "Found by bots in training"). Read-only: seeds 777 / 9001 / 31337 identical. opts.comboWatch false = off.
                              The Train Bot window lists this run's finds ("Combos found" box, BotArena.comboFindLog()).
                              Position samples (2026-10-13, network step 1, sql/position-samples.sql): every 2nd own turn per seat saves
-                             BotTerms.features(snap, seat) (50 numbers, FEATURE_VERSION 1) + evaluateSnapshot; at a win / turn cap each row
+                             BotTerms.features(snap, seat) (48 numbers, FEATURE_VERSION 2: no homeCost (slow path search) or myAP; toCurrent() converts v1 rows) + evaluateSnapshot; at a win / turn cap each row
                              gets result 1 / 0 / 0.5 and progress -> report_positions (max 80 rows per game). Read-only (seed 777 identical).
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
