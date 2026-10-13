@@ -535,8 +535,33 @@
         return out;
     }
 
+    // Position features for the bot network (2026-10-13, sql/position-samples.sql):
+    // a fixed list of numbers about the board from the view of player i. The
+    // order is part of FEATURE_VERSION; change the list = bump the version.
+    const FEATURE_VERSION = 1;
+    const FEATURE_NAMES = [
+        ...INPUT_NAMES,
+        ...ELEMENTS.map(el => `myPool(${el})`),
+        ...ELEMENTS.map(el => `oppNeeds(${el})`),
+        ...ELEMENTS.map(el => `stonesOf(${el})`),
+        ...ELEMENTS.map(el => `commonFor(${el})`),
+        ...ELEMENTS.map(el => `iHave(${el})`),
+    ];
+    function features(snap, i) {
+        const p = snap?.players?.[i];
+        if (!p) return null;
+        const ctx = makeCtx(snap, i);
+        const out = INPUT_NAMES.map(k => ctx.get(k));
+        for (const name of ['myPool', 'oppNeeds', 'stonesOf', 'commonFor']) {
+            for (const el of ELEMENTS) out.push(ctx.getP(`${name}(${el})`, name, [el]));
+        }
+        for (const el of ELEMENTS) out.push(p.activated.includes(el) ? 1 : 0);
+        return out.map(v => Math.round(v * 1000) / 1000);
+    }
+
     window.BotTerms = {
         INPUTS, MAX_TERMS, MAX_NODES,
+        FEATURE_VERSION, FEATURE_NAMES, features,
         inputList: () => [...INPUT_NAMES.map(k => ({ name: k, label: INPUTS[k].label })),
             ...PARAM_NAMES.map(k => ({ name: PARAM_INPUTS[k].sig, label: PARAM_INPUTS[k].label }))],
         parse, toText, describe, compile, score, explain,

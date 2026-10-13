@@ -541,6 +541,39 @@
     }
     let _findLog = [];
 
+    // ── Position samples (owner 2026-10-13, sql/position-samples.sql) ───
+    // Data for a small bot network (step 1: collect only). At the start of
+    // every 2nd own turn a seat's position is saved: BotTerms.features (what
+    // the bot notices) and the weighted-sum score (evaluateSnapshot). When the
+    // game ends with a winner or at the turn cap, each row gets the result for
+    // that seat (1 win, 0 loss, 0.5 no winner) and goes to report_positions.
+    // Read-only like the combo watcher. opts.positionLog false = off.
+    const POS_EVERY = 2, POS_MAX = 80;
+    let _posStats = { games: 0, rows: 0, saved: 0, failed: 0 };
+    function posSample(pl, turn, idx) {
+        pl.own[idx] = (pl.own[idx] || 0) + 1;
+        if ((pl.own[idx] - 1) % POS_EVERY !== 0) return;
+        try {
+            const snap = window.BotState.snapshot();
+            const f = window.BotTerms.features(snap, idx);
+            const ev = window.BotSystem.evaluateSnapshot(snap, idx);
+            if (f && Number.isFinite(ev)) pl.rows.push({ seat: idx, turn, f, ev: Math.round(ev) });
+        } catch (e) { /* skip this position */ }
+    }
+    function posFinish(pl, result, n, opts, key) {
+        if (!(result.endReason === 'win' || result.endReason === 'turn_cap') || !pl.rows.length) return;
+        let rows = pl.rows;
+        if (rows.length > POS_MAX) { const step = rows.length / POS_MAX; rows = Array.from({ length: POS_MAX }, (_, k) => rows[Math.floor(k * step)]); }
+        const w = result.winner;
+        for (const r of rows) { r.result = w == null ? 0.5 : (r.seat === w ? 1 : 0); r.prog = result.activated?.[r.seat] ?? null; }
+        _posStats.games++; _posStats.rows += rows.length;
+        if (typeof supabase === 'undefined' || !supabase?.rpc) return;
+        supabase.rpc('report_positions', {
+            p_rows: rows, p_source: opts.comboSource || (opts.visual ? 'watch' : 'train'),
+            p_game: key, p_players: n, p_version: window.BotTerms.FEATURE_VERSION,
+        }).then(({ data, error }) => { if (error) _posStats.failed++; else _posStats.saved += data || 0; }, () => { _posStats.failed++; });
+    }
+
     // ── Combo screening (owner 2026-10-11, sql/combo-screening.sql) ─────
     // Gate 2 for bot-found combos: combo_screen_due() names a combo found in
     // 5+ different games; this plays `games` fast hidden games, champion +
@@ -636,12 +669,15 @@
 
         const result = { winner: null, turns: 0, activated: new Array(nPlayers).fill(0), stuckTurns, stalled: false, stallers: [] };
         const cw = (opts.comboWatch !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
-        if (cw) {
-            // one id per game: seed + seats + weights (the same game played
-            // again gets the same id, so repeats do not count as new games)
+        const pl = (opts.positionLog !== false && window.BotTerms?.features && window.BotSystem?.evaluateSnapshot) ? { rows: [], own: {} } : null;
+        // one id per game: seed + seats + weights (the same game played
+        // again gets the same id, so repeats do not count as new games)
+        let gameKey = null;
+        if (cw || pl) {
             let h = 0;
             for (const ch of JSON.stringify(weightsPerPlayer)) h = (h * 31 + ch.charCodeAt(0)) | 0;
-            cw.key = `${seed}:${nPlayers}:${(h >>> 0).toString(36)}`;
+            gameKey = `${seed}:${nPlayers}:${(h >>> 0).toString(36)}`;
+            if (cw) cw.key = gameKey;
         }
         if (cw) cwHook();
         try {
@@ -661,6 +697,7 @@
                 if (weightsPerPlayer[idx] !== undefined) setWeights(weightsPerPlayer[idx]);
                 refillAP();
                 if (cw) cwStart(turn + 1, idx, nPlayers);
+                if (pl) posSample(pl, turn + 1, idx);
                 await window.BotSystem.turn();
                 result.turns = turn + 1;
 
@@ -754,6 +791,7 @@
                 : result.turns >= turnCap ? 'turn_cap' : 'stopped';
         }
         if (cw) cwFinish(cw, result, nPlayers, opts);
+        if (pl) posFinish(pl, result, nPlayers, opts, gameKey);
         // Round over: bot talk, emotes and the Bot Mind view go at once.
         try {
             const w = result.winner;
@@ -1688,6 +1726,7 @@
         endEarly, // soft-stop: cuts evolve()'s / hillClimb()'s loop short but keeps its result usable
         makeChallenger, // idle training: explore / formula challenger
         comboFindLog: () => _findLog.slice(), // every find this page load, newest last (Train Bot window)
+        positionStats: () => ({ ..._posStats }), // position samples this page load {games, rows, saved, failed}
         screenDueCombo, // gate 2: screen the next bot-found combo against a champion
         perturbWeights, // gaussian-perturbed copy of a weight table (Noisy anchor toggle)
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,

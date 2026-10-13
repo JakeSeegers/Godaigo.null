@@ -34,7 +34,7 @@ different concerns and neither blocks the other:
 | 3a | Weight evolution via self-play arena | **DONE** (Hill Climb is the trainer: Train Bot + idle training. Evolve only runs as Train Bot's Explore phase. The cheat-panel Evolve / Train Weights buttons and the PC trainer tools/arena-headless.mjs were removed 2026-10-13: their results never reached the shared champion) | `js/bot-arena.js`, `js/game-ui.js` cheat panel |
 | 2.5 | Scroll-effect usage: selection targets + response scrolls | **DONE** — full choice-space inventory covered: all selection effects, response scrolls, Excavate's deferred teleport, and the 2 previously-drag-only scrolls (Take Flight, Telekinesis). Step 4 (simulator whitelist) first tranche done: Create/Transmute/Arson simulated with 9/9 harness scenarios at zero divergence | `js/bot-effects.js` + bot-sim whitelist |
 | 3b | Human game logging → eval set / cloning data | PARTLY (by other means) | no bot-logger.js: match-recorder.js records every online game; the combo miner and Learn from my play use it. Owner 2026-10-13: logging needs improving |
-| 3c | Neural RL (optional, last) | TODO (not started: the bots are weighted sums + formula terms, no neural network) | - |
+| 3c | Neural RL (optional, last) | STARTED 2026-10-13 as a small correction network on top of the weighted sum (owner: supplement, not replace). Step 1 collects data: bot-arena.js position samples -> position_samples (sql/position-samples.sql). Next: hermit trains in the browser, champion + network vs champion, then share | `js/bot-terms.js` features(), `js/bot-arena.js` |
 
 ---
 
