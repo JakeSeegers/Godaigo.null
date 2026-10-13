@@ -24,7 +24,7 @@
 (function () {
     'use strict';
 
-    const HIDDEN = 16;
+    const HIDDEN = 8;
     const CLIP = 2000;          // max correction in eval units
     const EV_SCALE = 1000;      // eval / 1000 goes into the baseline
     const EV_CLIP = 20;
@@ -71,7 +71,7 @@
 
     async function train(rows, opts = {}) {
         const R = rng(opts.seed || 12345);
-        const epochs = opts.epochs || 40, lr = opts.lr || 0.003, l2 = opts.l2 ?? 1e-4;
+        const epochs = opts.epochs || 40, lr = opts.lr || 0.003, l2 = opts.l2 ?? 3e-3;
         const onProgress = opts.onProgress || (() => {});
         const games = [...new Set(rows.map(r => r.game))];
         const testGames = new Set(games.filter(() => R() < 0.2));
@@ -167,7 +167,7 @@
             onProgress({ epoch: ep + 1, epochs, test: t });
             await new Promise(r => setTimeout(r, 0));   // keep the page responsive
         }
-        const round = x => +x.toPrecision(5);
+        const round = x => +x.toPrecision(4);
         const net = {
             v: window.BotTerms?.FEATURE_VERSION || 1, n, hidden: H, a: round(a), b: round(b),
             mean: mean.map(round), std: std.map(round),
@@ -246,15 +246,18 @@
                 lastNet = res.net;
                 const t = res.test, pct = (x) => x == null ? '-' : (100 * x).toFixed(1) + '%';
                 const gain = (1 - t.lossNet / t.lossBase) * 100;
+                // Send only a network that beats the weighted sum on held-out games,
+                // on both loss and % right (a net that memorised its games fails here).
+                const better = gain >= 1 && (t.accNet == null || t.accBase == null || t.accNet >= t.accBase);
                 status([
                     `Positions: ${res.counts.rows} in ${res.counts.games} games (${res.counts.test} held out to check).`,
                     `Held-out games, predicting who wins:`,
                     `  weighted sum alone: loss ${t.lossBase.toFixed(4)}, right ${pct(t.accBase)}`,
                     `  with the network:   loss ${t.lossNet.toFixed(4)}, right ${pct(t.accNet)}`,
-                    gain > 0.5 ? `The network predicts ${gain.toFixed(1)}% better (lower loss). Next: quick test, then send.`
-                        : `No clear gain yet (${gain.toFixed(1)}%). More games will help.`,
+                    better ? `The network predicts ${gain.toFixed(1)}% better on games it never saw. Next: quick test, then send.`
+                        : `Not better than the bot's own score on games it never saw (loss ${gain.toFixed(1)}%). Not sendable yet; more games will help.`,
                 ].join('\n'));
-                $('.bn-test').disabled = false; $('.bn-send').disabled = false;
+                $('.bn-test').disabled = false; $('.bn-send').disabled = !better;
             } catch (e) {
                 status('Training failed: ' + (e.message || e));
             } finally { $('.bn-train').disabled = false; }

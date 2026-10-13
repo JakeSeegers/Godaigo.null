@@ -402,7 +402,7 @@ Order matters — later scripts depend on earlier ones.
                              while busy(). preview(seed, coins) for testing. tools/plinko-tune.mjs = odds + determinism.
 21. bot-state.js           ← window.BotState — game-state snapshot / legal actions / apply (no strategy)
 22. bot-sim.js             ← window.BotSim — pure forward model (simulate / legalActions / isTerminal) + validate() harness
-22c. bot-net.js           <- window.BotNet: the bot network (2026-10-13). A small network (50 features -> 16 tanh -> 1) that ADDS a
+22c. bot-net.js           <- window.BotNet: the bot network (2026-10-13). A small network (50 features -> 8 tanh -> 1) that ADDS a
                              correction to bot.js evaluateSnapshot: chance to win = sigmoid(a * eval/1000 + b + net(features)); a, b fitted
                              first (the weighted sum alone), the net learns what it misses; correction = net * 1000 / a eval units, max 2000.
                              Lives in the weight table: WEIGHTS.net (+ WEIGHTS.netWeight, default 0 = off), so it travels with the champion
