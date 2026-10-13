@@ -6247,7 +6247,7 @@ document.getElementById('undo-move').onclick = function() {
                     const run = (state._public && !resumeSave) ? { ...state, ...autoTrainChoices(state.generations) } : state;
                     startTrainTalk(run.talk);
                     // Public mode: collapse to the corner progress popup right
-                    // away — the modal's own body has nothing extra to show. Re-arm the
+                    // away - the modal's own body has nothing extra to show. Re-arm the
                     // public flag so the popup's "⤢ expand" reopens in public
                     // mode (cleared again in finally).
                     if (state._public) {

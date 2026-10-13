@@ -423,7 +423,7 @@ Order matters — later scripts depend on earlier ones.
                              intentions: mem.intent keeps the goal a move served, moveCommit makes it sticky.
                              Shift+R = one step, Shift+B = full turn; waitForQuiescence() tries BotEffects
                              before cancelling a selection it can't drive. Also owns mctsPick() (Stage 2 step
-                             5 — determinized root-level UCT, WEIGHTS.mctsEnabled; off unless Bot Brain is set to MCTS) and
+                             5 - determinized root-level UCT, WEIGHTS.mctsEnabled; off unless Bot Brain is set to MCTS) and
                              signalBrainMode() (only the BotDiplomacy Calculating / Counting emote now; the old 🧠 / 🎲
                              emoji was removed 2026-10-13). Combos (Phase 4): loads
                              get_bot_combos() at start (cache localStorage godaigo_bot_combos, setCombos()); a bot

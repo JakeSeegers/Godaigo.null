@@ -34,7 +34,7 @@ different concerns and neither blocks the other:
 | 3a | Weight evolution via self-play arena | **DONE** (Hill Climb is the trainer: Train Bot + idle training. Evolve only runs as Train Bot's Explore phase. The cheat-panel Evolve / Train Weights buttons and the PC trainer tools/arena-headless.mjs were removed 2026-10-13: their results never reached the shared champion) | `js/bot-arena.js`, `js/game-ui.js` cheat panel |
 | 2.5 | Scroll-effect usage: selection targets + response scrolls | **DONE** — full choice-space inventory covered: all selection effects, response scrolls, Excavate's deferred teleport, and the 2 previously-drag-only scrolls (Take Flight, Telekinesis). Step 4 (simulator whitelist) first tranche done: Create/Transmute/Arson simulated with 9/9 harness scenarios at zero divergence | `js/bot-effects.js` + bot-sim whitelist |
 | 3b | Human game logging → eval set / cloning data | PARTLY (by other means) | no bot-logger.js: match-recorder.js records every online game; the combo miner and Learn from my play use it. Owner 2026-10-13: logging needs improving |
-| 3c | Neural RL (optional, last) | TODO (not started: the bots are weighted sums + formula terms, no neural network) | — |
+| 3c | Neural RL (optional, last) | TODO (not started: the bots are weighted sums + formula terms, no neural network) | - |
 
 ---
 
@@ -588,7 +588,7 @@ centroid" preference, now tunable), and `applyAction()` executes the chosen
 one. `bot-driver.js`'s `placeBotTile()` is now just `asBot(botIndex, () =>
 window.BotSystem.step())`, identical in shape to `driveBotTurn()`.
 
-### R2 — One backend path for move validation (REMOVED 2026-10-10, was shadow-mode)
+### R2 - One backend path for move validation (REMOVED 2026-10-10, was shadow-mode)
 Deployed a Supabase edge function (`validate-end-turn`, project
 `lovybwpypkaarstnvkbz`) that accepts `{gameId, playerIndex}` and checks it
 against `game_room.current_turn_index` — the first real server-held-state
@@ -744,7 +744,7 @@ not the spec's 100 — rerun at scale once R5 makes games cheap.
 
 ---
 
-## STAGE 2.5 — Scroll-effect usage (DONE)
+## STAGE 2.5 - Scroll-effect usage (DONE)
 
 The bot casts scrolls but wastes their power: selection-mode effects are
 cancelled (`waitForQuiescence` cancels any `selectionMode` /
@@ -1212,7 +1212,7 @@ origin (last write wins) and there's no cross-tab result comparison, so this
 is a DIY console workaround, not something worth building UI around. Real
 concurrent self-play at scale is Stage R5's job.
 
-**Headless parallel runner (`tools/arena-headless.mjs`) — R5-lite, built. RETIRED 2026-10-13 (file removed; the notes below are history).**
+**Headless parallel runner (`tools/arena-headless.mjs`) - R5-lite, built. RETIRED 2026-10-13 (file removed; the notes below are history).**
 Runs the REAL game (full fidelity, zero game-code changes) in headless
 Chromium via Playwright — no open tab, no background-tab timer throttling
 (browsers clamp `setTimeout` to ≥1s in non-visible tabs, so foreground-only

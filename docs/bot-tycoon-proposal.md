@@ -1,7 +1,7 @@
 # Bot Tycoon Proposal — player-facing bot ownership, breeding, and competition
 
 > STATUS: REMOVED (Shop / Stable / capture taken out; tables dropped by sql/drop-bot-tycoon.sql, 2026-10-13). History below.
-> Written for AI consumption. Old status: IN PROGRESS — build-order steps 1-4
+> Written for AI consumption. Old status: IN PROGRESS - build-order steps 1-4
 > (below) have landed: `deployed_bots` table + "Deploy this bot" UI; the
 > challenge flow (`record_deployed_bot_result` RPC + "Challenge other
 > bots" UI, reward-crediting reusing the existing `award_gold`/
