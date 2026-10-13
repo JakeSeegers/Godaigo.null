@@ -872,18 +872,6 @@ function _renderSettingsView(content) {
         </div>
     `;
 
-    const logConsent = localStorage.getItem('godaigo_log_consent') === 'granted';
-    const privacyHtml = `
-        <div class="gami-settings-row">
-            <div class="gami-settings-label">
-                <div class="gami-settings-name">Share Game Logs</div>
-                <div class="gami-settings-desc">Log this session's gameplay to help improve the game. In multiplayer, only the host's setting matters.</div>
-            </div>
-            <button class="gami-toggle ${logConsent ? 'on' : 'off'}"
-                    onclick="_gami_toggleLogConsent(this)">${logConsent ? 'ON' : 'OFF'}</button>
-        </div>
-    `;
-
     const controlsHtml = `
         <div class="gami-keybind-guide">
             <div class="gami-keybind-group">
@@ -934,7 +922,6 @@ function _renderSettingsView(content) {
                 <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('display')">Display</button>
                 <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('audio')">Audio</button>
                 <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('controls')">Controls</button>
-                <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('privacy')">Privacy</button>
                 <button class="pp-menu-btn" onclick="_gami_setSettingsCategory('account')">Account</button>
             </div>
         `;
@@ -943,8 +930,8 @@ function _renderSettingsView(content) {
 
     // Account is filled in async by js/account-recovery.js (recovery email).
     const accountHtml = '<div id="acct-settings-slot"></div>';
-    const titles = { display: 'Display', audio: 'Audio', controls: 'Controls', privacy: 'Privacy', account: 'Account' };
-    const bodies  = { display: displayHtml, audio: audioHtml, controls: controlsHtml, privacy: privacyHtml, account: accountHtml };
+    const titles = { display: 'Display', audio: 'Audio', controls: 'Controls', account: 'Account' };
+    const bodies  = { display: displayHtml, audio: audioHtml, controls: controlsHtml, account: accountHtml };
     content.innerHTML = `
         <div class="gami-settings-list gami-settings-detail">
             <div class="pp-flanked-label pp-flanked-label--back">
@@ -1002,22 +989,6 @@ window._gami_refreshJoytoneToggle = function () {
 
 function _gami_joytoneVolume(input) {
     window.JoytoneBridge?.setVolume((+input.value || 0) / 100);
-}
-
-// Not built on _gami_toggleSetting: that helper's "unset means ON" default
-// is wrong here — this flag must default to declined/OFF until the player
-// actually answers the consent prompt (js/lobby.js). Goes through
-// window.setLogConsent so the prompt and this toggle share one write path.
-function _gami_toggleLogConsent(btn) {
-    const current = localStorage.getItem('godaigo_log_consent') === 'granted';
-    const newVal  = !current;
-    if (typeof window.setLogConsent === 'function') {
-        window.setLogConsent(newVal ? 'granted' : 'declined');
-    } else {
-        localStorage.setItem('godaigo_log_consent', newVal ? 'granted' : 'declined');
-    }
-    btn.textContent = newVal ? 'ON' : 'OFF';
-    btn.className   = `gami-toggle ${newVal ? 'on' : 'off'}`;
 }
 
 function _gami_toggleSetting(key, btn) {

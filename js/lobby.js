@@ -751,47 +751,6 @@
             document.getElementById('retro-confirm-cancel').onclick = () => el.remove();
         }
 
-        // One-time "may we store your session's game log?" consent prompt —
-        // shown once per browser (godaigo_log_consent unset), on match launch
-        // (startGame()/startMultiplayerGame() below, each after a short delay
-        // so it doesn't cover the board's own intro animation) rather than
-        // right after login, since a player may log in and just browse the
-        // lobby without starting a match. Revisitable later via Settings →
-        // Privacy (js/gamification-ui.js's _gami_toggleLogConsent), which
-        // reuses setLogConsent() so both write paths share one function.
-        function promptLogConsentIfNeeded() {
-            try {
-                if (localStorage.getItem('godaigo_log_consent')) return; // already answered
-            } catch (e) { return; }
-
-            showRetroConfirm(
-                'Help Improve Godaigo?',
-                [
-                    "We'd like to store this session's game log (your moves and card plays) to help balance and improve the game.",
-                    'No personal info beyond your username is included.',
-                    "In multiplayer, this only happens if the game's HOST has opted in.",
-                    'You can change this anytime in Settings.',
-                ],
-                () => setLogConsent('granted')
-            );
-
-            // showRetroConfirm's Cancel button only closes the dialog (.onclick).
-            // Adding a listener here (rather than editing showRetroConfirm itself,
-            // which is shared by other confirm dialogs) also records the decline —
-            // both the existing onclick and this listener fire on click.
-            const cancelBtn = document.getElementById('retro-confirm-cancel');
-            if (cancelBtn) cancelBtn.addEventListener('click', () => setLogConsent('declined'), { once: true });
-
-            // Relabel buttons for this specific prompt — showRetroConfirm hardcodes "OK"/"Cancel".
-            const okBtn = document.getElementById('retro-confirm-ok');
-            if (okBtn) okBtn.textContent = 'Allow';
-            if (cancelBtn) cancelBtn.textContent = 'Not Now';
-        }
-
-        function setLogConsent(value) {
-            try { localStorage.setItem('godaigo_log_consent', value); } catch (e) { /* ignore */ }
-        }
-        window.setLogConsent = setLogConsent; // reused by the Settings → Privacy toggle
 
         // ========================================
         // END GAME BROWSER & ROOM MANAGEMENT
@@ -1090,7 +1049,6 @@
         // Guard: XP is awarded once per game session — prevents double-award from
         // multiple handleGameOver calls (game-core direct + broadcast echo + DB subscription)
         let _gameOverXpAwarded = false;
-        let _gameLogUploaded = false; // same once-per-game guard, for the session-log upload
 
         // Handle game over - mark game as finished and show win screen
         // Real winner check for XP crediting / win-screen "you won" framing —
@@ -1157,13 +1115,6 @@
                 // game, when a win is paid (or, for a bot winner, when a human of
                 // the game confirms it). The browser no longer reports ladder
                 // results: that let anyone claim any result (sql/ladder-secure.sql).
-
-                // Upload this game's session log if the host consented — only the
-                // host's client writes (one shared log per game, not per player).
-                if (!_gameLogUploaded) {
-                    _gameLogUploaded = true;
-                    window.uploadSessionLogIfConsented?.({ isMultiplayer: true, isHostCall: isHost });
-                }
 
                 // Show win screen after XP is secured
                 showGameOverToAll(winnerPlayerIndex, winType);
@@ -4460,8 +4411,6 @@
 
             // Reset XP dedup flag so the next game can award XP fresh
             _gameOverXpAwarded = false;
-            _gameLogUploaded = false;
-            window.resetSessionLogUploadGuard?.();
 
             // Clear the board first (skip confirmation in multiplayer)
             clearBoard(true);
@@ -4548,21 +4497,12 @@
 
             // Initialize opponent panel
             updateOpponentPanel();
-
-            // Delayed so the consent dialog doesn't cover the board's own
-            // intro (tiles dropping into their spiral, camera fitting to view).
-            setTimeout(promptLogConsentIfNeeded, 1500);
         }
 
 
         // Start game with selected number of players (local mode)
         // scarceTiles defaults true — it's the only mode now, no UI toggle left.
         function startGame(numPlayers, scarceTiles = true) {
-            // Reset the session-log upload guard so a second solo game in the
-            // same tab still uploads (startMultiplayerGame resets it separately —
-            // solo games don't go through that function).
-            window.resetSessionLogUploadGuard?.();
-
             // Clear the board first (skip confirmation — startGame is always intentional)
             clearBoard(true);
 
@@ -4610,15 +4550,6 @@
             updateIsMobile();
             window.addEventListener('resize', updateIsMobile);
             try { window.matchMedia('(max-width: 768px)').addEventListener('change', updateIsMobile); } catch (e) {}
-
-            // startGame() is also how tutorial-mode.js builds its scripted board
-            // (see the comment right below) — that never touches Supabase, so
-            // skip the consent prompt there. Delayed so it doesn't cover the
-            // board's own intro (tiles dropping into their spiral, camera
-            // fitting to view).
-            if (!window.isTutorialMode) {
-                setTimeout(promptLogConsentIfNeeded, 1500);
-            }
         }
 
         // Expose startGame globally so tutorial-mode.js can call it without auth

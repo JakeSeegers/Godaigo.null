@@ -219,8 +219,6 @@
         document.getElementById('game-layout').classList.add('active');
         if (typeof updateDeckIndicatorVisibility === 'function') updateDeckIndicatorVisibility();
         if (typeof initializeNewUI === 'function') initializeNewUI();
-        // The game start asks about sharing game logs; a replay must not.
-        window.promptLogConsentIfNeeded = () => {};
 
         startBoard(match, seats, handlers);
         state = { match, seats, moves: match.moves || [], index: 0, playing: false, speed: opts.speed || 1, timer: null, handlers, errors: [], shown: 0, logCount: 0 };
@@ -279,7 +277,6 @@
         document.getElementById('game-layout').classList.add('active');
         if (typeof updateDeckIndicatorVisibility === 'function') updateDeckIndicatorVisibility();
         if (typeof initializeNewUI === 'function') initializeNewUI();
-        window.promptLogConsentIfNeeded = () => {};
         startBoard(match, seats, handlers);
         if (typeof updateStatus === 'function') updateStatus('Watching live');
         state = { match, seats, moves: match.moves || [], index: 0, playing: false, speed: 1, timer: null, handlers, errors: [], shown: 0, logCount: 0, live: true };

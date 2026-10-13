@@ -6763,13 +6763,6 @@ function clearPlayerPath() {
             if (isLocalWinner) {
                 spellSystem.showLevelComplete(playerIndex);
             }
-            // Solo games have no handleGameOver() call (multiplayer-only) — upload
-            // the session log here instead, gated on the same consent flag.
-            // Multiplayer relies solely on handleGameOver() below to avoid a
-            // double-fire race between this branch and that one.
-            if (!isMultiplayer && typeof window.uploadSessionLogIfConsented === 'function') {
-                window.uploadSessionLogIfConsented({ isMultiplayer: false });
-            }
             if (isMultiplayer && typeof handleGameOver === 'function') {
                 handleGameOver(playerIndex);
             }
