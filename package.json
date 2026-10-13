@@ -1,14 +1,8 @@
 {
   "name": "godaigo-elements",
   "private": true,
-  "description": "Godaigo hex-tile strategy game. npm scripts here are for the headless bot-training runner (tools/arena-headless.mjs) — the game itself is static files, no build step.",
-  "scripts": {
-    "arena:setup": "npm install && playwright install chromium",
-    "arena:test": "node tools/arena-headless.mjs --games 2",
-    "arena:train": "node tools/arena-headless.mjs --evolve --shards 4 --generations 3 --pop 6 --games-per-pair 1",
-    "arena:train-big": "node tools/arena-headless.mjs --evolve --shards 6 --generations 8 --pop 6 --games-per-pair 2",
-    "arena:confirm": "node tools/arena-headless.mjs --confirm"
-  },
+  "description": "Godaigo hex-tile strategy game. The game itself is static files, no build step. Playwright is for tools/online-test.mjs.",
+  "scripts": {},
   "devDependencies": {
     "playwright": "1.56.1"
   }

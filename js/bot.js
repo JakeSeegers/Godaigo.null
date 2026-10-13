@@ -480,17 +480,7 @@
     // or errors the bot on account of a background fetch.
     (async function loadCommunityChampion() {
         try {
-            // Testing pin: when the player has pinned a local champion
-            // (localStorage 'godaigo_bot_weights_pin' === '1', e.g. from a
-            // hillclimb apply-champion.txt), do NOT let the community champion
-            // overwrite it — otherwise the pinned weights they want to watch
-            // get clobbered the moment this fetch resolves. Cleared by removing
-            // the flag; default (unset) behavior is unchanged.
-            try { if (localStorage.getItem('godaigo_bot_weights_pin') === '1') return; } catch (e) {}
-            // The initialized client lives in the bare global `supabase`
-            // (config.js: `const supabase = window.supabase.createClient(...)`)
-            // — a top-level const does NOT attach itself to `window`, so
-            // `window.supabase` stays the raw createClient factory forever.
+            // The Supabase client is the bare global `supabase` (multiplayer-state.js).
             if (typeof supabase === 'undefined' || !supabase?.from) return;
             const { data, error } = await supabase
                 .from('bot_champion_weights')
@@ -1138,9 +1128,11 @@
         // change the returned score — contrib(k, f) === WEIGHTS[k] * f
         // exactly, tracing or not — so every existing caller (greedy pick,
         // search, arena) is unaffected. Wired into the branches
-        // bot-imitation.js compares: endTurn, discardScroll, and (Phase 5,
-        // 2026-09-26) cast and move. The cast/move bonuses that are not
-        // plain weight x feature (castChoiceBonus, comboBonus) stay untraced.
+        // bot-imitation.js compares: endTurn, discardScroll, (Phase 5,
+        // 2026-09-26) cast and move, and (2026-10-13) placeStone and
+        // breakStone. Bonuses that are not plain weight x feature
+        // (castChoiceBonus, comboBonus, strategyBonus, tacticalPlaceBonus,
+        // unblockBonus) stay untraced.
         const trace = ctx && ctx.trace;
         function contrib(key, feature) {
             if (trace) trace[key] = (trace[key] || 0) + feature;
@@ -1180,29 +1172,29 @@
             case 'placeStone': {
                 let s;
                 if (a.scroll) {
-                    s = WEIGHTS.placeBase + WEIGHTS.placeProgress * (a.progress || 0);
+                    s = contrib('placeBase', 1) + contrib('placeProgress', a.progress || 0);
                     const guardCounter = COUNTERS.has(a.scroll) && guardWanted(snap);
-                    s += (hasWinCredit(snap, a.scroll) || guardCounter) ? WEIGHTS.placeUnactivated : WEIGHTS.placeNoCredit;
+                    s += (hasWinCredit(snap, a.scroll) || guardCounter) ? contrib('placeUnactivated', 1) : contrib('placeNoCredit', 1);
                     // A needed level 1 built while standing on a void shrine: wait there.
                     const ldef = window.SCROLL_DEFINITIONS?.[a.scroll];
                     if (ldef?.level === 1 && ctx.onShrine?.shrineType === 'void' &&
-                        (guardCounter || !self.activated.includes(ldef.element))) s += WEIGHTS.l1WaitVoid * 0.5;
+                        (guardCounter || !self.activated.includes(ldef.element))) s += contrib('l1WaitVoid', 0.5);
                 } else {
                     // Tactical placement (Stage 4, scroll:null — see
                     // bot-state.js): no pattern value at all; only worth
                     // taking when a tacticalPlaceBonus() term fires.
-                    s = WEIGHTS.placeTacticalBase;
+                    s = contrib('placeTacticalBase', 1);
                 }
                 // The bot KNOWS the fire rule - don't pay stones to relearn it
                 // (unless it is a burn the Burning Motivation loop wants).
                 if (window.BotSim && !window.BotSim.stoneWouldSurvive(snap, a.x, a.y, a.stoneType) && !wantedBurn(a, snap)) {
-                    s += WEIGHTS.placeDoomed;
+                    s += contrib('placeDoomed', 1);
                 }
                 s += strategyBonus(a, snap);
-                if (a.stoneType === 'void') s += WEIGHTS.placeVoidSpendPenalty;
+                if (a.stoneType === 'void') s += contrib('placeVoidSpendPenalty', 1);
                 if (mem(snap.turn.activePlayerIndex).brokeThisTurn?.has(`${hexKey(a.x, a.y)}:${a.stoneType}`)) s -= 80; // just broke that very stone
                 s += tacticalPlaceBonus(a, snap, ctx.tac);
-                if (ctx.help?.road.has(hexKey(a.x, a.y)) && a.stoneType === 'wind') s += WEIGHTS.placeAllyRoad * ctx.help.push;
+                if (ctx.help?.road.has(hexKey(a.x, a.y)) && a.stoneType === 'wind') s += contrib('placeAllyRoad', ctx.help.push);
                 s += unblockBonus(a, snap, ctx.unblock);
                 return s;
             }
@@ -1332,9 +1324,9 @@
             }
 
             case 'breakStone': {
-                return WEIGHTS.breakStoneBase + WEIGHTS.breakStoneApPenalty * a.cost
+                return contrib('breakStoneBase', 1) + contrib('breakStoneApPenalty', a.cost)
                      + unblockBonus(a, snap, ctx.unblock)
-                     + (ctx.harm?.stones.has(hexKey(a.x, a.y)) ? WEIGHTS.breakLeaderPattern * ctx.harm.push : 0);
+                     + (ctx.harm?.stones.has(hexKey(a.x, a.y)) ? contrib('breakLeaderPattern', ctx.harm.push) : 0);
             }
 
             case 'moveStone': {
@@ -1420,47 +1412,17 @@
                 turnRepeatStreak: 0,
                 unproductiveStreak: 0,  // consecutive own turns with no cast/placeStone — see botTurn()
                 noCreditScrolls: new Set(), // scrolls whose special effect cancelled without granting win credit — see trackCastCredit()
-                lastBrainSignalAt: 0,   // throttle for signalBrainMode()'s emoji — see its own comment
             };
         }
         return _mem[idx];
     }
 
-    // Decision-transparency emoji: floats a small icon over the bot's own
-    // pawn whenever a non-greedy brain mode actually decided the current
-    // action (not on the greedy fallback — that's the ordinary case and
-    // would just be visual noise every turn). Reuses window.emojiSystem's
-    // existing display mechanism directly (showEmojiOverPawn has no
-    // purchase/ownership gate of its own — that's only in useEmoji(), the
-    // human "spend gold" path this deliberately bypasses) and broadcasts
-    // it in multiplayer the same way a real player's emoji does, so every
-    // client watching sees it, not just whichever browser is driving the
-    // bot. Throttled per player (mem().lastBrainSignalAt) so a burst of
-    // several tactical decisions within one turn doesn't spam duplicate
-    // floats.
-    const BRAIN_SIGNAL_EMOJI = { mcts: '🎲', search: '🧠' };
-    const BRAIN_SIGNAL_COOLDOWN_MS = 2000;
-    // Off for now (owner, 2026-09-25): the brain-mode emoji is a work in
-    // progress and looks unfinished. The bots' search / MCTS still run; set
-    // BRAIN_SIGNAL_ENABLED = true to show the emoji again.
-    const BRAIN_SIGNAL_ENABLED = false;
+    // Shows that a non-greedy brain mode decided the current action.
     function signalBrainMode(playerIndex, mode) {
-        // Pixel emote instead (owner, 2026-09-28): Calculating for look-ahead,
-        // Counting for playouts (BotDiplomacy.intend, rate-limited).
+        // Pixel emote (owner, 2026-09-28): Calculating for look-ahead,
+        // Counting for playouts (BotDiplomacy.intend, rate-limited). The old
+        // brain-mode emoji over the pawn was removed (owner, 2026-10-13).
         try { window.BotDiplomacy?.intend?.(playerIndex, mode === 'mcts' ? 'playout' : 'think', null); } catch (e) {}
-        if (!BRAIN_SIGNAL_ENABLED) return;
-        const es = window.emojiSystem;
-        if (!es || typeof es.showEmojiOverPawn !== 'function') return;
-        const display = BRAIN_SIGNAL_EMOJI[mode];
-        if (!display) return;
-        const m = mem(playerIndex);
-        const now = Date.now();
-        if (now - m.lastBrainSignalAt < BRAIN_SIGNAL_COOLDOWN_MS) return;
-        m.lastBrainSignalAt = now;
-        es.showEmojiOverPawn(playerIndex, display, false);
-        if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
-            broadcastGameAction('emoji', { playerIndex, display, isText: false });
-        }
     }
     function resetAllMemory() {
         for (const k of Object.keys(_mem)) delete _mem[k];
@@ -5273,7 +5235,8 @@
         // future situation. Reads the REAL post-action snapshot rather than
         // BotSim.simulate()'s prediction, so it reflects whatever actually
         // happened (response windows, cascades, etc. included).
-        if (window.BotMemory?.recordFromBotDecision) {
+        // Only MCTS reads this memory, so it costs nothing while MCTS is off.
+        if (WEIGHTS.mctsEnabled && window.BotMemory?.recordFromBotDecision) {
             window.BotMemory.recordFromBotDecision(snap, window.BotState.snapshot(), action, idx);
         }
         if (action.type === 'move') recordVisited(idx, action.x, action.y);
@@ -5650,8 +5613,6 @@
         score: scoreAction,   // (action, snapshot, ctx) → utility
         searchPick,           // Stage 2 lookahead pick — used when WEIGHTS.searchDepth > 0
         mctsPick,             // Stage 2 step 5 multi-turn MCTS — used when WEIGHTS.mctsEnabled
-        determinize,          // exposed for testing — samples one hidden-info completion
-        rolloutStep,          // exposed for testing — mctsPick()'s per-step rollout policy
         evaluateSnapshot,     // Stage 2 state evaluator (search leaves)
         homeCost,             // real walking cost home (formula input, bot-terms.js)
         kingmakerStats,       // alliances safeguard: {checks, blocked} actions vetoed

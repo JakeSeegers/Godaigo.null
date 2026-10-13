@@ -105,10 +105,9 @@
 //               clearWanderingRiverForPlayer(next), called right as that
 //               player's turn begins, real code never wires these off
 //               clearTurnBuffs() at all):
-//                 freedom          Freedom (WIND_5) — teleport gate only,
-//                   read by bot-state.js's hasFreedomActive() (real
-//                   legalActions() 'teleport'); the action itself stays
-//                   unmodelled in THIS file's legalActions() (see "cast" above)
+//                 freedom          Freedom (WIND_5) - teleport gate, read by
+//                   legalActions() 'teleport' here and by bot-state.js's
+//                   hasFreedomActive() for the real root
 //                 wanderingRiver   Wandering River (WATER_4) — array of
 //                   {tileId, newElement, playerIndex}; overrides a tile's
 //                   effective element for shrine collection (simEndTurn) —
@@ -155,12 +154,6 @@
 //     tile whose removal would disconnect another tile from the rest of
 //     the board) and simEffectTelekinesis just no-ops on that tile exactly
 //     like every other "boxed in" case, rather than inventing a result
-//   - Freedom's own TELEPORT action stays unmodelled in legalActions() — an
-//     existing root-only gap even for the ordinary catacomb-tile kind
-//     (teleport was never in this file's action vocabulary at all), so
-//     whitelisting just the cast (Tranche 7) gives correct real-snapshot
-//     awareness of an already-active Freedom without unlocking
-//     search-planned teleports
 //
 // The only globals read are STATIC data (window.SCROLL_DEFINITIONS) and,
 // inside validate() only, the live BotState/BotSystem.
@@ -1441,14 +1434,8 @@
 
     // Freedom (WIND_SCROLL_5): until the caster's own next turn, they may
     // teleport free between any revealed elemental shrine centre, same as
-    // standing on a catacomb tile. Only the buff itself is simulated here —
-    // the TELEPORT action it enables was already a root-only gap before
-    // Freedom existed (bot-sim's legalActions() has never modelled
-    // 'teleport', even the catacomb-tile kind — see the file header), so
-    // whitelisting the cast doesn't need new action-vocabulary support: it
-    // just makes hasFreedomActive()'s real-game teleport gate (bot-state.js)
-    // correctly reflect a Freedom cast from an EARLIER turn, same as
-    // activeTurnBuffs()/crossTurnBuffs() already do for every other buff.
+    // standing on a catacomb tile. The buff is read by legalActions()'s
+    // teleport candidates.
     function simEffectFreedom(snap, p) {
         crossTurn(snap).freedom = { playerIndex: p.index };
     }
@@ -2207,6 +2194,24 @@
                         type: 'placeStone', x: h.x, y: h.y, stoneType: type,
                         scroll: null, progress: 0, tactical: true,
                     });
+                }
+            }
+        }
+
+        // Teleport (2026-10-13): mirrors bot-state.js legalActions(). Standing
+        // on a revealed catacomb centre, or any elemental shrine centre while
+        // the caster's Freedom is up, jumps free (0 AP) to any other revealed
+        // elemental shrine centre with no stone or pawn on it. Generating it
+        // here lets the lookahead plan "walk to a catacomb, then jump".
+        if (!pawnOnStone) {
+            const here = snap.tiles.find(t => !t.isPlayerTile && t.revealed && dist(t.x, t.y, p.x, p.y) < HEX_NEAR);
+            const freedom = snap.crossTurnBuffs?.freedom?.playerIndex === p.index;
+            if (here && (here.shrineType === 'catacomb' || (freedom && ELEMENTS.includes(here.shrineType)))) {
+                for (const t of snap.tiles) {
+                    if (t.isPlayerTile || !t.revealed || !ELEMENTS.includes(t.shrineType) || t === here) continue;
+                    if (stoneAt(snap, t.x, t.y)) continue;
+                    if (snap.players.some(pl => pl && dist(pl.x, pl.y, t.x, t.y) < HEX_NEAR)) continue;
+                    actions.push({ type: 'teleport', x: t.x, y: t.y, shrineType: t.shrineType });
                 }
             }
         }

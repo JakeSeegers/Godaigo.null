@@ -82,12 +82,6 @@
         return (bs && (bs.WEIGHTS || bs.DEFAULT_WEIGHTS)) || {};
     }
 
-    function elementalWeightsForColor(color, champ) {
-        const el = COLOR_ELEMENT[color];
-        if (!el) return champ || baseBrain();
-        return elementalOverlay(champ || baseBrain(), el);
-    }
-
     // ---- Runtime resolution of the five deployed_bots row ids ----
     // The rows are seeded once in Supabase (owner = NULL = system-owned).
     // We resolve their ids by nickname on demand and cache — no hardcoded
@@ -136,7 +130,6 @@
         LEAN: LEAN,
         GENTLE: GENTLE,
         elementalOverlay: elementalOverlay,
-        elementalWeightsForColor: elementalWeightsForColor,
         baseBrain: baseBrain,
         resolveIds: resolveIds,
         idFor: idFor,

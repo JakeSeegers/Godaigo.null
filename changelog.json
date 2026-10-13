@@ -4,8 +4,10 @@
     {
       "id": "2026-10-13",
       "date": "2026-10-13",
-      "title": "No more log question",
+      "title": "One-click Train Bot",
       "changes": [
+        "Train Bot is now one click: pick how long and how fast, and the game picks the best way to train each run.",
+        "Bots can now plan a catacomb jump a few moves ahead.",
         "The game no longer asks if it may log your games. Replays and bot training already use game records with your account details removed, so the question and its Settings switch are gone."
       ]
     },

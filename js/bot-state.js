@@ -349,17 +349,10 @@
     //   {type:'teleport', x, y, shrineType}   // catacomb/Freedom shrine hop, free (0 AP)
     // NOT yet enumerated (Stage 2+): scroll-effect sub-choices (those go
     // through BotEffects, a separate driver — see bot-effects.js).
-    // breakStone is mirrored in bot-sim.js (simulate + legalActions), so
-    // search can plan "break, then walk". teleport is not: bot-sim.js's
-    // simulate() knows how to APPLY one (so search correctly values
-    // teleporting as the immediate/root decision, since the root's own
-    // candidate list always comes from THIS function, not the pure
-    // mirror), but bot-sim.js's legalActions() doesn't yet GENERATE
-    // teleport candidates for deeper simulated plies — partly because the
-    // Freedom-buff state that gates elemental-shrine hops isn't carried in
-    // the snapshot schema at all yet. A multi-step plan that hops through a
-    // catacomb mid-sequence won't be discovered by lookahead; a bot
-    // deciding whether to teleport RIGHT NOW is unaffected.
+    // breakStone and teleport are mirrored in bot-sim.js (simulate +
+    // legalActions), so search can plan "break, then walk" and "walk to a
+    // catacomb, then jump" (teleport since 2026-10-13; Freedom from
+    // crossTurnBuffs.freedom).
     // ----------------------------------------------------------------
 
     // Same rank→AP-cost table `attemptBreakStone()` uses in game-core.js

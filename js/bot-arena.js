@@ -367,7 +367,6 @@
     // back as opts.resume to carry on later (owner request 2026-09-27).
     let _saveRequested = false;
     function saveAndStop() { _saveRequested = true; }
-    function saveRequested() { return _saveRequested; }
 
     // ----------------------------------------------------------------
     // Challenger marker: in Hill Climb series the challenger's pawn, and in
@@ -521,8 +520,6 @@
         let found = [];
         try { found = window.Replay.findCombos(cw.segs, Array.from({ length: n }, (_, i) => i)); } catch (e) { return; }
         cw.found = found;
-        _comboFinds += found.length;
-        if (found.length) _lastFinds = found;
         // Every find this page load (newest last, max 30) for the Train Bot window.
         const at = Date.now();
         for (const c of found) _findLog.push({ at, signature: c.signature, gain: c.gain, turns: c.turns, steps: c.steps });
@@ -542,7 +539,7 @@
                 log('bot combos not saved:', error.message);
             }, () => {});
     }
-    let _comboFinds = 0, _lastFinds = [], _findLog = [];
+    let _findLog = [];
 
     // ── Combo screening (owner 2026-10-11, sql/combo-screening.sql) ─────
     // Gate 2 for bot-found combos: combo_screen_due() names a combo found in
@@ -1684,14 +1681,12 @@
     }
 
     window.BotArena = {
-        run, evolve, playGame, playMatch, spectate, stop,
+        run, evolve, playMatch, spectate, stop,
         hillClimb, // champion-anchored monotonic climber (the reliable trainer)
         confirmAcrossSizes, // N-player champion-vs-field confirmation gate
-        saveAndStop, saveRequested, // hillClimb: stop after this challenger, keep a checkpoint
+        saveAndStop, // hillClimb: stop after this challenger, keep a checkpoint
         endEarly, // soft-stop: cuts evolve()'s / hillClimb()'s loop short but keeps its result usable
         makeChallenger, // idle training: explore / formula challenger
-        comboFinds: () => _comboFinds, // combos the watcher found this page load
-        lastComboFinds: () => _lastFinds, // the last game's finds (debugging)
         comboFindLog: () => _findLog.slice(), // every find this page load, newest last (Train Bot window)
         screenDueCombo, // gate 2: screen the next bot-found combo against a champion
         perturbWeights, // gaussian-perturbed copy of a weight table (Noisy anchor toggle)
@@ -1700,7 +1695,6 @@
         endEarlyRequested,
         setLiveSpeed,
         applyWeights: setWeights, // apply an {…} weight table to the LIVE WEIGHTS object in place
-        seatFitness, sideFitness, // exposed for direct scoring verification, same as bot.js's evaluator
     };
     log('Loaded - window.BotArena ready (run / evolve / spectate)');
 })();

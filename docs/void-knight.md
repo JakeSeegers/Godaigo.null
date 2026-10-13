@@ -1,6 +1,7 @@
 # The Void Knight — public leader bot (v1, shipped 2026-07-23)
 
-> STATUS: v1 LIVE. Built in one pass from the design conversation of
+> STATUS: REMOVED. The Void Knight economy is gone from the client; its tables are dropped by sql/drop-bot-tycoon.sql (2026-10-13). The Void Knight lives on only as one of the five elemental bots. History below.
+> Old status: v1 LIVE. Built in one pass from the design conversation of
 > 2026-07-23; extends (and partially supersedes) docs/bot-tycoon-proposal.md.
 > The decisions below were made explicitly by the user — do not re-litigate
 > them without asking.

@@ -423,10 +423,9 @@ Order matters — later scripts depend on earlier ones.
                              intentions: mem.intent keeps the goal a move served, moveCommit makes it sticky.
                              Shift+R = one step, Shift+B = full turn; waitForQuiescence() tries BotEffects
                              before cancelling a selection it can't drive. Also owns mctsPick() (Stage 2 step
-                             5 — determinized root-level UCT, WEIGHTS.mctsEnabled) and signalBrainMode()
-                             (emoji over the acting pawn, 🧠 search / 🎲 MCTS, when a bot's brain mode
-                             switches, broadcast in multiplayer via broadcastGameAction('emoji', ...); OFF for now:
-                             BRAIN_SIGNAL_ENABLED = false in bot.js, owner 2026-09-25). Combos (Phase 4): loads
+                             5 — determinized root-level UCT, WEIGHTS.mctsEnabled; off unless Bot Brain is set to MCTS) and
+                             signalBrainMode() (only the BotDiplomacy Calculating / Counting emote now; the old 🧠 / 🎲
+                             emoji was removed 2026-10-13). Combos (Phase 4): loads
                              get_bot_combos() at start (cache localStorage godaigo_bot_combos, setCombos()); a bot
                              holding a combo's first two cast scrolls follows it (mem.combo, step kept across
                              turns; comboStep / comboChoiceMatch bonus on the next cast in greedy + search root;
@@ -459,7 +458,8 @@ Order matters — later scripts depend on earlier ones.
                              Supabase `bot_episodes` table (same RLS shape as bot_champion_weights: public
                              SELECT, authenticated insert with created_by = auth.uid()) — local
                              (localStorage godaigo_bot_episodes) is only the fallback/offline cache. Must
-                             follow bot.js (needs window.BotSystem.evaluateSnapshot).
+                             follow bot.js (needs window.BotSystem.evaluateSnapshot). Records only while
+                             WEIGHTS.mctsEnabled (2026-10-13): MCTS is its only reader.
 24c. bot-mind.js           ← window.BotMind: hermit-only "Bot Mind" viewer (hermit menu or Shift+M). bot.js botAct()
                              builds one record per decision only while BotMind.wants() (beginThought/finishThought:
                              mode quick/lookahead/playout/plan/unstuck, chosen action + reason, top 6 options with
@@ -555,6 +555,8 @@ Order matters — later scripts depend on earlier ones.
                              The Train Bot window lists this run's finds ("Combos found" box, BotArena.comboFindLog()).
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
+                             One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /
+                             Formulas / Anchor per run (localStorage godaigo_train_runs). The hermit panel keeps every row:
                              Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /
                              Combo mining = Replay.openMiner(): mines past games one by one, the replay full screen (iframe in #combo-miner-stage, host.dataset.fill) with a corner panel
                              (runInFrame host; mineMatches / minePooled opts.frameHost + onGame), combos listed, Stop; sets window.__trainMining.
@@ -584,8 +586,9 @@ Order matters — later scripts depend on earlier ones.
                              hermit's own turns in a real online game that has a bot in it; compares
                              endTurn/discardScroll decisions, and (Phase 5, 2026-09-26) casts (cast_execute:
                              your scroll vs the bot's best cast) and moves (first step toward where you went vs
-                             the bot's best step, lower rate), to bot.js's own ranking (rankActions()'s
-                             opts.withTrace; cast + move scoring now traced) and nudges a small additive DELTA
+                             the bot's best step, lower rate), and (2026-10-13) stones placed / broken (yours vs the
+                             bot's best candidate), to bot.js's own ranking (rankActions()'s opts.withTrace; cast,
+                             move, placeStone, breakStone scoring traced) and nudges a small additive DELTA
                              table, each key capped at half its default (localStorage
                              godaigo_bot_weight_deltas), never a weight snapshot. lobby.js's
                              hostStartGame() layers that delta onto every bot's normal (elemental-lean)
@@ -695,7 +698,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `mailing_list` | lobby.js register form, account-recovery.js settings | Opt-in for human-written news emails (max once a month, sent by hand). RLS on, no client policies: `set_mailing_list(bool)`, `my_mailing_list()`, hermit-only `hermit_mailing_list()` (opted in AND confirmed recovery email; address from `account_recovery`). sql/mailing-list.sql |
 | `recovery_email_log` | edge fn account-recovery | One row per email sent, for rate limits (2/account/hour, 3/address/day, 90/day total). Server only. |
 | `bot_champion_weights` | bot.js, game-ui.js, lobby.js | THE single shared bot brain - append-only submission log. The CURRENT champion is the newest row with `promoted = true` (`order by promoted desc, created_at desc`, sql/champion-promoted.sql, 2026-09-27); `win_rate` is only that row's own confirm record and is NOT comparable between rows. Auto-applied on load (bot.js); the auth-bar "Train Bot" button (hillclimb) inserts a promoted row + pays gold on a confirmed win (game-ui.js `runHillClimbTraining`). |
-| `deployed_bots` | bot-elements.js, lobby.js, gamification-ui.js | Now holds SIX system-owned rows (`owner IS NULL`): the five elemental bots (`sql/elemental-bots-seed.sql`, nicknames Terran Sentinel / Tidewarden / Emberkin / Galewalker / The Void Knight) and **Twitchbot** (id 12, sql/stream-games.sql): every chat-steered bot seat in a stream game ("Twitchbot (Emberkin)") is this one ladder bot. Client READ-only (public SELECT); ids resolved by nickname at runtime. `ladder.bot_id` FKs here. **Dormant / unused now:** `captured_bots`, `void_knight`, `user_profiles.capture_stones`: the personal Bot Tycoon economy (Shop/Stable/capture) was removed. |
+| `deployed_bots` | bot-elements.js, lobby.js, gamification-ui.js | Now holds SIX system-owned rows (`owner IS NULL`): the five elemental bots (`sql/elemental-bots-seed.sql`, nicknames Terran Sentinel / Tidewarden / Emberkin / Galewalker / The Void Knight) and **Twitchbot** (id 12, sql/stream-games.sql): every chat-steered bot seat in a stream game ("Twitchbot (Emberkin)") is this one ladder bot. Client READ-only (public SELECT); ids resolved by nickname at runtime. `ladder.bot_id` FKs here. The old Bot Tycoon leftovers (`captured_bots`, `void_knight`, `user_profiles.capture_stones`, `deployed_bots.captured_bot_id`, `record_deployed_bot_result`) are dropped by `sql/drop-bot-tycoon.sql` (2026-10-13, owner runs it). |
 
 ---
 

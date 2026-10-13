@@ -44,6 +44,10 @@
 //     best cast (ActionLog 'cast_execute')
 //   - move (Phase 5): the first step toward where you moved vs the bot's
 //     best step (ActionLog 'move'), at a lower learning rate
+//   - placeStone / breakStone (2026-10-13): your stone vs the bot's best
+//     candidate, when yours was one of its candidates
+//   Not compared: choices inside a scroll (the log does not keep them in one
+//   place) and teleports (not logged).
 //   Every delta is capped at half its weight's default (deltaCap).
 // Original v1 notes (two types only) follow.
 // These are the two branches of bot.js's scoreAction() that were given an
@@ -260,6 +264,10 @@
             for (const r of castEntries) if (!castTraceByScroll[r.action.scroll]) castTraceByScroll[r.action.scroll] = r.trace;
             const moveEntries = ranked.filter(r => r.action.type === 'move')
                 .map(r => ({ x: r.action.x, y: r.action.y, trace: r.trace }));
+            // Stones placed and broken (2026-10-13), ranked best first.
+            const spot = r => ({ x: r.action.x, y: r.action.y, type: r.action.stoneType, trace: r.trace });
+            const placeEntries = ranked.filter(r => r.action.type === 'placeStone').map(spot);
+            const breakEntries = ranked.filter(r => r.action.type === 'breakStone').map(spot);
 
             pending = {
                 bestType,
@@ -269,6 +277,7 @@
                 topCastScroll: castEntries.length ? castEntries[0].action.scroll : null,
                 castTraceByScroll,
                 moveEntries, // ranked best first
+                placeEntries, breakEntries,
                 from: (() => { try { const p = playerPositions[activePlayerIndex]; return p ? { x: p.x, y: p.y } : null; } catch (e) { return null; } })(),
             };
         } catch (e) {
@@ -370,6 +379,19 @@
             stats.watched++;
             if (Math.hypot(mine.x - moves[0].x, mine.y - moves[0].y) < 5) { stats.agreed++; renderBadge(); }
             else nudgeDiff(mine.trace, moves[0].trace, MOVE_LEARNING_RATE);
+        }
+
+        // Signals E and F (2026-10-13) - "which stone was worth placing /
+        // breaking?" Only when your stone was one of the bot's own candidates
+        // (same hex and type); compared with the bot's best one.
+        const sameSpot = (list) => list.find(c => c.type === entry.stoneType && Math.hypot(c.x - entry.x, c.y - entry.y) < 5);
+        for (const [kind, list] of [['placeStone', snapshot.placeEntries], ['breakStone', snapshot.breakEntries]]) {
+            if (entry.type !== kind || !list?.length || !Number.isFinite(entry.x)) continue;
+            const mine = sameSpot(list);
+            if (!mine) continue;
+            stats.watched++;
+            if (mine === list[0]) { stats.agreed++; renderBadge(); }
+            else nudgeDiff(mine.trace, list[0].trace);
         }
     }
 

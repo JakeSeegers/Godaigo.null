@@ -100,8 +100,6 @@
     const STEP_PX = 35;
 
     let S = fresh();
-    // "Bots remember" was tried and removed (2026-09-29): drop its saved data.
-    try { localStorage.removeItem('godaigo_bot_bonds'); } catch (e) {}
     function fresh() {
         return { rel: {}, prev: null, lastActive: null, lastTurn: null, hostile: null, events: {}, seats: 0, turns: 0, looks: 0, press: {},
                  pact: null, lastPactTurn: -99, warned: {}, asked: {}, rallied: {}, intents: {}, spoke: {}, thanked: {}, placed: {}, mood: {},

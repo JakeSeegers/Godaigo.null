@@ -30,7 +30,7 @@ merged, superseded, or a genuinely separate feature with its own open PR —
 not a silent fork of current work — until checked the same way.
 
 ## Open question — SUPERSEDED, needs re-anchoring if resumed: weight-tuning
-## ceiling vs. missing feature (HANDOFF.md §3)
+## ceiling vs. missing feature (old HANDOFF.md §3; HANDOFF.md was removed 2026-10-13)
 Investigated on the now-dead `aabsrh` branch, before sc1ajm's subsequent
 boot-splash and scroll-ability work existed. Not known to be invalidated by
 that work (Take Flight/Shifting Sands don't touch the bot evaluator), but
@@ -121,6 +121,18 @@ the champion-as-a-whole is not in question, only whether OUR SEARCH can
 reach/beat it from here.
 
 ## Last Committed Work
+- **2026-10-13: Training cleanup + one-click Train Bot (owner).** Owner decisions from the training audit:
+  (1) bot-memory.js records only while WEIGHTS.mctsEnabled (MCTS is its only reader; before, every bot action paid a snapshot + 2 evaluations and up to 25 Supabase inserts a session).
+  (2) PC trainer retired: tools/arena-headless.mjs, HANDOFF.md, npm arena scripts, the godaigo_bot_weights_pin read in bot.js removed (tools/README.md says so).
+  (3) Evolve results never reached the shared champion (bot.js loadCommunityChampion replaces localStorage weights on load): cheat panel Evolve 2-5 + Train Weights quick/thorough, game-ui.js runWeightTraining, and the hermit panel's Method / Players rows + population roster removed. Hermit panel = Hill Climb with every option; Evolve still runs as Explore.
+  (5) Brain-mode emoji code removed (signalBrainMode keeps only the BotDiplomacy emote).
+  (6) Teleports in lookahead: bot-sim.js legalActions now generates teleport (catacomb, or Freedom from crossTurnBuffs.freedom).
+  (7) Learn from my play: bot.js placeStone / breakStone scoring traced through contrib() (same scores: seed 777 games identical old vs new); bot-imitation.js signals E / F compare your stone placed / broken with the bot's best candidate. Scroll choices and teleports still not compared (not logged in one place).
+  (8) Bot personalities: not built. Owner worry: turn order is fixed by colour (purple first), and the elemental bots are tied to colours, so a personality would be mixed up with seat order.
+  (9-11) Unused exports removed (BotArena playGame / saveRequested / comboFinds / lastComboFinds / seatFitness / sideFitness, BotElements.elementalWeightsForColor, BotSystem determinize / rolloutStep), the godaigo_bot_bonds cleanup line. sql/drop-bot-tycoon.sql (owner runs it): drops captured_bots, void_knight, user_profiles.capture_stones, deployed_bots.captured_bot_id, record_deployed_bot_result, and redefines admin_delete_user without captured_bots. Idle timer keys (godaigo_idle_minutes / godaigo_idle_game_minutes) kept as console test knobs.
+  (12) Server-side training: owner skeptical, review later. Game-data logging needs improving (owner). No neural network exists: bots are weighted sums + formula terms.
+  One-click Train Bot: players see Length (Quick / Standard / Deep) + Speed only; autoTrainChoices() rotates Explore (every 3rd run) / Formulas (every other) / Noisy anchor (Deep), mining always on; their gold bonuses are paid when used.
+  Also 2026-10-13: the game log consent pop-up, its Settings switch (Privacy page) and js/session-log-upload.js were removed (match recording replaces it).
 - **2026-10-12: Combo gain capped at 2000 (owner).** A window ending in a win scored ~65,000 (evalWin) and would outrank every other combo. replay-viewer.js findCombos GAIN_CAP = 2000 (mining and the arena combo watcher). Stored rows capped with one UPDATE: 8 combo_candidates (max was 96,777), 14 bot_combo_finds (max 83,407). 46 mined combos by then.
 - **2026-10-12: Replay pages quick and quiet (owner).** replay-viewer.js frameEntry (mining, checks, puzzles): SoundSystem null (so window.fxOn is false: no board effects), CSS animations and transitions off. bot-imitation.js isEnabled() is false on ?replaymine / ?replaycheck / ?replaypuzzle pages (the owner saw Learn from my play on in the mining view). Not testable here (needs sign-in + a stored game).
 - **2026-10-12: Mining fix (owner saw "Gain Infinity" x3).** A seat with no pawn yet scores -Infinity, so windows starting at turn 1 got gain Infinity; JSON turns that into null, save_combo_candidates failed, mined_at never set, and the same game was mined again and again. findCombos now skips non-finite windows; mineMatches skips a game whose save failed for the rest of the page load (asks for extra rows so the window does not stop early).
@@ -3160,7 +3172,7 @@ reach/beat it from here.
   docs/INDEX.md, planning/current.md, .claude/skills/sync-docs.md
 
 ## Current Status
-Tutorial functional through step 4 (Earth tile reveal + scroll drawn). Steps 5–14
+(Old, not rechecked since 2026-08.) Tutorial functional through step 4 (Earth tile reveal + scroll drawn). Steps 5–14
 exist in code but are untested end-to-end. Docs system fully in place.
 
 ---

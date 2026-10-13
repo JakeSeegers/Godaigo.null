@@ -4241,133 +4241,10 @@ document.getElementById('undo-move').onclick = function() {
             if (typeof _doLeaveGame === 'function') await _doLeaveGame();
         }
 
-        // Run one weight-training cycle: evolve() a population, then CONFIRM
-        // the champion actually beats the pre-training weights in a real
-        // series before keeping it (reverting to the exact prior
-        // localStorage value otherwise) — see the "Confirmation gate" note
-        // at this function's cheat-panel call site for why. opts.nPlayers
-        // (default 2) and opts.visual (default false, i.e. muted/fast) let
-        // a caller choose training-game size and pacing without changing
-        // the function's own default behavior for existing callers.
-        async function runWeightTraining(preset, onProgress, opts = {}) {
-            const { generations, gamesPerPair, popSize, confirmGames } = preset;
-            const nPlayers = opts.nPlayers ?? 2;
-            // 'all' = generalist: evolve across mixed 2–5-player arenas, then
-            // confirm the champion across every size (confirmAcrossSizes),
-            // instead of the fixed-count evolve + 2-player run() gate.
-            const allSizes = nPlayers === 'all';
-            const confirmSizes = [2, 3, 4, 5];
-            const gamesPerSize = preset.gamesPerSize ?? 4;
-            const visual = !!opts.visual;
-            const baselineWeights = { ...window.BotSystem.WEIGHTS };
-            let baselineStored = null;
-            try { baselineStored = localStorage.getItem('godaigo_bot_weights'); } catch (e) {}
-            await leaveOnlineGameIfAny();
-
-            // Noisy anchor (opts.noisyAnchor): seed the population from a
-            // perturbed copy of the live weights so evolution starts displaced
-            // and generalizes, while the confirmation gate below still compares
-            // against baselineWeights (the TRUE, unperturbed live table).
-            const seedWeights = (opts.noisyAnchor && typeof window.BotArena.perturbWeights === 'function')
-                ? [window.BotArena.perturbWeights(baselineWeights)]
-                : undefined;
-
-            const pairs = popSize * (popSize - 1) / 2;
-            const sampledPerGen = opts.gamesPerGen ?? popSize * 2;
-            const confirmTotal = allSizes ? confirmSizes.length * gamesPerSize : confirmGames;
-            const totalGames = ((allSizes || nPlayers > 2) ? sampledPerGen * generations : pairs * gamesPerPair * generations) + confirmTotal;
-            const startedAt = Date.now();
-            let gamesDone = 0, lastGen = 0, lastFitness = null;
-            const stats = makeTrainingStats();
-            const report = (phase) => onProgress({
-                phase, gamesDone, totalGames, startedAt,
-                gen: lastGen, generations, fitness: lastFitness,
-                nPlayers, popSize, mode: 'training', stats,
-            });
-
-            const champion = await window.BotArena.evolve(generations, {
-                gamesPerPair, popSize, nPlayers, visual, seedWeights,
-                seed: 1 + Math.floor(Math.random() * 1e6), // fresh per run (default 1 repeated every run)
-                gamesPerGen: (allSizes || nPlayers > 2) ? sampledPerGen : undefined,
-                onGeneration: (gen, total, fitness) => {
-                    lastGen = gen; lastFitness = fitness;
-                    const best = Array.isArray(fitness) && fitness.length ? Math.max(...fitness) : null;
-                    stats.event(`Generation ${gen}/${total} done${best !== null ? `, best fitness ${best.toFixed(1)}` : ''}`);
-                    report('training');
-                },
-                onGame: (n, t, g) => { gamesDone++; stats.addGame(g); report('training'); },
-            });
-
-            // stop() during the evolve phase only cuts THAT phase short —
-            // run() resets the same shared _stopRequested flag the instant
-            // it starts, so without this check a cancelled evolve() would
-            // silently still run the full (un-stoppable) confirmation
-            // series behind it. Treat an early stop like "did not improve":
-            // discard whatever evolve() got to and revert to the exact
-            // pre-training weights.
-            if (window.BotArena.stopRequested()) {
-                window.BotArena.applyWeights(baselineWeights);
-                try {
-                    if (baselineStored === null) localStorage.removeItem('godaigo_bot_weights');
-                    else localStorage.setItem('godaigo_bot_weights', baselineStored);
-                } catch (e) {}
-                return { improved: false, record: 'stopped' };
-            }
-
-            report('confirming');
-            let improved, record, confirmWins, confirmLosses, confirmDraws;
-            if (allSizes) {
-                // Generalist gate: champion vs a field of baselines at every
-                // size (2–5), rotating seats. Kept only if it's a better
-                // generalist overall, not just a better duelist.
-                const confirm = await window.BotArena.confirmAcrossSizes(
-                    champion, baselineWeights,
-                    { sizes: confirmSizes, gamesPerSize, visual, seed: Date.now() % 100000,
-                      onGame: (n, t, g) => { gamesDone++; stats.addGame(g); report('confirming'); } });
-                improved = confirm.improved;
-                record = confirm.record;
-                confirmWins = confirm.champWins; confirmLosses = confirm.baseWins; confirmDraws = confirm.draws;
-            } else {
-                const confirm = await window.BotArena.run(
-                    champion, baselineWeights, confirmGames, Date.now() % 100000,
-                    { visual, onGame: (n, t, g) => { gamesDone++; stats.addGame(g); report('confirming'); } });
-                improved = confirm.aFitness > confirm.bFitness;
-                record = `${confirm.aWins}-${confirm.bWins}` + (confirm.draws ? ` (${confirm.draws} draws)` : '');
-                confirmWins = confirm.aWins; confirmLosses = confirm.bWins; confirmDraws = confirm.draws;
-            }
-
-            // Stop pressed DURING the confirmation: the check is incomplete, so
-            // never apply or share the result. Revert like a stop mid-training.
-            if (window.BotArena.stopRequested()) {
-                window.BotArena.applyWeights(baselineWeights);
-                try {
-                    if (baselineStored === null) localStorage.removeItem('godaigo_bot_weights');
-                    else localStorage.setItem('godaigo_bot_weights', baselineStored);
-                } catch (e) {}
-                return { improved: false, record: 'stopped' };
-            }
-
-            if (improved) {
-                // Local only (owner 2026-09-26): Evolve's gate compares against
-                // this browser's current weights over a few games, too weak to
-                // replace the shared champion. To share an Evolve result, use
-                // Hill Climb with Explore, which must beat the online champion.
-                window.BotArena.applyWeights(champion);
-            } else {
-                window.BotArena.applyWeights(baselineWeights);
-                try {
-                    if (baselineStored === null) localStorage.removeItem('godaigo_bot_weights');
-                    else localStorage.setItem('godaigo_bot_weights', baselineStored);
-                } catch (e) {}
-            }
-            return { improved, record };
-        }
-
-        // ─── Hill Climb training (separate method from evolve() above) ──────
-        // Wraps BotArena.hillClimb() the same way runWeightTraining() wraps
-        // evolve() — a champion-anchored (1+λ) monotonic climber, distinct
-        // from evolve()'s population GA (see docs/bot-roadmap.md § STAGE 3a
-        // and the tools/arena-headless.mjs --hillclimb CLI this mirrors).
+        // ─── Hill Climb training ──────
+        // Wraps BotArena.hillClimb(): a champion-anchored (1+λ) monotonic
+        // climber (docs/bot-roadmap.md § STAGE 3a). Evolve (the population
+        // GA) is only used by its Explore phase now.
         // Two things this MUST get right, both hard-learned from the CLI's
         // own history (planning/current.md):
         //   1. Anchor explicitly to the ONLINE champion via a direct,
@@ -4968,6 +4845,17 @@ document.getElementById('undo-move').onclick = function() {
         // Formulas (Hill Climb option "Invent"): per finished run, plus more
         // when the new champion keeps a formula it invented.
         const FORMULA_BONUS_GOLD = 10, FORMULA_DISCOVERY_GOLD = 20;
+        // One-click Train Bot (owner 2026-10-13): the player sets only length
+        // (Quick 1 / Standard 5 / Deep 20) and speed; the rest rotates per run
+        // (localStorage godaigo_train_runs). Explore every 3rd run, Formulas
+        // every other run, a noisy anchor on Deep runs; mining always on (it
+        // stops by itself when no past games are left). The Explore and
+        // Formulas gold bonuses are paid when a run used them.
+        function autoTrainChoices(depth) {
+            let n = 0;
+            try { n = (parseInt(localStorage.getItem('godaigo_train_runs'), 10) || 0) + 1; localStorage.setItem('godaigo_train_runs', String(n)); } catch (e) {}
+            return { explore: n % 3 === 0, formulas: n % 2 === 0, noisyAnchor: depth >= 20, focus: 'both', talk: true };
+        }
         function makeTrainingStats() {
             return {
                 games: 0, turnsSum: 0, chWins: 0, champWins: 0, draws: 0,
@@ -5501,7 +5389,7 @@ document.getElementById('undo-move').onclick = function() {
                 brainBtn.style.color = BRAIN_UI[currentBrain()].color;
                 panel.appendChild(brainBtn);
 
-                // Shared prep for restartAsBots/restartAsEvolve, from ANY game
+                // Shared prep for restartAsBots, from ANY game
                 // context: stop whatever bot session is already running, then
                 // leave the online room if we're in one. Returns false (with a
                 // status message) if prep failed, so the caller can bail before
@@ -5523,29 +5411,6 @@ document.getElementById('undo-move').onclick = function() {
                     } catch (err) {
                         console.error('Bot match failed:', err);
                         updateStatus('Bot match failed - see console');
-                    }
-                }
-
-                // Start a VISUALIZED weight-evolution run with n players per
-                // training game (2 = original pairwise round-robin; >2 samples
-                // random N-player groupings each generation — see bot-arena.js).
-                // Small defaults so a full run finishes in a few minutes, not
-                // hours — tune further from the console with BotArena.evolve().
-                async function restartAsEvolve(n) {
-                    if (!(await stopAnyMatchAndLeaveMultiplayer())) return;
-                    try {
-                        const generations = 3;
-                        const popSize = 6;
-                        await window.BotArena.evolve(generations, {
-                            nPlayers: n,
-                            visual: true,
-                            popSize,
-                            gamesPerPair: 1,
-                            gamesPerGen: n > 2 ? popSize * 2 : undefined,
-                        });
-                    } catch (err) {
-                        console.error('Evolve run failed:', err);
-                        updateStatus('Evolve run failed - see console');
                     }
                 }
 
@@ -5574,152 +5439,12 @@ document.getElementById('undo-move').onclick = function() {
                 matchRow.appendChild(stopBtn);
                 panel.appendChild(matchRow);
 
-                // 🧬 Evolve: same visualized-match core as Bot match above, but
-                // plays a small weight-evolution run (3 generations, pop 6)
-                // instead of a single game — watch the population improve live.
-                // Champion weights are saved to localStorage['godaigo_bot_weights']
-                // after every generation and picked up automatically on reload.
-                const evolveRow = document.createElement('div');
-                evolveRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
-                const evolveLabel = document.createElement('span');
-                evolveLabel.textContent = '🧬 Evolve:';
-                evolveLabel.title = 'Watch a small weight-evolution run (3 generations, pop 6). Tune further from the console: BotArena.evolve(generations, {nPlayers, visual, popSize, gamesPerPair, gamesPerGen})';
-                evolveLabel.style.cssText = 'font-size:12px;color:#aaa;';
-                evolveRow.appendChild(evolveLabel);
-                [2, 3, 4, 5].forEach(n => {
-                    const b = document.createElement('button');
-                    b.textContent = String(n);
-                    b.title = `Evolve with ${n}-player training games (leaves the online game if needed)`;
-                    b.style.cssText = 'padding:4px 9px;background:#2d2d44;color:#eee;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:13px;';
-                    b.onclick = () => restartAsEvolve(n);
-                    evolveRow.appendChild(b);
-                });
-                panel.appendChild(evolveRow);
 
                 // Same-size convenience: your seat handed to a bot, table
                 // size kept. Use the numbered buttons above to pick a count.
                 panel.appendChild(makeBtn('🔁 Restart bot game without player (same size)', () =>
                     restartAsBots(Math.max(2, Math.min(5, (playerPositions || []).filter(Boolean).length || 2)))));
 
-                // Weight evolution (BotArena.evolve — roadmap Stage 3a): runs a
-                // MUTED self-play arena in the background, then a CONFIRMATION
-                // match against the weights in place before training started,
-                // only applying/keeping the result if it actually won that
-                // match. This mirrors the roadmap's own Stage 3a acceptance bar
-                // ("champion beats the hand-tuned defaults...") — a single
-                // game per evolve() pairing (the "quick" preset) is noisy
-                // enough that its per-generation pick can win by luck, not by
-                // being better, so nothing here should be trusted without
-                // being checked against a real baseline first (see
-                // docs/bot-roadmap.md's "Confirmation gate" note — v1 of this
-                // button applied evolve()'s result unconditionally and could
-                // silently make bots worse). evolve() itself still
-                // auto-persists to localStorage every generation
-                // (pre-existing, intentional design so a console-run evolve()
-                // takes effect on reload) — this only decides whether to KEEP
-                // what got written, reverting it if the result didn't hold up.
-                // Leaves any online game first, same reasoning as the
-                // bot-match buttons above: this plays local hot-seat games
-                // under the hood. (runWeightTraining itself is hoisted above
-                // initCheatPanel — shared with the bot training panel.)
-
-                // Shared progress meter for whichever training preset is running.
-                const progressWrap = document.createElement('div');
-                progressWrap.style.cssText = 'display:none;flex-direction:column;gap:4px;';
-                const progressBarOuter = document.createElement('div');
-                progressBarOuter.style.cssText = 'background:#111;border:1px solid #444;border-radius:4px;height:8px;overflow:hidden;';
-                const progressBarInner = document.createElement('div');
-                progressBarInner.style.cssText = 'background:#6ef;height:100%;width:0%;';
-                progressBarOuter.appendChild(progressBarInner);
-                const progressText = document.createElement('div');
-                progressText.style.cssText = 'font-size:11px;color:#aaa;white-space:pre-line;';
-                progressWrap.appendChild(progressBarOuter);
-                progressWrap.appendChild(progressText);
-
-                function fmtTime(s) { return s < 90 ? `${Math.round(s)}s` : `${Math.round(s / 60)}m`; }
-                function renderProgress(p) {
-                    progressWrap.style.display = 'flex';
-                    const pct = p.totalGames ? Math.min(100, (p.gamesDone / p.totalGames) * 100) : 0;
-                    progressBarInner.style.width = pct.toFixed(1) + '%';
-                    const elapsedS = (Date.now() - p.startedAt) / 1000;
-                    const rate = p.gamesDone > 0 ? elapsedS / p.gamesDone : null;
-                    const etaS = rate ? Math.max(0, (p.totalGames - p.gamesDone) * rate) : null;
-                    const genLine = p.fitness
-                        ? `gen ${p.gen}/${p.generations} · fitness ${p.fitness.map(f => f.toFixed(1)).join(', ')}`
-                        : `gen ${p.gen}/${p.generations}`;
-                    progressText.textContent =
-                        `${p.phase === 'confirming' ? 'Confirming result' : 'Training'} - ${genLine}\n` +
-                        `games ${p.gamesDone}/${p.totalGames} (${pct.toFixed(0)}%) · elapsed ${fmtTime(elapsedS)}` +
-                        (etaS != null ? ` · ETA ~${fmtTime(etaS)}` : '');
-                }
-                function hideProgress() { progressWrap.style.display = 'none'; }
-
-                // Two presets: "quick" is the fast sample (few minutes, noisy —
-                // may often correctly report no improvement); "thorough" is a
-                // real training run (~700 games, likely 1-2+ hours) closer to
-                // the roadmap's own spec. Both share the confirmation gate
-                // above, so neither can silently apply a worse result.
-                const TRAIN_PRESETS = {
-                    quick:    { label: '🧬 Train Weights (quick, ~55 games)',
-                                generations: 3, gamesPerPair: 1, popSize: 6, confirmGames: 10 },
-                    thorough: { label: '🧬 Train Weights (thorough, ~700 games, 1-2+ hrs)',
-                                generations: 8, gamesPerPair: 3, popSize: 8, confirmGames: 20 },
-                };
-                let quickBtn, thoroughBtn;
-                function makeTrainButton(key) {
-                    const preset = TRAIN_PRESETS[key];
-                    const btn = makeBtn(preset.label, async () => {
-                        if (!window.BotArena) { updateStatus('BotArena not loaded'); return; }
-                        if (window.BotArena.isEvolving()) { updateStatus('Already training - use ⏹ to stop it'); return; }
-                        if (!await stopAnyRunningBotJob()) return;
-                        quickBtn.disabled = true;
-                        thoroughBtn.disabled = true;
-                        btn.textContent = `${preset.label} - starting…`;
-                        try {
-                            const { improved, record } = await runWeightTraining(preset, (p) => {
-                                renderProgress(p);
-                                btn.textContent = p.phase === 'confirming'
-                                    ? `${preset.label} - confirming…`
-                                    : `${preset.label} - gen ${p.gen}/${preset.generations}`;
-                            });
-                            hideProgress();
-                            updateStatus(improved
-                                ? `Training complete - champion beat the starting weights ${record} in the confirmation ` +
-                                  `match. New weights applied live and saved. (Board shows the last game - start a new ` +
-                                  `game to keep playing.)`
-                                : `Training finished but did not beat the starting weights (${record}) in the ` +
-                                  `confirmation match - kept the previous weights. (Board shows the last game - start ` +
-                                  `a new game to keep playing.)`);
-                        } catch (err) {
-                            console.error('Weight training failed:', err);
-                            hideProgress();
-                            updateStatus('Weight training failed - see console');
-                        } finally {
-                            quickBtn.disabled = false;
-                            thoroughBtn.disabled = false;
-                            btn.textContent = preset.label;
-                        }
-                    });
-                    return btn;
-                }
-                quickBtn = makeTrainButton('quick');
-                thoroughBtn = makeTrainButton('thorough');
-
-                panel.appendChild(quickBtn);
-                const thoroughRow = document.createElement('div');
-                thoroughRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
-                thoroughRow.appendChild(thoroughBtn);
-                const trainStopBtn = document.createElement('button');
-                trainStopBtn.textContent = '⏹';
-                trainStopBtn.title = 'Stop training after the current generation finishes';
-                trainStopBtn.style.cssText = 'padding:4px 9px;background:#442d2d;color:#eee;border:1px solid #755;border-radius:5px;cursor:pointer;font-size:13px;';
-                trainStopBtn.onclick = () => {
-                    if (window.BotArena?.isEvolving()) { window.BotArena.stop(); updateStatus('Stopping after this generation…'); }
-                    else updateStatus('No training run in progress');
-                };
-                thoroughRow.appendChild(trainStopBtn);
-                panel.appendChild(thoroughRow);
-                panel.appendChild(progressWrap);
 
                 // ── Overlay Editor ───────────────────────────────────────────
                 const overlaySection = document.createElement('div');
@@ -6205,7 +5930,7 @@ document.getElementById('undo-move').onclick = function() {
         (function initBotTrainingPanel() {
             let clickCount = 0;
             let clickTimer = null;
-            const state = { n: 2, watchable: true, generations: 5, method: 'evolve', noisyAnchor: false, explore: false, formulas: false, talk: true, _public: false,
+            const state = { watchable: true, generations: 5, noisyAnchor: false, explore: false, formulas: false, talk: true, _public: false,
                 focus: (() => { try { return localStorage.getItem('godaigo_train_focus') || 'both'; } catch (e) { return 'both'; } })() };
 
             // Weight groupings mirror the section comments in bot.js's
@@ -6260,17 +5985,10 @@ document.getElementById('undo-move').onclick = function() {
                 // closed/reopened mid-run via the popup's expand button).
                 const busy = !!(window.BotArena.isEvolving?.() || window.BotArena.isClimbing?.());
                 if (window._botTrainingPublic) {
-                    if (!state._public && !state._forced) state._forced = { method: state.method, n: state.n };
                     state._public = true;
-                    state.method = 'hillclimb';
-                    state.n = 2;
                     window._botTrainingPublic = null;
                 } else if (!busy) {
-                    // The hermit panel (owner, 2026-09-29): a finished public
-                    // Train Bot run or a continued saved run left the panel stuck
-                    // in public / Hill Climb mode, hiding or greying out Players.
-                    state._public = false;
-                    if (state._forced) { state.method = state._forced.method; state.n = state._forced.n; state._forced = null; }
+                    state._public = false; // the hermit panel shows every choice
                 }
 
                 // ── Shell: full-screen overlay + centered modal box ──────────
@@ -6314,7 +6032,7 @@ document.getElementById('undo-move').onclick = function() {
 
                 if (state._public) {
                     const publicBanner = document.createElement('div');
-                    publicBanner.textContent = 'Training the community bot - the shared brain behind the five elemental bots. Every finished run pays gold scaled to how many games it ran (roughly 8–40). If the result beats the current champion across 2–5 player tables it\'s submitted for everyone and pays 25 / 40 / 60 more by how decisively it won. Nothing changes if it doesn\'t beat the champion.';
+                    publicBanner.textContent = 'Training the community bot - the shared brain behind the five elemental bots. Every finished run pays gold scaled to how many games it ran (roughly 8–40). If the result beats the current champion across 2–5 player tables it\'s submitted for everyone and pays 25 / 40 / 60 more by how decisively it won. Nothing changes if it doesn\'t beat the champion. Pick a length and a speed; the game chooses how to train each run.';
                     publicBanner.style.cssText = 'font-size:11px;color:#c9a6ff;background:#221a33;border:1px solid #5a3f8a;border-radius:5px;padding:6px 10px;';
                     body.appendChild(publicBanner);
                 }
@@ -6368,39 +6086,8 @@ document.getElementById('undo-move').onclick = function() {
                 // needs to exist (even if reassigned below) before the rows are built.
                 const startBtnRef = { disabled: false };
 
-                // Method picked FIRST — Players' row below reads state.method
-                // to decide whether it's disabled, so it needs to exist first.
-                // Evolve = population GA (evolve() below) — noisier, ranks
-                // siblings against each other. Hill Climb = champion-anchored
-                // (1+λ) monotonic climber (hillClimb()) — holds the ONLINE
-                // champion fixed as the opponent every mutant challenger must
-                // clear a real margin against; the reliable trainer, same one
-                // driving the CLI's --hillclimb sessions. 2-player only — no
-                // nPlayers concept, unlike evolve().
-                // The auth-bar "Train Bot" button forces Hill Climb against the
-                // shared champion — no Method choice in public mode.
-                if (!state._public) {
-                    makeChoiceRow('Method:', [
-                        { value: 'evolve', text: 'Evolve (GA)', title: 'Population-based genetic algorithm - a pool of weight-tables competes and breeds each generation.' },
-                        { value: 'hillclimb', text: 'Hill Climb', title: 'Champion-anchored climber - mutant challengers must beat the CURRENT ONLINE CHAMPION by a real margin to be promoted. 2 players only. The more reliable trainer.' },
-                    ], () => state.method, (v) => { state.method = v; if (v === 'hillclimb') state.n = 2; playersRow.repaint(); });
-                }
-
-                // Public "Train Bot" is always 2-player hill-climb (the final
-                // gate already tests 2–5 tables on its own) — no Players choice.
-                let playersRow = { repaint() {} };
-                if (!state._public) {
-                    playersRow = makeChoiceRow('Players:',
-                        [2, 3, 4, 5].map(n => ({ value: n, text: String(n) })).concat([
-                            { value: 'all', text: 'All', title: 'Generalist: train across arenas of every size (2–5 players) and confirm the champion across every size too. Best for real lobbies, which can be 2–5 players.' },
-                        ]),
-                        () => state.n, (v) => { state.n = v; },
-                        'How many bots play each training game. "All" trains across mixed 2–5-player arenas and confirms the champion at every size. The POPULATION (the pool of competing weight-tables) is a separate number - see the roster below - this only controls how many are sampled into any one game. Fixed at 2 for Hill Climb, which has no population/nPlayers concept.',
-                        () => state.method === 'hillclimb');
-                }
-
                 // Focus (owner 2026-10-12): train, mine past games for combos, or both.
-                makeChoiceRow('Focus:', [
+                if (!state._public) makeChoiceRow('Focus:', [
                     { value: 'both', text: 'Training + mining', title: 'Train as usual, and check one past game for combos before every other challenger (the board waits meanwhile).' },
                     { value: 'train', text: 'Training only', title: 'Train without stopping to check past games. Faster.' },
                     { value: 'mine', text: 'Combo mining', title: 'No training: check past games for combos, one after another, and watch each one being replayed. Combos that show up in 2 different games are taught to the bots.' },
@@ -6417,7 +6104,7 @@ document.getElementById('undo-move').onclick = function() {
                 // lambda=6 challengers × 30 games, same
                 // proportional-not-literal-game-count caveat applies).
                 if (state._public) {
-                    makeChoiceRow('Depth:', [
+                    makeChoiceRow('Length:', [
                         { value: 1, text: 'Quick', title: 'A short climb - usually under ~15 minutes. Often finds no improvement; run it again or go deeper.' },
                         { value: 5, text: 'Standard', title: 'A medium climb - roughly 30–60 minutes. Better odds of a real improvement.' },
                         { value: 20, text: 'Deep', title: 'A long climb - a couple of hours. Best odds; leave the tab open and watch the corner popup.' },
@@ -6436,7 +6123,7 @@ document.getElementById('undo-move').onclick = function() {
                 // the result to be robust to a distribution of nearby opponents
                 // rather than overfit to one exact champion — a direct counter
                 // to the co-evolution weakness (siblings beating siblings).
-                makeChoiceRow('Anchor:', [
+                if (!state._public) makeChoiceRow('Anchor:', [
                     { value: false, text: 'Exact', title: 'Train against the anchor weights exactly as they are.' },
                     { value: true, text: 'Noisy', title: 'Train against a slightly perturbed copy of the anchor each session (more robust, less overfit); the final confirmation match is still played against the TRUE anchor, so a win still means a real improvement.' },
                 ], () => state.noisyAnchor, (v) => { state.noisyAnchor = v; },
@@ -6446,7 +6133,7 @@ document.getElementById('undo-move').onclick = function() {
                 // 2-5 player games whose best bot joins round 1 as a challenger
                 // (runHillClimbTraining opts.explore). Pays EXPLORE_BONUS_GOLD
                 // when the whole run finishes.
-                makeChoiceRow('Explore:', [
+                if (!state._public) makeChoiceRow('Explore:', [
                     { value: false, text: 'Off', title: 'Climb straight from the champion.' },
                     { value: true, text: `First (+${EXPLORE_BONUS_GOLD} gold)`, title: `First run a short Evolve search across 2-5 player games (about ${EXPLORE_GAMES} extra games). Its best bot joins the climb as a challenger and must still beat the champion. +${EXPLORE_BONUS_GOLD} bonus gold when the whole run finishes.` },
                 ], () => state.explore, (v) => { state.explore = v; },
@@ -6455,7 +6142,7 @@ document.getElementById('undo-move').onclick = function() {
                 // Formulas (Hill Climb only): challengers may also invent new
                 // "senses", small formulas over board facts (js/bot-terms.js),
                 // not just nudge the brain's numbers (hillClimb opts.termMutations).
-                makeChoiceRow('Formulas:', [
+                if (!state._public) makeChoiceRow('Formulas:', [
                     { value: false, text: 'Off', title: 'Challengers only change the brain\'s numbers (how much it cares about each thing it already notices).' },
                     { value: true, text: `Invent (+${FORMULA_BONUS_GOLD} gold)`, title: `Challengers may also invent new senses: small formulas built from board facts, like "the cost of my road home" or "water touching wind". Most will not help; the few that do win their way in. +${FORMULA_BONUS_GOLD} gold when the whole run finishes, and +${FORMULA_DISCOVERY_GOLD} more if the new champion keeps a formula it invented.` },
                 ], () => state.formulas, (v) => { state.formulas = v; },
@@ -6463,7 +6150,7 @@ document.getElementById('undo-move').onclick = function() {
 
                 // Bot talk (alliances emotes) during fast training too, and
                 // the training window's "What the bots said" list either way.
-                makeChoiceRow('Bot talk:', [
+                if (!state._public) makeChoiceRow('Bot talk:', [
                     { value: true, text: 'Show', title: 'Bots show their emote sentences over their pawns even at Extreme speed.' },
                     { value: false, text: 'Hide', title: 'No emotes over the pawns at Extreme speed (a little faster). The training window still lists what they said.' },
                 ], () => state.talk, (v) => { state.talk = v; window.BotDiplomacy?.setTalkInTraining?.(v); },
@@ -6514,199 +6201,6 @@ document.getElementById('undo-move').onclick = function() {
                 };
                 actionRow.appendChild(stopBtn);
 
-                // ── Live roster + generation log + weight-diagram drill-down ──
-                // Populated by Start Training's Evolve method (Hill Climb has
-                // no population concept). Population membership persists id/lineage across
-                // generations (see bot-arena.js's newMember()/elites), so the
-                // roster can show "same bot survived" vs "freshly bred" from
-                // one generation to the next instead of just bare numbers.
-                // Hidden entirely in public mode (hill-climb only — no population).
-                const insightRow = document.createElement('div');
-                insightRow.style.cssText = state._public
-                    ? 'display:none;'
-                    : 'display:flex;gap:14px;flex-wrap:wrap;';
-                body.appendChild(insightRow);
-
-                const rosterCol = document.createElement('div');
-                rosterCol.style.cssText = 'flex:1 1 260px;min-width:240px;display:flex;flex-direction:column;gap:6px;';
-                insightRow.appendChild(rosterCol);
-
-                const rosterHeader = document.createElement('div');
-                rosterHeader.style.cssText = 'font-size:12px;font-weight:bold;color:#ccc;';
-                rosterHeader.textContent = 'Population';
-                rosterHeader.appendChild(infoIcon('The pool of weight-tables currently competing. The top 2 by fitness survive unchanged into the next generation ("elite"); the rest are bred (crossover of the top 3, then mutated) and get a new #id. Click a row to see its weights.'));
-                rosterCol.appendChild(rosterHeader);
-
-                const rosterList = document.createElement('div');
-                rosterList.style.cssText = 'display:flex;flex-direction:column;gap:3px;max-height:220px;overflow-y:auto;';
-                rosterCol.appendChild(rosterList);
-
-                const genCol = document.createElement('div');
-                genCol.style.cssText = 'flex:1 1 220px;min-width:200px;display:flex;flex-direction:column;gap:6px;';
-                insightRow.appendChild(genCol);
-
-                const genHeader = document.createElement('div');
-                genHeader.style.cssText = 'font-size:12px;font-weight:bold;color:#ccc;';
-                genHeader.textContent = 'Generations';
-                genHeader.appendChild(infoIcon('One line per generation completed so far in the current run: which #id came out on top and its fitness. Fitness is win(±1) plus small bonuses for win-progress and avoiding stalls - not a plain score, so small differences are normal.'));
-                genCol.appendChild(genHeader);
-
-                const genLogEl = document.createElement('div');
-                genLogEl.style.cssText = 'display:flex;flex-direction:column-reverse;gap:2px;max-height:220px;overflow-y:auto;font-size:11px;color:#aaa;font-family:monospace;';
-                genCol.appendChild(genLogEl);
-
-                const detailCol = document.createElement('div');
-                detailCol.style.cssText = 'flex:1 1 320px;min-width:280px;display:none;flex-direction:column;gap:6px;';
-                insightRow.appendChild(detailCol);
-
-                const detailHeader = document.createElement('div');
-                detailHeader.style.cssText = 'font-size:12px;font-weight:bold;color:#ccc;display:flex;align-items:center;justify-content:space-between;';
-                detailCol.appendChild(detailHeader);
-
-                const detailBody = document.createElement('div');
-                detailBody.style.cssText = 'display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;font-size:11px;';
-                detailCol.appendChild(detailBody);
-
-                // ── Roster/generation state for the CURRENT run ──────────────
-                let currentRoster = [];   // latest members array (id, fitness, parentIds, w), best-first
-                let genLog = [];          // [{gen, total, bestId, bestFitness}]
-                let seenIds = new Set();  // ids ever shown this run — lets the roster mark "new this gen"
-                let selectedMemberId = null;
-
-                function resetInsights() {
-                    currentRoster = [];
-                    genLog = [];
-                    seenIds = new Set();
-                    selectedMemberId = null;
-                    rosterList.innerHTML = '';
-                    genLogEl.innerHTML = '';
-                    detailCol.style.display = 'none';
-                }
-
-                function renderRoster() {
-                    rosterList.innerHTML = '';
-                    if (!currentRoster.length) {
-                        const empty = document.createElement('div');
-                        empty.textContent = 'No run in progress - start training or breeding to see the population here.';
-                        empty.style.cssText = 'font-size:11px;color:#777;font-style:italic;';
-                        rosterList.appendChild(empty);
-                        return;
-                    }
-                    const maxFitness = Math.max(...currentRoster.map(m => m.fitness), 1);
-                    for (const m of currentRoster) {
-                        const row = document.createElement('div');
-                        row.style.cssText = `display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer;` +
-                            `background:${m.id === selectedMemberId ? '#2d4a4a' : '#22223a'};border:1px solid ${m.id === selectedMemberId ? '#6ef' : '#333'};`;
-                        row.onclick = () => { selectedMemberId = m.id; renderRoster(); renderDetail(); };
-
-                        const idEl = document.createElement('div');
-                        idEl.textContent = `#${m.id}`;
-                        idEl.style.cssText = 'font-size:11px;color:#eee;font-weight:bold;min-width:28px;';
-                        row.appendChild(idEl);
-
-                        const barWrap = document.createElement('div');
-                        barWrap.style.cssText = 'flex:1;background:#111;border-radius:3px;height:10px;overflow:hidden;position:relative;';
-                        const bar = document.createElement('div');
-                        const barPct = maxFitness !== 0 ? Math.max(0, Math.min(100, (m.fitness / maxFitness) * 100)) : 0;
-                        bar.style.cssText = `height:100%;width:${barPct}%;background:${m.fitness >= 0 ? '#4a8' : '#a44'};`;
-                        barWrap.appendChild(bar);
-                        row.appendChild(barWrap);
-
-                        const fitEl = document.createElement('div');
-                        fitEl.textContent = m.fitness.toFixed(1);
-                        fitEl.style.cssText = 'font-size:11px;color:#ccc;min-width:34px;text-align:right;';
-                        row.appendChild(fitEl);
-
-                        // Check "already seen" FIRST — an elite that was
-                        // originally bred several generations ago must show
-                        // as "surviving," not re-show its birth lineage every
-                        // generation as if it had just been bred again.
-                        const lineageEl = document.createElement('div');
-                        lineageEl.style.cssText = 'font-size:10px;color:#888;min-width:64px;text-align:right;';
-                        lineageEl.textContent = seenIds.has(m.id) ? 'elite (surviving)'
-                            : (m.parentIds && m.parentIds.length === 2) ? `bred #${m.parentIds[0]}×#${m.parentIds[1]}`
-                            : (m.parentIds && m.parentIds.length === 1) ? `mutated #${m.parentIds[0]}`
-                            : 'seed';
-                        row.appendChild(lineageEl);
-
-                        rosterList.appendChild(row);
-                        seenIds.add(m.id);
-                    }
-                }
-
-                function renderGenLog() {
-                    genLogEl.innerHTML = '';
-                    for (const g of genLog) {
-                        const line = document.createElement('div');
-                        line.textContent = `gen ${g.gen}/${g.total} - best: #${g.bestId} (${g.bestFitness.toFixed(1)})`;
-                        genLogEl.appendChild(line);
-                    }
-                }
-
-                function weightBar(key, value, baseline) {
-                    const row = document.createElement('div');
-                    row.style.cssText = 'display:flex;align-items:center;gap:6px;';
-                    const keyEl = document.createElement('div');
-                    keyEl.textContent = key;
-                    keyEl.style.cssText = 'width:150px;flex-shrink:0;color:#aaa;font-family:monospace;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-                    row.appendChild(keyEl);
-
-                    const diffPct = baseline !== 0 ? ((value - baseline) / Math.abs(baseline)) * 100 : (value === 0 ? 0 : 100);
-                    const barWrap = document.createElement('div');
-                    barWrap.style.cssText = 'flex:1;background:#111;border-radius:3px;height:9px;overflow:hidden;';
-                    const bar = document.createElement('div');
-                    const width = Math.min(100, Math.abs(diffPct));
-                    const color = diffPct > 0.5 ? '#4a8' : diffPct < -0.5 ? '#a44' : '#555';
-                    bar.style.cssText = `height:100%;width:${width}%;background:${color};`;
-                    barWrap.appendChild(bar);
-                    row.appendChild(barWrap);
-
-                    const valEl = document.createElement('div');
-                    valEl.textContent = `${value} (base ${baseline}, ${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(0)}%)`;
-                    valEl.style.cssText = 'width:130px;flex-shrink:0;color:#ccc;font-family:monospace;font-size:10px;text-align:right;';
-                    row.appendChild(valEl);
-                    return row;
-                }
-
-                function renderDetail() {
-                    const member = currentRoster.find(m => m.id === selectedMemberId);
-                    if (!member) { detailCol.style.display = 'none'; return; }
-                    detailCol.style.display = 'flex';
-                    detailHeader.innerHTML = '';
-                    const label = document.createElement('span');
-                    label.textContent = `#${member.id} weights (vs. hand-tuned default)`;
-                    detailHeader.appendChild(label);
-                    const closeDetail = document.createElement('button');
-                    closeDetail.textContent = '✕';
-                    closeDetail.style.cssText = 'background:none;border:1px solid #555;border-radius:4px;color:#ccc;cursor:pointer;padding:1px 7px;font-size:11px;';
-                    closeDetail.onclick = () => { selectedMemberId = null; renderRoster(); renderDetail(); };
-                    detailHeader.appendChild(closeDetail);
-
-                    detailBody.innerHTML = '';
-                    const defaults = window.BotSystem.DEFAULT_WEIGHTS;
-                    for (const cat of WEIGHT_CATEGORIES) {
-                        const keysPresent = cat.keys.filter(k => member.w[k] !== undefined);
-                        if (!keysPresent.length) continue;
-                        const catHeader = document.createElement('div');
-                        catHeader.textContent = cat.name;
-                        catHeader.style.cssText = 'font-size:10px;color:#789;text-transform:uppercase;letter-spacing:0.03em;margin-top:4px;';
-                        detailBody.appendChild(catHeader);
-                        for (const k of keysPresent) {
-                            detailBody.appendChild(weightBar(k, member.w[k], defaults[k]));
-                        }
-                    }
-                }
-
-                // Wired into evolve()'s onGeneration (4th arg — richer roster
-                // data, see bot-arena.js) by Start Training's Evolve method.
-                function handleGeneration(gen, total, fitnessArr, members) {
-                    currentRoster = members;
-                    genLog.push({ gen, total, bestId: members[0].id, bestFitness: members[0].fitness });
-                    renderRoster();
-                    renderGenLog();
-                    if (selectedMemberId != null) renderDetail(); // keep the open diagram live
-                }
-
                 const startBtnSep = document.createElement('div');
                 startBtnSep.style.cssText = 'border-top:1px solid #333;margin:2px 0;';
                 body.appendChild(startBtnSep);
@@ -6735,7 +6229,7 @@ document.getElementById('undo-move').onclick = function() {
 
                 startBtn.onclick = async () => {
                     const resumeSave = resumeNext; resumeNext = null;
-                    if (state.focus === 'mine' && !resumeSave) {
+                    if (state.focus === 'mine' && !state._public && !resumeSave) {
                         if (window.BotArena?.isRunning?.()) { updateStatus('A bot job is already running - use Stop first'); return; }
                         overlay.remove();
                         window.Replay?.openMiner?.();
@@ -6748,30 +6242,25 @@ document.getElementById('undo-move').onclick = function() {
                     startBtn.disabled = true;
                     continueBtn.disabled = true;
                     startBtn.textContent = 'Training…';
-                    resetInsights();
-                    renderRoster();
-                    startTrainTalk(state.talk);
+                    // One click (owner 2026-10-13): public Train Bot picks the
+                    // rest itself; the player only sets length and speed.
+                    const run = (state._public && !resumeSave) ? { ...state, ...autoTrainChoices(state.generations) } : state;
+                    startTrainTalk(run.talk);
                     // Public mode: collapse to the corner progress popup right
-                    // away — the modal's own body has nothing extra to show for
-                    // a hill-climb run (the roster is evolve-only). Re-arm the
+                    // away — the modal's own body has nothing extra to show. Re-arm the
                     // public flag so the popup's "⤢ expand" reopens in public
                     // mode (cleared again in finally).
                     if (state._public) {
                         window._botTrainingPublic = true;
-                        showTrainingPopup({ mode: 'hillclimb', phase: 'starting', explore: resumeSave ? !!resumeSave.runOpts?.explore : state.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
+                        showTrainingPopup({ mode: 'hillclimb', phase: 'starting', explore: resumeSave ? !!resumeSave.runOpts?.explore : run.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
                         overlay.remove();
                     } else {
                         // Hermit runs: the corner popup shows at once too (it
                         // used to wait for the first finished game, ~30 s).
-                        showTrainingPopup({ mode: state.method === 'hillclimb' || resumeSave ? 'hillclimb' : 'training', phase: 'starting', nPlayers: state.n, explore: state.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
+                        showTrainingPopup({ mode: 'hillclimb', phase: 'starting', explore: run.explore, gamesDone: 0, totalGames: 1, startedAt: Date.now(), roundHistory: [] });
                     }
                     try {
-                        // Public "Train Bot" is hill-climb-only by definition.
-                        if ((state._public || resumeSave) && state.method !== 'hillclimb') {
-                            if (!state._forced) state._forced = { method: state.method, n: state.n };
-                            state.method = 'hillclimb';
-                        }
-                        if (state.method === 'hillclimb') {
+                        {
                             // Public Depth presets scale the whole run so the
                             // times in the tooltips are honest; the hermit panel
                             // still uses its own full-size lambda/G.
@@ -6785,8 +6274,8 @@ document.getElementById('undo-move').onclick = function() {
                                 : { rounds: state.generations, lambda: 6, gamesPerChallenge: 30, gamesPerSize: 5 };
                             const preset = { ...p, confirmSizes: [2, 3, 4, 5] };
                             const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, formulaGold, formulaKept, totalGold, endedEarly, saveInfo } = await runHillClimbTraining(preset, renderProgress, {
-                                visual: state.watchable, noisyAnchor: state.noisyAnchor, explore: state.explore, formulas: state.formulas,
-                                public: !!state._public, resume: resumeSave, mine: state.focus !== 'train',
+                                visual: state.watchable, noisyAnchor: run.noisyAnchor, explore: run.explore, formulas: run.formulas,
+                                public: !!state._public, resume: resumeSave, mine: run.focus !== 'train',
                             });
                             progressText.style.display = 'none';
                             const formulaTail = formulaGold
@@ -6815,16 +6304,6 @@ document.getElementById('undo-move').onclick = function() {
                             // Main page has no #status HUD — the toast is the
                             // only visible result feedback there.
                             window.gami?.notify(msg, totalGold || 0, 'gold');
-                        } else {
-                            const preset = { generations: state.generations, gamesPerPair: 1, popSize: 6, confirmGames: 10, gamesPerSize: 4 };
-                            const { improved, record } = await runWeightTraining(preset, renderProgress, {
-                                nPlayers: state.n, visual: state.watchable, noisyAnchor: state.noisyAnchor,
-                                onGeneration: handleGeneration,
-                            });
-                            progressText.style.display = 'none';
-                            updateStatus(improved
-                                ? `Training complete - champion beat the starting weights ${record} in the confirmation match. New weights applied and saved.`
-                                : `Training finished but did not beat the starting weights (${record}) - kept the previous weights.`);
                         }
                     } catch (err) {
                         console.error('Bot training failed:', err);
@@ -6843,7 +6322,6 @@ document.getElementById('undo-move').onclick = function() {
                     }
                 };
 
-                renderRoster();
                 document.body.appendChild(overlay);
             }
 
