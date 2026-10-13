@@ -319,6 +319,9 @@
         // picking the cheapest budget that still keeps the full mctsSamples=8
         // the roadmap calls "plenty" for hidden-info determinization.
         mctsEnabled:      false,
+        // Bot network strength (js/bot-net.js): 0 = off; a challenger that
+        // carries WEIGHTS.net sets 1. Training may tune it like any weight.
+        netWeight:        0,
         mctsSamples:      8,     // K determinized hidden-info completions, root action majority-voted across them
         mctsIterations:   20,    // UCB1 simulations per sample
         mctsHorizon:      15,    // max actions per rollout before falling back to evaluateSnapshot()
@@ -497,6 +500,7 @@
             // from an older cached table.
             if (!('terms' in data[0].weights)) delete WEIGHTS.terms;
             if (!('extraCombos' in data[0].weights)) delete WEIGHTS.extraCombos;
+            if (!('net' in data[0].weights)) delete WEIGHTS.net;
             applyBrainPreference();
             try { localStorage.setItem('godaigo_bot_weights', JSON.stringify(WEIGHTS)); } catch (e) {}
             log('Loaded best community champion from Supabase');
@@ -3212,6 +3216,12 @@
         // hermit's Formula Lab. None on a table = no change at all.
         if (WEIGHTS.terms && WEIGHTS.terms.length && window.BotTerms) {
             v += window.BotTerms.score(WEIGHTS.terms, snap, forIndex);
+        }
+
+        // Bot network (js/bot-net.js, 2026-10-13): a learned correction on top
+        // of everything above. No network or netWeight 0 = no change at all.
+        if (WEIGHTS.net && WEIGHTS.netWeight && window.BotNet) {
+            v += WEIGHTS.netWeight * window.BotNet.correction(snap, forIndex, WEIGHTS.net);
         }
 
         return v;

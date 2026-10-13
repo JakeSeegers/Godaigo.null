@@ -517,8 +517,21 @@
             try { return Math.round(window.BotSystem.evaluateSnapshot(window.BotState.snapshot(), i)); } catch (e) { return null; }
         });
         const segs = [];
+        // Positions for the bot network (2026-10-13, js/bot-net.js): every 2nd
+        // own turn per seat, like the arena; labelled with the result below.
+        const positions = [], ownTurns = {};
+        const samplePos = (seat, turn, v) => {
+            ownTurns[seat] = (ownTurns[seat] || 0) + 1;
+            if ((ownTurns[seat] - 1) % 2 !== 0 || !window.BotTerms?.features) return;
+            try {
+                const f = window.BotTerms.features(window.BotState.snapshot(), seat);
+                const ev = v?.[seats.indexOf(seat)];
+                if (f && Number.isFinite(ev)) positions.push({ seat, turn, f, ev });
+            } catch (e) { /* skip */ }
+        };
         let lastTurn = currentTurnNumber, lastActive = activePlayerIndex;
         let seg = { turn: lastTurn, seat: lastActive, v0: value(), steps: [] };
+        samplePos(lastActive, lastTurn, seg.v0);
         const lastCastBySeat = {};
         while (state.index < state.moves.length) {
             const move = state.moves[state.index];
@@ -541,11 +554,25 @@
                 seg.v1 = v; segs.push(seg);
                 lastTurn = currentTurnNumber; lastActive = activePlayerIndex;
                 seg = { turn: lastTurn, seat: lastActive, v0: v, steps: [] };
+                samplePos(lastActive, lastTurn, v);
             }
         }
         await sleep(500);
         seg.v1 = value(); segs.push(seg);
-        return { candidates: findCombos(segs, seats), segments: segs.length, errorCount: state.errors.length };
+        // Network rows: only games with a recorded winner. The key comes from the
+        // moves themselves, so the same game mined by two accounts counts once.
+        const w = state.match.winner_index;
+        let net = null;
+        if (positions.length && Number.isInteger(w)) {
+            let h = 0;
+            for (const m of state.moves) for (const ch of `${m.seq}|${m.event}|${m.sender}`) h = (h * 31 + ch.charCodeAt(0)) | 0;
+            const final = window.BotState.snapshot();
+            const step = Math.max(1, positions.length / 80);
+            const rows = Array.from({ length: Math.min(80, positions.length) }, (_, k) => positions[Math.floor(k * step)])
+                .map(r => ({ ...r, result: r.seat === w ? 1 : 0, prog: final.players?.[r.seat]?.activated?.length ?? null }));
+            net = { rows, key: `m:${seats.length}:${state.moves.length}:${(h >>> 0).toString(36)}`, players: seats.length };
+        }
+        return { candidates: findCombos(segs, seats), segments: segs.length, errorCount: state.errors.length, net };
     }
 
     // Readable token for one step: scroll id plus the kind of choice.
@@ -609,6 +636,14 @@
         });
     }
 
+    // Positions from a mined real game -> position_samples (js/bot-net.js).
+    // The server keeps one copy per account and game key; fire and forget.
+    function reportMinedPositions(net) {
+        if (!net?.rows?.length || !window.BotTerms?.FEATURE_VERSION) return;
+        supabase.rpc('report_positions', { p_rows: net.rows, p_source: 'mined', p_game: net.key,
+            p_players: net.players, p_version: window.BotTerms.FEATURE_VERSION }).then(({ error }) => { if (error) log('positions not saved:', error.message); }, () => {});
+    }
+
     // Parent side: mine every finished match not mined yet.
     let mining = false;
     // opts.limit: at most this many games; opts.stop(): checked before each game
@@ -630,6 +665,7 @@
                 onProgress?.(`Mining #${id} (${done + 1} of ${ids.length})...`);
                 const run = await runInFrame(id, 300000, 'mine', '', opts.frameHost || null);
                 const rows = run.result?.candidates || [];
+                reportMinedPositions(run.result?.net);
                 try { opts.onGame?.(id, rows, run.error || null); } catch (e) {}
                 if (run.error) log(`mine ${id}: ${run.error}`);
                 const { error: e2 } = await supabase.rpc('save_combo_candidates', { p_match_id: id, p_rows: rows });
@@ -660,6 +696,7 @@
             const run = await runInFrame(id, 300000, 'mine', '', opts.frameHost || null);
             if (run.error || !run.result) { log('pooled mine:', run.error || 'no result'); return { done: 0, found: 0 }; }
             const rows = run.result.candidates || [];
+            reportMinedPositions(run.result.net);
             try { opts.onGame?.(null, rows, null); } catch (e) {}
             const { data: rep, error: e2 } = await supabase.rpc('idle_mine_report', { p_job: data.job, p_rows: rows });
             if (e2) log('pooled mine report failed', e2.message);

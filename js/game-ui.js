@@ -7558,6 +7558,9 @@ document.getElementById('undo-move').onclick = function() {
                 menu.appendChild(makeItem('Formula Lab (new bot senses)', () => {
                     if (window.FormulaLab) window.FormulaLab.open();
                 }));
+                menu.appendChild(makeItem('Bot Network (train, test, send)', () => {
+                    if (window.BotNet) window.BotNet.open();
+                }));
                 menu.appendChild(makeItem('Rewards: sign-up events, game rewards', () => {
                     window.HermitRewards?.open();
                 }));
