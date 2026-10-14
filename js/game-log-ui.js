@@ -382,7 +382,7 @@
             }
             case 'simplifyAP': {
                 return {
-                    html: `<span style="${scrollStyle('VOID_SCROLL_3')}">${esc(`Simplify: +${entry.amount || 1} AP (a scroll went to the common area)`)}</span>`,
+                    html: `<span style="${scrollStyle('VOID_SCROLL_3')}">${esc(`Simplify: +${entry.amount || 2} AP (a scroll went to the common area)`)}</span>`,
                     className: 'gl-effect',
                 };
             }

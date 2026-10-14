@@ -2931,7 +2931,7 @@
                     spellSystem.scrollEffects.activeBuffs.simplify = { expiresNextTurn: true, playerIndex };
                 }
                 const playerName = getPlayerColorName(playerIndex);
-                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 1 AP for every scroll added to the common area.`);
+                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`);
             });
 
             // Reflect triggered at start of turn: run the reflected scroll's effect and update activated elements.

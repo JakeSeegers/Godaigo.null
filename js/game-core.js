@@ -261,7 +261,7 @@
             }
 
             // Simplify (owner 2026-10-14): until the caster's next turn, they regain
-            // 1 AP every time a scroll is added to the common area (by anyone).
+            // 2 AP every time a scroll is added to the common area (by anyone).
             // Called the first time a scroll lands there on this board (the same
             // move can reach a board twice: the local discard and the broadcast).
             // Only the board that holds the caster's AP applies it: the caster's
@@ -278,11 +278,11 @@
                     if (!mine && !hostOwnsBot) return;
                 }
                 const gained = this.responseWindow?.gainPlayerAP
-                    ? this.responseWindow.gainPlayerAP(idx, 1)
+                    ? this.responseWindow.gainPlayerAP(idx, 2)
                     : 0;
                 if (gained > 0) {
                     const who = typeof getPlayerColorName === 'function' ? getPlayerColorName(idx) : `Player ${idx + 1}`;
-                    updateStatus(`Simplify: ${who} regains 1 AP (a scroll went to the common area).`);
+                    updateStatus(`Simplify: ${who} regains ${gained} AP (a scroll went to the common area).`);
                     window.ActionLog?.record?.('simplifyAP', { playerIndex: idx, scrollName, amount: gained }, idx);
                 }
             }

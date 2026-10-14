@@ -257,6 +257,10 @@
         discardResponseOnly: 25, // level-1 scrolls are response-only: dead weight once
                                  // their element is won or dead (a needed one is kept:
                                  // a response activates its element)
+        discardSimplify:    45,  // Simplify up (owner 2026-10-14): a dead scroll (spareScroll)
+                                 // to the common area pays 2 AP back, while AP has room
+        castSimplifySpare:  18,  // × dead scrolls held (max 3) when casting Simplify: each
+                                 // one is 2 AP later via discardSimplify
         l1WaitVoid:         30,  // owner's habit (2026-09-29): wait for a level 1 response on a void
                                  // shrine, collecting void (AP) meanwhile: ending the turn there with a
                                  // needed level 1 ready (half for building its pattern there)
@@ -1123,6 +1127,26 @@
     // ----------------------------------------------------------------
     // scoreAction — the Stage-1 utility function. Tune WEIGHTS, not this.
     // ----------------------------------------------------------------
+    // A scroll with no win value left for this player (the same tests the
+    // discard scoring uses): its element is won or its source is empty, or a
+    // level 1 whose element is won / dead and is not a wanted guard counter.
+    // Never the scroll the current build plan needs.
+    function spareScroll(snap, self, name) {
+        const def = window.SCROLL_DEFINITIONS?.[name];
+        if (!def) return false;
+        const plan = mem(snap.turn.activePlayerIndex).plan;
+        if (plan && plan.scroll === name) return false;
+        if (COUNTERS.has(name) && guardWanted(snap)) return false;
+        const el = def.element;
+        if (!el || !ELEMENTS.includes(el)) return false; // catacomb: two elements, keep it simple
+        return self.activated.includes(el) || (snap.sourcePool[el] || 0) <= 0;
+    }
+
+    // Room for Simplify's +1 AP (capped like addAP: 5 + void pool).
+    function simplifyApRoom(snap, self) {
+        return Math.max(0, 5 + (self.pool?.void || 0) - (snap.turn.ap || 0));
+    }
+
     function scoreAction(a, snap, ctx) {
         const self = me(snap);
         // Optional feature-trace channel (js/bot-imitation.js's hermit-only
@@ -1161,6 +1185,12 @@
                 }
                 if (drawNotNeeded(snap, self, a.scroll)) s += contrib('castDrawNotNeeded', 1);
                 if (guardFetchHelps(snap, self, a.scroll)) s += contrib('castGuardFetch', 1);
+                if (a.scroll === 'VOID_SCROLL_3' && !snap.turn.buffs?.simplify) {
+                    // Each dead scroll held turns into 1 AP once Simplify is up.
+                    const held = [...(self.hand || []), ...(self.active || [])].filter(n => n !== a.scroll);
+                    const spare = held.filter(n => spareScroll(snap, self, n)).length;
+                    if (spare) s += contrib('castSimplifySpare', Math.min(3, spare));
+                }
                 s += harmCastBonus(snap, self, a);
                 if (mem(snap.turn.activePlayerIndex).noCreditScrolls.has(a.scroll)) {
                     s += contrib('castNoCredit', 1); // effect cancelled before - hard veto, don't recast
@@ -1365,6 +1395,10 @@
                 let s = contrib('discardBase', 1) + contrib('discardLevel', def?.level || 0);
                 if (ctx.help?.gift.has(el) && def?.level > 1) s += contrib('discardForAlly', 1);
                 if (a.voluntary) s += contrib('discardVoluntary', 1);
+                // Simplify up: a dead scroll to the common area is 2 AP back.
+                if (snap.turn.buffs?.simplify && simplifyApRoom(snap, self) > 0 && spareScroll(snap, self, a.scroll)) {
+                    s += contrib('discardSimplify', 1);
+                }
                 // A level 1 for an element still needed is a real way to
                 // activate it (as a response), so it is only dead weight
                 // once that element is won or its source is empty.

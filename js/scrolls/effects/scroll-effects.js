@@ -1362,7 +1362,7 @@ const ScrollEffects = {
 
         VOID_SCROLL_3: {
             name: 'Simplify',
-            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 1 AP every time a scroll is added to the common area.',
+            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 2 AP every time a scroll is added to the common area.',
             isCounter: false,
             priority: 3,
             execute(casterIndex, context, system) {
@@ -1374,7 +1374,7 @@ const ScrollEffects = {
                     playerIndex: casterIndex
                 };
                 const playerName = typeof getPlayerColorName === 'function' ? getPlayerColorName(casterIndex) : `Player ${casterIndex + 1}`;
-                const message = `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 1 AP for every scroll added to the common area.`;
+                const message = `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`;
                 updateStatus(message);
 
                 if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
