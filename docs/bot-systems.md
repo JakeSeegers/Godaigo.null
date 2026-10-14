@@ -12,12 +12,15 @@ The bots grew one feature at a time. Each new idea brought its own way to train,
 data and its own pass / fail test. Problems found on 2026-10-14:
 
 - **Five different tests.** A new brain is judged differently depending on which path made it.
-- **Responses almost never happen in training.** Training is mostly 2-player (the challenger
-  series and idle training); Train Bot's Explore step and confirmAcrossSizes also play 3-5 player
-  games (about 1 in 5 recent training games). But player count is not the whole story: 6 two-player
-  games had 153 casts and 0 response chances, and 6 three- and four-player games had 124 casts,
-  1 response chance and 0 responses. Real online games had 22 bot responses in 126 games. Why real
-  games differ is not known yet (humans in the game? guard mode not switching on in training?).
+- **Responses almost never happen in 2-player training.** Training is mostly 2-player (the
+  challenger series and idle training); Train Bot's Explore step and confirmAcrossSizes also play
+  3-5 player games (about 1 in 5 recent training games). Measured 2026-10-14 with diplomacy on:
+  2 players: 389 turns, guard mode wanted on 104, 0 guard plans, 0 response chances (70 of the 104
+  the bot was one cast from winning itself and raced, 22 had no counter in reach, 12 wanted a
+  Psychic guard but no plan could be made). 3 players: pacts on 59 turns, 0 responses. 4 players:
+  pacts on 91 turns, guard role 14, 3 response chances, 2 responses in 3 games (real games: 22 bot
+  responses in 126). Reflect, Unbidden Lamplight and Sigh have no guard behaviour at all: bots only
+  respond when they happen to stand in the pattern with AP left.
 - **Rare scrolls get no training signal.** In 24 bot games most scrolls were cast in only 2 to 8
   games, and 9 were never cast. A setting for one scroll (for example Simplify's) cannot move the
   win rate enough for training to notice.
@@ -182,7 +185,7 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 
 | Phase | What | Server? | Check |
 |-------|------|---------|-------|
-| 1 | **Find why responses never happen in training** (guard mode, AP saving, humans), fix it, then make sure every exam has 3-4 player games, including idle training (2-player only today). | maybe a small change to idle_training_report (store player count) | response and guard counts in training games go above 0; seeded 2-player games unchanged |
+| 1 | **4-player games in every exam**, including idle training (2-player only today): guard mode, pacts and responses then happen as in real games. Also: why 12 Psychic guard plans failed to start; whether non-counter responses need a "keep ready" habit. | maybe a small change to idle_training_report (store player count) | response and guard counts in training games above 0; seeded 2-player games unchanged |
 | 2 | **BotExam function** wrapping sections A to E; existing checks call it | none | same verdicts as before on recorded test runs |
 | 3 | **Drills** (sections B, C) using startScrolls, weakest scrolls first | none (local first) | drill counts per scroll; no change to normal games |
 | 4 | **Shared queue**: Train Bot submits challengers and plays queue games; server-only promotion | yes (queue kinds, Train Bot reports, SPRT verdict) | two browsers' games add up on one challenger |
@@ -208,5 +211,8 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 ## 7. Notes found while mapping
 
 - CLAUDE.md said WEIGHTS.searchDepth defaults to 0; bot.js DEFAULT_WEIGHTS has 3 (CLAUDE.md fixed 2026-10-14).
-- Scroll report finding: training games almost never open a response window (2-player and
-  3-4 player bot games alike); real games do. Cause still open. See planning/current.md 2026-10-14.
+- Scroll report finding: 2-player training never opens a response window; 4-player training does
+  (diplomacy on). See section 1 and planning/current.md 2026-10-14.
+- Test trap: calling BotArena.playMatch directly (not run / evolve / spectate) leaves
+  BotDiplomacy.enabled() false (arenaRunning() reads isRunning / isEvolving / ...), so pacts and
+  guard mode are off. A test of multi-player behaviour must go through run / evolve or set it.
