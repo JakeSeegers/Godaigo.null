@@ -2093,4 +2093,6 @@ window.I18N_ES = {
     "No combos yet.": "Todavía no hay combos.",
     "All past games are checked. Nothing left to mine.": "Todas las partidas pasadas están revisadas. No queda nada por minar.",
     "Gain {0}": "Ganancia {0}",
+    "Win stone first": "Primero la piedra de victoria",
+    "When a scroll counts toward your win, its win stone now comes from the source before the scroll draws any stones. Seed the Skies, Mason's Savvy, Create, Respirate and Quick Reflexes can take the last stones and still count.": "Cuando un pergamino cuenta para tu victoria, su piedra de victoria ahora sale de la reserva antes de que el pergamino robe piedras. Sembrar los Cielos, Astucia del Albañil, Crear, Respirar y Reflejos Rápidos pueden tomar las últimas piedras y aun así contar.",
 };

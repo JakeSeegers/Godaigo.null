@@ -101,6 +101,12 @@ SCROLL_DECKS = {
   (`applyScrollEffects`), responses (lobby.js `response-resolved`) and counters
   (multiplayer-state.js) all apply it; responses/counters use `spellSystem.grantElements(idx, els)`,
   which returns the elements really granted.
+- The win stone is drawn BEFORE the scroll's effect (owner, 2026-10-14): callers take
+  `spellSystem.sourcePoolSnapshot()` before `execute()` and the check is `sourceHasStone(el, poolBefore)`:
+  the element counts when its source had a stone before the effect OR still has one after it. So Seed the
+  Skies, Mason's Savvy, Create, Respirate, Quick Reflexes, Sigh of Recollection can take the last stones and
+  still count; an effect that returns a stone (Transmute, Combust) still works as before. Pass `poolBefore`
+  as the 3rd argument of `grantElements` from any new cast path. bot-sim.js simCast mirrors it.
 - `scroll-effect` / `spell-cast` broadcasts carry ONLY the granted elements (`activatedElements`,
   `granted`); receivers add exactly those. Before, the full list was sent and added without the rule.
 - The source pools are synced: `syncPlayerState()` sends `source` (the active player's `sourcePool`)
