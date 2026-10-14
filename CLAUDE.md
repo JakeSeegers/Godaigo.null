@@ -408,7 +408,9 @@ Order matters — later scripts depend on earlier ones.
                              Lives in the weight table: WEIGHTS.net (+ WEIGHTS.netWeight, default 0 = off), so it travels with the champion
                              to every device. Data: position_samples from arena games AND mined real games (replay-viewer.js runMine,
                              source 'mined', key from the moves, the same game from two accounts counts once). Hermit menu "Bot Network":
-                             load every row (hermit_position_samples), train (Adam, 20% of games held out, best round kept), compare with the
+                             load every row (hermit_position_samples), train (Adam, 20% of games held out, best round kept; learning from moves
+                             2026-10-14 = TD(lambda 0.7): each position's target mixes the net's value of the same seat's next position with
+                             the result, recomputed every round), compare with the
                              weighted sum alone (loss, % right), quick arena test (20 games), "Send to idle training" = idle_training_new kind
                              'net' (sql/bot-net.sql) -> promoted only by winning like any challenger.
 22b. bot-terms.js         ← window.BotTerms: formula terms = extra bot senses as plain data (WEIGHTS.terms:
@@ -563,7 +565,9 @@ Order matters — later scripts depend on earlier ones.
                              (win / turn cap) Replay.findCombos picks windows -> report_bot_combos (bot_combo_finds, never taught; hermit
                              Combos tab "Found by bots in training"). Read-only: seeds 777 / 9001 / 31337 identical. opts.comboWatch false = off.
                              The Train Bot window lists this run's finds ("Combos found" box, BotArena.comboFindLog()).
-                             Position samples (2026-10-13, network step 1, sql/position-samples.sql): every 2nd own turn per seat saves
+                             Position samples (2026-10-13, network step 1, sql/position-samples.sql; move sequences 2026-10-14: every own
+                             turn start + in every 3rd own turn the board after each of that seat's moves (move / placeStone / breakStone /
+                             cast_execute via ActionLog), max 400 rows, sent in chunks of 80 as game key '#n', source 'moves-...'). Before: every 2nd own turn per seat saves
                              BotTerms.features(snap, seat) (48 numbers, FEATURE_VERSION 2: no homeCost (slow path search) or myAP; toCurrent() converts v1 rows) + evaluateSnapshot; at a win / turn cap each row
                              gets result 1 / 0 / 0.5 and progress -> report_positions (max 80 rows per game). Read-only (seed 777 identical).
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).

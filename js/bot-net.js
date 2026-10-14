@@ -63,9 +63,15 @@
     }
 
     // ── Training ─────────────────────────────────────────────────
-    // rows: [{f, ev, result, game}]. Split by game (20% held out), fit the
-    // baseline, then the network with Adam on cross-entropy. Soft labels
-    // (0.5 = no winner) are fine for cross-entropy.
+    // rows: [{f, ev, result, game, seat}] in game order. Split by game (20%
+    // held out), fit the baseline, then the network with Adam on cross-entropy.
+    // Learning from moves (owner 2026-10-14, TD(lambda) like TD-Gammon): rows of
+    // one seat in one game form a chain; each position's target mixes the
+    // network's own value of the NEXT position with the final result
+    // (G = (1 - lambda) * V(next) + lambda * G(next), last = result), recomputed
+    // every round. So a move gets credit for the position it leads to, not only
+    // for the winner 30 turns later. opts.lambda 1 = plain "learn from results".
+    // Soft labels (0.5 = no winner) are fine for cross-entropy.
     function rng(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
     const bce = (p, y) => { p = Math.min(1 - 1e-6, Math.max(1e-6, p)); return -(y * Math.log(p) + (1 - y) * Math.log(1 - p)); };
 
@@ -79,6 +85,14 @@
         const tr = rows.filter(r => !testGames.has(r.game)), te = rows.filter(r => testGames.has(r.game));
         if (tr.length < 50 || te.length < 10) throw new Error(`not enough data (${rows.length} positions in ${games.length} games)`);
         const n = tr[0].f.length;
+        const lambda = opts.lambda ?? 0.7;
+        // Chains: next row of the same seat in the same game (-1 = last).
+        const next = new Int32Array(tr.length).fill(-1), last = new Map();
+        for (let i = tr.length - 1; i >= 0; i--) {
+            const key = tr[i].game + '|' + (tr[i].seat ?? '');
+            if (last.has(key)) next[i] = last.get(key);
+            last.set(key, i);
+        }
 
         // Baseline: p = sigmoid(a * ev + b).
         let a = 0.5, b = 0;
@@ -120,9 +134,22 @@
             return { lossBase: lossBase / set.length, lossNet: lossNet / set.length, accBase: decided ? okBase / decided : null, accNet: decided ? okNet / decided : null };
         };
 
+        // TD targets from the current network (values of every training row).
+        const target = new Float64Array(tr.length);
+        const fillTargets = () => {
+            if (lambda >= 1) { for (let i = 0; i < tr.length; i++) target[i] = tr[i].result; return; }
+            const net = { mean, std, W1, b1, W2, b2 };
+            const V = tr.map((r, i) => sigmoid(base[i] + netOut(net, r.f)));
+            for (let i = tr.length - 1; i >= 0; i--) {
+                const j = next[i];
+                target[i] = j < 0 ? tr[i].result : (1 - lambda) * V[j] + lambda * target[j];
+            }
+        };
+
         let best = null;
         const order = tr.map((_, i) => i);
         for (let ep = 0; ep < epochs; ep++) {
+            fillTargets();
             for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
             for (let s = 0; s < order.length; s += batch) {
                 gW1.fill(0); gb1.fill(0); gW2.fill(0);
@@ -136,7 +163,7 @@
                         for (let k = 0; k < n; k++) z += W1[row + k] * x[k];
                         hid[j] = Math.tanh(z); out += W2[j] * hid[j];
                     }
-                    const e = sigmoid(base[i] + out) - tr[i].result;   // d loss / d out
+                    const e = sigmoid(base[i] + out) - target[i];   // d loss / d out
                     gB += e;
                     for (let j = 0; j < H; j++) {
                         gW2[j] += e * hid[j];
@@ -172,7 +199,7 @@
             v: window.BotTerms?.FEATURE_VERSION || 1, n, hidden: H, a: round(a), b: round(b),
             mean: mean.map(round), std: std.map(round),
             W1: best.snap.W1.map(round), b1: best.snap.b1.map(round), W2: best.snap.W2.map(round), b2: round(best.snap.b2),
-            trained: { at: new Date().toISOString(), positions: rows.length, games: games.length, testGames: testGames.size, epoch: best.epoch },
+            trained: { at: new Date().toISOString(), positions: rows.length, games: games.length, testGames: testGames.size, epoch: best.epoch, lambda },
         };
         return { net, test: best.test, train: evalSet(tr), counts: { rows: rows.length, games: games.length, train: tr.length, test: te.length } };
     }
@@ -191,10 +218,12 @@
                 after = Math.max(after, r.id);
                 const f = window.BotTerms?.toCurrent?.(r.features, r.version);
                 if (!f) continue;
-                const owner = seen.get(r.game_key);
+                // '#n' = a chunk of one game's move sequence: same game.
+                const game = String(r.game_key).split('#')[0];
+                const owner = seen.get(game);
                 if (owner && owner !== r.created_by) continue;
-                seen.set(r.game_key, r.created_by);
-                out.push({ f, ev: r.eval, result: r.result, game: r.game_key, source: r.source, players: r.n_players });
+                seen.set(game, r.created_by);
+                out.push({ f, ev: r.eval, result: r.result, game, seat: r.seat, turn: r.turn, source: r.source, players: r.n_players });
             }
             onProgress?.(out.length);
             if (data.length < 5000) break;

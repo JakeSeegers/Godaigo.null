@@ -542,36 +542,58 @@
     let _findLog = [];
 
     // ── Position samples (owner 2026-10-13, sql/position-samples.sql) ───
-    // Data for a small bot network (step 1: collect only). At the start of
-    // every 2nd own turn a seat's position is saved: BotTerms.features (what
-    // the bot notices) and the weighted-sum score (evaluateSnapshot). When the
-    // game ends with a winner or at the turn cap, each row gets the result for
-    // that seat (1 win, 0 loss, 0.5 no winner) and goes to report_positions.
-    // Read-only like the combo watcher. opts.positionLog false = off.
-    const POS_EVERY = 2, POS_MAX = 80;
+    // Data for the bot network (js/bot-net.js). Read-only like the combo
+    // watcher; opts.positionLog false = off.
+    // Move sequences (owner 2026-10-14, "learn from moves"): every own turn
+    // start is saved, and in every 3rd own turn also the board after each of
+    // that seat's moves (step, stone, cast, break), so the network sees
+    // positions one move apart. Rows keep their order; bot-net.js trains each
+    // position toward the next one (TD learning) and the last toward the
+    // result. At a win / turn cap every row gets the result for its seat
+    // (1 win, 0 loss, 0.5 no winner) and goes to report_positions in chunks
+    // of 80 (game key + '#chunk'; source 'moves-<source>').
+    const POS_MOVE_EVERY = 3, POS_CHUNK = 80, POS_MAX = 400;
+    const POS_ACTIONS = new Set(['move', 'placeStone', 'breakStone', 'cast_execute']);
     let _posStats = { games: 0, rows: 0, saved: 0, failed: 0 };
-    function posSample(pl, turn, idx) {
-        pl.own[idx] = (pl.own[idx] || 0) + 1;
-        if ((pl.own[idx] - 1) % POS_EVERY !== 0) return;
+    let _posCur = null, _posHooked = false;
+    function posRow(pl, seat, turn, kind) {
+        if (pl.rows.length >= POS_MAX) return;
         try {
             const snap = window.BotState.snapshot();
-            const f = window.BotTerms.features(snap, idx);
-            const ev = window.BotSystem.evaluateSnapshot(snap, idx);
-            if (f && Number.isFinite(ev)) pl.rows.push({ seat: idx, turn, f, ev: Math.round(ev) });
+            const f = window.BotTerms.features(snap, seat);
+            const ev = window.BotSystem.evaluateSnapshot(snap, seat);
+            if (f && Number.isFinite(ev)) pl.rows.push({ seat, turn, f, ev: Math.round(ev), k: kind });
         } catch (e) { /* skip this position */ }
     }
+    function posHook() {
+        if (_posHooked || !window.ActionLog?.onRecord) return;
+        _posHooked = true;
+        window.ActionLog.onRecord((e) => {
+            const pl = _posCur;
+            if (!pl?.moveTurn || e.player !== pl.moveTurn.seat || !POS_ACTIONS.has(e.type)) return;
+            posRow(pl, pl.moveTurn.seat, pl.moveTurn.turn, 'm');
+        });
+    }
+    function posSample(pl, turn, idx) {
+        _posCur = pl;
+        pl.own[idx] = (pl.own[idx] || 0) + 1;
+        pl.moveTurn = ((pl.own[idx] - 1) % POS_MOVE_EVERY === 0) ? { seat: idx, turn } : null;
+        posRow(pl, idx, turn, 't');
+    }
     function posFinish(pl, result, n, opts, key) {
+        if (_posCur === pl) _posCur = null;
         if (!(result.endReason === 'win' || result.endReason === 'turn_cap') || !pl.rows.length) return;
-        let rows = pl.rows;
-        if (rows.length > POS_MAX) { const step = rows.length / POS_MAX; rows = Array.from({ length: POS_MAX }, (_, k) => rows[Math.floor(k * step)]); }
         const w = result.winner;
-        for (const r of rows) { r.result = w == null ? 0.5 : (r.seat === w ? 1 : 0); r.prog = result.activated?.[r.seat] ?? null; }
-        _posStats.games++; _posStats.rows += rows.length;
+        for (const r of pl.rows) { r.result = w == null ? 0.5 : (r.seat === w ? 1 : 0); r.prog = result.activated?.[r.seat] ?? null; }
+        _posStats.games++; _posStats.rows += pl.rows.length;
         if (typeof supabase === 'undefined' || !supabase?.rpc) return;
-        supabase.rpc('report_positions', {
-            p_rows: rows, p_source: opts.comboSource || (opts.visual ? 'watch' : 'train'),
-            p_game: key, p_players: n, p_version: window.BotTerms.FEATURE_VERSION,
-        }).then(({ data, error }) => { if (error) _posStats.failed++; else _posStats.saved += data || 0; }, () => { _posStats.failed++; });
+        const source = 'moves-' + (opts.comboSource || (opts.visual ? 'watch' : 'train'));
+        for (let c = 0; c * POS_CHUNK < pl.rows.length; c++) {
+            supabase.rpc('report_positions', {
+                p_rows: pl.rows.slice(c * POS_CHUNK, (c + 1) * POS_CHUNK), p_source: source,
+                p_game: `${key}#${c}`, p_players: n, p_version: window.BotTerms.FEATURE_VERSION,
+            }).then(({ data, error }) => { if (error) _posStats.failed++; else _posStats.saved += data || 0; }, () => { _posStats.failed++; });
+        }
     }
 
     // ── Combo screening (owner 2026-10-11, sql/combo-screening.sql) ─────
@@ -680,6 +702,7 @@
             if (cw) cw.key = gameKey;
         }
         if (cw) cwHook();
+        if (pl) posHook();
         try {
             // Also break on _endEarlyRequested so "End Early → Test Now" aborts
             // the in-progress game immediately rather than waiting for it to
