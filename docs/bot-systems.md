@@ -15,9 +15,10 @@ data and its own pass / fail test. Problems found on 2026-10-14:
 - **Responses almost never happen in 2-player training.** Training is mostly 2-player (the
   challenger series and idle training); Train Bot's Explore step and confirmAcrossSizes also play
   3-5 player games (about 1 in 5 recent training games). Measured 2026-10-14 with diplomacy on:
-  2 players: 389 turns, guard mode wanted on 104, 0 guard plans, 0 response chances (70 of the 104
-  the bot was one cast from winning itself and raced, 22 had no counter in reach, 12 wanted a
-  Psychic guard but no plan could be made). 3 players: pacts on 59 turns, 0 responses. 4 players:
+  2 players: 389 turns, 0 guard plans, 0 response chances. At plan review time (91 reviews with
+  guard mode wanted): 70 the bot was one cast from winning itself and raced (on purpose: two
+  guards facing each other stalled before), 19 had no counter in reach, 2 tried and failed. An
+  earlier "12 failed Psychic plans" count was a measuring mistake (checked at turn start). 3 players: pacts on 59 turns, 0 responses. 4 players:
   pacts on 91 turns, guard role 14, 3 response chances, 2 responses in 3 games (real games: 22 bot
   responses in 126). Reflect, Unbidden Lamplight and Sigh have no guard behaviour at all: bots only
   respond when they happen to stand in the pattern with AP left.
@@ -230,7 +231,7 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 
 | Phase | What | Server? | Check |
 |-------|------|---------|-------|
-| 1 | **4-player games in every exam**, including idle training (2-player only today), **`DIAL_FLOORS`** and the **`evalResponseReady`** term (3.6). Also: why 12 Psychic guard plans failed to start. | maybe a small change to idle_training_report (store player count) | response and guard counts in training games above 0; seeded 2-player games unchanged while the new weight is 0 |
+| 1 | **BUILT 2026-10-14**: 4-player team games (every 3rd pair) in Train Bot's challenger series and idle training, skill dial floors (bot.js DIAL_KEYS / floorDials), `evalResponseReady` term. Guard check: no bug, 2-player endgames race on purpose. | none (team games keep the 50% baseline) | seed 777 identical with the new weight off; 4 games each: 2p off 0 responses, 2p on 1, 4p team 2; position score +0.0016 ms |
 | 2 | **BotExam function** wrapping sections A to E; existing checks call it | none | same verdicts as before on recorded test runs |
 | 3 | **Drills** (sections B, C) using startScrolls, weakest scrolls first | none (local first) | drill counts per scroll; no change to normal games |
 | 4 | **Shared queue**: Train Bot submits challengers and plays queue games; server-only promotion | yes (queue kinds, Train Bot reports, SPRT verdict) | two browsers' games add up on one challenger |

@@ -1091,22 +1091,38 @@
         for (let i = 0; i < nGames && !_stopRequested && !_endEarlyRequested && !_saveRequested; i++) {
             const gi = offset + i;
             const aIsPlayer0 = gi % 2 === 0;
+            // opts.fourPlayerEvery k (owner 2026-10-14, docs/bot-systems.md): every k-th
+            // pair of games is a 4-player TEAM game, A and B on alternate seats (A on
+            // 0 and 2 when aIsPlayer0, else on 1 and 3). Pacts, guard mode and
+            // responses only happen with 3+ players; a result is still one side's
+            // win, so win rates and the idle verdict keep their 50% baseline.
+            const fourK = opts.fourPlayerEvery | 0;
+            const four = fourK > 0 && ((gi >> 1) % fourK) === fourK - 1;
             if (opts.markChallenger) setMarkedSeat(aIsPlayer0 ? 0 : 1);
-            const g = await playGame(
-                aIsPlayer0 ? weightsA : weightsB,
-                aIsPlayer0 ? weightsB : weightsA,
-                seed * 1000 + (gi >> 1),
-                opts
-            );
+            const g = four
+                ? await playMatch(aIsPlayer0 ? [weightsA, weightsB, weightsA, weightsB] : [weightsB, weightsA, weightsB, weightsA],
+                    { ...opts, seed: seed * 1000 + (gi >> 1) })
+                : await playGame(
+                    aIsPlayer0 ? weightsA : weightsB,
+                    aIsPlayer0 ? weightsB : weightsA,
+                    seed * 1000 + (gi >> 1),
+                    opts
+                );
             if (opts.markChallenger) setMarkedSeat(null);
             if (_saveRequested) break; // cut short by Save & Quit: not a result
-            const aWon = g.winner !== null && ((g.winner === 0) === aIsPlayer0);
+            const aSeat = s => (s % 2 === 0) === aIsPlayer0;
+            const aWon = g.winner !== null && aSeat(g.winner);
             if (g.winner === null) result.draws++;
             else if (aWon) result.aWins++;
             else result.bWins++;
-            result.aFitness += sideFitness(g, aIsPlayer0, opts);
-            result.bFitness += sideFitness(g, !aIsPlayer0, opts);
-            result.games.push({ winner: g.winner, turns: g.turns, aIsPlayer0 });
+            if (four) {
+                result.aFitness += (seatFitness(g, aIsPlayer0 ? 0 : 1, opts) + seatFitness(g, aIsPlayer0 ? 2 : 3, opts)) / 2;
+                result.bFitness += (seatFitness(g, aIsPlayer0 ? 1 : 0, opts) + seatFitness(g, aIsPlayer0 ? 3 : 2, opts)) / 2;
+            } else {
+                result.aFitness += sideFitness(g, aIsPlayer0, opts);
+                result.bFitness += sideFitness(g, !aIsPlayer0, opts);
+            }
+            result.games.push({ winner: g.winner, turns: g.turns, aIsPlayer0, players: four ? 4 : 2 });
             result.avgTurns += g.turns / nGames;
             log(`game ${i + 1}/${nGames}: ${g.winner === null ? 'draw' : (aWon ? 'A' : 'B') + ' wins'} in ${g.turns} turns  (A=${result.aWins} B=${result.bWins} D=${result.draws})`);
             if (typeof opts.onGame === 'function') {
@@ -1594,7 +1610,8 @@
                         // stageDone: games of this stage already played before
                         // a Save & Quit (a continued run plays only the rest).
                         const r = await _playSeries(cand.w, champion, st.games - (cand.stageDone || 0), trialSeed,
-                            { ...opts, visual, gameIndexOffset: cand.played, markChallenger: true });
+                            { ...opts, visual, gameIndexOffset: cand.played, markChallenger: true,
+                              fourPlayerEvery: opts.fourPlayerEvery ?? 3 });
                         if (_stopRequested) break; // a stopped series is not a result
                         const n = r.aWins + r.bWins + r.draws;
                         cand.played += n;

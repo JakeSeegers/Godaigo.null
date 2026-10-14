@@ -465,6 +465,12 @@ Order matters — later scripts depend on earlier ones.
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
                              choices). A turn that moved on during the slices is not acted on.
+                             Skill dials (2026-10-14, docs/bot-systems.md 3.6): DIAL_KEYS (guardKeepAp, leaveResponseReady, l1WaitVoid,
+                             evalScrollResponse, castGuardFetch, evalResponseReady) never below half their default (floorDials, run by
+                             pinSocial on every loaded / applied table). evalResponseReady (20): evaluateSnapshot adds it x responseReadyFactor
+                             (inside my turn, standing in a usable level 1 pattern with the AP to pay; 1.5 needed element, 2 counter while a
+                             player is one cast from winning; patternHereCached = checkPattern cached per stones list). Test hooks:
+                             _review.guardOn / guardTry, _makePlan(snap, opts).
                              Slow decisions: a decision over 1 s becomes a lag-recorder moment with its mode, time per helper
                              (search / MCTS / plan / rank) and board size; the stress test summary lists them.
 24b. bot-memory.js         ← window.BotMemory — episodic "what happened after decisions like this" memory.
@@ -519,7 +525,7 @@ Order matters — later scripts depend on earlier ones.
                              back: round trip, server ack, lost (5 s), plus HTTP ping. Results box with plain-words verdicts
                              (drawing vs bot thinking vs network, late because the screen was busy) + Download report.
 25a4. idle-training.js   <- window.IdleTraining: idle training screensaver (sql/idle-training.sql). Signed in, in the lobby, no input
-                             for 3 min: plays watchable 2-player bot games (challenger vs champion) as an audience view
+                             for 3 min: plays watchable bot games (challenger vs champion; every 3rd pair a 4-player team game) as an audience view
                              (Spectate.showLocal: scoreboard, no follow camera (follow: false), hands hidden; sound off; one game per
                              BotArena.run call, 2 per challenger; after the first 3 games every other one is fast: speed 0.1 with
                              window.__arenaFx = effects kept and waited for (game-core.js fxOn, bot.js waitForQuiescence), ~3.8x faster) for a COMMUNAL "pooled climb":
@@ -575,6 +581,10 @@ Order matters — later scripts depend on earlier ones.
                              BotTerms.features(snap, seat) (48 numbers, FEATURE_VERSION 2: no homeCost (slow path search) or myAP; toCurrent() converts v1 rows) + evaluateSnapshot; at a win / turn cap each row
                              gets result 1 / 0 / 0.5 and progress -> report_positions (max 80 rows per game). Read-only (seed 777 identical).
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).
+                             Team games (2026-10-14): run / _playSeries opts.fourPlayerEvery k = every k-th pair of games is a 4-player game,
+                             A and B on alternate seats (A on 0 and 2 when aIsPlayer0); a win is still one side's, so win rates and the idle
+                             verdict keep 50%. hillClimb challenger series default 3; idle training 3. Pacts, guard mode and responses only
+                             happen with 3+ players. Test trap: plain playMatch() leaves BotDiplomacy.enabled() false (no run / evolve flag).
                              Test option opts.startScrolls = { seat: [scroll names] } (2026-10-14): those scrolls start in that seat's hand (out of
                              the decks / common area), so a test can force a rare scroll into every game; run() swaps sides every other game.
                              Scroll report (2026-10-14, hermit menu "Scroll report"): every arena game with a winner (not drill games) adds, per

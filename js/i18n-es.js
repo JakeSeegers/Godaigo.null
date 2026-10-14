@@ -2199,4 +2199,5 @@ window.I18N_ES = {
     "Simplify: +{0} AP (a scroll went to the common area)": "Simplificar: +{0} PA (un pergamino fue al área común)",
     "Scroll rule updates": "Cambios en reglas de pergaminos",
     "Simplify now lasts until your next turn, as its card says, and until then you regain 2 AP every time any scroll goes to the common area. Bots know how to use it.": "Simplificar ahora dura hasta tu próximo turno, como dice su carta, y hasta entonces recuperas 2 PA cada vez que cualquier pergamino va al área común. Los bots saben usarlo.",
+    "Bots now keep a response scroll ready more often, and bot training includes 4-player games.": "Los bots ahora tienen un pergamino de respuesta listo más a menudo, y el entrenamiento de bots incluye partidas de 4 jugadores.",
 };
