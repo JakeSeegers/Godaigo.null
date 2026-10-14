@@ -1514,7 +1514,7 @@
         // (logged), as before. Returns { pass, blocked: null | 'puzzle' |
         // 'practice', note } where note matches hillClimb's old round info.
         async guardRails(challenger, champion, checks = {}, state = {}, opts = {}) {
-            let note = null, blocked = null;
+            let note = null, blocked = null, newChampionPuzzle = null;
             if (typeof checks.puzzle === 'function') {
                 try {
                     if (state.championPuzzle === undefined) state.championPuzzle = await checks.puzzle(champion);
@@ -1525,7 +1525,7 @@
                             blocked = 'puzzle';
                             note.blocked = true;
                         } else {
-                            state.championPuzzle = challengerPuzzle; // the new champion's score
+                            newChampionPuzzle = challengerPuzzle; // kept only if no later rail blocks
                         }
                     }
                 } catch (e) {
@@ -1546,6 +1546,9 @@
                     log('practice check failed (ignored):', e?.message || e);
                 }
             }
+            // The champion's puzzle score changes only when the challenger really
+            // passes every rail (before 2026-10-14 a practice block still swapped it).
+            if (!blocked && newChampionPuzzle != null) state.championPuzzle = newChampionPuzzle;
             return { pass: !blocked, blocked, note };
         },
     };

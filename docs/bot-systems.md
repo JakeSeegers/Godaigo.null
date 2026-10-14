@@ -232,7 +232,7 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 | Phase | What | Server? | Check |
 |-------|------|---------|-------|
 | 1 | **BUILT 2026-10-14**: 4-player team games (every 3rd pair) in Train Bot's challenger series and idle training, skill dial floors (bot.js DIAL_KEYS / floorDials), `evalResponseReady` term. Guard check: no bug, 2-player endgames race on purpose. | none (team games keep the 50% baseline) | seed 777 identical with the new weight off; 4 games each: 2p off 0 responses, 2p on 1, 4p team 2; position score +0.0016 ms |
-| 2 | **BotExam function** wrapping sections A to E; existing checks call it | none | same verdicts as before on recorded test runs |
+| 2 | **BUILT 2026-10-14**: `BotArena.exam` (judgeGames = section A, guardRails = sections D and E); Train Bot's climb and combo screening use it. Fixed: a practice block no longer swaps in the challenger's puzzle score. | none | a seeded 7-round climb with stand-in checks: same rounds, verdicts and champion as before; unit checks for every rule |
 | 3 | **Drills** (sections B, C) using startScrolls, weakest scrolls first | none (local first) | drill counts per scroll; no change to normal games |
 | 4 | **Shared queue**: Train Bot submits challengers and plays queue games; server-only promotion | yes (queue kinds, Train Bot reports, SPRT verdict) | two browsers' games add up on one challenger |
 | 5 | **Game record** table + shared scroll report | yes (new table + report function) | scroll report the same from any browser |

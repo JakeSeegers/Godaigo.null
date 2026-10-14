@@ -581,6 +581,10 @@ Order matters — later scripts depend on earlier ones.
                              BotTerms.features(snap, seat) (48 numbers, FEATURE_VERSION 2: no homeCost (slow path search) or myAP; toCurrent() converts v1 rows) + evaluateSnapshot; at a win / turn cap each row
                              gets result 1 / 0 / 0.5 and progress -> report_positions (max 80 rows per game). Read-only (seed 777 identical).
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).
+                             BotExam (2026-10-14, BotArena.exam, docs/bot-systems.md 3.2): judgeGames(r, rule) = section A (rule 'margin':
+                             decided >= minDecided and win rate >= promoteWinRate; 'even': wins >= losses) and guardRails(challenger, champion,
+                             {puzzle, practice}, state) = sections E / D (block only; a failing check is ignored). hillClimb and screenDueCombo
+                             use it. The champion's puzzle score changes only when every rail passes. Idle verdict: same rule on the server.
                              Team games (2026-10-14): run / _playSeries opts.fourPlayerEvery k = every k-th pair of games is a 4-player game,
                              A and B on alternate seats (A on 0 and 2 when aIsPlayer0); a win is still one side's, so win rates and the idle
                              verdict keep 50%. hillClimb challenger series default 3; idle training 3. Pacts, guard mode and responses only
