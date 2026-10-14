@@ -617,7 +617,7 @@
         const rep = await supabase.rpc('report_combo_screen', {
             p_signature: due.signature, p_champion: due.champion_id, p_wins: r.aWins, p_losses: r.bWins, p_draws: r.draws,
         });
-        const out = { signature: due.signature, wins: r.aWins, losses: r.bWins, draws: r.draws, passed: r.aWins >= r.bWins,
+        const out = { signature: due.signature, wins: r.aWins, losses: r.bWins, draws: r.draws, passed: BotExam.judgeGames(r, { kind: 'even' }).pass,
             saved: !rep.error && !!rep.data?.ok };
         opts.onDone?.(out);
         return out;
@@ -1481,6 +1481,75 @@
     // aborts; endEarly() finishes the current round then returns the champion
     // reached so far (always usable — it only advances on a real promotion).
     // ----------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // BotExam (docs/bot-systems.md 3.2, phase 2, 2026-10-14): the one place
+    // that says whether a challenger beats the champion. Every path uses it:
+    // Train Bot's climb (hillClimb), combo screening (screenDueCombo), and
+    // later drills. The idle-training verdict runs on the server
+    // (idle_training_report) with the same section A rule.
+    //   Section A  games vs the champion: decides (judgeGames)
+    //   Section B  scroll drills        (phase 3, not built yet)
+    //   Section C  response drills      (phase 3, not built yet)
+    //   Section D  combo practice duels: guard rail (guardRails, checks.practice)
+    //   Section E  puzzles from real games: guard rail (guardRails, checks.puzzle)
+    // A guard rail never adds to A's win rate; it can only block a promotion.
+    // ----------------------------------------------------------------
+    const BotExam = {
+        // Section A. r: {aWins, bWins, draws} or {decided, winRate}.
+        // rule.kind 'margin' (default): decided >= minDecided and win rate >=
+        // promoteWinRate (Train Bot). rule.kind 'even': wins >= losses (screening).
+        judgeGames(r, rule = {}) {
+            const decided = r.decided ?? ((r.aWins || 0) + (r.bWins || 0));
+            const winRate = r.winRate ?? (decided > 0 ? (r.aWins || 0) / decided : 0);
+            if (rule.kind === 'even') return { pass: (r.aWins || 0) >= (r.bWins || 0), decided, winRate };
+            const minDecided = rule.minDecided ?? 2;
+            const promoteWinRate = rule.promoteWinRate ?? 0.58;
+            return { pass: decided >= minDecided && winRate >= promoteWinRate, decided, winRate };
+        },
+        // Sections D and E, run only for a challenger that passed A.
+        // checks.puzzle: async (weights) => score | null; checks.practice:
+        // async (challenger, champion) => {played, wins, losses, draws}.
+        // state.championPuzzle caches the champion's puzzle score across
+        // calls (undefined = not measured yet). A failing check is ignored
+        // (logged), as before. Returns { pass, blocked: null | 'puzzle' |
+        // 'practice', note } where note matches hillClimb's old round info.
+        async guardRails(challenger, champion, checks = {}, state = {}, opts = {}) {
+            let note = null, blocked = null;
+            if (typeof checks.puzzle === 'function') {
+                try {
+                    if (state.championPuzzle === undefined) state.championPuzzle = await checks.puzzle(champion);
+                    const challengerPuzzle = await checks.puzzle(challenger);
+                    if (state.championPuzzle != null && challengerPuzzle != null) {
+                        note = { champion: state.championPuzzle, challenger: challengerPuzzle };
+                        if (challengerPuzzle < state.championPuzzle - (opts.puzzleTolerance ?? 0.05)) {
+                            blocked = 'puzzle';
+                            note.blocked = true;
+                        } else {
+                            state.championPuzzle = challengerPuzzle; // the new champion's score
+                        }
+                    }
+                } catch (e) {
+                    log('puzzle check failed (ignored):', e?.message || e);
+                }
+            }
+            if (!blocked && typeof checks.practice === 'function') {
+                try {
+                    const pr = await checks.practice(challenger, champion);
+                    if (pr && pr.played) {
+                        note = { ...(note || {}), practice: pr };
+                        if (pr.losses > pr.wins) {
+                            blocked = 'practice';
+                            note.blocked = true;
+                        }
+                    }
+                } catch (e) {
+                    log('practice check failed (ignored):', e?.message || e);
+                }
+            }
+            return { pass: !blocked, blocked, note };
+        },
+    };
+
     let _climbing = false;
     function isClimbing() { return _climbing; }
 
@@ -1515,7 +1584,7 @@
         _liveVisual = null; // live speed switch starts from the run's own speed
 
         let champion = opts.champion ? { ...opts.champion } : { ...window.BotSystem.WEIGHTS };
-        let championPuzzle; // puzzle score of the current champion (opts.puzzleCheck), computed on first use
+        const examState = {}; // BotExam.guardRails: the champion's puzzle score, measured on first use
         let sigma = resume?.sigma ?? sigma0;
         let promotions = resume?.promotions || 0, gamesPlayed = resume?.gamesPlayed || 0;
         const roundLog = Array.isArray(resume?.roundLog) ? resume.roundLog.slice() : [];
@@ -1653,45 +1722,23 @@
                     aWins: finalist.aWins, bWins: finalist.bWins, draws: finalist.draws,
                 } : null;
 
-                // Promote ONLY on a real margin over enough decisive games.
-                let promoted = !!best && best.decided >= minDecided && best.winRate >= promoteWinRate;
+                // Promote ONLY on a real margin over enough decisive games
+                // (BotExam section A), then the guard rails (sections D, E).
+                let promoted = !!best && BotExam.judgeGames(best, { promoteWinRate, minDecided }).pass;
                 let puzzleNote = null;
-                if (promoted && typeof opts.puzzleCheck === 'function') {
-                    try {
-                        if (championPuzzle === undefined) championPuzzle = await opts.puzzleCheck(champion);
-                        const challengerPuzzle = await opts.puzzleCheck(best.w);
-                        if (championPuzzle != null && challengerPuzzle != null) {
-                            puzzleNote = { champion: championPuzzle, challenger: challengerPuzzle };
-                            if (challengerPuzzle < championPuzzle - (opts.puzzleTolerance ?? 0.05)) {
-                                promoted = false;
-                                puzzleNote.blocked = true;
-                                log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but failed the puzzle check ` +
-                                    `(${challengerPuzzle} vs champion ${championPuzzle}) - champion holds`);
-                            } else if (promoted) {
-                                championPuzzle = challengerPuzzle; // the new champion's score
-                            }
-                        }
-                    } catch (e) {
-                        log('puzzle check failed (ignored):', e?.message || e);
-                    }
-                }
-                // opts.practiceCheck (2026-10-11): combo practice duels on spots
-                // where players pulled off taught combos; a would-be champion that
-                // loses more of them than it wins stays a challenger.
-                if (promoted && typeof opts.practiceCheck === 'function') {
-                    try {
-                        const pr = await opts.practiceCheck(best.w, champion);
-                        if (pr && pr.played) {
-                            puzzleNote = { ...(puzzleNote || {}), practice: pr };
-                            if (pr.losses > pr.wins) {
-                                promoted = false;
-                                puzzleNote.blocked = true;
-                                log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but lost the combo practice ` +
-                                    `(${pr.wins}-${pr.losses}) - champion holds`);
-                            }
-                        }
-                    } catch (e) {
-                        log('practice check failed (ignored):', e?.message || e);
+                if (promoted) {
+                    const rail = await BotExam.guardRails(best.w, champion,
+                        { puzzle: opts.puzzleCheck, practice: opts.practiceCheck }, examState,
+                        { puzzleTolerance: opts.puzzleTolerance });
+                    puzzleNote = rail.note;
+                    if (rail.blocked === 'puzzle') {
+                        promoted = false;
+                        log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but failed the puzzle check ` +
+                            `(${rail.note.challenger} vs champion ${rail.note.champion}) - champion holds`);
+                    } else if (rail.blocked === 'practice') {
+                        promoted = false;
+                        log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but lost the combo practice ` +
+                            `(${rail.note.practice.wins}-${rail.note.practice.losses}) - champion holds`);
                     }
                 }
                 if (promoted) {
@@ -1919,6 +1966,7 @@
         run, evolve, playMatch, spectate, stop,
         hillClimb, // champion-anchored monotonic climber (the reliable trainer)
         confirmAcrossSizes, // N-player champion-vs-field confirmation gate
+        exam: BotExam, // one exam: judgeGames (section A) + guardRails (D practice, E puzzles)
         saveAndStop, // hillClimb: stop after this challenger, keep a checkpoint
         endEarly, // soft-stop: cuts evolve()'s / hillClimb()'s loop short but keeps its result usable
         makeChallenger, // idle training: explore / formula challenger
