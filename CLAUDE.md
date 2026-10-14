@@ -426,6 +426,9 @@ Order matters — later scripts depend on earlier ones.
                              Rules (2026-09-27): if(c, a, b), between(x, lo, hi), > < >= <= ==, and / or / not
                              (true = 1); evolution can wrap a formula in if(). Triggers: oppCanWinNextTurn,
                              iCanWinThisTurn, neededShrineBlocked, oppRespondReady. describe() = plain words.
+                             Simplify inputs (2026-10-14): simplifyUp (my Simplify is up this turn), spareScrolls (held scrolls whose
+                             element is won or whose supply is empty). Formula-only: NET_SKIP keeps them out of the network features
+                             (adding them = FEATURE_VERSION 3, which would switch off every version 2 net).
 23. bot-effects.js         ← window.BotEffects — Stage 2.5 scroll-effect usage: driveSelection() (tile-flip,
                              scorched-earth, tile-swap, Create, Scholar's Insight, Quick Reflexes, Sacrificial
                              Pyre, Inspiring Draught), driveTransmute() (open-ended discard-for-AP modal),
