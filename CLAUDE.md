@@ -404,7 +404,7 @@ Order matters — later scripts depend on earlier ones.
 22. bot-sim.js             ← window.BotSim — pure forward model (simulate / legalActions / isTerminal) + validate() harness
 22c. bot-net.js           <- window.BotNet: the bot network (2026-10-13). A small network (50 features -> 8 tanh -> 1) that ADDS a
                              correction to bot.js evaluateSnapshot: chance to win = sigmoid(a * eval/1000 + b + net(features)); a, b fitted
-                             first (the weighted sum alone), the net learns what it misses; correction = net * 1000 / a eval units, max net.clip (default 20 since 2026-10-14; was 2000, while one move changes the score by about 2-15).
+                             first (the weighted sum alone), the net learns what it misses; correction = net * 1000 / a eval units, max net.clip (default 60 since 2026-10-14; was 2000, while one move changes the score by about 2-15).
                              Lives in the weight table: WEIGHTS.net (+ WEIGHTS.netWeight, default 0 = off), so it travels with the champion
                              to every device. Data: position_samples from arena games AND mined real games (replay-viewer.js runMine,
                              source 'mined', key from the moves, the same game from two accounts counts once). Hermit menu "Bot Network":

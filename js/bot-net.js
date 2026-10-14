@@ -29,7 +29,9 @@
     // changes the weighted sum by about 2-15 points, so a limit of 2000 let the
     // net overrule every move choice. A net carries its own limit (net.clip);
     // older nets without one use this default.
-    const CLIP = 20;
+    // Tested 2026-10-14 (30 games each vs the champion): 5 -> 13-15-2, 20 -> 13-15-2,
+    // 60 -> 16-13-1, 2000 -> 4-14-2.
+    const CLIP = 60;
     const EV_SCALE = 1000;      // eval / 1000 goes into the baseline
     const EV_CLIP = 20;
     const sigmoid = z => 1 / (1 + Math.exp(-z));
