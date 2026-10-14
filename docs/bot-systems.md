@@ -160,6 +160,49 @@ Scroll report, Test games):
 - data counts (games, positions, combos)
 - buttons for the existing tools
 
+### 3.6 Skills and dials (owner, 2026-10-14)
+
+Hand-written skills (diplomacy, guarding, responses) give bots a structure they could never find
+by random weight changes. Training should still learn **how much** to use them, without
+"unlearning" a skill that helps. Using response scrolls is easy for players and fits into many
+strategies at once, so bots must keep it.
+
+- **Skill = how.** Hand-written, always available, never removed by training:
+  - build a counter's pattern and stand on it with AP kept (bot.js reviewPlan guard post,
+    guardReady, guardReserve)
+  - block a player about to win (bot.js reviewBlockWin)
+  - pacts, harm and help (bot-diplomacy.js, bot.js harmContext / helpContext)
+  - decide to respond or pass (bot-effects.js decideResponse)
+- **Dial = when and how much.** A weight training may tune. The response dials that exist today
+  (bot.js DEFAULT_WEIGHTS): `guardKeepAp` -150, `leaveResponseReady` -40, `l1WaitVoid` 30,
+  `evalScrollResponse` 15, `castGuardFetch` 120.
+- **Diplomacy is on in every bot game** (arena through run / evolve / spectate, online on the
+  host). In a 1-on-1 game no pact can form (pacts need 3+ players); only guarding against a player
+  one cast from winning runs.
+
+Five protections against unlearning:
+
+1. **Floors.** A new `DIAL_FLOORS` table in bot.js, next to `SOCIAL_KEYS` / `pinSocial`: a minimum
+   strength for each skill dial, applied wherever weights are set or changed (bot-arena.js
+   setWeights, perturbWeights / mutate, makeChallenger; the champion load in bot.js). Social keys
+   stay locked at their default; dials stay trainable above their floor.
+2. **"Response ready" value in the position score.** A new term in bot.js evaluateSnapshot, worth
+   about (chance an opponent casts before my next turn) x (value of the response), when the seat
+   stands in the pattern of a response or counter it holds or can use from the common area, with
+   the AP to pay. New weight `evalResponseReady`, with a floor. Look-ahead search then weighs
+   "keep 2 AP and stand here" against other moves, and can combine it with other plans. Guard mode
+   stays as the strong special case (a player one cast from winning).
+3. **Exam guard rail.** Exam section C (response drills) blocks a promotion that gets clearly worse
+   at responding, even if it wins a few more normal games.
+4. **Real situations in training.** 4-player games in every exam (only they bring pacts, the guard
+   role and responses: measured 0 / 0 / 2 responses in 3 games each at 2 / 3 / 4 players), plus
+   response drills. A dial that never gets a signal only drifts; this gives it a signal.
+5. **The owner as teacher.** Learn from my play (bot-imitation.js) also compares "kept AP for a
+   response" and "responded / passed" with what the bot would do.
+
+The same split holds for **diplomacy strength**: joining pacts and guard eagerness become dials
+with floors, judged in multi-player exam games. Personality (social keys) stays locked.
+
 ---
 
 ## 4. Keep, merge, retire
@@ -170,6 +213,8 @@ Scroll report, Test games):
 | Formula terms | keep; formula ideas become queue challengers |
 | Network | keep, off until it beats the champion in the exam |
 | MCTS + episode memory | owner decides: retire, or one experiment switch |
+| Guard, block and response skills | keep as skills; their weights become dials with floors (3.6) |
+| Diplomacy | always on; its strength becomes dials with floors, social personality stays locked |
 | Train Bot private climb + confirm run | merge into the queue + exam |
 | Idle verdict, puzzle check, practice duels, combo screening | merge into exam sections |
 | Combo mining, combo finds, trial combos | keep as challenger makers; screening becomes exam section D |
@@ -185,13 +230,13 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 
 | Phase | What | Server? | Check |
 |-------|------|---------|-------|
-| 1 | **4-player games in every exam**, including idle training (2-player only today): guard mode, pacts and responses then happen as in real games. Also: why 12 Psychic guard plans failed to start; whether non-counter responses need a "keep ready" habit. | maybe a small change to idle_training_report (store player count) | response and guard counts in training games above 0; seeded 2-player games unchanged |
+| 1 | **4-player games in every exam**, including idle training (2-player only today), **`DIAL_FLOORS`** and the **`evalResponseReady`** term (3.6). Also: why 12 Psychic guard plans failed to start. | maybe a small change to idle_training_report (store player count) | response and guard counts in training games above 0; seeded 2-player games unchanged while the new weight is 0 |
 | 2 | **BotExam function** wrapping sections A to E; existing checks call it | none | same verdicts as before on recorded test runs |
 | 3 | **Drills** (sections B, C) using startScrolls, weakest scrolls first | none (local first) | drill counts per scroll; no change to normal games |
 | 4 | **Shared queue**: Train Bot submits challengers and plays queue games; server-only promotion | yes (queue kinds, Train Bot reports, SPRT verdict) | two browsers' games add up on one challenger |
 | 5 | **Game record** table + shared scroll report | yes (new table + report function) | scroll report the same from any browser |
 | 6 | **Hermit dashboard** | none | owner review |
-| 7 | **Settings list + retire** unused parts | none | seeded games unchanged |
+| 7 | **Settings list + retire** unused parts; the list marks each weight as skill dial (floor), personality (locked) or free | none | seeded games unchanged |
 
 ---
 
@@ -205,6 +250,7 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 4. **Who may promote**: server only (suggested), or keep Train Bot's local promotion as a fallback?
 5. **Drill share**: drills are extra games; how many per challenger? Suggestion: 4 scroll drills +
    2 response drills.
+6. **Floors**: how strong should a skill dial's minimum be? Suggestion: half its current default.
 
 ---
 
