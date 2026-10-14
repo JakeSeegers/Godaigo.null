@@ -12,9 +12,12 @@ The bots grew one feature at a time. Each new idea brought its own way to train,
 data and its own pass / fail test. Problems found on 2026-10-14:
 
 - **Five different tests.** A new brain is judged differently depending on which path made it.
-- **Training is 2-player only.** Pacts need 3+ players (bot-diplomacy.js), so guard mode, saving
-  AP and response scrolls almost never happen in training. In 6 two-player training games there
-  were 153 casts and 0 response chances. Real online games had 22 bot responses in 126 games.
+- **Responses almost never happen in training.** Training is mostly 2-player (the challenger
+  series and idle training); Train Bot's Explore step and confirmAcrossSizes also play 3-5 player
+  games (about 1 in 5 recent training games). But player count is not the whole story: 6 two-player
+  games had 153 casts and 0 response chances, and 6 three- and four-player games had 124 casts,
+  1 response chance and 0 responses. Real online games had 22 bot responses in 126 games. Why real
+  games differ is not known yet (humans in the game? guard mode not switching on in training?).
 - **Rare scrolls get no training signal.** In 24 bot games most scrolls were cast in only 2 to 8
   games, and 9 were never cast. A setting for one scroll (for example Simplify's) cannot move the
   win rate enough for training to notice.
@@ -37,7 +40,7 @@ data and its own pass / fail test. Problems found on 2026-10-14:
 | Build plans (make a scroll's pattern) | bot.js makePlan | exists |
 | Taught combos + trial combos | bot.js mem.combo, activeCombos, WEIGHTS.extraCombos | exists |
 | Owner strategies (Sands travel, Mason trap, burn loop, adventure) | bot.js strategyParts, stratX weights | exists, weights 0 until trained |
-| Pacts, guard, harm, help, kingmaker filter | bot-diplomacy.js + bot.js harmContext / helpContext / guardWanted | exists, needs 3+ players |
+| Pacts, guard, harm, help, kingmaker filter | bot-diplomacy.js + bot.js harmContext / helpContext / guardWanted | exists; pacts need 3+ players; guard mode rarely seen in training |
 | Formula terms (extra senses) | bot-terms.js, WEIGHTS.terms | exists |
 | Network correction | bot-net.js, WEIGHTS.net + netWeight | exists, off by default (netWeight 0) |
 | Scroll-specific rules (Simplify discard, Pyre target, stuck tools...) | bot.js, bot-effects.js | exists, scattered |
@@ -48,14 +51,14 @@ data and its own pass / fail test. Problems found on 2026-10-14:
 
 | Path | Where | What it makes |
 |------|-------|---------------|
-| Train Bot (one-click hill climb) | game-ui.js runHillClimbTraining, bot-arena.js hillClimb | random weight changes, formula ideas, imitation and trial-combo seeds; 2-player; promotes a champion row itself |
+| Train Bot (one-click hill climb) | game-ui.js runHillClimbTraining, bot-arena.js hillClimb, confirmAcrossSizes | random weight changes, formula ideas, imitation and trial-combo seeds; challenger series 2-player, confirm across sizes 2-5; promotes a champion row itself |
 | Idle training (shared climb) | idle-training.js, sql/idle-training.sql | challengers kind explore / formula / combo / imitation / net; 2-player; server decides |
 | Formula Lab | formula-lab.js | hand-written formula ideas, queued for Train Bot |
 | Bot Network training | bot-net.js (hermit) | a trained network, sent to idle training as kind 'net' |
 | Learn from my play | bot-imitation.js | weight nudges from the hermit's own choices |
 | Combo mining (real games) | replay-viewer.js mineMatches / minePooled | combo candidates, taught by trust |
 | Bot combo finds (training games) | bot-arena.js combo watcher | combo finds, screened, tried as trial combos |
-| Explore step (evolution) | game-ui.js Explore, bot-arena.js evolve | a population over 2-5 player games (the only multi-player training) |
+| Explore step (evolution) | game-ui.js Explore, bot-arena.js evolve | a population over 2-5 player games |
 
 ### 2.3 Tests a new brain must pass
 
@@ -179,7 +182,7 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 
 | Phase | What | Server? | Check |
 |-------|------|---------|-------|
-| 1 | **Exam section A with 3-4 player games** in idle training and Train Bot (a share of games, e.g. 1 in 3). Results counted by player count. | small change to idle_training_report (store player count) | response and guard counts in training go above 0; seeded 2-player games unchanged |
+| 1 | **Find why responses never happen in training** (guard mode, AP saving, humans), fix it, then make sure every exam has 3-4 player games, including idle training (2-player only today). | maybe a small change to idle_training_report (store player count) | response and guard counts in training games go above 0; seeded 2-player games unchanged |
 | 2 | **BotExam function** wrapping sections A to E; existing checks call it | none | same verdicts as before on recorded test runs |
 | 3 | **Drills** (sections B, C) using startScrolls, weakest scrolls first | none (local first) | drill counts per scroll; no change to normal games |
 | 4 | **Shared queue**: Train Bot submits challengers and plays queue games; server-only promotion | yes (queue kinds, Train Bot reports, SPRT verdict) | two browsers' games add up on one challenger |
@@ -191,8 +194,9 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 
 ## 6. Questions for the owner
 
-1. **Player-count mix for training**: what share of 3- and 4-player games? (They take longer.)
-   Suggestion: 1 in 3.
+1. **Player-count mix for training**: Train Bot already mixes 2-5 players in Explore and its
+   confirm step; idle training is 2-player only. What share of 3- and 4-player games should every
+   path play? (They take longer.) Suggestion: 1 in 3.
 2. **MCTS and episode memory**: retire, or keep behind one switch?
 3. **Train Bot gold**: pay per exam game (like test games) or keep paying only on promotion?
 4. **Who may promote**: server only (suggested), or keep Train Bot's local promotion as a fallback?
@@ -204,5 +208,5 @@ re-runnable sql/ files for the owner to run in the SQL editor (HOUSE RULE 6).
 ## 7. Notes found while mapping
 
 - CLAUDE.md said WEIGHTS.searchDepth defaults to 0; bot.js DEFAULT_WEIGHTS has 3 (CLAUDE.md fixed 2026-10-14).
-- Scroll report finding: 2-player training never opens a response window; real games do (guard
-  mode needs pacts, pacts need 3+ players). See planning/current.md 2026-10-14.
+- Scroll report finding: training games almost never open a response window (2-player and
+  3-4 player bot games alike); real games do. Cause still open. See planning/current.md 2026-10-14.
