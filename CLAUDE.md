@@ -23,6 +23,7 @@ These apply to all work on this repo. `tools/claude-hooks/` enforces rules 1 and
    - Entry shape: `{ id, date, title, changes[] }`. Title = a few words for the day.
    - Simple English, short lines, how it affects the player. No file names or code terms.
    - When you skip a note because players cannot notice the change, tell the user.
+   - Add the Spanish text of every new title and line to `js/i18n-es.js` (the Change Log is shown in Spanish too).
 3. **Start from `planning/current.md`** and drill down through the INDEX.md files before
    reading source (see below).
 4. **Bump the game version** when you change files the browser loads (js/, css/, index.html,

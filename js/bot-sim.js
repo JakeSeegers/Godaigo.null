@@ -1740,25 +1740,26 @@
             }
         }
 
-        // The EFFECT runs before win-condition tracking — mirrors
-        // applyScrollEffects' real order (execute() at game-core ~1564,
-        // activation gate at ~1605 reading the POST-effect source pool).
-        // Order matters when an effect drains its own element's source:
-        // Mason's Savvy taking the last earth stones correctly forfeits
-        // the earth activation. (Caught by the harness as a genuine
-        // divergence when this block ran before the effect.)
+        // The EFFECT runs before win-condition tracking (applyScrollEffects'
+        // order), but the win stone is drawn BEFORE the effect (owner
+        // 2026-10-14, game-core sourceHasStone): the element counts when its
+        // source had a stone before the effect OR still has one after it.
+        // Mason's Savvy / Seed the Skies / Create / Respirate / Quick
+        // Reflexes taking the last stones no longer forfeit the activation.
+        const sourceBefore = Object.assign({}, snap.sourcePool);
         simCastEffect(snap, p, a.scroll, a.choice);
 
         // Win-condition activation (applyScrollEffects, AFTER the effect):
         //  - catacomb scrolls credit each component element, no source guard
         //  - otherwise credit only while the element's SOURCE pool has stones
+        //    (before or after the effect, see sourceBefore above)
         if (def) {
             if (def.element === 'catacomb' && def.patterns?.[0]) {
                 for (const el of new Set(def.patterns[0].map(c => c.type))) {
                     if (!p.activated.includes(el)) p.activated.push(el);
                 }
             } else if (ELEMENTS.includes(def.element)) {
-                if ((snap.sourcePool[def.element] || 0) > 0 &&
+                if (((sourceBefore[def.element] || 0) > 0 || (snap.sourcePool[def.element] || 0) > 0) &&
                     !p.activated.includes(def.element)) {
                     p.activated.push(def.element);
                 }

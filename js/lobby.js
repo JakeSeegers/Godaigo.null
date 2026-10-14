@@ -3544,6 +3544,7 @@
                                 // Execute on ALL clients receiving this broadcast — response effects
                                 // like Lamplight set pendingHandRedirect which must be set before we
                                 // call handleScrollDisposition for the triggering scroll below.
+                                const poolBefore = spellSystem.sourcePoolSnapshot();
                                 spellSystem.scrollEffects.execute(result.scrollName, result.casterIndex, {
                                     spell: scrollDef,
                                     triggeringScroll: trigScroll
@@ -3557,7 +3558,7 @@
                                     const activatedEls = spellSystem.grantElements(result.casterIndex,
                                         (scrollDef?.element === 'catacomb' && scrollDef?.patterns?.[0])
                                             ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                            : scrollDef?.element ? [scrollDef.element] : []);
+                                            : scrollDef?.element ? [scrollDef.element] : [], poolBefore);
                                     if (typeof updatePlayerElementSymbols === 'function') {
                                         updatePlayerElementSymbols(result.casterIndex);
                                     }
