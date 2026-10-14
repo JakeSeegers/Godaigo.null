@@ -25,7 +25,11 @@
     'use strict';
 
     const HIDDEN = 8;
-    const CLIP = 2000;          // max correction in eval units
+    // Max correction in eval units (owner 2026-10-14: smaller limit). One move
+    // changes the weighted sum by about 2-15 points, so a limit of 2000 let the
+    // net overrule every move choice. A net carries its own limit (net.clip);
+    // older nets without one use this default.
+    const CLIP = 20;
     const EV_SCALE = 1000;      // eval / 1000 goes into the baseline
     const EV_CLIP = 20;
     const sigmoid = z => 1 / (1 + Math.exp(-z));
@@ -59,7 +63,8 @@
         const f = window.BotTerms.features(snap, i);
         if (!f || f.length !== net.mean.length) return 0;
         const c = netOut(net, f) * EV_SCALE / net.a;
-        return Number.isFinite(c) ? Math.max(-CLIP, Math.min(CLIP, c)) : 0;
+        const lim = net.clip > 0 ? net.clip : CLIP;
+        return Number.isFinite(c) ? Math.max(-lim, Math.min(lim, c)) : 0;
     }
 
     // ── Training ─────────────────────────────────────────────────
@@ -196,7 +201,7 @@
         }
         const round = x => +x.toPrecision(4);
         const net = {
-            v: window.BotTerms?.FEATURE_VERSION || 1, n, hidden: H, a: round(a), b: round(b),
+            v: window.BotTerms?.FEATURE_VERSION || 1, n, hidden: H, a: round(a), b: round(b), clip: opts.clip || CLIP,
             mean: mean.map(round), std: std.map(round),
             W1: best.snap.W1.map(round), b1: best.snap.b1.map(round), W2: best.snap.W2.map(round), b2: round(best.snap.b2),
             trained: { at: new Date().toISOString(), positions: rows.length, games: games.length, testGames: testGames.size, epoch: best.epoch, lambda },
