@@ -572,6 +572,8 @@ Order matters — later scripts depend on earlier ones.
                              BotTerms.features(snap, seat) (48 numbers, FEATURE_VERSION 2: no homeCost (slow path search) or myAP; toCurrent() converts v1 rows) + evaluateSnapshot; at a win / turn cap each row
                              gets result 1 / 0 / 0.5 and progress -> report_positions (max 80 rows per game). Read-only (seed 777 identical).
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).
+                             Test option opts.startScrolls = { seat: [scroll names] } (2026-10-14): those scrolls start in that seat's hand (out of
+                             the decks / common area), so a test can force a rare scroll into every game; run() swaps sides every other game.
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
                              One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /

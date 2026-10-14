@@ -673,6 +673,30 @@
         placePlayerTilesSpread(nPlayers);
         await sleep(vis() ? 300 : 30);
         activePlayerIndex = 0;
+        // Test option (2026-10-14): opts.startScrolls = { seat: [scrollName, ...] }
+        // puts those scrolls in that seat's hand at the start (taken out of the
+        // decks and the common area), so a test can make sure a rare scroll is
+        // in play every game. run() swaps the two sides every other game, so
+        // seat 0 = side A in half the games and side B in the other half.
+        // Not set = no change (seeded games stay identical).
+        if (opts.startScrolls && window.spellSystem) {
+            const ss = window.spellSystem;
+            for (const [seat, names] of Object.entries(opts.startScrolls)) {
+                const idx = Number(seat);
+                if (!(idx >= 0 && idx < nPlayers)) continue;
+                ss.ensurePlayerScrollsStructure(idx);
+                for (const name of names || []) {
+                    for (const el of Object.keys(ss.scrollDecks || {})) {
+                        const i = ss.scrollDecks[el].indexOf(name);
+                        if (i !== -1) ss.scrollDecks[el].splice(i, 1);
+                    }
+                    for (const el of Object.keys(ss.commonArea || {})) if (ss.commonArea[el] === name) ss.commonArea[el] = null;
+                    for (const ps of Object.values(ss.playerScrolls || {})) { ps?.hand?.delete?.(name); ps?.active?.delete?.(name); }
+                    ss.playerScrolls[idx].hand.add(name);
+                }
+            }
+            try { ss.updateScrollCount?.(); } catch (e) {}
+        }
         // Game boundaries in the action log, so a downloaded log shows who won.
         try { window.ActionLog?.record?.('gameStart', { nPlayers, seed }, null); } catch (e) {}
         if (visual0) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it (the log needs it)
