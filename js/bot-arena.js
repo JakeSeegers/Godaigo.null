@@ -623,6 +623,135 @@
         return out;
     }
 
+    // ── Scroll report (2026-10-14, owner) ─────────────────────────────
+    // "Win rate when held", like 17Lands' card stats for Magic: for every
+    // scroll, how often a seat that held it at some point won, against how
+    // often seats that never held it won. Each game result is scored against
+    // the fair share (1 / players), so 2- and 4-player games mix. A scroll
+    // whose holders win LESS than average is one the bots probably use badly.
+    // Also counts how often a held scroll was actually cast. Read-only: it
+    // only reads hands and the action log (seeded games stay identical).
+    // Only games with a winner count; drill games (opts.startScrolls) do not.
+    // Stored in this browser only (localStorage godaigo_scroll_report).
+    const SR_KEY = 'godaigo_scroll_report';
+    let _sr = null;          // current game: { held: [Set], cast: [Map] }
+    let _srListen = false;
+    function srLoad() {
+        try { const d = JSON.parse(localStorage.getItem(SR_KEY) || 'null'); if (d && d.v === 1) return d; } catch (e) {}
+        return { v: 1, games: 0, scrolls: {} };
+    }
+    function srSeen(idx) {
+        if (!_sr) return;
+        const ps = window.spellSystem?.playerScrolls?.[idx];
+        if (!ps) return;
+        for (const n of ps.hand || []) _sr.held[idx]?.add(n);
+        for (const n of ps.active || []) _sr.held[idx]?.add(n);
+    }
+    function srStart(n, opts) {
+        _sr = (opts.scrollReport === false || opts.startScrolls) ? null
+            : { held: Array.from({ length: n }, () => new Set()), cast: Array.from({ length: n }, () => new Map()) };
+        if (_sr && !_srListen && window.ActionLog?.onRecord) {
+            _srListen = true;
+            window.ActionLog.onRecord(e => {
+                if (!_sr || !e.scrollName) return;
+                // Responses and counters are logged apart, with the responder in casterIndex.
+                const seat = e.type === 'cast_execute' ? e.player
+                    : (e.type === 'response_resolved' || e.type === 'response_counter') ? e.casterIndex : null;
+                if (!(seat >= 0)) return;
+                const m = _sr.cast[seat];
+                if (m) m.set(e.scrollName, (m.get(e.scrollName) || 0) + 1);
+            });
+        }
+    }
+    function srFinish(result, n) {
+        const g = _sr; _sr = null;
+        if (!g || result.endReason !== 'win' || result.winner == null) return;
+        const d = srLoad();
+        d.games++;
+        const share = 1 / n;
+        for (const name of Object.keys(window.SCROLL_DEFINITIONS || {})) {
+            const r = d.scrolls[name] || (d.scrolls[name] = { held: 0, heldWins: 0, heldExp: 0, notHeld: 0, notHeldWins: 0, notHeldExp: 0, castGames: 0, casts: 0 });
+            for (let i = 0; i < n; i++) {
+                const won = result.winner === i ? 1 : 0;
+                const cast = g.cast[i].get(name) || 0;
+                if (g.held[i].has(name) || cast) {
+                    r.held++; r.heldWins += won; r.heldExp += share;
+                    if (cast) { r.castGames++; r.casts += cast; }
+                } else {
+                    r.notHeld++; r.notHeldWins += won; r.notHeldExp += share;
+                }
+            }
+        }
+        try { localStorage.setItem(SR_KEY, JSON.stringify(d)); } catch (e) {}
+    }
+    // Rows for the report, weakest first. score = wins / fair share (1 = average).
+    // lift = held score - not-held score; vsAvg = lift minus the average lift
+    // (holders win more in general, since scrolls come from exploring).
+    function scrollReport() {
+        const d = srLoad();
+        const rows = Object.entries(d.scrolls).map(([id, r]) => {
+            const heldScore = r.heldExp ? r.heldWins / r.heldExp : null;
+            const notScore = r.notHeldExp ? r.notHeldWins / r.notHeldExp : null;
+            return { id, name: window.SCROLL_DEFINITIONS?.[id]?.name || id, held: r.held, heldScore, notScore,
+                lift: heldScore != null && notScore != null ? heldScore - notScore : null,
+                castRate: r.held ? r.castGames / r.held : 0, casts: r.casts };
+        });
+        const withLift = rows.filter(x => x.lift != null && x.held >= 10);
+        const avg = withLift.length ? withLift.reduce((a, x) => a + x.lift, 0) / withLift.length : 0;
+        for (const x of rows) x.vsAvg = x.lift != null ? x.lift - avg : null;
+        rows.sort((a, b) => (a.held >= 10) !== (b.held >= 10) ? (a.held >= 10 ? -1 : 1) : (a.vsAvg ?? 0) - (b.vsAvg ?? 0));
+        return { games: d.games, avgLift: avg, rows };
+    }
+    function resetScrollReport() { try { localStorage.removeItem(SR_KEY); } catch (e) {} }
+
+    async function openScrollReport() {
+        document.getElementById('scroll-report-panel')?.remove();
+        const box = document.createElement('div');
+        box.id = 'scroll-report-panel';
+        box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10060;width:min(680px,95vw);max-height:88vh;overflow:auto;' +
+            'background:#16161f;border:1px solid #555;border-radius:10px;padding:14px 16px;color:#ddd;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.7);';
+        box.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <b style="font-size:15px;">Scroll report</b>
+                <button class="sr-close" style="padding:2px 9px;">✕</button>
+            </div>
+            <div style="color:#aaa;font-size:12px;margin-bottom:10px;">From every bot game in this browser (Train Bot, idle training, tests). "When held" = how often a bot that held the scroll won, 1.00 = its fair share. "Vs others" = that number compared with the same for other scrolls: low means bots win less with this scroll than with others, so they may use it badly. "Cast" = how often a held scroll was cast. Scrolls held in fewer than 10 games are listed last.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+                <button class="sr-play" style="padding:5px 10px;">Play 10 bot games now</button>
+                <button class="sr-reset" style="padding:5px 10px;">Reset</button>
+                <span class="sr-status" style="color:#cfc;align-self:center;"></span>
+            </div>
+            <div class="sr-table"></div>`;
+        document.body.appendChild(box);
+        const $ = q => box.querySelector(q);
+        const f2 = v => v == null ? '-' : v.toFixed(2);
+        const draw = () => {
+            const rep = scrollReport();
+            const rows = rep.rows.map(x => {
+                const low = x.held < 10;
+                const col = low ? '#888' : x.vsAvg < -0.25 ? '#f88' : x.vsAvg > 0.25 ? '#8f8' : '#ddd';
+                return `<tr style="color:${col}"><td>${x.name}</td><td style="text-align:right">${x.held}</td><td style="text-align:right">${f2(x.heldScore)}</td><td style="text-align:right">${f2(x.notScore)}</td><td style="text-align:right">${x.vsAvg == null ? '-' : (x.vsAvg >= 0 ? '+' : '') + x.vsAvg.toFixed(2)}</td><td style="text-align:right">${Math.round(x.castRate * 100)}%</td></tr>`;
+            }).join('');
+            $('.sr-table').innerHTML = `<div style="margin-bottom:6px;">${rep.games} finished games counted.</div>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="color:#aaa;text-align:right"><th style="text-align:left">Scroll</th><th>Games held</th><th>When held</th><th>Not held</th><th>Vs others</th><th>Cast</th></tr>${rows}</table>`;
+        };
+        draw();
+        $('.sr-close').onclick = () => box.remove();
+        $('.sr-reset').onclick = () => { if (confirm('Clear the scroll report in this browser?')) { resetScrollReport(); draw(); } };
+        $('.sr-play').onclick = async () => {
+            $('.sr-play').disabled = true;
+            const champ = window.BotSystem?.WEIGHTS ? { ...window.BotSystem.WEIGHTS } : {};
+            try {
+                await run(champ, champ, 10, Math.floor(Math.random() * 1e9), {
+                    onGame: (i, t) => { $('.sr-status').textContent = `Game ${i} of ${t}...`; draw(); },
+                });
+                $('.sr-status').textContent = 'Done.';
+            } catch (e) { $('.sr-status').textContent = 'Stopped: ' + (e?.message || e); }
+            $('.sr-play').disabled = false;
+            draw();
+        };
+    }
+
     async function _playMatchOnce(weightsPerPlayer, opts = {}) {
         const nPlayers = weightsPerPlayer.length;
         const visual0 = !!opts.visual;
@@ -714,6 +843,7 @@
         window.showEndTurnPrompt = () => {};
 
         const result = { winner: null, turns: 0, activated: new Array(nPlayers).fill(0), stuckTurns, stalled: false, stallers: [] };
+        srStart(nPlayers, opts);
         const cw = (opts.comboWatch !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
         const pl = (opts.positionLog !== false && window.BotTerms?.features && window.BotSystem?.evaluateSnapshot) ? { rows: [], own: {} } : null;
         // one id per game: seed + seats + weights (the same game played
@@ -745,7 +875,9 @@
                 refillAP();
                 if (cw) cwStart(turn + 1, idx, nPlayers);
                 if (pl) posSample(pl, turn + 1, idx);
+                srSeen(idx);
                 await window.BotSystem.turn();
+                srSeen(idx);
                 result.turns = turn + 1;
 
                 const snap = window.BotState.snapshot();
@@ -839,6 +971,7 @@
         }
         if (cw) cwFinish(cw, result, nPlayers, opts);
         if (pl) posFinish(pl, result, nPlayers, opts, gameKey);
+        srFinish(result, nPlayers);
         // Round over: bot talk, emotes and the Bot Mind view go at once.
         try {
             const w = result.winner;
@@ -1780,6 +1913,7 @@
         stopRequested: () => _stopRequested, // was stop() called for the run in progress (or the one that just ended)?
         endEarlyRequested,
         setLiveSpeed,
+        scrollReport, resetScrollReport, openScrollReport, // scroll report (hermit menu)
         applyWeights: setWeights, // apply an {…} weight table to the LIVE WEIGHTS object in place
     };
     log('Loaded - window.BotArena ready (run / evolve / spectate)');

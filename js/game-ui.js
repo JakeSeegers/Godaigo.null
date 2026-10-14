@@ -7561,6 +7561,10 @@ document.getElementById('undo-move').onclick = function() {
                 menu.appendChild(makeItem('Bot Network (train, test, send)', () => {
                     if (window.BotNet) window.BotNet.open();
                 }));
+                menu.appendChild(makeItem('Scroll report (which scrolls bots use badly)', async () => {
+                    try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
+                    window.BotArena?.openScrollReport?.();
+                }));
                 menu.appendChild(makeItem('Rewards: sign-up events, game rewards', () => {
                     window.HermitRewards?.open();
                 }));

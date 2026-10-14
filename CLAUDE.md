@@ -577,6 +577,11 @@ Order matters — later scripts depend on earlier ones.
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).
                              Test option opts.startScrolls = { seat: [scroll names] } (2026-10-14): those scrolls start in that seat's hand (out of
                              the decks / common area), so a test can force a rare scroll into every game; run() swaps sides every other game.
+                             Scroll report (2026-10-14, hermit menu "Scroll report"): every arena game with a winner (not drill games) adds, per
+                             scroll, seats that held it (hand / active at any own turn start or end, or cast it) and their wins vs fair share
+                             (1/players), the same for seats that never held it, and how often a held scroll was cast (cast_execute, plus
+                             response_resolved / response_counter by casterIndex). localStorage godaigo_scroll_report; BotArena.scrollReport()
+                             (weakest first: "vs others" = lift minus the average lift), resetScrollReport(), openScrollReport() (+ Play 10 games).
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
                              One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /
