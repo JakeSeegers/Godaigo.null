@@ -2928,10 +2928,10 @@
             gameChannel.on('broadcast', { event: 'simplify-applied' }, ({ payload }) => {
                 const { playerIndex } = payload;
                 if (spellSystem?.scrollEffects) {
-                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresThisTurn: true, playerIndex };
+                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresNextTurn: true, playerIndex };
                 }
                 const playerName = getPlayerColorName(playerIndex);
-                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn.`);
+                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 1 AP for every scroll added to the common area.`);
             });
 
             // Reflect triggered at start of turn: run the reflected scroll's effect and update activated elements.
@@ -3383,8 +3383,10 @@
                     }
                 }
 
+                const arrivedNew = spellSystem.commonArea[element] !== scrollName;
                 spellSystem.commonArea[element] = scrollName;
                 console.log(`📜 Common area: ${scrollName} now in ${element} slot`);
+                if (arrivedNew) spellSystem.onCommonAreaArrival(scrollName);
                 spellSystem.validateScrollState();
                 spellSystem.updateScrollCount();
 

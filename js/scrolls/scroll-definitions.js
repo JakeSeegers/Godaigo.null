@@ -88,7 +88,7 @@ const FIRE_SCROLL_EFFECTS = {
 const VOID_SCROLL_EFFECTS = {
     1: { name: 'Psychic', description: "Counter the previous scroll, then play it during your turn - unless its caster pays 2 AP to negate Psychic. Move Psychic to the common area.", isCounter: true, oncePerTurn: true },
     2: { name: 'Telekinesis', description: 'Move a tile that has no stones on it. If one player is on the tile, they move to its center. Cannot move a tile with multiple players on it. It must be touching 1 other tile. Cannot move a tile if it would strand an adjacent tile.' },
-    3: { name: 'Simplify', description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn.' },
+    3: { name: 'Simplify', description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 1 AP every time a scroll is added to the common area.' },
     4: { name: "Scholar's Insight", description: 'Search through a Scroll Deck and add a scroll of your choice to your hand. Shuffle that deck afterwards.' },
     5: { name: 'Create', description: 'Choose a stone type and draw stones equal to that stone\'s rank (Earth 5, Water 4, Fire 3, Wind 2, Void 1). Cannot exceed 5 of that type.' }
 };

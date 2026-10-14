@@ -2093,7 +2093,6 @@ window.I18N_ES = {
     "No combos yet.": "Todavía no hay combos.",
     "All past games are checked. Nothing left to mine.": "Todas las partidas pasadas están revisadas. No queda nada por minar.",
     "Gain {0}": "Ganancia {0}",
-    "Win stone first": "Primero la piedra de victoria",
     "When a scroll counts toward your win, its win stone now comes from the source before the scroll draws any stones. Seed the Skies, Mason's Savvy, Create, Respirate and Quick Reflexes can take the last stones and still count.": "Cuando un pergamino cuenta para tu victoria, su piedra de victoria ahora sale de la reserva antes de que el pergamino robe piedras. Sembrar los Cielos, Astucia del Albañil, Crear, Respirar y Reflejos Rápidos pueden tomar las últimas piedras y aun así contar.",
     // Change Log entries (changelog.json)
     "One-click Train Bot": "Entrenar bot con un clic",
@@ -2194,4 +2193,10 @@ window.I18N_ES = {
     "The game now updates itself: when a new version is out, it reloads on its own in the lobby (never during a game).": "El juego ahora se actualiza solo: cuando sale una versión nueva, se recarga solo en la sala (nunca durante una partida).",
     "Fixes: Create and Quick Reflexes now show their activated element to other players (games no longer go out of sync). The \"All Slots Full\" popup is gone (the Scroll Overflow banner handles it). Small fixes and polish.": "Arreglos: Crear y Reflejos Rápidos ahora muestran su elemento activado a los demás jugadores (las partidas ya no se desincronizan). La ventana \"Todos los huecos llenos\" ya no está (el aviso de Exceso de pergaminos se encarga). Pequeños arreglos y pulido.",
     "The Change Log is now in Spanish too.": "El Registro de cambios ahora también está en español.",
+    "Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 1 AP every time a scroll is added to the common area.": "Los pergaminos te cuestan 1 PA para activarlos hasta el inicio de tu próximo turno. Hasta entonces, recuperas 1 PA cada vez que se añade un pergamino al área común.",
+    "Simplify: {0}'s scrolls cost 1 AP to activate until their next turn, and {1} regains 1 AP for every scroll added to the common area.": "Simplificar: los pergaminos de {0} cuestan 1 PA hasta su próximo turno, y {1} recupera 1 PA por cada pergamino que se añade al área común.",
+    "Simplify: {0} regains 1 AP (a scroll went to the common area).": "Simplificar: {0} recupera 1 PA (un pergamino fue al área común).",
+    "Simplify: +{0} AP (a scroll went to the common area)": "Simplificar: +{0} PA (un pergamino fue al área común)",
+    "Scroll rule updates": "Cambios en reglas de pergaminos",
+    "Simplify now lasts until your next turn, as its card says, and until then you regain 1 AP every time any scroll goes to the common area.": "Simplificar ahora dura hasta tu próximo turno, como dice su carta, y hasta entonces recuperas 1 PA cada vez que cualquier pergamino va al área común.",
 };

@@ -297,11 +297,20 @@ const ScrollEffects = {
         }
     },
 
-    // Clear Quick Reflexes buff for a player when their next turn starts
+    // Clear Quick Reflexes buff for a player when their next turn starts.
+    // Simplify ends at the same moment (both last "until your next turn").
     clearQuickReflexesForPlayer(playerIndex) {
+        this.clearSimplifyForPlayer(playerIndex);
         const buff = this.activeBuffs.quickReflexes;
         if (!buff || buff.playerIndex !== playerIndex) return;
         delete this.activeBuffs.quickReflexes;
+    },
+
+    // Clear Simplify for a player when their next turn starts
+    clearSimplifyForPlayer(playerIndex) {
+        const buff = this.activeBuffs.simplify;
+        if (!buff || buff.playerIndex !== playerIndex) return;
+        delete this.activeBuffs.simplify;
     },
 
     // Cancel any active selection mode
@@ -1353,17 +1362,19 @@ const ScrollEffects = {
 
         VOID_SCROLL_3: {
             name: 'Simplify',
-            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn.',
+            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 1 AP every time a scroll is added to the common area.',
             isCounter: false,
             priority: 3,
             execute(casterIndex, context, system) {
                 console.log(`🔮 Simplify activated by player ${casterIndex}`);
+                // Lasts until the caster's next turn starts (clearSimplifyForPlayer),
+                // like the card says; it used to end with this turn (owner 2026-10-14).
                 system.activeBuffs.simplify = {
-                    expiresThisTurn: true,
+                    expiresNextTurn: true,
                     playerIndex: casterIndex
                 };
                 const playerName = typeof getPlayerColorName === 'function' ? getPlayerColorName(casterIndex) : `Player ${casterIndex + 1}`;
-                const message = `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn.`;
+                const message = `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 1 AP for every scroll added to the common area.`;
                 updateStatus(message);
 
                 if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {

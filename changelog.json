@@ -4,9 +4,10 @@
     {
       "id": "2026-10-14",
       "date": "2026-10-14",
-      "title": "Win stone first",
+      "title": "Scroll rule updates",
       "changes": [
         "When a scroll counts toward your win, its win stone now comes from the source before the scroll draws any stones. Seed the Skies, Mason's Savvy, Create, Respirate and Quick Reflexes can take the last stones and still count.",
+        "Simplify now lasts until your next turn, as its card says, and until then you regain 1 AP every time any scroll goes to the common area.",
         "The Change Log is now in Spanish too."
       ]
     },

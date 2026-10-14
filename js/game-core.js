@@ -241,7 +241,9 @@
                 }
 
                 // Place new scroll in common area
+                const arrivedNew = this.commonArea[element] !== scrollName;
                 this.commonArea[element] = scrollName;
+                if (arrivedNew) this.onCommonAreaArrival(scrollName);
 
                 // Update the scroll deck UI
                 try {
@@ -255,6 +257,33 @@
                         scrollName: scrollName,
                         replacedScroll: replacedScroll
                     });
+                }
+            }
+
+            // Simplify (owner 2026-10-14): until the caster's next turn, they regain
+            // 1 AP every time a scroll is added to the common area (by anyone).
+            // Called the first time a scroll lands there on this board (the same
+            // move can reach a board twice: the local discard and the broadcast).
+            // Only the board that holds the caster's AP applies it: the caster's
+            // own browser, the host for a bot, every seat in a local game. Replays
+            // and save rebuilds (myPlayerIndex -1, not host) never apply it.
+            onCommonAreaArrival(scrollName) {
+                const buff = this.scrollEffects?.activeBuffs?.simplify;
+                if (!buff || buff.playerIndex == null) return;
+                const idx = buff.playerIndex;
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer) {
+                    const realMe = window.BotDriver?.driverRealIndex?.() ?? (typeof myPlayerIndex !== 'undefined' ? myPlayerIndex : null);
+                    const hostOwnsBot = typeof isHost !== 'undefined' && isHost && window.BotDriver?.isBot?.(idx);
+                    const mine = realMe != null && realMe >= 0 && idx === realMe;
+                    if (!mine && !hostOwnsBot) return;
+                }
+                const gained = this.responseWindow?.gainPlayerAP
+                    ? this.responseWindow.gainPlayerAP(idx, 1)
+                    : 0;
+                if (gained > 0) {
+                    const who = typeof getPlayerColorName === 'function' ? getPlayerColorName(idx) : `Player ${idx + 1}`;
+                    updateStatus(`Simplify: ${who} regains 1 AP (a scroll went to the common area).`);
+                    window.ActionLog?.record?.('simplifyAP', { playerIndex: idx, scrollName, amount: gained }, idx);
                 }
             }
 
