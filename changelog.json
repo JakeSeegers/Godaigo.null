@@ -10,7 +10,7 @@
         "Flipped tiles land with a puff of dust, and Control the Current swirls a water stone into its new element.",
         "Scrolls now float to their new place when anyone moves them between hand, active and common area.",
         "Opponent Status shows each player's hand and active scrolls in the same style as your own panels.",
-        "Fix: a water stone no longer copies a stone that a void cancels (no more wind rings from cancelled wind)."
+        "Small fixes: End Turn no longer misses a click, and a water stone no longer copies a stone that a void cancels."
       ]
     },
     {

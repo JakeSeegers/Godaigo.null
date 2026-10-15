@@ -3203,6 +3203,39 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
 
         let isEndingTurn = false; // Double-click guard for end-turn button
 
+        // A press on a bar button keeps the release (pointer capture), so the
+        // click counts even if the button moved under the mouse while held:
+        // the pressed look shifts it 3 px (a press near its top or left edge
+        // ended outside it) and Smart UI fit could re-fit the bar mid-press.
+        // The browser then dropped the click and End Turn needed a second one
+        // (owner 2026-10-15). Released 40 px+ away from the button (where it was
+        // when pressed and where it is now) = cancelled, as before.
+        (function keepButtonPress() {
+            const SEL = '#end-turn, .hud-bar button, .dock-bar button';
+            let held = null, heldRect = null;
+            document.addEventListener('pointerdown', (e) => {
+                const btn = e.button === 0 && e.target?.closest?.(SEL);
+                held = null;
+                if (!btn || btn.disabled || btn.draggable) return; // draggable: TheHermit layout editor
+                try { btn.setPointerCapture(e.pointerId); held = btn; heldRect = btn.getBoundingClientRect(); } catch (err) {}
+            }, true);
+            document.addEventListener('pointerup', (e) => {
+                if (!held) return;
+                const M = 40;
+                const away = (r) => e.clientX < r.left - M || e.clientX > r.right + M || e.clientY < r.top - M || e.clientY > r.bottom + M;
+                // far from where the button was when pressed AND from where it is now
+                const far = away(heldRect) && away(held.getBoundingClientRect());
+                if (far) {
+                    // a drag away from the button: no click (the usual way to change your mind)
+                    const b = held;
+                    const stop = (ev) => { if (ev.target === b || b.contains(ev.target)) { ev.stopImmediatePropagation(); ev.preventDefault(); } };
+                    window.addEventListener('click', stop, true);
+                    setTimeout(() => window.removeEventListener('click', stop, true), 0);
+                }
+                held = null;
+            }, true);
+        })();
+
         document.getElementById('end-turn').onclick = function() {
             resetEndTurnPrompt();
             // Prevent double-click from advancing turn twice

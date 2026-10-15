@@ -2103,7 +2103,7 @@ window.I18N_ES = {
     "Flipped tiles land with a puff of dust, and Control the Current swirls a water stone into its new element.": "Las losetas que se voltean aterrizan con una nube de polvo, y Controlar la Corriente convierte una piedra de agua en su nuevo elemento con un remolino.",
     "Scrolls now float to their new place when anyone moves them between hand, active and common area.": "Los pergaminos ahora flotan hasta su nuevo sitio cuando alguien los mueve entre la mano, la zona activa y la zona común.",
     "Opponent Status shows each player's hand and active scrolls in the same style as your own panels.": "El Estado de los oponentes muestra la mano y los pergaminos activos de cada jugador con el mismo estilo que tus propios paneles.",
-    "Fix: a water stone no longer copies a stone that a void cancels (no more wind rings from cancelled wind).": "Arreglo: una piedra de agua ya no copia una piedra anulada por el vacío (no más anillos de viento por un viento anulado).",
+    "Small fixes: End Turn no longer misses a click, and a water stone no longer copies a stone that a void cancels.": "Pequeños arreglos: Terminar turno ya no pierde un clic, y una piedra de agua ya no copia una piedra anulada por el vacío.",
     "One-click Train Bot": "Entrenar bot con un clic",
     "Train Bot is now one click: pick how long and how fast, and the game picks the best way to train each run.": "Entrenar bot ahora es un solo clic: elige cuánto tiempo y qué velocidad, y el juego elige la mejor forma de entrenar en cada sesión.",
     "Bots can now plan a catacomb jump a few moves ahead.": "Los bots ya pueden planear un salto de catacumba con algunos movimientos de antelación.",

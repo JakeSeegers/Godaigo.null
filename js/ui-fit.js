@@ -10,7 +10,8 @@
 //   4. the least needed buttons move into a "More" menu (the real buttons stay
 //      in the page, hidden; the menu clicks them, so all game code still works)
 //   5. the bar wraps onto two rows (phones)
-// Re-checked on resize and when a bar's content changes (1 s check).
+// Re-checked on resize and when a bar's content changes (250 ms check), never
+// while the pointer is over a bar or a button is held (see fitAll).
 // EXPERIMENT, OFF by default (owner 2026-10-03: keep the current hand-made layout
 // safe). Only the Hermit menu "Smart UI fit" toggle turns it on, for that browser
 // (localStorage godaigo_ui_fit = 'on'). All its CSS is scoped to html.ui-fit-on, so
@@ -150,12 +151,35 @@
         document.body.dataset['uiFit' + b.name[0].toUpperCase() + b.name.slice(1)] = String(level);
     }
 
+    // Never move a bar under the mouse (owner 2026-10-15: End Turn sometimes
+    // needed a second click, after a quick jump). The End Turn label grows when
+    // AP runs out ("End Turn to replace AP"); the re-fit then came up to 1 s
+    // later, often right as the button was pressed, so the release landed off
+    // the moved button and the browser dropped the click. Now a re-fit waits
+    // while the pointer is over a bar or a button is held, and runs as soon as
+    // it leaves; changes are checked every 250 ms instead of every second.
+    let pointerOverBar = false, pressed = false, deferred = false;
+    const inBar = (el) => !!el && bars.some(b => { const bar = b.bar(); return bar && bar.contains(el); });
+    document.addEventListener('pointerover', (e) => {
+        const was = pointerOverBar;
+        pointerOverBar = inBar(e.target);
+        if (was && !pointerOverBar && deferred && !pressed) fitAll();
+    }, true);
+    document.addEventListener('pointerdown', () => { pressed = true; }, true);
+    const release = () => { pressed = false; if (deferred && !pointerOverBar) fitAll(); };
+    document.addEventListener('pointerup', release, true);
+    document.addEventListener('pointercancel', release, true);
+    document.documentElement.addEventListener('pointerleave', () => { pointerOverBar = false; if (deferred && !pressed) fitAll(); });
+
     let pending = false;
     function fitAll() {
         if (!enabled || pending) return;
+        if (pointerOverBar || pressed) { deferred = true; return; }
+        deferred = false;
         pending = true;
         requestAnimationFrame(() => {
             pending = false;
+            if (pointerOverBar || pressed) { deferred = true; return; }
             document.getElementById('ui-fit-menu')?.remove();
             for (const b of bars) { try { fitBar(b); } catch (e) { console.warn('[UiFit]', e); } }
         });
@@ -180,7 +204,8 @@
     }
 
     window.addEventListener('resize', fitAll);
-    // Content changes (buttons shown / hidden, counters, End Turn appearing).
+    // Content changes (buttons shown / hidden, counters, End Turn appearing or
+    // its label changing), checked every 250 ms.
     let sig = '';
     setInterval(() => {
         if (!enabled) return;
@@ -190,11 +215,15 @@
             if (!bar) continue;
             parts.push(visible(bar), [...bar.querySelectorAll('button, .dock-turn-indicator, .hud-timer')]
                 .filter(el => !el.dataset.uiFitHidden).map(el => el.offsetParent ? 1 : 0).join(''), overflowing(b, bar));
+            // End Turn's label changes its width (and can make the bar fit or overflow)
+            const et = bar.querySelector('#end-turn');
+            if (et) parts.push(et.textContent.length);
         }
         const s2 = parts.join('|');
         if (s2 !== sig) { sig = s2; fitAll(); }
+        if (deferred && !pointerOverBar && !pressed) fitAll();
         for (const b of bars) { try { markDot(b); } catch (e) {} }
-    }, 1000);
+    }, 250);
     if (enabled) {
         document.documentElement.classList.add('ui-fit-on');
         document.addEventListener('DOMContentLoaded', fitAll);

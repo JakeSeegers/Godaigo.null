@@ -672,6 +672,10 @@ Order matters — later scripts depend on earlier ones.
                              Train Bot) and, under 760 px, the game list stacks. All CSS scoped to html.ui-fit-on.
                              Measured 2026-10-03: off = 1366 wide loses timer / Pause / E C S / End Turn off screen; on = nothing
                              off screen at 1920 / 1366 / 1024 / 800 / 390.
+                             Never re-fits while the pointer is over a bar or a button is held (deferred until it leaves);
+                             checks every 250 ms incl. the End Turn label length (2026-10-15: a late re-fit moved End Turn
+                             mid-press and the click was lost). game-ui.js keepButtonPress: bar buttons keep the press
+                             (setPointerCapture), so a button that moves while held (pressed look 3 px, re-fit) still clicks.
 30. asset-preloader.js     ← window.AssetPreloader — background-loads in-game art + sounds after the intro;
                              shows a loading bar over the board if a match starts before it's done
                              Also window.LazyScripts.load('tutorial'|'bot-arena'|'matter'|'plinko-sim'): loads #18/#26 on idle after
