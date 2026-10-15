@@ -5736,6 +5736,9 @@
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)
         score: scoreAction,   // (action, snapshot, ctx) → utility
         searchPick,           // Stage 2 lookahead pick — used when WEIGHTS.searchDepth > 0
+        // the same two, in time slices (await -> {value, busy}); js/bot-imitation.js
+        rankSliced: (fixationTarget, opts) => runSliced(rankActionsGen(fixationTarget, opts)),
+        searchPickSliced: () => runSliced(searchPickGen()),
         mctsPick,             // Stage 2 step 5 multi-turn MCTS — used when WEIGHTS.mctsEnabled
         evaluateSnapshot,     // Stage 2 state evaluator (search leaves)
         homeCost,             // real walking cost home (formula input, bot-terms.js)

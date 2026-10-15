@@ -649,6 +649,8 @@ Order matters — later scripts depend on earlier ones.
                              Cost (2026-10-08): it ranks once per board change (stateVersion bumped by every ActionLog entry), not
                              every 300 ms (a full ranking late in a game took 1-5 s, so the hermit's own turn froze for minutes);
                              after a ranking over 150 ms it waits 4x that long. Time shows as learnMs in the lag recorder.
+                             Sliced (2026-10-15): rank + searchPick run in time slices (BotSystem.rankSliced / searchPickSliced),
+                             dropped if the board changes meanwhile; Seed the Skies made the hermit's turn stutter (166 ms blocks -> ~25-50 ms).
 28. game-log-ui.js         ← Player-facing readable "Game Log" panel (#game-log-panel, left side), built
                              from ActionLog.onRecord() — colour-coded, collapses movement, never shows
                              discardScroll or anything else that would reveal another player's hand

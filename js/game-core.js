@@ -4286,7 +4286,7 @@
 
             // Check for global placement buff (Avalanche - any stone anywhere)
             if (spellSystem && spellSystem.scrollEffects && spellSystem.scrollEffects.hasGlobalPlacement(currentPlayerIdx)) {
-                console.log(`ℹ️ Global placement active - allowing stone at any position`);
+                if (shouldDebugLog('globalPlacement', 2000)) console.log(`ℹ️ Global placement active - allowing stone at any position`);
                 return true;
             }
 
@@ -4294,7 +4294,8 @@
             if (stoneType && spellSystem && spellSystem.scrollEffects) {
                 const buff = spellSystem.scrollEffects.activeBuffs?.waterWindGlobalPlacement;
                 if (buff && buff.playerIndex === currentPlayerIdx && (stoneType === 'water' || stoneType === 'wind')) {
-                    console.log(`ℹ️ Seed the Skies active - allowing ${stoneType} stone at any position`);
+                    // throttled: this runs for every hex the bots and the drag check look at
+                    if (shouldDebugLog('seedSkies', 2000)) console.log(`ℹ️ Seed the Skies active - allowing ${stoneType} stone at any position`);
                     return true;
                 }
             }
@@ -4313,7 +4314,7 @@
                     const hexDistance = Math.max(dq, dr, ds);
 
                     if (hexDistance <= extended.range) {
-                        console.log(`🎯 Extended placement active - allowing ${stoneType} stone at distance ${hexDistance} (max ${extended.range})`);
+                        if (shouldDebugLog('extendedPlacement', 2000)) console.log(`🎯 Extended placement active - allowing ${stoneType} stone at distance ${hexDistance} (max ${extended.range})`);
                         return true;
                     }
                 }
