@@ -2520,7 +2520,7 @@
             // Take Flight from a client older than 2026-10-15 (since then the
             // caster always picks the landing and only sends 'take-flight'; this
             // stays for old replays and not yet reloaded tabs). Caster targeted ME
-            // with an opponent-target — my own client drives the destination choice (see
+            // with an opponent-target, my own client drives the destination choice (see
             // ScrollEffects.enterTakeFlightChoiceAsTarget). If the target is
             // a bot instead (added via the lobby's Add Bot button), it has no
             // client of its own to receive this — the host's BotDriver
