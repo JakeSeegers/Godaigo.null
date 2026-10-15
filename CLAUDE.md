@@ -481,6 +481,11 @@ Order matters — later scripts depend on earlier ones.
                              bot-effects.js driveTelekinesis now moves tiles with one pawn and carries it (window.carryPlayersOnTelekinesisMove).
                              Breath of Power (2026-10-15, stones within 3 hexes): moveStone scored + moveStoneMakesCast (held scrolls a move makes
                              castable); BotState snapshot carries the breathOfPower buff (before, the search never saw stone moves).
+                             Keeping scrolls (2026-10-15): discard score adds discardFeeds (-10 x discardFeedScore: each opponent the scroll
+                             would give an element to, 1 + 0.5 per element it has, x1.5 leader; pact partners left out via helpContext
+                             partners), discardHasRoom (-50, voluntary while that area has room), discardEffect (-15, voluntary level 2+);
+                             these are DIAL_KEYS; CAP_KEYS (discardActivated / DeadElement / ResponseOnly) never above default (champion 16
+                             had 92 / 86 / 52). Champion + this vs champion 16: 16-8 in 24 games (2p 9-3, 4p 7-5), ~15% fewer discards.
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same

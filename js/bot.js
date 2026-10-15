@@ -258,6 +258,12 @@
         discardResponseOnly: 25, // level-1 scrolls are response-only: dead weight once
                                  // their element is won or dead (a needed one is kept:
                                  // a response activates its element)
+        // Keeping scrolls (owner 2026-10-15: bots dumped scrolls to the common
+        // area that an opponent, even the leader, could use):
+        discardFeeds:      -10,  // × each opponent the scroll would give an element to
+                                 // (1 + 0.5 per element it has, x1.5 for the leader)
+        discardHasRoom:    -50,  // voluntary discard while that area (hand / active) has room
+        discardEffect:     -15,  // voluntary discard of a level 2+ scroll: its effect is still castable
         discardSimplify:    45,  // Simplify up (owner 2026-10-14): a dead scroll (spareScroll)
                                  // to the common area pays 2 AP back, while AP has room
         castSimplifySpare:  18,  // × dead scrolls held (max 3) when casting Simplify: each
@@ -443,7 +449,11 @@
     // them but never below half their default strength, so bots cannot drift
     // into "unlearning" a skill whose games are too rare to judge it.
     const DIAL_KEYS = ['guardKeepAp', 'leaveResponseReady', 'l1WaitVoid', 'evalScrollResponse',
-        'castGuardFetch', 'evalResponseReady'];
+        'castGuardFetch', 'evalResponseReady', 'discardFeeds', 'discardHasRoom', 'discardEffect'];
+    // Discard bonuses training may lower but never raise above their default
+    // (2026-10-15: the champion had them at about double, 92 / 86 / 52, so a bot
+    // threw away every scroll of an element it had already won).
+    const CAP_KEYS = ['discardActivated', 'discardDeadElement', 'discardResponseOnly'];
     function floorDials(W) {
         for (const k of DIAL_KEYS) {
             const d = DEFAULT_WEIGHTS[k];
@@ -451,6 +461,10 @@
             const v = Number(W[k]);
             const cur = Number.isFinite(v) ? v : d;
             W[k] = d > 0 ? Math.max(cur, d / 2) : Math.min(cur, d / 2);
+        }
+        for (const k of CAP_KEYS) {
+            const d = DEFAULT_WEIGHTS[k], v = Number(W[k]);
+            W[k] = Number.isFinite(v) ? Math.min(v, d) : d;
         }
         return W;
     }
@@ -1435,6 +1449,18 @@
                 if (el && ELEMENTS.includes(el)) {
                     if (self.activated.includes(el)) s += contrib('discardActivated', 1);
                     if ((snap.sourcePool[el] || 0) <= 0) s += contrib('discardDeadElement', 1);
+                }
+                // Who could use it from the common area: every opponent it would
+                // give an element to (a pact partner it is meant for is left out).
+                const feeds = discardFeedScore(snap, self, a.scroll, def, ctx);
+                if (feeds) s += contrib('discardFeeds', feeds);
+                if (a.voluntary && !(snap.turn.buffs?.simplify && simplifyApRoom(snap, self) > 0 && spareScroll(snap, self, a.scroll))) {
+                    // Room left in that area: no reason to let it go.
+                    const maxN = a.from === 'active'
+                        ? (window.spellSystem?.MAX_ACTIVE_SIZE ?? 2) : (window.spellSystem?.MAX_HAND_SIZE ?? 2);
+                    const n = ((a.from === 'active' ? self.active : self.hand) || []).length;
+                    if (n < maxN) s += contrib('discardHasRoom', 1);
+                    if ((def?.level || 0) >= 2) s += contrib('discardEffect', 1);
                 }
                 // Never discard the scroll the current build plan needs
                 const activePlan = mem(snap.turn.activePlayerIndex).plan;
@@ -3920,6 +3946,32 @@
         }
         return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
     }
+    // Discarding puts a scroll in the common area, where anyone can cast it.
+    // Sum over opponents who would get an element from it: 1 + 0.5 per element
+    // they already have, x1.5 for the leader (most elements). Level 1 scrolls
+    // count too (a response activates its element). Pact partners the scroll
+    // is a gift for (ctx.help) are left out.
+    function discardFeedScore(snap, self, name, def, ctx) {
+        if (!def) return 0;
+        const ai = snap.turn.activePlayerIndex;
+        const el = scrollElement(name);
+        const partners = new Set(ctx?.help?.partners || []);
+        let top = -1;
+        snap.players.forEach((q, j) => { if (q && j !== ai) top = Math.max(top, q.activated.length); });
+        let sum = 0;
+        snap.players.forEach((q, j) => {
+            if (!q || j === ai || partners.has(j)) return;
+            let gets;
+            if (def.level === 1) gets = !!el && ELEMENTS.includes(el) && !q.activated.includes(el) && (snap.sourcePool[el] || 0) > 0;
+            else { try { gets = scrollCreditElements(snap, q, { ...def, id: name }, j).length > 0; } catch (e) { gets = false; } }
+            if (!gets) return;
+            let w = 1 + 0.5 * q.activated.length;
+            if (q.activated.length === top && top >= self.activated.length) w *= 1.5;
+            sum += w;
+        });
+        return sum;
+    }
+
     // Breath of Power: how many held scrolls (hand + active) a stone move makes
     // castable that are not castable now. Castable-now is cached per snapshot.
     const castableNow = new WeakMap();
@@ -4591,7 +4643,7 @@
                 const path = home && pathToOrNear(q.x, q.y, home.x, home.y);
                 for (const st of path || []) road.add(hexKey(st.x, st.y));
             }
-            return (gift.size || road.size) ? { gift, road, push: 1.5 } : null;
+            return (gift.size || road.size) ? { gift, road, push: 1.5, partners: [md.target] } : null;
         }
         if (!P || !P.members.includes(ai)) return null;
         const lp = snap.players[P.target];
@@ -4613,7 +4665,7 @@
         }
         if (!gift.size && !road.size) return null;
         const push = (D.pressures(ai) || [])[P.target] || 1;
-        return { gift, road, push };
+        return { gift, road, push, partners };
     }
 
     // Rank all legal actions for the current position (debug + decision core)
