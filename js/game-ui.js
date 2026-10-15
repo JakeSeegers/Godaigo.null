@@ -872,8 +872,9 @@
             // spectator or the seatless host of a spectate test.
             const dri = window.BotDriver?.driverRealIndex?.();
             const meIdx = dri != null ? dri : myPlayerIndex;
+            // Other players only (owner 2026-10-15: your own card is already in
+            // your Hand / Active / Elemental Stones panels). A spectator sees all.
             const playerOrder = [];
-            if (meIdx != null && meIdx >= 0) playerOrder.push(meIdx);
             for (let i = 0; i < totalPlayers; i++) {
                 if (i !== meIdx) playerOrder.push(i);
             }

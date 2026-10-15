@@ -693,6 +693,8 @@ Order matters — later scripts depend on earlier ones.
                              A scroll that vanishes and shows up elsewhere within 2 s also flies (other players' moves come as two messages).
                              Opponent Status (game-ui.js updateOpponentPanel) shows Hand / Active as compact rows like the player's own
                              collapsed panels (.opp-scroll-list[data-area], dot + name + element · level; another player's hand face down).
+                             Since 2026-10-15 it lists only the OTHER players (a spectator sees all) and has an expander corner (scroll-panels.js
+                             createPanel opts.expander: visible ⤡ button, dragging sets your size and turns auto-fit off, double-click fits again).
 29. thehermit.js           ← window.TheHermit — dev tool, drag-to-reorder editor for the dock-bar/hud-bar
                              buttons and indicators (Shift+H, or the cheat-panel button); persists the
                              chosen order to localStorage and exports it as JSON for hardcoding back in

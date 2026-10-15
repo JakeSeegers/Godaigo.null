@@ -165,7 +165,7 @@ const ScrollPanelSystem = (() => {
         header.innerHTML = `
             <span class="fsp-title">${title}</span>
             ${opts.noBadge ? '' : `<span class="fsp-badge" id="fsp-badge-${id}">0/0</span>`}
-            ${(opts.noAutofit || opts.lockAutofit) ? '' : `<button class="fsp-btn fsp-autofit-btn" title="Auto-fit height to content">↕</button>`}
+            ${(opts.noAutofit || opts.lockAutofit || opts.expander) ? '' : `<button class="fsp-btn fsp-autofit-btn" title="Auto-fit height to content">↕</button>`}
             ${opts.noCollapse ? '' : `<button class="fsp-btn fsp-collapse-btn" title="Collapse / expand">−</button>`}
             <button class="fsp-btn fsp-close-btn"    title="Close">✕</button>
         `;
@@ -188,15 +188,20 @@ const ScrollPanelSystem = (() => {
         // needed height forever (Math.max(100, ...) in _makeResizable
         // means even a 1px nudge sets a 100px floor) — Elemental Stones'
         // reported "big bottom margin" was exactly that.
+        // opts.expander (owner 2026-10-15, Opponent Status): a visible corner
+        // button instead of the faint grip, shown even while the panel fits its
+        // content. Dragging it sets your own size (auto-fit off); a
+        // double-click fits the content again.
         const handle = opts.noResize ? null : document.createElement('div');
         if (handle) {
-            handle.className = 'fsp-resize-handle';
-            handle.title      = 'Drag to resize';
+            handle.className = 'fsp-resize-handle' + (opts.expander ? ' fsp-expander' : '');
+            handle.title      = opts.expander ? 'Drag to resize (double-click to fit)' : 'Drag to resize';
+            if (opts.expander) handle.textContent = '⤡';
             el.appendChild(handle);
         }
 
         document.body.appendChild(el);
-        panels[id] = { el, state, open: false, bodyId: bodyEl.id, dockBtnId: opts.dockBtnId || ('panel-btn-' + id) };
+        panels[id] = { el, state, open: false, bodyId: bodyEl.id, dockBtnId: opts.dockBtnId || ('panel-btn-' + id), expander: !!opts.expander };
 
         // Apply saved collapsed state
         if (state.collapsed) _applyCollapsed(id, true);
@@ -213,8 +218,11 @@ const ScrollPanelSystem = (() => {
         }
 
         // Hide resize handle immediately if autofit is on and panel isn't collapsed
-        if (handle && state.autofit !== false && !state.collapsed) {
+        if (handle && state.autofit !== false && !state.collapsed && !opts.expander) {
             handle.style.display = 'none';
+        }
+        if (handle && opts.expander) {
+            handle.addEventListener('dblclick', e => { e.stopPropagation(); setAutofit(id, true); });
         }
 
         // Drag & resize
@@ -267,6 +275,8 @@ const ScrollPanelSystem = (() => {
         handle.addEventListener('mousedown', e => {
             e.stopPropagation();
             active = true;
+            // an expander corner takes over from auto-fit: your size stays
+            if (panels[id].expander && panels[id].state.autofit !== false) { panels[id].state.autofit = false; }
             sx = e.clientX; sy = e.clientY;
             sw = panel.offsetWidth; sh = panel.offsetHeight;
             panel.style.transition = 'none';
@@ -320,7 +330,7 @@ const ScrollPanelSystem = (() => {
         } else {
             if (body)    body.style.display    = '';
             if (compact) compact.style.display = 'none';
-            if (handle)  handle.style.display  = (state.autofit !== false) ? 'none' : '';
+            if (handle)  handle.style.display  = (state.autofit !== false && !panels[id].expander) ? 'none' : '';
             if (btn)     btn.textContent        = '−';
             if (state.h) el.style.height = state.h + 'px';
             // Restore the card-grid width (autofit recomputes it fresh below
@@ -984,7 +994,7 @@ const ScrollPanelSystem = (() => {
         const btn    = p.el.querySelector('.fsp-autofit-btn');
         const handle = p.el.querySelector('.fsp-resize-handle');
         if (btn)    btn.classList.toggle('fsp-autofit-active', on);
-        if (handle) handle.style.display = (on || p.state.collapsed) ? 'none' : '';
+        if (handle) handle.style.display = ((on && !p.expander) || p.state.collapsed) ? 'none' : '';
         if (on) fitPanel(id);
         saveState();
     }
@@ -1232,8 +1242,9 @@ const ScrollPanelSystem = (() => {
             // functionality without the button; noResize follows because the
             // handle would be unreachable dead UI once autofit can never be
             // switched off.
-            lockAutofit: true,
-            noResize: true,
+            // Auto-fit by default, no toggle button; the expander corner lets
+            // you set your own size (owner 2026-10-15), double-click fits again.
+            expander: true,
         });
         createPanel('elementalstones', 'Elemental Stones', {
             panelId: 'elemental-stones-panel',
