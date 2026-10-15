@@ -660,6 +660,7 @@ Order matters — later scripts depend on earlier ones.
                              Common, other players' rows in Opponent Status, dock buttons when a panel is closed), then the spot glows.
                              Name shown when the move touches active / common or your own hand, else a face-down chip. No game hooks.
                              The scroll stays hidden at its new place until the chip lands (style rule #smf-hide).
+                             A scroll that vanishes and shows up elsewhere within 2 s also flies (other players' moves come as two messages).
                              Opponent Status (game-ui.js updateOpponentPanel) shows Hand / Active as compact rows like the player's own
                              collapsed panels (.opp-scroll-list[data-area], dot + name + element · level; another player's hand face down).
 29. thehermit.js           ← window.TheHermit — dev tool, drag-to-reorder editor for the dock-bar/hud-bar

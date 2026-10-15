@@ -268,18 +268,38 @@
         }
     }
 
+    // Other players' moves can arrive as two messages: first "gone from hand /
+    // active" (scroll-discard), then "added to the common area"
+    // (common-area-update). In between the scroll is nowhere, so a scroll that
+    // vanishes is remembered for GONE_MS with where it was; if it shows up
+    // somewhere else in that time, that is the move (owner 2026-10-15: other
+    // players' scrolls never flew).
+    const GONE_MS = 2000;
+    const gone = new Map();      // name -> { loc, rect, t }
     function tick() {
-        if (!gameOn()) { prev = null; rectCache.clear(); return; }
+        if (!gameOn()) { prev = null; rectCache.clear(); gone.clear(); return; }
         const places = readPlaces();
+        const now = performance.now();
+        if (prev) {
+            prev.forEach((loc, name) => {
+                if (!places.has(name)) gone.set(name, { loc, rect: rectCache.get(loc + '|' + name) || null, t: now });
+            });
+        }
+        gone.forEach((g, name) => { if (now - g.t > GONE_MS) gone.delete(name); });
         if (prev && fxOk()) {
             const moves = [];
             places.forEach((loc, name) => {
                 const was = prev.get(name);
-                if (was && was !== loc) moves.push({ name, from: was, to: loc });
+                if (was && was !== loc) { moves.push({ name, from: was, to: loc, rect: rectCache.get(was + '|' + name) || null }); return; }
+                if (!was) {
+                    const g = gone.get(name);
+                    if (g && g.loc !== loc) moves.push({ name, from: g.loc, to: loc, rect: g.rect });
+                }
             });
+            moves.forEach(m => gone.delete(m.name));
             // many at once = a resync / rebuild, not someone playing: no show
             if (moves.length && moves.length <= MAX_MOVES) {
-                moves.forEach(m => fly(m.name, m.from, m.to, rectCache.get(m.from + '|' + m.name) || null));
+                moves.forEach(m => fly(m.name, m.from, m.to, m.rect));
             }
         }
         prev = places;
