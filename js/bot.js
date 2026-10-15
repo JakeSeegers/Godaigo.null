@@ -58,6 +58,9 @@
                                  // than the counter costs (2, 0 with Quick Reflexes). A response
                                  // is paid from AP kept from your own turn, and bots spent it all  // guard mode, no counter in reach: Quick Reflexes / Scholar's
                                  // Insight to fetch Iron Stance or Psychic (owner 2026-09-28)
+        castNoEffect:     -250,  // a stone-drawing cast (Mason's Savvy, ...) that can draw nothing (supply
+                                 // empty) and wins no element: it only burns AP (owner 2026-10-15: a bot
+                                 // cast Mason's Savvy 3 times a turn for 30 turns, never moving)
         castDrawNotNeeded: -60,  // a scroll-drawing spell (Scholar's Insight, Inspiring Draught,
                                  // Refreshing Thought) while every needed element already has
                                  // a scroll to build: one bot cast Scholar's Insight 184 times
@@ -449,7 +452,7 @@
     // them but never below half their default strength, so bots cannot drift
     // into "unlearning" a skill whose games are too rare to judge it.
     const DIAL_KEYS = ['guardKeepAp', 'leaveResponseReady', 'l1WaitVoid', 'evalScrollResponse',
-        'castGuardFetch', 'evalResponseReady', 'discardFeeds', 'discardHasRoom', 'discardEffect'];
+        'castGuardFetch', 'evalResponseReady', 'discardFeeds', 'discardHasRoom', 'discardEffect', 'castNoEffect'];
     // Discard bonuses training may lower but never raise above their default
     // (2026-10-15: the champion had them at about double, 92 / 86 / 52, so a bot
     // threw away every scroll of an element it had already won).
@@ -1222,6 +1225,7 @@
                     s += contrib('castStuckTool', 1);
                 }
                 if (drawNotNeeded(snap, self, a.scroll)) s += contrib('castDrawNotNeeded', 1);
+                if (castDoesNothing(snap, self, a.scroll)) s += contrib('castNoEffect', 1);
                 if (guardFetchHelps(snap, self, a.scroll)) s += contrib('castGuardFetch', 1);
                 if (a.scroll === 'VOID_SCROLL_3' && !snap.turn.buffs?.simplify) {
                     // Each dead scroll held turns into 1 AP once Simplify is up.
@@ -4487,6 +4491,18 @@
         const t = m.drawCasts?.[scroll];
         return t != null && (m.ownTurns || 0) - t < DRAW_COOLDOWN;
     }
+    // A stone-drawing scroll (Mason's Savvy, Seed the Skies, Respirate) that can
+    // draw nothing (supply empty or my pool of that stone full) and wins no
+    // element: the cast does nothing. Repeat casts that still draw are fine.
+    function castDoesNothing(snap, self, scroll) {
+        const el = DRAW_STONE_SCROLLS[scroll];
+        if (!el || !self) return false;
+        // stones it could actually draw: supply left AND room in my pool (5 max)
+        const drawable = Math.min(snap.sourcePool[el] || 0, POOL_CAP - ((self.pool || {})[el] || 0));
+        if (drawable > 0) return false;
+        try { if (hasWinCredit(snap, scroll)) return false; } catch (e) { return false; }
+        return true;
+    }
     function drawNotNeeded(snap, self, scroll) {
         if (!DRAW_SCROLLS.has(scroll)) return false;
         // Still wins its own element: casting it is progress anyway.
@@ -5688,7 +5704,13 @@
                 // unproductiveStreak's circuit breaker never fires. Pattern
                 // placements are recorded here but only COUNT as progress if
                 // they survive to end of turn (checked below).
-                if (applied.type === 'cast') castThisTurn = true;
+                // A cast that did nothing (castDoesNothing) is not progress, so the
+                // stuck breaker can still fire.
+                if (applied.type === 'cast') {
+                    let idle = false;
+                    try { const sn = window.BotState.snapshot(); idle = castDoesNothing(sn, sn.players[startingPlayer], applied.scroll); } catch (e) {}
+                    if (!idle) castThisTurn = true;
+                }
                 else if (applied.type === 'placeStone' && applied.scroll) {
                     placedThisTurn.push({ x: applied.x, y: applied.y, type: applied.stoneType });
                 }
@@ -5842,6 +5864,7 @@
         explain: (a, snap) => explainAction(a, snap || window.BotState.snapshot(), {}), // plain words for an action
         turn:  botTurn,       // play out the whole turn
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)
+        _castDoesNothing: castDoesNothing, // test hook (snap, self, scroll)
         score: scoreAction,   // (action, snapshot, ctx) → utility
         searchPick,           // Stage 2 lookahead pick — used when WEIGHTS.searchDepth > 0
         // the same two, in time slices (await -> {value, busy}); js/bot-imitation.js

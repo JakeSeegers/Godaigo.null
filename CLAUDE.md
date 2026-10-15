@@ -486,6 +486,9 @@ Order matters — later scripts depend on earlier ones.
                              partners), discardHasRoom (-50, voluntary while that area has room), discardEffect (-15, voluntary level 2+);
                              these are DIAL_KEYS; CAP_KEYS (discardActivated / DeadElement / ResponseOnly) never above default (champion 16
                              had 92 / 86 / 52). Champion + this vs champion 16: 16-8 in 24 games (2p 9-3, 4p 7-5), ~15% fewer discards.
+                             castNoEffect (-250, DIAL_KEYS): castDoesNothing = a stone-drawing scroll (DRAW_STONE_SCROLLS) that can draw
+                             nothing (supply empty or own pool at POOL_CAP) and has no win credit; such a cast is not progress for the stuck
+                             breaker either (botTurn). Repeat casts that still draw are unaffected. Test hook _castDoesNothing.
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
