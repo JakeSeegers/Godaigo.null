@@ -297,7 +297,8 @@ Order matters — later scripts depend on earlier ones.
                              half, scaleX through 0), and comes back down (~0.76 s).
                              A pawn stepping onto a flipping tile waits on its old hex until the flip ends, then glides on
                              (flipZones; a glide started up to 0.4 s before the flip is redone); bot.js waitForQuiescence waits on
-                             window.TileFlipFx.isFlipping() (also in Watchable training). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+                             window.TileFlipFx.isFlipping() (also in Watchable training). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces). Bot training at Extreme speed draws flat pieces
+                             (paused while BotArena runs and window.fxOn() is false; a 400 ms watcher flips it on a live speed switch).
                              Tile moves (2026-10-14, window.TileMoveFx.fly): a tile that changes place lifts, floats over a curved path
                              and lands with a dust ring (Shifting Sands, Telekinesis, own drops, player tiles at the start drop in from
                              above); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
@@ -308,8 +309,8 @@ Order matters — later scripts depend on earlier ones.
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),
                              a rune ring turns, sparks drift; lines re-jag every frame, then break up and fade (~1.1 s). Layer
                              .cast-fx in #viewport. Own casts: ActionLog 'cast_execute'; other players: lobby.js 'scroll-used'.
-                             Skipped when window.fxOn() is false (game-core.js: sound off, i.e. muted training or quiet
-                             test games, unless training runs at Watchable speed), hidden tab, reduced motion; max 3 at once.
+                             Skipped when window.fxOn() is false (game-core.js: while bot training runs, only at Watchable speed
+                             (2026-10-15: speed, not sound); otherwise sound off, i.e. quiet test games), hidden tab, reduced motion; max 3 at once.
                              Two layers: lines, aura and the far half of three energy arcs wrapping the pawn go BEHIND pawns; stone
                              flares and the near half of the arcs go in front. While a response window is open on this cast the hold
                              keeps crackling (max 20 s). CastFX.resolve(results) (from response-window.js announceOutcome): a

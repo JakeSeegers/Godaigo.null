@@ -43,6 +43,12 @@
     const HEIGHT = 0.6;    // puck height / radius (a hockey puck is about 0.67)
     const BEAD = 0.75;     // bead dome height / radius
     let on = (() => { try { return localStorage.getItem(KEY) !== 'off'; } catch (e) { return true; } })();
+    // Bot training at Extreme speed (window.fxOn() false while BotArena runs)
+    // draws flat pieces: 3D is the setting AND not paused (2026-10-15; a
+    // switch from Watchable to Extreme mid-run kept the 3D look). The watcher
+    // in set-up below flips it both ways.
+    let paused = false;
+    const live = () => on && !paused;
     let rot = 0, tilt = 0;
 
     function el(tag, attrs) {
@@ -405,7 +411,7 @@
     }
 
     function decorate(g) {
-        if (!on || !mainDisc(g)) return;
+        if (!live() || !mainDisc(g)) return;
         ensureDefs();
         let under = g.querySelector(':scope > .puck-under');
         let over = g.querySelector(':scope > .puck-over');
@@ -446,7 +452,7 @@
         const vp = document.getElementById('viewport');
         if (!vp) { setTimeout(watch, 500); return; }
         new MutationObserver(list => {
-            if (!on) return;
+            if (!live()) return;
             const redo = new Set();
             for (const m of list) {
                 if (m.type === 'attributes') {
@@ -527,7 +533,7 @@
             let layer = document.getElementById('tile-sides');
             // a tile in the middle of a flip carries its own slab (tileFlip)
             const tiles = [...vp.querySelectorAll(':scope > g.placed-tile')].filter(t => !t.hasAttribute('data-flipping'));
-            if (!on || !tiles.length) { layer?.remove(); return; }
+            if (!live() || !tiles.length) { layer?.remove(); return; }
             if (!layer) { layer = el('g', { id: 'tile-sides' }); }
             if (layer !== vp.firstChild) vp.insertBefore(layer, vp.firstChild);
             const depth = TILE_THICK * Math.tan(Math.min(80, tilt || 0) * Math.PI / 180);
@@ -592,7 +598,7 @@
             });
             // the tile leaves its spot: no slab there while it is up
             newG.setAttribute('data-flipping', '1');
-            const sp = on ? slabPolys(newG) : null;
+            const sp = live() ? slabPolys(newG) : null;
             buildSides();
             // shadow in the empty spot, under every tile
             const ground = el('g', { class: 'tile-flip-fx' });
@@ -766,7 +772,7 @@
             flipZones.push({ x: to.x, y: to.y, until: performance.now() + T });
             // the tile leaves the board: no slab under it while it flies
             g.setAttribute('data-flipping', '1');
-            const sp = on ? slabPolys(g) : null;
+            const sp = live() ? slabPolys(g) : null;
             buildSides();
             const ground = el('g', { class: 'tile-flip-fx' });
             ground.style.pointerEvents = 'none';
@@ -1148,7 +1154,7 @@
         // too (they use masks either way).
         let nudgeTimer = 0;
         const nudge = () => {
-            if (on) document.querySelectorAll('#viewport g.stone').forEach(g => { if (g.querySelector(':scope > .puck-under')) refresh(g); });
+            if (live()) document.querySelectorAll('#viewport g.stone').forEach(g => { if (g.querySelector(':scope > .puck-under')) refresh(g); });
             document.querySelectorAll('#viewport .shrine-marker mask image').forEach(img => img.replaceWith(img.cloneNode(true)));
         };
         const soon = () => { clearTimeout(nudgeTimer); nudgeTimer = setTimeout(nudge, 200); };
@@ -1160,12 +1166,25 @@
             const t = window._boardTiltDegrees || 0;
             if (r === rot && t === tilt) return;
             rot = r; tilt = t;
-            if (on) all(refresh);
+            if (live()) all(refresh);
             sidesSoon();
             // shrine carving is lit from the screen's top left too (game-core.js)
             if (typeof window.refreshShrineMarkers === 'function') window.refreshShrineMarkers();
         }, 150);
     }
+
+    function trainingPauseWatch() {
+        setInterval(() => {
+            let want = false;
+            try { want = !!(window.BotArena?.isRunning?.() && !window.fxOn?.()); } catch (e) {}
+            if (want === paused) return;
+            paused = want;
+            if (!on) return;
+            all(live() ? decorate : undecorate);
+            window.Piece3D_rebuildTileSides?.();
+        }, 400);
+    }
+    trainingPauseWatch();
 
     function set(value) {
         on = !!value;

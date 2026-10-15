@@ -8212,9 +8212,11 @@ function clearPlayerPath() {
         // bot training and quiet test games, so effects skip there, except
         // when training is switched to Watchable speed (someone is watching).
         window.fxOn = function () {
-            if (window.SoundSystem) return true;
+            // Bot training: the speed decides, not the sound (a run started at
+            // Watchable keeps its sound after a switch to Extreme, 2026-10-15).
             // window.__arenaFx: fast idle training games keep the effects (js/idle-training.js)
-            return !!(window.BotArena?.isRunning?.() && ((window.BotSystem?.speedScale ?? 0) >= 1 || window.__arenaFx));
+            if (window.BotArena?.isRunning?.()) return !!((window.BotSystem?.speedScale ?? 0) >= 1 || window.__arenaFx);
+            return !!window.SoundSystem;
         };
         // The ability a stone shows (a water stone takes its neighbour's or a
         // chained one, unless a void stone next to it blocks that). Used by
