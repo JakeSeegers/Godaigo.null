@@ -326,6 +326,8 @@ Order matters — later scripts depend on earlier ones.
                              StoneDropFx.burn(x, y): fire destroying a stone (game-core.js fireBurnFx, before removal; replaced
                              the 1.7 s effects-system.js 'fire_effect' sprite): copy chars dark and shrinks, flame tongues, crackle,
                              embers, ~0.75 s. isBurning() also holds bot.js's next action like effectsSystem.isPlaying().
+                             StoneDropFx.transform(x, y, toType): Control the Current (scroll-effects.js transformWaterStone, game-core.js
+                             transformWaterStoneVisually, called before the look changes): water stone swirls away, new stone pops out.
 20b5. turn-banner.js      <- window.TurnBanner.play(): "Your Turn" banner. A 150 ms watcher sees your turn start in an online
                              game (real seat via BotDriver.driverRealIndex, not placement / replay / save rebuild / fxOn false; a
                              hidden tab waits): three diagonal stripes in your colour sweep in (alternating sides, wind whoosh each),

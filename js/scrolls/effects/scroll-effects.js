@@ -3796,6 +3796,9 @@ const ScrollEffects = {
             updateStoneCount(newElement);
         }
 
+        // transformation animation (js/stone-drop-fx.js), before the look changes
+        window.StoneDropFx?.transform?.(stone.x, stone.y, newElement);
+
         // Update the stone's type and visual
         stone.type = newElement;
 

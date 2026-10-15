@@ -8,7 +8,8 @@
       "changes": [
         "Tiles now lift off the board, float through the air and land in their new spot when they move: Shifting Sands, Telekinesis and placing your starting tile.",
         "Other players' starting tiles drop in from above, and a pawn on a moving tile rides along with it.",
-        "Flipped tiles (Heavy Stomp and reveals) land with a puff of dust."
+        "Flipped tiles (Heavy Stomp and reveals) land with a puff of dust.",
+        "When Control the Current changes a water stone, it now swirls away and the new stone bursts out of it."
       ]
     },
     {

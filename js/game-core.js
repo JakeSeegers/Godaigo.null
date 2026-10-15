@@ -5561,6 +5561,9 @@
                 updateStoneCount(newElement);
             }
 
+            // transformation animation (js/stone-drop-fx.js), before the look changes
+            window.StoneDropFx?.transform?.(stone.x, stone.y, newElement);
+
             stone.type = newElement;
 
             // Remove water-specific indicators

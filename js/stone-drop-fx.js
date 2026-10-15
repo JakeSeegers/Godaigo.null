@@ -12,6 +12,8 @@
 //   void:  fades in with a spectral glow, as if summoned.
 //   Any other stone placed next to a void stone has its ability cancelled,
 //   so it only gets the light drop (no ripple, bob, sparks or swell).
+// window.StoneDropFx.transform(x, y, toType): Control the Current turning a
+// water stone into another element (see transform() below).
 // window.StoneDropFx.play(x, y, type). Triggered by every 'placeStone' record
 // in the ActionLog (own placements, bots on this screen, other players'
 // 'stone-place' messages, replays). Undo restores do not record, so they do
@@ -436,7 +438,92 @@
         } catch (e) { return false; }
     }
 
-    window.StoneDropFx = { play, collect, burn, isBurning: () => burning > 0 };
+    // ── Control the Current (owner 2026-10-15) ───────────────────
+    // A water stone turned into another element: the old water stone melts
+    // into a swirl (droplets spiral in, the stone spins down and fades), a
+    // flash in the new element's colour, then the new stone pops up out of it
+    // with a ring and a few motes. Called just BEFORE the game swaps the
+    // stone's look (scroll-effects.js transformWaterStone, game-core.js
+    // transformWaterStoneVisually for other screens and replays), so the copy
+    // still shows the water stone.
+    function transform(x, y, toType) {
+        try {
+            if (document.hidden || reduceMotion || !window.fxOn?.() || running >= 6) return;
+            const st = stoneAt(x, y);
+            const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
+            if (!vp || !svg) return;
+            running++;
+            setTimeout(() => { running--; }, 1000);
+            const T = 950, MID = 0.42;
+            const from = colorOf('water'), to = colorOf(toType);
+            const L = layer(vp, x, y, T + 200);
+            // the old water stone: a copy that spins down and melts away
+            if (st && st.element && st.element.isConnected) {
+                const copy = st.element.cloneNode(true);
+                copy.setAttribute('class', 'stone-transform-copy');
+                copy.removeAttribute('id');
+                copy.style.pointerEvents = 'none';
+                copy.querySelectorAll('.mimicry-indicator, .chain-indicator, .void-nullification-indicator').forEach(n => n.remove());
+                vp.insertBefore(copy, L);
+                setTimeout(() => copy.remove(), T * MID + 100);
+                animate(copy, [
+                    { filter: 'brightness(1)', opacity: 1 },
+                    { filter: 'brightness(1.5)', opacity: 1, offset: 0.6 },
+                    { filter: 'brightness(2.2)', opacity: 0 },
+                ], { duration: T * MID, easing: 'ease-in', fill: 'forwards' });
+                scaleAnim(copy, [{ scale: '1', rotate: '0deg' }, { scale: '1.08', rotate: '-40deg', offset: 0.25 }, { scale: '0.25', rotate: '-320deg' }],
+                    { duration: T * MID, easing: 'ease-in', fill: 'forwards' });
+                // the real stone (it gets its new look now) waits, then pops up
+                scaleAnim(st.element, [
+                    { scale: '0.2', opacity: 0 },
+                    { scale: '0.2', opacity: 0, offset: MID },
+                    { scale: '1.18', opacity: 1, offset: MID + 0.25, easing: 'ease-in-out' },
+                    { scale: '0.95', opacity: 1, offset: MID + 0.4 },
+                    { scale: '1', opacity: 1 },
+                ], { duration: T, easing: 'ease-out' });
+            }
+            // water droplets spiral in
+            for (let i = 0; i < 9; i++) {
+                const a0 = i / 9 * Math.PI * 2, R = 20 + (i % 3) * 3;
+                const frames = [];
+                for (let k = 0; k <= 6; k++) {
+                    const u = k / 6, a = a0 + u * Math.PI * 1.4, r = R * (1 - u * 0.9);
+                    frames.push({ transform: `translate(${(Math.cos(a) * r).toFixed(1)}px, ${(Math.sin(a) * r * 0.8).toFixed(1)}px)`,
+                        opacity: k === 0 ? 0 : (k === 6 ? 0 : 0.9), offset: u });
+                }
+                const d = el('circle', { r: 1.6 + (i % 2) * 0.6, fill: i % 3 ? from : '#e6f4ff', opacity: 0 }, L);
+                animate(d, frames, { duration: T * MID, delay: i * 12, easing: 'ease-in', fill: 'both' });
+            }
+            // a swirl line turning inward
+            const sw = el('circle', { r: 17, fill: 'none', stroke: from, 'stroke-width': 1.6, 'stroke-dasharray': '10 7', opacity: 0 }, L);
+            animate(sw, [
+                { r: 22, opacity: 0, transform: 'rotate(0deg)' },
+                { r: 18, opacity: 0.8, offset: 0.3 },
+                { r: 3, opacity: 0, transform: 'rotate(-300deg)' },
+            ], { duration: T * MID, easing: 'ease-in', fill: 'both' });
+            // the change: a flash in the new colour
+            const glow = el('circle', { r: 26, fill: glowFill(svg, to), opacity: 0 }, L);
+            glow.style.mixBlendMode = 'screen';
+            animate(glow, [{ opacity: 0, offset: 0 }, { opacity: 0, offset: MID - 0.05 }, { opacity: 1, offset: MID + 0.05 }, { opacity: 0 }],
+                { duration: T, easing: 'ease-out', fill: 'both' });
+            const ring = el('circle', { r: 6, fill: 'none', stroke: to, 'stroke-width': 2.5, opacity: 0 }, L);
+            animate(ring, [{ r: 6, opacity: 0, offset: 0 }, { r: 6, opacity: 0, offset: MID }, { r: 8, opacity: 0.95, offset: MID + 0.04 }, { r: 28, opacity: 0, strokeWidth: 0.5 }],
+                { duration: T, easing: 'ease-out', fill: 'both' });
+            // motes of the new element burst out and drift up the screen
+            for (let i = 0; i < 8; i++) {
+                const a = i / 8 * Math.PI * 2 + Math.random() * 0.3, r = 14 + Math.random() * 8;
+                const u = upVec(6 + Math.random() * 6);
+                const m = el('circle', { r: 1 + Math.random() * 0.8, fill: i % 2 ? to : '#ffffff', opacity: 0 }, L);
+                animate(m, [
+                    { transform: 'translate(0px, 0px)', opacity: 0 },
+                    { opacity: 1, offset: 0.2 },
+                    { transform: `translate(${(Math.cos(a) * r + u.x).toFixed(1)}px, ${(Math.sin(a) * r * 0.8 + u.y).toFixed(1)}px)`, opacity: 0 },
+                ], { duration: T * (1 - MID), delay: T * MID, easing: 'ease-out', fill: 'both' });
+            }
+        } catch (e) { /* looks only */ }
+    }
+
+    window.StoneDropFx = { play, collect, burn, transform, isBurning: () => burning > 0 };
 
     function hook() {
         if (!window.ActionLog?.onRecord) return false;
