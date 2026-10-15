@@ -3777,7 +3777,8 @@ document.getElementById('undo-move').onclick = function() {
                 sourcePool[shrineType] -= actualReplenished;
                 playerPool[shrineType] += actualReplenished;
                 updateStoneCount(shrineType);
-                window.SoundSystem?.play('collectstones');
+                if (window.SoundSystem?.playCollect) window.SoundSystem.playCollect(shrineType);
+                else window.SoundSystem?.play('collectstones');
                 // the collection effect here, and on other screens via the next
                 // turn-change message (payload.collected)
                 const at = (typeof playerPosition !== 'undefined' && playerPosition) ? { x: playerPosition.x, y: playerPosition.y } : null;
