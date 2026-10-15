@@ -616,6 +616,9 @@ Order matters — later scripts depend on earlier ones.
                              (weakest first: "vs others" = lift minus the average lift), resetScrollReport(), openScrollReport() (+ Play 10 games).
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
+                             Live speed (2026-10-15): the training popup's Speed switch holds for the whole Train Bot job (setLiveSpeed sets
+                             _jobSpeed; every run start (startSpeed) re-applies it; game-ui.js runHillClimbTraining clears it before and
+                             after, clearJobSpeed). The popup's "–" button shrinks it to bar + buttons (localStorage godaigo_train_popup_min).
                              One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /
                              Formulas / Anchor per run (localStorage godaigo_train_runs). The hermit panel keeps every row:
                              Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /

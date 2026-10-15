@@ -249,9 +249,24 @@
     // pause stays for the game's own delayed effects.
     const MUTED_SPEED = 0.02;
     let _liveVisual = null;
-    function setLiveSpeed(watchable) {
+    // The player's last switch, kept for the whole Train Bot job (game-ui.js
+    // runHillClimbTraining clears it before and after): each part of the job
+    // (combo screening, climb, final test) starts a new run that resets the
+    // speed, and a switch to Extreme went back to Watchable (owner 2026-10-15).
+    let _jobSpeed = null;
+    function applyLive(watchable) {
         _liveVisual = !!watchable;
         window.BotSystem.speedScale = watchable ? 1 : 0.1;
+    }
+    function setLiveSpeed(watchable) {
+        _jobSpeed = !!watchable;
+        applyLive(watchable);
+    }
+    function clearJobSpeed() { _jobSpeed = null; }
+    // run start: the run's own speed, unless the player switched during this job
+    function startSpeed() {
+        _liveVisual = null;
+        if (_jobSpeed !== null) applyLive(_jobSpeed);
     }
 
     function setWeights(table) {
@@ -1151,7 +1166,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
         try {
             const result = await _playSeries(weightsA, weightsB, nGames, seed, { ...opts, visual });
             log('run complete:', JSON.stringify({
@@ -1273,7 +1288,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
 
         // Every population member is tracked as {id, w, parentIds} so a UI
         // can show a stable roster across generations, not just a bare
@@ -1584,7 +1599,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
 
         let champion = opts.champion ? { ...opts.champion } : { ...window.BotSystem.WEIGHTS };
         const examState = {}; // BotExam.guardRails: the champion's puzzle score, measured on first use
@@ -1892,7 +1907,7 @@
         const restore = visual ? null : muteEnvironment();
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
 
         const perSize = [];
         let champFitness = 0, baseFitness = 0, champWins = 0, baseWins = 0, draws = 0, gameNo = 0;
@@ -1980,7 +1995,7 @@
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
         stopRequested: () => _stopRequested, // was stop() called for the run in progress (or the one that just ended)?
         endEarlyRequested,
-        setLiveSpeed,
+        setLiveSpeed, clearJobSpeed,
         scrollReport, resetScrollReport, openScrollReport, // scroll report (hermit menu)
         applyWeights: setWeights, // apply an {…} weight table to the LIVE WEIGHTS object in place
     };

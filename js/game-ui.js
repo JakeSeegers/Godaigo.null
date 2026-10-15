@@ -4388,7 +4388,16 @@ document.getElementById('undo-move').onclick = function() {
         window._trainSaveWanted = false;
         let trainPhase = null; // 'exploring' | 'training' | 'confirming' (Save & quit only before confirming)
 
+        // The Speed button's choice holds for the whole Train Bot run (owner
+        // 2026-10-15: a switch to Extreme went back to Watchable when the run
+        // moved on to its next part). Cleared before and after, so the next run
+        // and idle training start from their own speed.
         async function runHillClimbTraining(preset, onProgress, opts = {}) {
+            window.BotArena?.clearJobSpeed?.();
+            try { return await runHillClimbTrainingInner(preset, onProgress, opts); }
+            finally { window.BotArena?.clearJobSpeed?.(); }
+        }
+        async function runHillClimbTrainingInner(preset, onProgress, opts = {}) {
             const resume = opts.resume || null;
             if (resume) { preset = resume.preset; opts = { ...opts, ...resume.runOpts }; }
             else clearTrainSave(); // a new run replaces any older saved one
@@ -4983,18 +4992,20 @@ document.getElementById('undo-move').onclick = function() {
             el.innerHTML = `
                 <div class="panel-header" style="border-radius:7px 7px 0 0;">
                     <span class="panel-title">Bot Training</span>
+                    <span id="bt-popup-mini" style="margin-left:auto;margin-right:6px;font-size:12px;color:#d9b08c;"></span>
+                    <button id="bt-popup-min" class="hud-toggle-btn" title="Make this window small">–</button>
                     <button id="bt-popup-expand" class="hud-toggle-btn" title="Open full panel">⤢</button>
                 </div>
-                <div style="padding:12px 14px;">
+                <div id="bt-popup-body" style="padding:12px 14px;">
                     <div id="bt-popup-scenario" style="font-size:14px;font-weight:600;color:#fff;margin-bottom:2px;"></div>
                     <div id="bt-popup-phase" style="font-size:12px;color:#bbb;margin-bottom:10px;"></div>
 
                     <div id="bt-popup-matchup" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:#eee;margin-bottom:8px;min-height:16px;"></div>
 
-                    <div style="background:#0d0d18;border:1px solid #333;border-radius:5px;height:10px;overflow:hidden;margin-bottom:4px;">
+                    <div class="bt-keep" style="background:#0d0d18;border:1px solid #333;border-radius:5px;height:10px;overflow:hidden;margin-bottom:4px;">
                         <div id="bt-popup-bar" style="height:100%;background:linear-gradient(90deg,#8a6a3f,#d9b08c);width:0%;transition:width .25s ease-out;"></div>
                     </div>
-                    <div id="bt-popup-progress-text" style="font-size:12px;color:#aaa;margin-bottom:10px;"></div>
+                    <div id="bt-popup-progress-text" class="bt-keep" style="font-size:12px;color:#aaa;margin-bottom:10px;"></div>
 
                     <div id="bt-popup-stats" style="display:none;font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:6px 8px;background:#12121f;border:1px solid #2a2a40;border-radius:5px;">
                         <div id="bt-popup-current"></div>
@@ -5022,7 +5033,7 @@ document.getElementById('undo-move').onclick = function() {
 
                     <div id="bt-popup-summary" style="font-size:12px;color:#ccc;margin-bottom:10px;"></div>
 
-                    <div style="display:flex;gap:6px;">
+                    <div class="bt-keep" style="display:flex;gap:6px;">
                         <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:12px;">End Early → Test Now</button>
                         <button id="bt-popup-speed" title="Switch this run between Watchable (normal pace) and Extreme (fast). Sound stays as the run started." style="padding:4px 8px;background:#2d2d44;color:#eee;border:1px solid #666;border-radius:4px;cursor:pointer;font-size:12px;">Speed</button>
                         <button id="bt-popup-save" title="Stop now and keep this run. Continue it later from Train Bot (the game in progress is played again)." style="padding:4px 8px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:4px;cursor:pointer;font-size:12px;">Save &amp; Quit</button>
@@ -5031,6 +5042,28 @@ document.getElementById('undo-move').onclick = function() {
                 </div>
             `;
             document.body.appendChild(el);
+            // Minimize (owner 2026-10-15: the window is big): only the progress
+            // bar, its line and the buttons stay; the header shows the percent.
+            // Remembered in localStorage godaigo_train_popup_min.
+            if (!document.getElementById('bt-popup-min-style')) {
+                const st = document.createElement('style');
+                st.id = 'bt-popup-min-style';
+                st.textContent = '#bot-training-status-popup.bt-min #bt-popup-body > :not(.bt-keep){display:none !important}'
+                    + '#bot-training-status-popup:not(.bt-min) #bt-popup-mini{display:none}'
+                    + '#bot-training-status-popup.bt-min #bt-popup-body{padding:8px 10px !important}';
+                document.head.appendChild(st);
+            }
+            const minBtn = el.querySelector('#bt-popup-min');
+            const setMin = (m) => {
+                el.classList.toggle('bt-min', m);
+                minBtn.textContent = m ? '+' : '–';
+                minBtn.title = m ? 'Show everything' : 'Make this window small';
+                try { localStorage.setItem('godaigo_train_popup_min', m ? '1' : '0'); } catch (e) {}
+            };
+            let startMin = false;
+            try { startMin = localStorage.getItem('godaigo_train_popup_min') === '1'; } catch (e) {}
+            setMin(startMin);
+            minBtn.onclick = () => setMin(!el.classList.contains('bt-min'));
             el.querySelector('#bt-popup-expand').onclick = () => {
                 if (typeof window._openBotTrainingPanel === 'function') window._openBotTrainingPanel();
             };
@@ -5108,6 +5141,8 @@ document.getElementById('undo-move').onclick = function() {
             const el = ensureTrainingPopup();
             el.style.display = 'block';
             const pct = p.totalGames ? Math.min(100, (p.gamesDone / p.totalGames) * 100) : 0;
+            const miniEl = el.querySelector('#bt-popup-mini');
+            if (miniEl) miniEl.textContent = `${Math.round(pct)}%`;
             const elapsedS = (Date.now() - p.startedAt) / 1000;
             let scenarioLine, phaseLine, summaryLine, matchupHtml = '';
             // Formulas box: what the current challenger is trying (new ones
