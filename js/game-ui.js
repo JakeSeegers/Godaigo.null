@@ -917,23 +917,38 @@
                     `<span class="opponent-stone" style="color:${STONE_TYPES[el].color}" title="${pool[el]} ${el} stone${pool[el] !== 1 ? 's' : ''}"><img src="${STONE_TYPES[el].img}" class="element-icon-sm" alt="${el}">${pool[el]}</span>`).join('');
                 html += row('Stones', stones || '<span class="opp-none">none</span>');
 
-                // Hand: count + each scroll's ELEMENT only (name/pattern stay
-                // private, like a face-down card showing its suit). A catacomb
-                // scroll in hand is a plain light-tan symbol: its two element
-                // colors would tell others which catacomb scroll it is.
+                // Hand and Active as the same rows as the player's own collapsed
+                // Hand / Active panels (owner 2026-10-15: dot, name, element ·
+                // level). Another player's hand stays face down: only each
+                // scroll's ELEMENT shows (a catacomb scroll is plain light tan,
+                // its two colors would tell which one it is). js/scroll-move-fx.js
+                // flies scrolls between these rows ([data-area] on the list).
+                const meta = n => window.ScrollPanelSystem?.scrollMeta?.(n) || null;
+                const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                const shownRow = n => {
+                    const m = meta(n);
+                    const name = m ? m.name : n;
+                    const sub = m ? [m.elLabel, m.lvLabel].filter(Boolean).join(' · ') : '';
+                    return `<div class="opponent-scroll-card opp-scroll-row" data-scroll-name="${esc(n)}" title="${esc(name)}: hover to preview">`
+                        + `<span class="fsp-compact-dot" style="background:${m ? m.bg : '#888'}"></span>`
+                        + `<span class="opponent-scroll-name">${esc(name)}</span><span class="opp-scroll-meta">${esc(sub)}</span></div>`;
+                };
+                const hiddenRow = n => {
+                    const el = spellSystem.getScrollElement(n);
+                    const shown = el === 'catacomb' ? 'catacomb' : n;
+                    const bg = look ? look.gradient(look.colors(shown)) : '#888';
+                    const lbl = look ? look.label(shown) : el;
+                    return `<div class="opp-scroll-row opp-scroll-hidden"><span class="fsp-compact-dot" style="background:${bg}"></span>`
+                        + `<span class="opponent-scroll-name">Hidden scroll</span><span class="opp-scroll-meta">${esc(lbl)}</span></div>`;
+                };
+                const list = (area, names, rowFn, empty) => `<div class="opp-scroll-list" data-area="${area}">`
+                    + (names.length ? names.map(rowFn).join('') : `<span class="opp-none">${empty}</span>`) + '</div>';
                 const handNames = scrollData.hand ? [...scrollData.hand] : [];
-                html += row(`Hand ${handNames.length}`, handNames.length
-                    ? handNames.map(n => look ? look.iconHtml(spellSystem.getScrollElement(n) === 'catacomb' ? 'catacomb' : n, 'element-icon-sm opp-hand-icon') : '').join('')
-                    : '<span class="opp-none">empty</span>');
-
-                // Active scrolls (public): icon + name, hover = preview
+                // label above the list (rows need the card's full width)
+                const listRow = (label, inner) => `<div class="opp-row opp-row-list"><span class="opp-label">${label}</span>${inner}</div>`;
+                html += listRow(`Hand ${handNames.length}`, list('hand', handNames, isSelf ? shownRow : hiddenRow, 'empty'));
                 const activeNames = scrollData.active ? [...scrollData.active] : [];
-                if (activeNames.length) {
-                    html += row('Active', activeNames.map(n => {
-                        const pattern = spellSystem.patterns[n];
-                        return `<span class="opponent-scroll-card" data-scroll-name="${n}" title="${look ? look.label(n) : ''}: hover to preview">${look ? look.iconHtml(n) : ''}<span class="opponent-scroll-name" style="${look ? look.textStyle(n) : ''}">${pattern ? pattern.name : n}</span></span>`;
-                    }).join(''));
-                }
+                html += listRow(`Active ${activeNames.length}`, list('active', activeNames, shownRow, 'none'));
                 card.innerHTML = html;
 
                 if (cardsContainer) cardsContainer.appendChild(card);

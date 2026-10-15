@@ -4,12 +4,12 @@
     {
       "id": "2026-10-15",
       "date": "2026-10-15",
-      "title": "Flying tiles",
+      "title": "Moving tiles and scrolls",
       "changes": [
-        "Tiles now lift off the board, float through the air and land in their new spot when they move: Shifting Sands, Telekinesis and placing your starting tile.",
-        "Other players' starting tiles drop in from above, and a pawn on a moving tile rides along with it.",
-        "Flipped tiles (Heavy Stomp and reveals) land with a puff of dust.",
-        "When Control the Current changes a water stone, it now swirls away and the new stone bursts out of it.",
+        "Tiles now lift off, float through the air and land when they move (Shifting Sands, Telekinesis, starting tiles). A pawn on a moving tile rides along.",
+        "Flipped tiles land with a puff of dust, and Control the Current swirls a water stone into its new element.",
+        "Scrolls now float to their new place when anyone moves them between hand, active and common area.",
+        "Opponent Status shows each player's hand and active scrolls in the same style as your own panels.",
         "Fix: a water stone no longer copies a stone that a void cancels (no more wind rings from cancelled wind)."
       ]
     },

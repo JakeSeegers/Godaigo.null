@@ -583,8 +583,7 @@ const ScrollPanelSystem = (() => {
                 toActive.textContent = 'Move to Active Area';
                 toActive.addEventListener('click', e => {
                     e.stopPropagation();
-                    const dest = document.getElementById('fsp-active');
-                    if (dest) animateCardMove(card, dest);
+                    // the move animation: js/scroll-move-fx.js (sees the state change)
                     if (window.isTutorialMode && window.TutorialMode?.onScrollMoved) {
                         window.TutorialMode.onScrollMoved(scrollName, 'hand', 'active');
                     }
@@ -607,8 +606,7 @@ const ScrollPanelSystem = (() => {
                 toCommon.textContent = 'Move to Common Area';
                 toCommon.addEventListener('click', e => {
                     e.stopPropagation();
-                    const dest = document.getElementById('fsp-common');
-                    if (dest) animateCardMove(card, dest);
+                    // the move animation: js/scroll-move-fx.js (sees the state change)
                     if (window.isTutorialMode && window.TutorialMode?.onScrollMoved) {
                         window.TutorialMode.onScrollMoved(scrollName, 'hand', 'common');
                     }
@@ -632,8 +630,7 @@ const ScrollPanelSystem = (() => {
                 toCommon.textContent = 'Move to Common Area';
                 toCommon.addEventListener('click', e => {
                     e.stopPropagation();
-                    const dest = document.getElementById('fsp-common');
-                    if (dest) animateCardMove(card, dest);
+                    // the move animation: js/scroll-move-fx.js (sees the state change)
                     if (window.isTutorialMode && window.TutorialMode?.onScrollMoved) {
                         window.TutorialMode.onScrollMoved(scrollName, 'active', 'common');
                     }
@@ -1270,6 +1267,7 @@ const ScrollPanelSystem = (() => {
         // Expose globally
         window.ScrollPanelSystem = {
             toggle, refresh, openPanel, closePanel, animateCardMove, animateCardToDeck,
+            scrollMeta: _scrollMeta, // {name, colors, bg, elLabel, lvLabel, ...} (game-ui.js opponent rows, scroll-move-fx.js)
             isOpen: id => !!panels[id]?.open,
             openAmbientPanels,
             // Re-fits a panel to its current content when autofit is on for it
@@ -1509,5 +1507,5 @@ const ScrollPanelSystem = (() => {
         if (typeof notYourTurn === 'function') notYourTurn();
     }, true);
 
-    return { init, toggle, refresh, openPanel, closePanel, animateCardMove, animateCardToDeck, resetToDefaults };
+    return { init, toggle, refresh, openPanel, closePanel, animateCardMove, animateCardToDeck, resetToDefaults, scrollMeta: _scrollMeta };
 })();
