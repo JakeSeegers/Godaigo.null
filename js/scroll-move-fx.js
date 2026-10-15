@@ -60,10 +60,35 @@
     const parse = loc => loc === 'common' ? { area: 'common' } : { seat: +loc.split(':')[0], area: loc.split(':')[1] };
 
     // ---- where a scroll / an area is on screen ----
+    // The part of an element you can actually see: clipped by the scrolling
+    // panel body it sits in (Opponent Status scrolls; a card below its bottom
+    // edge still has a place on screen, so chips started from empty space
+    // near the bottom, owner 2026-10-15). Scrolled fully out of view = a thin
+    // strip on the panel edge nearest to it, so the chip comes from there.
+    const clipBy = (r, box) => {
+        const left = Math.max(r.left, box.left), right = Math.min(r.right, box.right);
+        const top = Math.max(r.top, box.top), bottom = Math.min(r.bottom, box.bottom);
+        if (right - left >= 2 && bottom - top >= 2) return { left, right, top, bottom, width: right - left, height: bottom - top };
+        const cx = Math.min(Math.max((r.left + r.right) / 2, box.left + 1), box.right - 1);
+        const cy = Math.min(Math.max((r.top + r.bottom) / 2, box.top + 1), box.bottom - 1);
+        const w = Math.min(r.width, Math.max(2, box.right - box.left));
+        return { left: cx - w / 2, right: cx + w / 2, top: cy - 1, bottom: cy + 1, width: w, height: 2 };
+    };
     const visible = el => {
         if (!el || !el.isConnected) return null;
-        const r = el.getBoundingClientRect();
+        let r = el.getBoundingClientRect();
         if (r.width < 2 || r.height < 2) return null;
+        // clip by every scrolling / clipping box between it and its panel
+        const stop = el.closest('.fsp');
+        for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+            const cs = getComputedStyle(a);
+            if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') {
+                const box = a.getBoundingClientRect();
+                if (box.width < 2 || box.height < 2) return null;   // collapsed / hidden panel
+                r = clipBy(r, box);
+            }
+            if (a === stop) break;
+        }
         if (r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return null;
         return r;
     };
