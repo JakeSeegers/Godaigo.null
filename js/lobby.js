@@ -3872,6 +3872,13 @@
 
                 // Remove the destroyed stones from the board
                 if (typeof placedStones !== 'undefined' && stoneIds && stoneIds.length > 0) {
+                    // Combust's fire wave + burns (js/stone-drop-fx.js), before removal
+                    try {
+                        const doomed = placedStones.filter(st => stoneIds.includes(st.id)).map(st => ({ x: st.x, y: st.y }));
+                        const t = (typeof placedTiles !== 'undefined') ? placedTiles.find(pt => pt.id === tileId) : null;
+                        const c = t ? { x: t.x, y: t.y } : (doomed.length ? { x: doomed.reduce((a, d) => a + d.x, 0) / doomed.length, y: doomed.reduce((a, d) => a + d.y, 0) / doomed.length } : null);
+                        if (c && doomed.length) window.StoneDropFx?.combust?.(c.x, c.y, doomed);
+                    } catch (e) { /* looks only */ }
                     stoneIds.forEach(stoneId => {
                         const stoneIndex = placedStones.findIndex(s => s.id === stoneId);
                         if (stoneIndex !== -1) {

@@ -5581,6 +5581,13 @@ const ScrollEffects = {
         // Track which stones we're removing for multiplayer sync
         const removedStoneIds = [];
 
+        // Combust's fire wave and each stone burning (js/stone-drop-fx.js),
+        // started before the stones leave the board
+        try {
+            const doomed = placedStones.filter(st => Math.hypot(st.x - tile.x, st.y - tile.y) < tileRadius);
+            if (doomed.length) window.StoneDropFx?.combust?.(tile.x, tile.y, doomed.map(st => ({ x: st.x, y: st.y })));
+        } catch (e) { /* looks only */ }
+
         // Find and remove ALL stones on this tile (iterate backwards for safe splice)
         for (let i = placedStones.length - 1; i >= 0; i--) {
             const stone = placedStones[i];

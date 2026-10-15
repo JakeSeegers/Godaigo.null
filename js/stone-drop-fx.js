@@ -77,7 +77,8 @@
         return g;
     }
 
-    function animate(node, frames, opts) {
+    function animate(node, frames, opts) { return _animate(node, frames, opts); }
+    function _animate(node, frames, opts) {
         try { return node.animate(frames, opts); } catch (e) { return null; }
     }
     // Scale around the piece's own spot. The CSS scale is applied on top of
@@ -363,15 +364,20 @@
     // and shrinks away while flame tongues lick up around it (screen upright),
     // with a crackle and rising embers. About 0.75 s.
     let burning = 0;
-    function burn(x, y) {
+    // opts.delay (ms): the stone shows as it is until its burn starts (Combust's
+    // fire wave reaches the farther stones a little later).
+    function burn(x, y, opts = {}) {
         try {
             if (document.hidden || reduceMotion || !window.fxOn?.()) return false;
             const st = stoneAt(x, y);
             const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
             if (!vp || !svg) return false;
+            const D = Math.max(0, opts.delay || 0);
+            // every part waits D ms (holding its first frame meanwhile)
+            const animate = (node, frames, o) => _animate(node, frames, { ...o, delay: (o.delay || 0) + D, fill: 'both' });
             burning++;
-            setTimeout(() => { burning--; }, 760);
-            const L = layer(vp, x, y, 1100);
+            setTimeout(() => { burning--; }, 760 + D);
+            const L = layer(vp, x, y, 1100 + D);
             const rot = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : 0;
             // the stone itself chars and shrinks
             if (st && st.element && st.element.isConnected) {
@@ -380,7 +386,7 @@
                 copy.style.pointerEvents = 'none';
                 copy.querySelectorAll('.mimicry-indicator, .chain-indicator, .void-nullification-indicator').forEach(n => n.remove());
                 vp.insertBefore(copy, L);
-                setTimeout(() => copy.remove(), 800);
+                setTimeout(() => copy.remove(), 800 + D);
                 animate(copy, [
                     { filter: 'brightness(1)', opacity: 1 },
                     { filter: 'brightness(1.6) saturate(1.3)', opacity: 1, offset: 0.12 },
@@ -388,7 +394,7 @@
                     { filter: 'brightness(0.15)', opacity: 0 },
                 ], { duration: 720, easing: 'ease-in', fill: 'forwards' });
                 scaleAnim(copy, [{ scale: '1' }, { scale: '1.05', offset: 0.15 }, { scale: '0.7' }],
-                    { duration: 720, easing: 'ease-in', fill: 'forwards' });
+                    { duration: 720, easing: 'ease-in', fill: 'both', delay: D });
             }
             // fiery glow under it all
             const glow = el('circle', { r: 24, fill: glowFill(svg, '#ff7a1a'), opacity: 0 }, L);
@@ -523,7 +529,63 @@
         } catch (e) { /* looks only */ }
     }
 
-    window.StoneDropFx = { play, collect, burn, transform, isBurning: () => burning > 0 };
+    // ── Combust (owner 2026-10-15) ─────────────────────────────────
+    // Fire IV burns every stone on a tile: a wave of fire sweeps out across
+    // the tile from its middle (heat glow, a flame ring, sparks thrown out),
+    // and each stone burns with the fire-destroy effect (burn) as the wave
+    // reaches it. Call BEFORE the stones are removed (scroll-effects.js
+    // destroyStonesOnTile, lobby.js 'stones-destroyed' on other screens).
+    // stones: [{x, y}]. isBurning() holds bots until it is done.
+    function combust(cx, cy, stones) {
+        try {
+            if (document.hidden || reduceMotion || !window.fxOn?.()) return false;
+            const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
+            if (!vp || !svg) return false;
+            const R = 95, WAVE = 620;                       // tile reach, wave time
+            const T = WAVE + 900;
+            burning++;
+            setTimeout(() => { burning--; }, T);
+            const L = layer(vp, cx, cy, T + 200);
+            // heat across the tile
+            const heat = el('circle', { r: R, fill: glowFill(svg, '#ff5a14'), opacity: 0 }, L);
+            animate(heat, [{ opacity: 0 }, { opacity: 0.75, offset: 0.2 }, { opacity: 0.5, offset: 0.55 }, { opacity: 0 }],
+                { duration: WAVE + 600, easing: 'ease-out', fill: 'both' });
+            // ignition flash in the middle
+            const core = el('circle', { r: 14, fill: glowFill(svg, '#ffd36b'), opacity: 0 }, L);
+            animate(core, [{ r: 6, opacity: 0 }, { r: 26, opacity: 1, offset: 0.25 }, { r: 34, opacity: 0 }],
+                { duration: 420, easing: 'ease-out', fill: 'both' });
+            // the fire wave: two rings rolling out to the tile's edge
+            [['#ff7a1a', 9, 0], ['#ffd36b', 3, 60]].forEach(([c, w, dl]) => {
+                const ring = el('circle', { r: 8, fill: 'none', stroke: c, 'stroke-width': w, opacity: 0 }, L);
+                animate(ring, [
+                    { r: 8, opacity: 0, strokeWidth: w },
+                    { r: 14, opacity: 0.95, offset: 0.08 },
+                    { r: R * 0.85, opacity: 0.85, offset: 0.8, strokeWidth: w * 0.6 },
+                    { r: R, opacity: 0, strokeWidth: 1 },
+                ], { duration: WAVE, delay: dl, easing: 'ease-out', fill: 'both' });
+            });
+            // sparks thrown out with the wave, drifting up the screen
+            for (let i = 0; i < 18; i++) {
+                const a = (i / 18) * Math.PI * 2 + Math.random() * 0.3;
+                const r0 = 6 + Math.random() * 8, r1 = R * (0.7 + Math.random() * 0.45);
+                const u = upVec(10 + Math.random() * 18);
+                const sp = el('circle', { r: 1 + Math.random() * 1.2, fill: i % 3 ? '#ffb347' : '#fff1c4', opacity: 0 }, L);
+                animate(sp, [
+                    { transform: `translate(${(Math.cos(a) * r0).toFixed(1)}px, ${(Math.sin(a) * r0).toFixed(1)}px)`, opacity: 0 },
+                    { opacity: 1, offset: 0.15 },
+                    { transform: `translate(${(Math.cos(a) * r1 + u.x).toFixed(1)}px, ${(Math.sin(a) * r1 + u.y).toFixed(1)}px)`, opacity: 0 },
+                ], { duration: WAVE + 250, delay: Math.random() * 80, easing: 'ease-out', fill: 'both' });
+            }
+            // each stone burns as the wave reaches it
+            stones.forEach(s => {
+                const d = Math.hypot(s.x - cx, s.y - cy);
+                burn(s.x, s.y, { delay: Math.round(60 + (d / R) * WAVE * 0.8) });
+            });
+            return true;
+        } catch (e) { return false; }
+    }
+
+    window.StoneDropFx = { play, collect, burn, combust, transform, isBurning: () => burning > 0 };
 
     function hook() {
         if (!window.ActionLog?.onRecord) return false;

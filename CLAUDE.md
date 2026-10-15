@@ -329,6 +329,8 @@ Order matters — later scripts depend on earlier ones.
                              embers, ~0.75 s. isBurning() also holds bot.js's next action like effectsSystem.isPlaying().
                              StoneDropFx.transform(x, y, toType): Control the Current (scroll-effects.js transformWaterStone, game-core.js
                              transformWaterStoneVisually, called before the look changes): water stone swirls away, new stone pops out.
+                             StoneDropFx.combust(cx, cy, stones): Combust (scroll-effects.js destroyStonesOnTile, lobby.js 'stones-destroyed',
+                             before removal): fire wave across the tile, sparks, each stone burns (burn with delay) as the wave reaches it.
 20b5. turn-banner.js      <- window.TurnBanner.play(): "Your Turn" banner. A 150 ms watcher sees your turn start in an online
                              game (real seat via BotDriver.driverRealIndex, not placement / replay / save rebuild / fxOn false; a
                              hidden tab waits): three diagonal stripes in your colour sweep in (alternating sides, wind whoosh each),
