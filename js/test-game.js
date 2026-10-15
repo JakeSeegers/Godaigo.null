@@ -188,8 +188,9 @@
         wrap('peerJoined', () => note('peer_back'));
     }
 
-    // Take Flight aimed at my seat: the target picks the landing hex. On
-    // autopilot pick one at random (bot-driver.js does the same for bots).
+    // Take Flight aimed at my seat from a client older than 2026-10-15 (the
+    // target picked the landing then; now the caster does). On autopilot pick
+    // one at random (bot-driver.js does the same for bots).
     function patchTakeFlight() {
         const se = window.spellSystem?.scrollEffects;
         if (!se || se.__testGame || typeof se.enterTakeFlightChoiceAsTarget !== 'function') return;

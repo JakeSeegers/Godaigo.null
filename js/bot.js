@@ -3994,10 +3994,9 @@
         return out;
     }
     // Blocker post (pact role, owner 2026-09-30): Take Flight can only land
-    // the target on a tile another pawn stands on, and the target picks the
-    // landing nearest its goal. A blocker stands on a tile far from that goal
-    // (and never offers a close one), so when the pact's scholar casts, every
-    // landing is bad. Only while the pact's scroll is Take Flight and the target has 4+
+    // the target on a tile another pawn stands on, and the caster (the pact's
+    // scholar) picks the landing (2026-10-15). A blocker stands on a tile far
+    // from the target's goal, so the scholar has a far tile to send it to. Only while the pact's scroll is Take Flight and the target has 4+
     // elements (home is its goal soon). Chosen once per own turn.
     const BLOCK_PULL = 45, BLOCK_STAY = 25;
     function blockSpot(snap, self) {
@@ -4008,9 +4007,9 @@
         m.block = { turn: m.ownTurns, spot: null };
         const L = D.pact()?.target;
         const lp = L != null ? snap.players[L] : null;
-        if (!lp || lp.activated.length < 4 || !window.BotSim?.takeFlightLandingFor) return null;
+        if (!lp || lp.activated.length < 4 || !window.BotSim?.takeFlightSendFor) return null;
         const flownCost = sn => {
-            const d = window.BotSim.takeFlightLandingFor(sn, sn.players[L]);
+            const d = window.BotSim.takeFlightSendFor(sn, sn.players[L]);
             if (!d) return 0;
             const moved = { ...sn, players: sn.players.map((q, j) => j === L ? { ...q, x: d.x, y: d.y } : q) };
             try { return homeCost(moved, L); } catch (e) { return 0; }
@@ -4033,15 +4032,15 @@
         return m.block.spot;
     }
     // Take Flight on an opponent (owner, 2026-09-29: "the idea for Take
-    // Flight is to manipulate the movements of opponents"). They choose where
-    // to land (BotSim.takeFlightLandingFor, the same pick the game's driver
-    // makes for them), but only on a tile another pawn stands on, so it can
+    // Flight is to manipulate the movements of opponents"). The caster picks
+    // where they land (2026-10-15; BotSim.takeFlightSendFor, the same pick the
+    // game's driver makes), but only on a tile another pawn stands on, so it can
     // throw them off: a runner with five elements gets further from home, a
     // player on a ready pattern cannot cast there next turn, a player on a
     // shrine centre does not collect there. 0 = not worth it.
     function takeFlightHarm(snap, L) {
         const lp = snap.players[L];
-        const d = lp && window.BotSim?.takeFlightLandingFor?.(snap, lp);
+        const d = lp && window.BotSim?.takeFlightSendFor?.(snap, lp);
         if (!d || Math.hypot(d.x - lp.x, d.y - lp.y) < 5) return 0;
         let harm = 0;
         if (ELEMENTS.every(el => lp.activated.includes(el))) {
@@ -4796,7 +4795,7 @@
                 if (c && a.scroll === 'FIRE_SCROLL_5') return `Cast ${n}: burn one of ${who(c.target)}'s ${c.element} stones`;
                 if (c && a.scroll === 'CATACOMB_SCROLL_8') return `Cast ${n}: send ${who(c.target)}'s ${scrollName(c.scroll)} to the common area`;
                 if (c && a.scroll === 'VOID_SCROLL_5') return `Cast ${n}: draw ${c.element} stones`;
-                if (c && a.scroll === 'WIND_SCROLL_4') return c.target != null ? `Cast ${n}: move ${who(c.target)} away (they pick where on another player's tile)` : `Cast ${n}: fly to another player's tile`;
+                if (c && a.scroll === 'WIND_SCROLL_4') return c.target != null ? `Cast ${n}: send ${who(c.target)} to another player's tile` : `Cast ${n}: fly to another player's tile`;
                 if (c && a.scroll === 'EARTH_SCROLL_2') return `Cast ${n}: swap a nearby tile with a tile worth having close`;
                 if (c && a.scroll === 'VOID_SCROLL_2') return `Cast ${n}: move a tile next to this one`;
                 if (c && c.tileId == null) {

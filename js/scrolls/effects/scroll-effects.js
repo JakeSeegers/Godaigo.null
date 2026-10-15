@@ -1266,7 +1266,7 @@ const ScrollEffects = {
          */
         WIND_SCROLL_4: {
             name: 'Take Flight',
-            description: "Select a player to teleport. If you target yourself, you choose where to land; if you target another player, they choose instead. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists.",
+            description: "Select a player to teleport. You choose where they land. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists.",
             isCounter: false,
             priority: 4,
 
@@ -4796,13 +4796,11 @@ const ScrollEffects = {
             document.body.appendChild(overlay);
         };
 
-        // Step 2: the CHOOSER drags a pawn to a valid hex. Self-target: the
-        // caster always chooses (here, directly). Opponent-target: the target
-        // chooses instead — in real multiplayer that means handing control to
-        // the target's own client (see enterTakeFlightChoiceAsTarget below and
-        // the 'take-flight-choose-request' broadcast); outside multiplayer
-        // (solo/hotseat, only one client exists) this same client just drives
-        // the drag on the target's behalf, same as self-target.
+        // Step 2: the CASTER drags the target's pawn to a valid hex (owner
+        // 2026-10-15: the caster chooses where the target lands, also when
+        // the target is another player). In multiplayer the caster's
+        // 'take-flight' broadcast moves the pawn on every other screen. A
+        // bot caster picks through bot-effects.js driveTakeFlightDrag.
         const enterHexSelectionForPlayer = (targetPlayerIndex) => {
             const targetPlayer = (typeof playerPositions !== 'undefined') ? playerPositions[targetPlayerIndex] : null;
             if (!targetPlayer) {
@@ -4820,57 +4818,6 @@ const ScrollEffects = {
                 return;
             }
 
-            // A bot added via the lobby's Add Bot button has no client of its
-            // own — THIS client (if it's the host) already drives it via
-            // BotDriver's asBot() impersonation. Resolving that case through
-            // the broadcast hand-off below would never work: lobby.js's
-            // gameChannel is configured with broadcast:{self:false} (it
-            // doesn't receive its own sends), so a request this same client
-            // sent to itself would never come back. Treat it like a local
-            // pick instead — see the driveTakeFlightDrag() call below.
-            const targetIsBotIDrive = typeof isHost !== 'undefined' && isHost &&
-                typeof isMultiplayer !== 'undefined' && isMultiplayer &&
-                typeof window.BotDriver?.isBot === 'function' && window.BotDriver.isBot(targetPlayerIndex);
-
-            const handOffToTarget = !targetIsBotIDrive && targetPlayerIndex !== casterIndex &&
-                typeof isMultiplayer !== 'undefined' && isMultiplayer;
-
-            if (handOffToTarget) {
-                const cancelBtn = self.createCancelButton('Cancel Take Flight', () => {
-                    if (typeof broadcastGameAction === 'function') {
-                        broadcastGameAction('take-flight-cancel-request', { casterIndex, targetPlayerIndex });
-                    }
-                    window.pendingTakeFlightCompletion = null;
-                    self.cancelSelectionMode();
-                });
-
-                self.selectionMode = {
-                    type: 'take-flight-await-remote',
-                    casterIndex,
-                    targetPlayerIndex,
-                    cancelBtn,
-                    cleanup() {
-                        if (cancelBtn && cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
-                    }
-                };
-
-                // Stashed so the 'take-flight' result broadcast we get back
-                // (sent by the target once they choose) can finish this
-                // effect on OUR side — see lobby.js's 'take-flight' handler.
-                window.pendingTakeFlightCompletion = { casterIndex, targetPlayerIndex, completionPayload };
-
-                if (typeof broadcastGameAction === 'function') {
-                    broadcastGameAction('take-flight-choose-request', {
-                        casterIndex,
-                        targetPlayerIndex,
-                        scrollName: completionPayload?.scrollName || 'WIND_SCROLL_4'
-                    });
-                }
-
-                updateStatus(`Take Flight: waiting for ${targetName} to choose where to land...`);
-                return;
-            }
-
             self._enterTakeFlightDrag(casterIndex, targetPlayerIndex, targetPlayer, {
                 onDone: (destX, destY) => {
                     const scrollName = completionPayload?.scrollName || 'WIND_SCROLL_4';
@@ -4881,19 +4828,6 @@ const ScrollEffects = {
                 },
                 onCancelled: () => updateStatus('Take Flight cancelled.')
             });
-
-            // Nobody is going to manually drag a bot's pawn — resolve it
-            // immediately via the bot driver instead of sitting in the
-            // "drag to choose" state forever. driveSelection() dispatches on
-            // selectionMode.type — 'take-flight-drag', just set up above —
-            // to bot-effects.js's driveTakeFlightDrag(), which reads
-            // window.takeFlightState, rolls a random valid destination, and
-            // calls its onComplete (== onDone above) synchronously, so this
-            // still goes through the exact same finalize +
-            // onSelectionEffectComplete path as a human's own self-target pick.
-            if (targetIsBotIDrive && typeof window.BotEffects?.driveSelection === 'function') {
-                window.BotEffects.driveSelection();
-            }
         };
 
         showPlayerModal();

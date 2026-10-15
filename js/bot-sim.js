@@ -1105,8 +1105,7 @@
         });
     }
 
-    // Where player v lands when Take Flight moves them and THEY choose (the
-    // rule for an opponent target, and the bot's own default): the landing
+    // Where player v lands when v casts Take Flight on itself: the landing
     // nearest their next objective, home with all 5 elements, else the
     // nearest face-down tile. Mirrors bot-effects.js _bestTakeFlightDestination.
     function takeFlightLandingFor(snap, v) {
@@ -1126,12 +1125,25 @@
             : candidates[0];
     }
 
+    // Where the CASTER sends opponent v (owner 2026-10-15: the caster
+    // chooses the landing): with all 5 elements the landing farthest from
+    // v's home, else the one farthest from where v stands. Mirrors
+    // bot-effects.js _worstTakeFlightDestination.
+    function takeFlightSendFor(snap, v) {
+        const candidates = takeFlightCandidates(snap, v);
+        if (!candidates.length) return null;
+        const home = ELEMENTS.every(el => v.activated.includes(el))
+            ? snap.tiles.find(t => t.isPlayerTile && t.playerIndex === v.index) : null;
+        const from = home || v;
+        return candidates.reduce((a, b) => (!a || dist(from.x, from.y, b.x, b.y) > dist(from.x, from.y, a.x, a.y)) ? b : a, null);
+    }
+
     function simEffectTakeFlight(snap, p, choice) {
         // Aimed at an opponent (owner, 2026-09-29: Take Flight is for moving
-        // opponents): they are moved, and they pick where to land.
+        // opponents): the caster picks where they land (2026-10-15).
         if (choice && choice.target != null && choice.target !== p.index) {
             const v = snap.players[choice.target];
-            const d = v ? takeFlightLandingFor(snap, v) : null;
+            const d = v ? takeFlightSendFor(snap, v) : null;
             if (d) { v.x = d.x; v.y = d.y; }
             return;
         }
@@ -2543,7 +2555,7 @@
         simulate, legalActions, isTerminal, winner,
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
         stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
-        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, isUnknownScroll, unknownScrollElement,
+        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, takeFlightSendFor, isUnknownScroll, unknownScrollElement,
         travelTilesAt, travelGoalPoint, telekinesisSlots,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');

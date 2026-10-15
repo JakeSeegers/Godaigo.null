@@ -346,7 +346,7 @@ Order matters — later scripts depend on earlier ones.
                              of a turn and showed no markers until the pawn was put down again).
 20b7. target-notice.js   <- window.TargetNotice: "You were targeted!" cards (#target-notices, top right, 6 s, click closes) when
                              another player's scroll hits your seat: scroll-plundered, opponent-stone-destroyed (Arson), take-flight
-                             (+ -choose-request), tile-swap / telekinesis-move carrying your pawn (movedPlayers), scroll-countered. Reads
+                             (+ -choose-request from old clients), tile-swap / telekinesis-move carrying your pawn (movedPlayers), scroll-countered. Reads
                              messages, no scroll hooks: wraps broadcastGameAction (outgoing, so a host-driven bot hitting the host
                              counts) and GamePause.note (incoming). Online only, not in replays / save rebuild; duplicates dropped.
                              Also records ActionLog 'targeted' {kind plunder / arson / flight / moved, actor, target, scroll, stone} for

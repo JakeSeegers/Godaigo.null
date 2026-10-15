@@ -954,6 +954,16 @@
             : candidates[0];
     }
 
+    // Where a caster sends opponent `mover`: with all 5 elements the landing
+    // farthest from its home, else the one farthest from where it stands.
+    // Mirrors bot-sim.js takeFlightSendFor.
+    function _worstTakeFlightDestination(candidates, mover) {
+        const home = ELEMENTS.every(el => mover.activated.includes(el))
+            ? snap().tiles.find(t => t.isPlayerTile && t.playerIndex === mover.index) : null;
+        const from = home || mover;
+        return candidates.reduce((a, b) => (!a || dist(from, b) > dist(from, a)) ? b : a, null);
+    }
+
     function driveTakeFlightDrag() {
         const tf = window.takeFlightState;
         if (!tf || !tf.active) return false;
@@ -982,7 +992,11 @@
         const c = takeChoice('WIND_SCROLL_4');
         const chosen = (c && c.x != null && tf.targetPlayerIndex === activePlayerIndex)
             ? candidates.find(h => Math.hypot(h.x - c.x, h.y - c.y) < 5) : null;
-        const dest = chosen || _bestTakeFlightDestination(candidates, target);
+        // The caster picks the landing (owner 2026-10-15): itself = best for
+        // itself, an opponent = worst for them (BotSim.takeFlightSendFor).
+        const dest = chosen || (tf.targetPlayerIndex === activePlayerIndex
+            ? _bestTakeFlightDestination(candidates, target)
+            : _worstTakeFlightDestination(candidates, target));
 
         if (tf.targetPlayerIndex === activePlayerIndex) {
             placePlayer(dest.x, dest.y);
