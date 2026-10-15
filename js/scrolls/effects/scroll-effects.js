@@ -5972,9 +5972,18 @@ const ScrollEffects = {
 
         updateStatus('Excavate: Click any unoccupied hex on a revealed tile to teleport there.');
 
+        // Always a way out (owner 2026-10-15: the turn was stuck in this mode
+        // with no pop-up on screen, so the pawn could not move or end the turn).
+        const cancelBtn = this.createCancelButton('Stay Here (no teleport)', () => {
+            if (cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
+            self.selectionMode = null;
+            updateStatus('Your turn begins!');
+        });
+
         this.selectionMode = {
             type: 'excavate-teleport',
             casterIndex: playerIndex,
+            cancelBtn,
 
             handleHexClick(hexPos) {
                 const destX = hexPos.x;
@@ -6030,11 +6039,12 @@ const ScrollEffects = {
 
                 if (typeof syncPlayerState === 'function') syncPlayerState();
 
+                if (cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
                 self.selectionMode = null;
             },
 
             cleanup() {
-                // No cancel button to clean up
+                if (cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
             }
         };
     }

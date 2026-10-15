@@ -1117,9 +1117,26 @@
     // separately (driveTransmute/decideResponse) since they're detected and
     // called from different points in waitForQuiescence().
     // ----------------------------------------------------------------
+    // Online, this browser drives bot seats only: a choice that belongs to a
+    // human seat (the player at this screen, or one whose turn just started)
+    // is never touched (owner 2026-10-15: a bot turn still finishing up
+    // clicked "Teleport" on the host's own Excavate pop-up, leaving a hidden
+    // pick-a-hex mode that blocked the whole turn). Test games drive their
+    // own seat on purpose (js/test-game.js), so they are left alone.
+    function humanSeatActive() {
+        try {
+            if (typeof isMultiplayer === 'undefined' || !isMultiplayer) return false;
+            if (window.TestGame?.isActive?.()) return false;
+            const bd = window.BotDriver;
+            if (!bd || typeof bd.isBot !== 'function') return false;
+            return !bd.isBot(activePlayerIndex);
+        } catch (e) { return false; }
+    }
+
     function driveSelection() {
         const se = window.spellSystem?.scrollEffects;
         if (!se) return false;
+        if (humanSeatActive()) return false;
 
         const sm = se.selectionMode;
         let acted = false, kind = null;
@@ -1179,6 +1196,6 @@
         return acted;
     }
 
-    window.BotEffects = { driveSelection, rankedElements, driveTransmute, decideResponse, setPendingChoice };
+    window.BotEffects = { driveSelection, humanSeatActive, rankedElements, driveTransmute, decideResponse, setPendingChoice };
     log('Loaded - window.BotEffects ready (tile-flip, scorched-earth, tile-swap, Create, Scholar\'s Insight, Quick Reflexes, Sacrificial Pyre, Inspiring Draught, Wandering River, Arson, Plunder, Control the Current, Excavate, Take Flight, Telekinesis, Transmute, response scrolls)');
 })();

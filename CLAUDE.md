@@ -513,6 +513,10 @@ Order matters — later scripts depend on earlier ones.
                              opts.termMutations). localStorage godaigo_formula_lab.
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
+                             Human seats are off limits (2026-10-15): BotEffects.humanSeatActive() (online, not a test game, active seat
+                             not a bot) makes driveSelection and bot.js waitForQuiescence leave every pop-up / choice alone (a late bot
+                             turn clicked the host's own Excavate "Teleport", leaving a hidden pick-a-hex mode that blocked the turn).
+                             Excavate's pick-a-hex mode now has a "Stay Here (no teleport)" button (createCancelButton).
 25a. test-game.js          ← window.TestGame: online test games (sql/test-games.sql). Host ticks "Test game" in the waiting
                              room (game_room.test_mode; Hammer pixel emote badge on room cards, banner for everyone). In a test room each human
                              browser's autopilot plays its own seat (BotSystem.step / turn, BotEffects.decideResponse, Take Flight

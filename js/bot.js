@@ -5449,6 +5449,11 @@
         while (window.isGamePaused?.()) await sleep(250);
         const deadline = Date.now() + 25000;
         while (Date.now() < deadline) {
+            // The turn passed to a human seat (turn timer, or the bot's own end
+            // turn finishing late): their pop-ups and choices are theirs. Never
+            // click, drive or cancel them (owner 2026-10-15: the host's
+            // Excavate pop-up vanished and the turn was stuck).
+            if (window.BotEffects?.humanSeatActive?.()) return;
             // Let a playing effect (fire burning stones, ~0.75 s) finish first:
             // the bot's next decision runs on the main thread and can block
             // for a moment, which froze the animation mid-way. Real games
