@@ -2100,6 +2100,7 @@ window.I18N_ES = {
     "Other players' starting tiles drop in from above, and a pawn on a moving tile rides along with it.": "Las losetas iniciales de los otros jugadores caen desde arriba, y un peón sobre una loseta que se mueve viaja con ella.",
     "Flipped tiles (Heavy Stomp and reveals) land with a puff of dust.": "Las losetas que se voltean (Pisotón y al revelarlas) aterrizan con una nube de polvo.",
     "When Control the Current changes a water stone, it now swirls away and the new stone bursts out of it.": "Cuando Controlar la Corriente cambia una piedra de agua, ahora se arremolina y desaparece, y la nueva piedra surge de ella.",
+    "Fix: a water stone no longer copies a stone that a void cancels (no more wind rings from cancelled wind).": "Arreglo: una piedra de agua ya no copia una piedra anulada por el vacío (no más anillos de viento por un viento anulado).",
     "One-click Train Bot": "Entrenar bot con un clic",
     "Train Bot is now one click: pick how long and how fast, and the game picks the best way to train each run.": "Entrenar bot ahora es un solo clic: elige cuánto tiempo y qué velocidad, y el juego elige la mejor forma de entrenar en cada sesión.",
     "Bots can now plan a catacomb jump a few moves ahead.": "Los bots ya pueden planear un salto de catacumba con algunos movimientos de antelación.",

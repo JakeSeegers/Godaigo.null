@@ -8215,6 +8215,10 @@ function clearPlayerPath() {
             let mimicType = 'water';
 
             neighbors.forEach(neighbor => {
+                // A stone cancelled by a void next to it has no ability to copy
+                // (owner 2026-10-15: water showed wind rings from voided wind)
+                if (neighbor.type !== 'void' && neighbor.type !== 'water' &&
+                    hasAdjacentStoneType(neighbor.x, neighbor.y, 'void')) return;
                 const rank = STONE_RANK[neighbor.type] || 999;
                 if (rank < bestRank && neighbor.type !== 'water') {
                     bestRank = rank;
