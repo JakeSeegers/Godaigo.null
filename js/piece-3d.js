@@ -597,7 +597,7 @@
             // shadow in the empty spot, under every tile
             const ground = el('g', { class: 'tile-flip-fx' });
             const sides = document.getElementById('tile-sides');
-            vp.insertBefore(ground, sides ? sides.nextSibling : vp.firstChild);
+            vp.insertBefore(ground, sides && sides.parentNode === vp ? sides.nextSibling : vp.firstChild);
             if (sp) {
                 const sh = el('polygon', { points: sp.top, fill: '#000', opacity: 0 });
                 ground.appendChild(sh);
@@ -643,6 +643,8 @@
             a2.onfinish = a2.oncancel = done;
             setTimeout(done, T + 300);
             void a1;
+            // a puff of dust as it lands back down (Heavy Stomp, reveals)
+            try { landFx(newG, { x: +m[1], y: +m[2] }, tileRadius(newG), T - 60); } catch (e) {}
         };
         const reduceMotionT = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
         new MutationObserver(list => {
@@ -658,6 +660,199 @@
                 if (faceUp(old) === faceUp(n)) continue;           // same face: a rebuild, not a flip
                 try { tileFlip(old, n); } catch (e) {}
             }
+        }).observe(vp, { childList: true });
+        // ── Tile moves (owner 2026-10-14) ─────────────────────────────────
+        // A tile that changes place lifts off the board, floats through the
+        // air and lands in its new spot (with a puff of dust). One engine for
+        // every way a tile moves, with no game hooks:
+        //  - the same tile element gets a new translate (Shifting Sands,
+        //    Telekinesis on other screens and in replays),
+        //  - a tile is removed and re-added with the same data-tile-id at a
+        //    new spot in one go (a bot's Telekinesis),
+        //  - a tile is added while the drag ghost goes away (your own drop:
+        //    it settles from where the ghost was; a refused drop floats
+        //    back to where it came from),
+        //  - a player tile is added from nothing (start of the game, other
+        //    players and bots): it drops in from above.
+        // A pawn carried on the tile rides along. Pawns stepping onto the
+        // landing spot wait (flipZones), and bots wait too (TileFlipFx).
+        // Looks only: the game's positions are already final.
+        const riding = new WeakMap();          // pawn -> time its ride ends
+        const tileFlights = new WeakMap();     // tile -> stop() of its flight
+        const upVec = (len) => {
+            const r = (typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : rot) * Math.PI / 180;
+            return { x: -len * Math.sin(r), y: -len * Math.cos(r) };
+        };
+        const rightVec = (len) => {
+            const r = (typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : rot) * Math.PI / 180;
+            return { x: len * Math.cos(r), y: -len * Math.sin(r) };
+        };
+        const tileRadius = (g) => {
+            const pts = tileOutline(g);
+            if (!pts) return 60;
+            return Math.max(20, ...pts.map(p => Math.hypot(p[0], p[1])));
+        };
+        // dust ring and a few specks around the landing spot
+        const landFx = (g, to, R, delay) => {
+            const fx = el('g', { class: 'tile-flip-fx', transform: `translate(${to.x} ${to.y})` });
+            g.parentNode?.insertBefore(fx, g.nextSibling);
+            fx.style.pointerEvents = 'none';
+            const ring = el('circle', { r: R * 0.9, fill: 'none', stroke: '#d8c3a0', 'stroke-width': 3, opacity: 0 });
+            fx.appendChild(ring);
+            ring.animate([{ r: R * 0.9, opacity: 0, strokeWidth: 4 }, { r: R * 0.95, opacity: 0.55, offset: 0.08 }, { r: R * 1.4, opacity: 0, strokeWidth: 1 }],
+                { duration: 520, delay, easing: 'ease-out', fill: 'both' });
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8 + Math.random() * 0.08) * Math.PI * 2;
+                const sx = Math.cos(a) * R * 0.95, sy = Math.sin(a) * R * 0.95;
+                const k = 1.25 + Math.random() * 0.25, u = upVec(6 + Math.random() * 8);
+                const m = el('circle', { r: 2 + Math.random() * 1.5, fill: '#cdb48c', opacity: 0 });
+                fx.appendChild(m);
+                m.animate([
+                    { transform: `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`, opacity: 0 },
+                    { opacity: 0.7, offset: 0.15 },
+                    { transform: `translate(${(sx * k + u.x).toFixed(1)}px, ${(sy * k + u.y).toFixed(1)}px)`, opacity: 0 },
+                ], { duration: 560, delay, easing: 'ease-out', fill: 'both' });
+            }
+            setTimeout(() => fx.remove(), delay + 700);
+        };
+        // opts.drop: start this high above the spot (drops in, fading in when
+        // high); otherwise rise from `from`, float over and come down at `to`.
+        const flyTile = (g, from, to, opts = {}) => {
+            if (reduceMotionT || document.hidden || !window.fxOn?.() || !g.animate || !g.isConnected) return;
+            if (window.SaveGame?.isRebuilding?.()) return;
+            tileFlights.get(g)?.();
+            const dx0 = from.x - to.x, dy0 = from.y - to.y, d = Math.hypot(dx0, dy0);
+            const drop = opts.drop || 0;
+            if (d < 3 && !drop) return;
+            const short = d < 40 && !drop;
+            const L = drop ? drop : Math.min(60, 12 + d * 0.18);
+            const T = drop ? (drop > 40 ? 720 : 200) : Math.min(1500, Math.max(short ? 260 : 450, (short ? 220 : 450) + d * 1.2));
+            const bend = short ? 0 : Math.min(40, d * 0.12);
+            const px = d ? -dy0 / d : 0, py = d ? dx0 / d : 0;       // sideways, so two swapped tiles pass each other
+            const a = drop ? 0 : (short ? 0.05 : 0.22), b = drop ? 0 : (short ? 0.7 : 0.78);
+            const smooth = (t) => t * t * (3 - 2 * t);
+            const at = (u) => {
+                let s, h;
+                if (drop) { s = 1; h = L * (1 - u * u); }            // falls, faster as it lands
+                else if (u < a) { s = 0; h = L * Math.sin((u / a) * Math.PI / 2); }
+                else if (u < b) { s = smooth((u - a) / (b - a)); h = L * (1 + 0.06 * Math.sin(((u - a) / (b - a)) * Math.PI * 2)); }
+                else { const k = (u - b) / (1 - b); s = 1; h = L * (1 - k * k); }
+                const gx = dx0 * (1 - s) + px * bend * Math.sin(Math.PI * s);
+                const gy = dy0 * (1 - s) + py * bend * Math.sin(Math.PI * s);
+                return { gx, gy, h };
+            };
+            const N = 24, frames = [], shFrames = [];
+            const HS = Math.max(L, 30);
+            for (let i = 0; i <= N; i++) {
+                const u = i / N, p = at(u), up = upVec(p.h), sh = rightVec(p.h * 0.35), dn = upVec(-p.h * 0.25);
+                const k = Math.min(1, p.h / HS);
+                const f = { offset: u, translate: `${(p.gx + up.x).toFixed(2)}px ${(p.gy + up.y).toFixed(2)}px`, scale: `${(1 + 0.08 * k).toFixed(4)}` };
+                if (drop > 40) f.opacity = Math.min(1, 0.15 + u * 3);
+                frames.push(f);
+                shFrames.push({ offset: u, translate: `${(p.gx + sh.x + dn.x).toFixed(2)}px ${(p.gy + sh.y + dn.y).toFixed(2)}px`,
+                    scale: `${(1 + 0.06 * k).toFixed(4)}`, opacity: +(0.12 + 0.3 * k).toFixed(3) });
+            }
+            frames[N] = { offset: 1, translate: '0px 0px', scale: '1', ...(drop > 40 ? { opacity: 1 } : {}) };
+            const origin = `${to.x}px ${to.y}px`;
+            const R = tileRadius(g);
+            // keep pawns off the landing spot until it is down; bots wait too
+            flipZones.push({ x: to.x, y: to.y, until: performance.now() + T });
+            // the tile leaves the board: no slab under it while it flies
+            g.setAttribute('data-flipping', '1');
+            const sp = on ? slabPolys(g) : null;
+            buildSides();
+            const ground = el('g', { class: 'tile-flip-fx' });
+            ground.style.pointerEvents = 'none';
+            const sides = document.getElementById('tile-sides');
+            vp.insertBefore(ground, sides && sides.parentNode === vp ? sides.nextSibling : vp.firstChild);
+            const top = sp ? sp.top : null;
+            if (top) {
+                const sh = el('polygon', { points: top, fill: '#000', opacity: 0 });
+                ground.appendChild(sh);
+                sh.style.transformBox = 'view-box'; sh.style.transformOrigin = origin;
+                sh.animate(shFrames, { duration: T, fill: 'both' });
+            }
+            // the flying tile (its slab, then the tile) goes above the other tiles
+            const slab = el('g', { class: 'tile-flip-fx' });
+            slab.style.pointerEvents = 'none';
+            if (sp) {
+                slab.appendChild(el('polygon', { points: sp.side, fill: '#4a3a2c', stroke: '#1a130d', 'stroke-width': 1, 'stroke-linejoin': 'round' }));
+                slab.appendChild(el('polygon', { points: sp.edge, fill: 'none', stroke: '#120d09', 'stroke-width': 1.2, 'stroke-opacity': 0.8, 'stroke-linejoin': 'round' }));
+            }
+            const tiles = vp.querySelectorAll(':scope > g.placed-tile');
+            const last = tiles[tiles.length - 1];
+            const ins = last && last !== g ? last.nextSibling : g.nextSibling;
+            vp.insertBefore(slab, ins);
+            vp.insertBefore(g, ins);           // same id and spot: the move observer skips it
+            const parts = [slab, g];
+            // a pawn carried on the tile (it is already on the new spot) rides along
+            const until = performance.now() + T + 50;
+            vp.querySelectorAll(':scope > g.player').forEach(pw => {
+                const p = posOf(pw);
+                if (!p || Math.hypot(p.x - to.x, p.y - to.y) > 45) return;
+                riding.set(pw, until);
+                lastGlides.delete(pw);
+                pw.getAnimations?.().forEach(an => an.cancel());
+                parts.push(pw);
+            });
+            parts.forEach(p => { p.style.transformBox = 'view-box'; p.style.transformOrigin = origin; });
+            const anims = parts.map(p => p.animate(frames, { duration: T, easing: 'linear' }));
+            landFx(g, to, R, T - 30);
+            let finished = false;
+            const done = () => {
+                if (finished) return; finished = true;
+                tileFlights.delete(g);
+                anims.forEach(an => { try { an.cancel(); } catch (e) {} });
+                parts.forEach(p => { if (p !== slab) { p.style.transformBox = ''; p.style.transformOrigin = ''; } });
+                slab.remove(); ground.remove();
+                g.removeAttribute('data-flipping');
+                buildSides();
+            };
+            tileFlights.set(g, done);
+            anims[1].onfinish = done;
+            setTimeout(done, T + 300);
+        };
+        window.TileMoveFx = { fly: flyTile };
+        // the same tile element moved (Shifting Sands, Telekinesis received)
+        const tileMoveMO = new MutationObserver(list => {
+            for (const m of list) {
+                const g = m.target;
+                if (!m.oldValue || g.parentNode !== vp || !g.matches?.('g.placed-tile')) continue;
+                const from = posOf({ getAttribute: () => m.oldValue }), to = posOf(g);
+                if (from && to && Math.hypot(from.x - to.x, from.y - to.y) >= 5) {
+                    try { flyTile(g, from, to); } catch (e) {}
+                }
+            }
+        });
+        const watchTile = (g) => tileMoveMO.observe(g, { attributes: true, attributeFilter: ['transform'], attributeOldValue: true });
+        vp.querySelectorAll(':scope > g.placed-tile').forEach(watchTile);
+        new MutationObserver(list => {
+            const removed = new Map();
+            let ghost = null;
+            for (const m of list) for (const n of m.removedNodes) {
+                if (n.nodeType !== 1) continue;
+                if (n.matches('g.placed-tile') && n.getAttribute('data-tile-id')) removed.set(n.getAttribute('data-tile-id'), n);
+                else if (n.matches('g.ghost-tile')) ghost = n;
+            }
+            const added = [];
+            for (const m of list) for (const n of m.addedNodes) {
+                if (n.nodeType === 1 && n.matches('g.placed-tile') && n.parentNode === vp) { watchTile(n); added.push(n); }
+            }
+            added.forEach(n => {
+                const to = posOf(n); if (!to) return;
+                const old = removed.get(n.getAttribute('data-tile-id'));
+                try {
+                    if (old) {                                    // re-added: a bot's Telekinesis (or a flip / rebuild in place)
+                        const from = posOf(old);
+                        if (from && Math.hypot(from.x - to.x, from.y - to.y) >= 5) flyTile(n, from, to);
+                    } else if (ghost) {                           // your own drop
+                        const from = posOf(ghost);
+                        if (from) flyTile(n, from, to, Math.hypot(from.x - to.x, from.y - to.y) < 3 ? { drop: 10 } : {});
+                    } else if (n.matches('.player-tile') && added.length <= 2) {
+                        flyTile(n, to, to, { drop: 200 });       // a player tile placed by someone else
+                    }
+                } catch (e) {}
+            });
         }).observe(vp, { childList: true });
         sidesSoon();
         // ── Smooth pawn steps (owner 2026-10-07) ────────────────────────────
@@ -825,6 +1020,8 @@
         };
 
         const glide = (n, from, to) => {
+            // riding on a flying tile (tile moves above): the tile's flight moves it
+            if ((riding.get(n) || 0) > performance.now()) { lastGlides.delete(n); return; }
             const dx = from.x - to.x, dy = from.y - to.y, d = Math.hypot(dx, dy);
             // a catacomb / Take Flight jump plays its own animation. Checked before
             // the flip wait below so a flip nearby can never turn it into a step

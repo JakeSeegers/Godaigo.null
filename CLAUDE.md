@@ -297,6 +297,9 @@ Order matters — later scripts depend on earlier ones.
                              A pawn stepping onto a flipping tile waits on its old hex until the flip ends, then glides on
                              (flipZones; a glide started up to 0.4 s before the flip is redone); bot.js waitForQuiescence waits on
                              window.TileFlipFx.isFlipping() (also in Watchable training). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+                             Tile moves (2026-10-14, window.TileMoveFx.fly): a tile that changes place lifts, floats over a curved path
+                             and lands with a dust ring (Shifting Sands, Telekinesis, own drops, player tiles at the start drop in from
+                             above); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),

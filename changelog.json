@@ -2,6 +2,16 @@
   "_readme": "Player-facing release notes, newest first, shown by the Change Log button in the lobby. Rules (full text: HOUSE RULES #2 in CLAUDE.md): at most ONE entry per day, id = date. If today's entry exists, rewrite it as one summary of the whole day; do not add a second entry. At most 5 lines per entry. Only list changes players will notice; group small fixes into one 'Small fixes and polish' line. Simple English, no file names, no em dashes.",
   "entries": [
     {
+      "id": "2026-10-15",
+      "date": "2026-10-15",
+      "title": "Flying tiles",
+      "changes": [
+        "Tiles now lift off the board, float through the air and land in their new spot when they move: Shifting Sands, Telekinesis and placing your starting tile.",
+        "Other players' starting tiles drop in from above, and a pawn on a moving tile rides along with it.",
+        "Flipped tiles (Heavy Stomp and reveals) land with a puff of dust."
+      ]
+    },
+    {
       "id": "2026-10-13",
       "date": "2026-10-13",
       "title": "One-click Train Bot",
