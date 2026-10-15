@@ -5713,6 +5713,12 @@
                 ghostTile.style.opacity = '0.85'; // the moving tile itself stays easy to see (ghost default 0.4)
                 if (draggedTileOriginalPos) window.TileMark.fromMark(draggedTileOriginalPos.x, draggedTileOriginalPos.y, '#e8c84d');
             }
+            // Telekinesis: where the tile came from, so the drop plays the same
+            // flight from there that other players see (piece-3d.js tile moves).
+            if (window.telekinesisState?.active && draggedTileOriginalPos) {
+                ghostTile.setAttribute('data-from-x', draggedTileOriginalPos.x);
+                ghostTile.setAttribute('data-from-y', draggedTileOriginalPos.y);
+            }
 
             // The tile has already been removed from placedTiles above, so the
             // board is already in its "post-move" state — no excludeTileId needed.

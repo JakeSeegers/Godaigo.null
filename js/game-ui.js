@@ -1283,6 +1283,7 @@
             }
             return moved;
         }
+        window.carryPlayersOnTelekinesisMove = carryPlayersOnTelekinesisMove; // bot-effects.js driveTelekinesis
 
         document.addEventListener('mouseup', (e) => {
             if (e.button === 0) leftButtonDown = false;

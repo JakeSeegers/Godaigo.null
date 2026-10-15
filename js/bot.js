@@ -3918,7 +3918,7 @@
         return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
     }
     function harmChoices(snap, name) {
-        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4', 'EARTH_SCROLL_2'].includes(name)) return [];
+        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4', 'EARTH_SCROLL_2', 'VOID_SCROLL_2'].includes(name)) return [];
         const self = snap.players[snap.turn.activePlayerIndex];
         const h = self ? harmContext(snap, self) : null;
         if (!h) return [];
@@ -3949,6 +3949,32 @@
                 if (farther >= 3) out.push({ a: a.id, b: b.id, harm: Math.min(1.5, farther / 6) });
             }
             return out.slice(0, 2);
+        }
+        if (name === 'VOID_SCROLL_2') {
+            // Telekinesis on the leader (owner 2026-10-15): a lone pawn rides
+            // along with its tile, so if the leader stands alone on a tile with
+            // no stones, move that tile to the free slot (next to the board,
+            // touching 2+ tiles) farthest from where it is heading.
+            const slotsFor = window.BotSim?.telekinesisSlots;
+            if (!slotsFor) return out;
+            const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
+            const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === h.L);
+            const goal = ELEMENTS.every(el => lp.activated.includes(el)) ? home : keyShrines(snap, lp)[0];
+            if (!goal) return out;
+            const gd = (x, y) => Math.hypot(x - goal.x, y - goal.y);
+            const a = snap.tiles.find(t => !t.isPlayerTile && onTile(t, lp) && t.id !== goal.id &&
+                !snap.stones.some(q => onTile(t, q)) &&
+                snap.players.every((q, j) => !q || j === h.L || !onTile(t, q)));
+            if (!a) return out;
+            let best = null;
+            for (const b of snap.tiles) {
+                if (b.id === a.id) continue;
+                for (const c of slotsFor(snap, a, b)) if (!best || gd(c.x, c.y) > gd(best.x, best.y)) best = c;
+            }
+            if (!best) return out;
+            const farther = (gd(best.x, best.y) - gd(lp.x, lp.y)) / 35; // hexes further from its goal
+            if (farther >= 3) out.push({ tileId: a.id, x: +best.x.toFixed(1), y: +best.y.toFixed(1), harm: Math.min(1.5, farther / 6) });
+            return out;
         }
         if (name === 'EARTH_SCROLL_4') {
             // Face-down, no stones or pawns, and clearly closer to the leader

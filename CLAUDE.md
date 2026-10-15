@@ -301,7 +301,8 @@ Order matters — later scripts depend on earlier ones.
                              Tile moves (2026-10-14, window.TileMoveFx.fly): a tile that changes place lifts, floats over a curved path
                              and lands with a dust ring (Shifting Sands, Telekinesis, own drops, player tiles at the start drop in from
                              above); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
-                             Your own carried tile (ghost) looks lifted (.tile-carried) and comes down clearly where you drop it.
+                             Your own carried tile (ghost) looks lifted (.tile-carried) and comes down clearly where you drop it; a Telekinesis
+                             drop (ghost data-from-x/y, set in game-core.js startTileDrag) plays the full flight from the tile's old spot.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),
@@ -468,7 +469,9 @@ Order matters — later scripts depend on earlier ones.
                              burn = under Burning Motivation a spare stone next to an unvoided fire still pays AP (no placeDoomed), draw-stones
                              scrolls recast, AP room only (cap 5 + void), 6 loops per turn; trap = Mason's Savvy near an opponent whose exits
                              earth can hold, earth on those exits (rangedTargets). BotSystem.strategyStats(). Tested vs champion 16: 98-93-11.
-                             harmChoices also has Shifting Sands on the leader: its lone, stone-free tile swapped to the clean tile farthest from its goal.
+                             harmChoices also has Shifting Sands on the leader: its lone, stone-free tile swapped to the clean tile farthest from its goal,
+                             and Telekinesis (2026-10-15): that tile moved to the free slot farthest from its goal (BotSim.telekinesisSlots);
+                             bot-effects.js driveTelekinesis now moves tiles with one pawn and carries it (window.carryPlayersOnTelekinesisMove).
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same

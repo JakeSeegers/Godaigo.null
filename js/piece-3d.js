@@ -670,8 +670,9 @@
         //  - a tile is removed and re-added with the same data-tile-id at a
         //    new spot in one go (a bot's Telekinesis),
         //  - a tile is added while the drag ghost goes away (your own drop:
-        //    it settles from where the ghost was; a refused drop floats
-        //    back to where it came from),
+        //    it settles from where the ghost was; a Telekinesis drop flies
+        //    the whole way from the tile's old spot, as everyone else sees it;
+        //    a refused drop floats back to where it came from),
         //  - a player tile is added from nothing (start of the game, other
         //    players and bots): it drops in from above.
         // A pawn carried on the tile rides along. Pawns stepping onto the
@@ -852,8 +853,13 @@
                         const from = posOf(old);
                         if (from && Math.hypot(from.x - to.x, from.y - to.y) >= 5) flyTile(n, from, to);
                     } else if (ghost) {                           // your own drop
-                        const from = posOf(ghost);
-                        if (from) flyTile(n, from, to, { hand: true });
+                        const fx = parseFloat(ghost.getAttribute('data-from-x')), fy = parseFloat(ghost.getAttribute('data-from-y'));
+                        if (isFinite(fx) && isFinite(fy) && Math.hypot(fx - to.x, fy - to.y) >= 5) {
+                            flyTile(n, { x: fx, y: fy }, to);     // Telekinesis: the full flight from where it was
+                        } else {
+                            const from = posOf(ghost);
+                            if (from) flyTile(n, from, to, { hand: true });
+                        }
                     } else if (n.matches('.player-tile') && added.length <= 2) {
                         flyTile(n, to, to, { drop: 200 });       // a player tile placed by someone else
                     }

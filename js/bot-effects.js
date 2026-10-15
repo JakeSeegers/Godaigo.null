@@ -1026,8 +1026,10 @@
     function driveTelekinesis(se, sm) {
         if (!window.telekinesisState?.active) return false;
 
+        // A tile with ONE pawn on it may move (the pawn rides along, as for a
+        // player); 2+ pawns block it. Same rule as BotSim telekinesisEligible.
         const eligible = (se.getEligibleTilesForSwap() || []).filter(t =>
-            !tileHasStones(t.id) && !tileHasPlayersById(t.id) && !tileIsBridge(t.id));
+            !tileHasStones(t.id) && playerCountOnTileById(t.id) <= 1 && !tileIsBridge(t.id));
         if (!eligible.length) { window.finishTelekinesis?.(); return true; }
 
         const largeHexSize = TILE_SIZE * 4;
@@ -1066,6 +1068,11 @@
         isDraggingTile = false;
         draggedTileId = null;
         draggedTileOriginalPos = null;
+        // A lone pawn on the tile goes with it to the tile's center.
+        let movedPlayers = [];
+        if (originalPos && typeof window.carryPlayersOnTelekinesisMove === 'function') {
+            try { movedPlayers = window.carryPlayersOnTelekinesisMove(originalPos, destination) || []; } catch (e) {}
+        }
 
         if (window.telekinesisState) {
             window.telekinesisState.movesLeft--;
@@ -1077,7 +1084,7 @@
             }
             if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
                 broadcastGameAction('telekinesis-move', {
-                    tileId: tile.id, newPos: destination, oldPos: originalPos, movedPlayers: []
+                    tileId: tile.id, newPos: destination, oldPos: originalPos, movedPlayers
                 });
             }
             if (window.telekinesisState.movesLeft <= 0) window.finishTelekinesis?.();

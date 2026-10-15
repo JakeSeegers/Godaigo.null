@@ -2544,7 +2544,7 @@
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
         stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
         SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, isUnknownScroll, unknownScrollElement,
-        travelTilesAt, travelGoalPoint,
+        travelTilesAt, travelGoalPoint, telekinesisSlots,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');
 })();
