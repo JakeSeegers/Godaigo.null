@@ -170,6 +170,12 @@
     const TILE = 20;               // TILE_SIZE — small board hex size
     const HEX_NEAR = 5;            // px — "same hex"
     const HEX_STEP = 40;           // px — "adjacent hex" upper bound
+    // Breath of Power reach (game-core.js BREATH_RANGE = 3 hexes). Adjacent
+    // hex centres are TILE * sqrt(3) apart: ring 3 is at most 3 steps away,
+    // ring 4 at least 4 * cos 30 steps, so this pixel bound splits them.
+    const BREATH_PX = 3.2 * TILE * Math.sqrt(3);
+    const inBreathRange = (p, q) => { const d = dist(p.x, p.y, q.x, q.y); return d >= HEX_NEAR && d <= BREATH_PX; };
+    const MOVE_STONE_CAP = 60;     // mirrors bot-state.js
     const STONE_NEIGHBOR_MAX = 50; // px — getNeighborStones() window (5..50)
     const POOL_CAP = 5;            // per-element player pool capacity
     const SOURCE_CAP = 25;         // per-element source pool capacity
@@ -2294,20 +2300,21 @@
             }
         }
 
-        // Breath of Power (WIND_SCROLL_2): move a stone adjacent to the pawn
-        // onto a DIFFERENT, currently-empty hex within the same placement
-        // range placeStone uses (honors Avalanche/Seed the Skies too, same
-        // as a real placement would through isInPlacementRange) — free,
-        // repeatable, no AP gate. Not restricted by pawnOnStone (mirrors
-        // 'move', not 'cast'/'placeStone' — see BotState.legalActions()).
+        // Breath of Power (WIND_SCROLL_2, owner 2026-10-15): move a stone
+        // within 3 hexes of the pawn onto a DIFFERENT empty hex within 3 hexes,
+        // free, repeatable, no AP gate. Mirrors BotState.legalActions(): only
+        // spots next to another stone or next to the pawn, max MOVE_STONE_CAP.
         if (snap.turn.buffs?.breathOfPower?.playerIndex === snap.turn.activePlayerIndex) {
-            for (const stone of neighborStones(snap, p.x, p.y)) {
+            const near = (a, b) => dist(a.x, a.y, b.x, b.y) < HEX_STEP;
+            let n = 0;
+            for (const stone of snap.stones) {
+                if (n >= MOVE_STONE_CAP) break;
+                if (!inBreathRange(p, stone)) continue;
                 for (const h of g) {
+                    if (n >= MOVE_STONE_CAP) break;
                     if (dist(h.x, h.y, stone.x, stone.y) < HEX_NEAR) continue; // must actually move
-                    const d = dist(h.x, h.y, p.x, p.y);
-                    const globalOk = snap.turn.buffs?.globalPlacement ||
-                        (snap.turn.buffs?.waterWindGlobalPlacement && (stone.type === 'water' || stone.type === 'wind'));
-                    if (!globalOk && d >= HEX_STEP) continue;
+                    if (!inBreathRange(p, h)) continue;
+                    if (!near(h, p) && !snap.stones.some(o => o !== stone && near(o, h))) continue;
                     if (h.tileIds.some(id => {
                         const t = snap.tiles.find(tt => tt.id === id);
                         return t && !t.revealed && !t.isPlayerTile;
@@ -2318,6 +2325,7 @@
                         type: 'moveStone', fromX: stone.x, fromY: stone.y,
                         toX: h.x, toY: h.y, stoneType: stone.type,
                     });
+                    n++;
                 }
             }
         }

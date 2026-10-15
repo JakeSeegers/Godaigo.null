@@ -233,6 +233,7 @@
         // compete with anything that has real pattern/AP value either.
         moveStoneBase:          1,
         moveStoneDoomedPenalty: -5, // moving a stone somewhere it'd just be fire-destroyed
+        moveStoneMakesCast:    40,  // × held scrolls the move makes castable (Breath of Power reaches 3 hexes, 2026-10-15)
 
         // returning home — with all 5 elements activated the win now requires
         // standing on the centre of the bot's own player tile (player shrine),
@@ -1391,6 +1392,8 @@
                 if (window.BotSim && !window.BotSim.stoneWouldSurvive(snap, a.toX, a.toY, a.stoneType)) {
                     s += WEIGHTS.moveStoneDoomedPenalty;
                 }
+                const made = moveStoneNewCasts(snap, a);
+                if (made) s += (WEIGHTS.moveStoneMakesCast ?? DEFAULT_WEIGHTS.moveStoneMakesCast) * made;
                 return s;
             }
 
@@ -3916,6 +3919,29 @@
             }
         }
         return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
+    }
+    // Breath of Power: how many held scrolls (hand + active) a stone move makes
+    // castable that are not castable now. Castable-now is cached per snapshot.
+    const castableNow = new WeakMap();
+    function heldCastable(sn, idx) {
+        const p = sn.players[idx];
+        const out = new Set();
+        if (!p || !window.BotSim?.checkPattern) return out;
+        for (const n of new Set([...(p.hand || []), ...(p.active || [])])) {
+            try { if (window.BotSim.checkPattern(sn, n, idx)) out.add(n); } catch (e) {}
+        }
+        return out;
+    }
+    function moveStoneNewCasts(snap, a) {
+        if (!window.BotSim?.simulate) return 0;
+        const idx = snap.turn.activePlayerIndex;
+        let before = castableNow.get(snap);
+        if (!before) { before = heldCastable(snap, idx); castableNow.set(snap, before); }
+        let after;
+        try { after = heldCastable(window.BotSim.simulate(snap, a), idx); } catch (e) { return 0; }
+        let n = 0;
+        for (const x of after) if (!before.has(x)) n++;
+        return n;
     }
     function harmChoices(snap, name) {
         if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4', 'EARTH_SCROLL_2', 'VOID_SCROLL_2'].includes(name)) return [];

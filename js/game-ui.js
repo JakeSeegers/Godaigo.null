@@ -1407,7 +1407,7 @@
                 draggedStoneOriginalPos = null;
 
                 if (!tryReturnStoneToElementalPanel(e.clientX, e.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
-                    const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
+                    const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType, capturedStoneId !== null);
                     if (stonePos.valid) {
                         if (capturedStoneId === null) {
                             window._pendingFireDestroys = [];
@@ -2062,7 +2062,7 @@
                     draggedStoneOriginalPos = null;
 
                     if (!tryReturnStoneToElementalPanel(coords.clientX, coords.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
-                        const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
+                        const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType, capturedStoneId !== null);
                         if (stonePos.valid && capturedStoneId === null) {
                             placeStone(stonePos.x, stonePos.y, capturedStoneType);
                             window.SoundSystem?.play(capturedStoneType === 'earth' ? 'placeearthstone' : 'placestone');

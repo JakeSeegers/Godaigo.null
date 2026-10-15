@@ -472,6 +472,8 @@ Order matters — later scripts depend on earlier ones.
                              harmChoices also has Shifting Sands on the leader: its lone, stone-free tile swapped to the clean tile farthest from its goal,
                              and Telekinesis (2026-10-15): that tile moved to the free slot farthest from its goal (BotSim.telekinesisSlots);
                              bot-effects.js driveTelekinesis now moves tiles with one pawn and carries it (window.carryPlayersOnTelekinesisMove).
+                             Breath of Power (2026-10-15, stones within 3 hexes): moveStone scored + moveStoneMakesCast (held scrolls a move makes
+                             castable); BotState snapshot carries the breathOfPower buff (before, the search never saw stone moves).
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same

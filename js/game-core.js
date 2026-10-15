@@ -3786,8 +3786,12 @@
             return matchingPos.tiles.some(tile => tile.isPlayerTile);
         }
 
-        function findValidStonePosition(x, y, stoneTypeOverride) {
+        // boardMove: a stone already on the board is being moved (Breath of
+        // Power): the drop must be within BREATH_RANGE hexes of the pawn
+        // instead of in placement range. Default: true while dragging one.
+        function findValidStonePosition(x, y, stoneTypeOverride, boardMove) {
             const stoneType = stoneTypeOverride !== undefined ? stoneTypeOverride : draggedStoneType;
+            if (boardMove === undefined) boardMove = isDraggingStone && draggedStoneId !== null;
             const hexPositions = getAllHexagonPositions();
             let nearest = null;
             let minDist = Infinity;
@@ -3826,7 +3830,9 @@
                 // Check if position is valid for placement based on active buffs
                 // (isInPlacementRange already refuses to place while the pawn
                 // itself is standing on a stone — see its stoneUnderPawn check)
-                const inPlacementRange = playerPosition && isInPlacementRange(nearest.x, nearest.y, stoneType);
+                const inPlacementRange = playerPosition && (boardMove
+                    ? inBreathRange(nearest.x, nearest.y)
+                    : isInPlacementRange(nearest.x, nearest.y, stoneType));
 
                 if (!occupied && !anyPlayerHere && !onFlippedTile && inPlacementRange) {
                     return { x: nearest.x, y: nearest.y, valid: true };
@@ -4238,6 +4244,22 @@
             window.debug        = window.dumpGameDebug;
             window.dumpScrollDebug = window.dumpGameDebug;
         }
+
+        // Breath of Power (owner 2026-10-15): pick up and move stones within
+        // BREATH_RANGE hexes of the pawn, to an empty hex within that range.
+        const BREATH_RANGE = 3;
+        function hexDistanceFromPlayer(x, y) {
+            if (!playerPosition) return Infinity;
+            const a = pixelToHex(playerPosition.x, playerPosition.y, TILE_SIZE);
+            const b = pixelToHex(x, y, TILE_SIZE);
+            return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs((-a.q - a.r) - (-b.q - b.r)));
+        }
+        function inBreathRange(x, y) {
+            const d = hexDistanceFromPlayer(x, y);
+            return d >= 1 && d <= BREATH_RANGE;
+        }
+        window.inBreathRange = inBreathRange;
+        window.BREATH_RANGE = BREATH_RANGE;
 
         function isAdjacentToPlayer(x, y) {
             if (!playerPosition) return false;
@@ -8482,13 +8504,13 @@ function clearPlayerPath() {
                 return;
             }
 
-            if (!isAdjacentToPlayer(stone.x, stone.y)) {
-                updateStatus('Can only move stones adjacent to player!');
-                console.log(`❌ Cannot drag stone id=${stoneId}: not adjacent to player`);
+            if (!inBreathRange(stone.x, stone.y)) {
+                updateStatus(`Can only move stones within ${BREATH_RANGE} hexes of your pawn!`);
+                console.log(`❌ Cannot drag stone id=${stoneId}: more than ${BREATH_RANGE} hexes from the pawn`);
                 return;
             }
 
-            console.log(`✅ Starting drag for stone id=${stoneId}, type=${stone.type} (adjacent to player)`);
+            console.log(`✅ Starting drag for stone id=${stoneId}, type=${stone.type} (within ${BREATH_RANGE} hexes)`);
 
             // Clean up any pre-existing ghost (prevents orphaned stamps)
             if (ghostStone) {

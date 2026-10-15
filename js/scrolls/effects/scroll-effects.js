@@ -1204,12 +1204,13 @@ const ScrollEffects = {
         },
         /**
          * Wind Scroll II - Breath of Power
-         * Move adjacent stones to another adjacent empty space until end of turn.
+         * Move stones within 3 hexes of the pawn to an empty space within 3 hexes
+         * until end of turn (owner 2026-10-15; was adjacent to adjacent).
          * (Was Wind III; swapped with Respirate, owner 2026-10-01.)
          */
         WIND_SCROLL_2: {
             name: 'Breath of Power',
-            description: 'Until end of turn, you may move adjacent stones to another adjacent empty space.',
+            description: 'Until end of turn, you may pick up stones within 3 hexes of your pawn and move them to an empty space within 3 hexes.',
             isCounter: false,
             priority: 2,
 
@@ -1221,7 +1222,7 @@ const ScrollEffects = {
                     playerIndex: casterIndex
                 };
 
-                const message = 'Breath of Power: move adjacent stones to adjacent empty spaces this turn.';
+                const message = 'Breath of Power: move stones within 3 hexes to empty spaces within 3 hexes this turn.';
                 updateStatus(message);
 
                 return {
