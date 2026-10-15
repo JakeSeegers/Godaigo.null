@@ -5298,3 +5298,11 @@ g.stone.stone-voided > image { filter: brightness(0.7); }
 #idle-training-bar .idle-verdict { margin-top: 6px; color: #ffb3b3; font-weight: bold; }
 #idle-training-bar .idle-verdict.win { color: #9dff7a; }
 #idle-training-bar .idle-hint { margin-top: 6px; color: #8d86a3; font-size: 12px; }
+
+/* A tile being carried (js/piece-3d.js, Telekinesis / your start tile): lifted look */
+#viewport g.ghost-tile.tile-carried {
+    transform-box: fill-box;
+    transform-origin: center;
+    scale: 1.06;
+    filter: drop-shadow(0 14px 8px rgba(0, 0, 0, 0.5));
+}

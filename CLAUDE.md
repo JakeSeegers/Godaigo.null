@@ -301,6 +301,7 @@ Order matters — later scripts depend on earlier ones.
                              Tile moves (2026-10-14, window.TileMoveFx.fly): a tile that changes place lifts, floats over a curved path
                              and lands with a dust ring (Shifting Sands, Telekinesis, own drops, player tiles at the start drop in from
                              above); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
+                             Your own carried tile (ghost) looks lifted (.tile-carried) and comes down clearly where you drop it.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),

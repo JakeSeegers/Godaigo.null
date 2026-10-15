@@ -723,17 +723,23 @@
             tileFlights.get(g)?.();
             const dx0 = from.x - to.x, dy0 = from.y - to.y, d = Math.hypot(dx0, dy0);
             const drop = opts.drop || 0;
-            if (d < 3 && !drop) return;
-            const short = d < 40 && !drop;
-            const L = drop ? drop : Math.min(60, 12 + d * 0.18);
-            const T = drop ? (drop > 40 ? 720 : 200) : Math.min(1500, Math.max(short ? 260 : 450, (short ? 220 : 450) + d * 1.2));
-            const bend = short ? 0 : Math.min(40, d * 0.12);
+            // opts.hand: a tile you carried yourself (Telekinesis, your start
+            // tile): it is already up in the air, so it comes down from where
+            // you let go onto the snapped spot, clearly enough to see (owner
+            // 2026-10-15: the old 12-unit, 0.25 s settle went unnoticed).
+            const hand = !!opts.hand;
+            if (d < 3 && !drop && !hand) return;
+            const short = d < 40 && !drop && !hand;
+            const L = hand ? 26 : drop ? drop : Math.min(60, 12 + d * 0.18);
+            const T = hand ? 340 + Math.min(160, d) : drop ? (drop > 40 ? 720 : 200) : Math.min(1500, Math.max(short ? 260 : 450, (short ? 220 : 450) + d * 1.2));
+            const bend = (short || hand) ? 0 : Math.min(40, d * 0.12);
             const px = d ? -dy0 / d : 0, py = d ? dx0 / d : 0;       // sideways, so two swapped tiles pass each other
             const a = drop ? 0 : (short ? 0.05 : 0.22), b = drop ? 0 : (short ? 0.7 : 0.78);
             const smooth = (t) => t * t * (3 - 2 * t);
             const at = (u) => {
                 let s, h;
-                if (drop) { s = 1; h = L * (1 - u * u); }            // falls, faster as it lands
+                if (hand) { s = smooth(u); h = L * (1 - u * u); }    // glides to the spot as it comes down
+                else if (drop) { s = 1; h = L * (1 - u * u); }       // falls, faster as it lands
                 else if (u < a) { s = 0; h = L * Math.sin((u / a) * Math.PI / 2); }
                 else if (u < b) { s = smooth((u - a) / (b - a)); h = L * (1 + 0.06 * Math.sin(((u - a) / (b - a)) * Math.PI * 2)); }
                 else { const k = (u - b) / (1 - b); s = 1; h = L * (1 - k * k); }
@@ -847,12 +853,24 @@
                         if (from && Math.hypot(from.x - to.x, from.y - to.y) >= 5) flyTile(n, from, to);
                     } else if (ghost) {                           // your own drop
                         const from = posOf(ghost);
-                        if (from) flyTile(n, from, to, Math.hypot(from.x - to.x, from.y - to.y) < 3 ? { drop: 10 } : {});
+                        if (from) flyTile(n, from, to, { hand: true });
                     } else if (n.matches('.player-tile') && added.length <= 2) {
                         flyTile(n, to, to, { drop: 200 });       // a player tile placed by someone else
                     }
                 } catch (e) {}
             });
+        }).observe(vp, { childList: true });
+        // A tile you pick up (Telekinesis, your start tile from the deck) looks
+        // lifted while you carry it: a little bigger with a shadow under it
+        // (css .tile-carried), growing in over 0.16 s.
+        new MutationObserver(list => {
+            for (const m of list) for (const n of m.addedNodes) {
+                if (n.nodeType !== 1 || !n.matches('g.ghost-tile')) continue;
+                n.classList.add('tile-carried');
+                if (!reduceMotionT && n.animate && window.fxOn?.()) {
+                    try { n.animate([{ scale: '1', filter: 'drop-shadow(0 0 0 rgba(0,0,0,0))' }, { scale: '1.06', filter: 'drop-shadow(0 14px 8px rgba(0,0,0,0.5))' }], { duration: 160, easing: 'ease-out' }); } catch (e) {}
+                }
+            }
         }).observe(vp, { childList: true });
         sidesSoon();
         // ── Smooth pawn steps (owner 2026-10-07) ────────────────────────────
