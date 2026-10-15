@@ -257,11 +257,20 @@
         discardResponseOnly: 25, // level-1 scrolls are response-only: dead weight once
                                  // their element is won or dead (a needed one is kept:
                                  // a response activates its element)
+        discardSimplify:    45,  // Simplify up (owner 2026-10-14): a dead scroll (spareScroll)
+                                 // to the common area pays 2 AP back, while AP has room
+        castSimplifySpare:  18,  // × dead scrolls held (max 3) when casting Simplify: each
+                                 // one is 2 AP later via discardSimplify
         l1WaitVoid:         30,  // owner's habit (2026-09-29): wait for a level 1 response on a void
                                  // shrine, collecting void (AP) meanwhile: ending the turn there with a
                                  // needed level 1 ready (half for building its pattern there)
         leaveResponseReady: -40, // moving off a spot where a needed level 1's pattern
                                  // is complete (ready to respond to the next cast)
+        evalResponseReady:  20,  // position score (owner 2026-10-14, docs/bot-systems.md 3.6): inside my
+                                 // turn, standing in a usable response / counter pattern with the AP to
+                                 // pay for it (x1.5 when it gives a needed element, x2 for a counter
+                                 // while a player is one cast from winning). Search then weighs keeping
+                                 // the AP and the spot against other moves.
         moveBlockedShrine:  1,   // × the shrine walk value, toward a needed shrine whose
                                  // centre holds a stone (walk up, break it, collect)
 
@@ -428,9 +437,27 @@
     // skip them) and every loaded table uses the values here (pinSocial).
     const SOCIAL_KEYS = ['attackBuildCredit', 'castHarmChoice', 'castHarmWall', 'breakLeaderPattern', 'moveToBreak',
         'moveCamp', 'campLeave', 'endTurnCamp', 'discardForAlly', 'placeAllyRoad'];
+    // Skill dials (owner 2026-10-14, docs/bot-systems.md 3.6): the weights behind
+    // hand-written skills (guarding, keeping a response ready). Training may tune
+    // them but never below half their default strength, so bots cannot drift
+    // into "unlearning" a skill whose games are too rare to judge it.
+    const DIAL_KEYS = ['guardKeepAp', 'leaveResponseReady', 'l1WaitVoid', 'evalScrollResponse',
+        'castGuardFetch', 'evalResponseReady'];
+    function floorDials(W) {
+        for (const k of DIAL_KEYS) {
+            const d = DEFAULT_WEIGHTS[k];
+            if (!d) continue;
+            const v = Number(W[k]);
+            const cur = Number.isFinite(v) ? v : d;
+            W[k] = d > 0 ? Math.max(cur, d / 2) : Math.min(cur, d / 2);
+        }
+        return W;
+    }
+    // Every loaded or applied weight table passes here (localStorage, champion,
+    // bot-arena.js setWeights): social keys locked, skill dials floored.
     function pinSocial(W) {
         for (const k of SOCIAL_KEYS) W[k] = DEFAULT_WEIGHTS[k];
-        return W;
+        return floorDials(W);
     }
     // Evolved weights (Stage 3a) override defaults without code edits
     let WEIGHTS = { ...DEFAULT_WEIGHTS };
@@ -1123,6 +1150,26 @@
     // ----------------------------------------------------------------
     // scoreAction — the Stage-1 utility function. Tune WEIGHTS, not this.
     // ----------------------------------------------------------------
+    // A scroll with no win value left for this player (the same tests the
+    // discard scoring uses): its element is won or its source is empty, or a
+    // level 1 whose element is won / dead and is not a wanted guard counter.
+    // Never the scroll the current build plan needs.
+    function spareScroll(snap, self, name) {
+        const def = window.SCROLL_DEFINITIONS?.[name];
+        if (!def) return false;
+        const plan = mem(snap.turn.activePlayerIndex).plan;
+        if (plan && plan.scroll === name) return false;
+        if (COUNTERS.has(name) && guardWanted(snap)) return false;
+        const el = def.element;
+        if (!el || !ELEMENTS.includes(el)) return false; // catacomb: two elements, keep it simple
+        return self.activated.includes(el) || (snap.sourcePool[el] || 0) <= 0;
+    }
+
+    // Room for Simplify's +1 AP (capped like addAP: 5 + void pool).
+    function simplifyApRoom(snap, self) {
+        return Math.max(0, 5 + (self.pool?.void || 0) - (snap.turn.ap || 0));
+    }
+
     function scoreAction(a, snap, ctx) {
         const self = me(snap);
         // Optional feature-trace channel (js/bot-imitation.js's hermit-only
@@ -1161,6 +1208,12 @@
                 }
                 if (drawNotNeeded(snap, self, a.scroll)) s += contrib('castDrawNotNeeded', 1);
                 if (guardFetchHelps(snap, self, a.scroll)) s += contrib('castGuardFetch', 1);
+                if (a.scroll === 'VOID_SCROLL_3' && !snap.turn.buffs?.simplify) {
+                    // Each dead scroll held turns into 1 AP once Simplify is up.
+                    const held = [...(self.hand || []), ...(self.active || [])].filter(n => n !== a.scroll);
+                    const spare = held.filter(n => spareScroll(snap, self, n)).length;
+                    if (spare) s += contrib('castSimplifySpare', Math.min(3, spare));
+                }
                 s += harmCastBonus(snap, self, a);
                 if (mem(snap.turn.activePlayerIndex).noCreditScrolls.has(a.scroll)) {
                     s += contrib('castNoCredit', 1); // effect cancelled before - hard veto, don't recast
@@ -1365,6 +1418,10 @@
                 let s = contrib('discardBase', 1) + contrib('discardLevel', def?.level || 0);
                 if (ctx.help?.gift.has(el) && def?.level > 1) s += contrib('discardForAlly', 1);
                 if (a.voluntary) s += contrib('discardVoluntary', 1);
+                // Simplify up: a dead scroll to the common area is 2 AP back.
+                if (snap.turn.buffs?.simplify && simplifyApRoom(snap, self) > 0 && spareScroll(snap, self, a.scroll)) {
+                    s += contrib('discardSimplify', 1);
+                }
                 // A level 1 for an element still needed is a real way to
                 // activate it (as a response), so it is only dead weight
                 // once that element is won or its source is empty.
@@ -2149,6 +2206,7 @@
         const role = D?.roleOf?.(idx);
         const partnerGuards = role && role !== 'guard' && D.roleHolder?.('guard') != null;
         const guard = ((guardWanted(snap) && !partnerGuards) || role === 'guard') && !D?.oneCastFromWin?.(idx, snap);
+        if (guard) _review.guardOn = (_review.guardOn || 0) + 1;
         if (m.plan && m.plan.guard) {
             // At most GUARD_WAIT own turns on the post, then GUARD_REST turns
             // of own progress (two guards facing each other stalled before).
@@ -2164,6 +2222,7 @@
         if (guard && !guardReady(snap, self) && (role === 'guard' || (m.ownTurns || 0) >= (m.guardRestUntil || 0))) {
             const inReach = new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]);
             const counters = [...COUNTERS].filter(n => inReach.has(n) && window.SCROLL_DEFINITIONS?.[n]);
+            if (counters.length) _review.guardTry = (_review.guardTry || 0) + 1;
             if (counters.length) {
                 const alt = makePlan(snap, { only: new Set(counters), near: 4,
                     extra: counters.map(n => ({ name: n, def: window.SCROLL_DEFINITIONS[n], credit: 1.5 })) });
@@ -3141,6 +3200,7 @@
         // look like free value (single-player keeps the same activePlayerIndex)
         if (snap.turn.activePlayerIndex === forIndex && !(snap.sim?.turnsEnded > 0)) {
             v += snap.turn.ap * WEIGHTS.evalAp;
+            if (WEIGHTS.evalResponseReady) v += WEIGHTS.evalResponseReady * responseReadyFactor(snap, forIndex);
         }
         // Flat credit for effects the simulator honestly didn't model — but
         // only for casts that granted a new activation, or the search farms
@@ -4202,6 +4262,60 @@
     // reach. bot-effects.js decideResponse fires it at the winning cast.
     const COUNTERS = new Set(['EARTH_SCROLL_1', 'VOID_SCROLL_1']);
     const GUARD_FETCH = new Set(['CATACOMB_SCROLL_9', 'VOID_SCROLL_4']);
+    // How good a response this seat could make on the next opponent cast, from
+    // where it stands now (0 = none): a level 1 it can use (active area, common
+    // area, or hand with a free active slot), its pattern complete here, and the
+    // AP left to pay (getSpellCost: 0 under its own Quick Reflexes, 1 under
+    // Simplify). 1.5 when it would give a needed element, 2 for a counter while
+    // a player is one cast from winning. Only the best one counts.
+    function responseReadyFactor(snap, i) {
+        const p = snap.players[i];
+        if (!p || !window.BotSim?.checkPattern) return 0;
+        const ap = snap.turn.ap || 0;
+        // Level 1 cost without the live lookups (same rules as getSpellCost):
+        // 0 under my own Quick Reflexes, 1 under my Simplify, else 2.
+        const qr = window.spellSystem?.scrollEffects?.activeBuffs?.quickReflexes;
+        const cost = (qr && qr.playerIndex === i) ? 0 : snap.turn.buffs?.simplify ? 1 : 2;
+        if (ap < cost) return 0;
+        const maxActive = window.spellSystem?.MAX_ACTIVE_SIZE ?? 2;
+        const fromHand = (p.activeCount ?? (p.active || []).length) < maxActive;
+        let best = 0, alert;
+        const look = (n) => {
+            const def = window.SCROLL_DEFINITIONS?.[n];
+            if (!def || def.level !== 1 || best >= 2) return;
+            if (!patternHereCached(snap, n, i)) return;
+            let f = 1;
+            const el = def.element;
+            if (el && ELEMENTS.includes(el) && !p.activated.includes(el) && (snap.sourcePool[el] || 0) > 0) f = 1.5;
+            if (COUNTERS.has(n)) {
+                if (alert === undefined) { try { alert = window.BotDiplomacy?.alertOn?.(i, snap) ?? null; } catch (e) { alert = null; } }
+                if (alert != null) f = 2;
+            }
+            if (f > best) best = f;
+        };
+        for (const n of p.active || []) look(n);
+        for (const n of snap.commonArea || []) look(n);
+        if (fromHand) for (const n of p.hand || []) look(n);
+        return best;
+    }
+    // checkPattern answers, cached per stones list (search scores thousands of
+    // positions on the same board; a real move always makes a new snapshot list).
+    const _patternCache = new WeakMap();
+    function patternHereCached(snap, n, i) {
+        const p = snap.players[i];
+        const arr = snap.stones;
+        if (!arr || !p) return false;
+        let m = _patternCache.get(arr);
+        if (!m) { m = new Map(); _patternCache.set(arr, m); }
+        const key = `${arr.length}|${Math.round(p.x)},${Math.round(p.y)}|${n}`;
+        let v = m.get(key);
+        if (v === undefined) {
+            try { v = !!window.BotSim.checkPattern(snap, n, i); } catch (e) { v = false; }
+            m.set(key, v);
+        }
+        return v;
+    }
+
     function guardWanted(snap) {
         const D = window.BotDiplomacy;
         if (!D?.enabled?.() || !D.alertOn) return false;
@@ -5642,9 +5756,10 @@
         waitForQuiescence,    // settle response windows / selection modes / cascades
         WEIGHTS,              // live tuning surface (Stage 3a evolves this)
         DEFAULT_WEIGHTS,
-        SOCIAL_KEYS, pinSocial,
+        SOCIAL_KEYS, pinSocial, DIAL_KEYS, floorDials,
         _harmContext: harmContext, // tests
         _review,                    // tests: plan review counters
+        _makePlan: (snap, opts) => makePlan(snap, opts), // tests: the plan builder
         _winSpots: (snap, L) => winSpots(snap, L), // tests: finished shapes the leader could win with
         _planStats,                 // tests: plans made / away from the pawn / stones reused / already finished
         _shortcutStats,             // tests: teleport / walk-to-catacomb / Take Flight shortcuts taken

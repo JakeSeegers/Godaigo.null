@@ -335,6 +335,18 @@
         return snap.turn.buffs?.simplify ? 1 : CAST_COST;
     }
 
+    // Simplify's second part (owner 2026-10-14, game-core onCommonAreaArrival):
+    // while it is up, the caster regains 2 AP each time a scroll lands in the
+    // common area. Every common-area move in this model (discard, Pyre, Arson,
+    // Plunder) is the active player's own, so only turn.buffs.simplify is read.
+    // Capped like addAP (base 5 + void pool). Off-turn gains are not modelled.
+    function simplifyGain(snap) {
+        if (!snap.turn.buffs?.simplify) return;
+        const p = activePlayer(snap);
+        const cap = BASE_AP + (p?.pool?.void || 0);
+        snap.turn.ap = Math.min(cap, snap.turn.ap + 2);
+    }
+
     // Stones by area (cells of STONE_NEIGHBOR_MAX px, so every stone within
     // that distance is in the 3x3 cells around a point). stoneAt() and
     // neighborStones() used to scan every stone on every call; search asks
@@ -932,7 +944,7 @@
         if (!snap.commonArea) snap.commonArea = [];
         snap.commonArea = snap.commonArea.filter(name =>
             window.SCROLL_DEFINITIONS?.[name]?.element !== 'fire');
-        if (!snap.commonArea.includes(scrollName)) snap.commonArea.push(scrollName);
+        if (!snap.commonArea.includes(scrollName)) { snap.commonArea.push(scrollName); simplifyGain(snap); }
     }
 
     // Plunder (CATACOMB_SCROLL_8): same "biggest threat" opponent targeting
@@ -969,7 +981,7 @@
         const el = window.SCROLL_DEFINITIONS?.[best]?.element;
         if (!snap.commonArea) snap.commonArea = [];
         if (el) snap.commonArea = snap.commonArea.filter(name => window.SCROLL_DEFINITIONS?.[name]?.element !== el);
-        if (!snap.commonArea.includes(best)) snap.commonArea.push(best);
+        if (!snap.commonArea.includes(best)) { snap.commonArea.push(best); simplifyGain(snap); }
     }
 
     // ── Tranche 2 ────────────────────────────────────────────────────
@@ -1636,7 +1648,7 @@
         if (!snap.commonArea) snap.commonArea = [];
         snap.commonArea = snap.commonArea.filter(name =>
             window.SCROLL_DEFINITIONS?.[name]?.element !== def.element);
-        if (!snap.commonArea.includes(chosen)) snap.commonArea.push(chosen);
+        if (!snap.commonArea.includes(chosen)) { snap.commonArea.push(chosen); simplifyGain(snap); }
 
         // No stone grant any more (the old test rule was removed 2026-10-01):
         // only the sacrificed scroll's own effect runs.
@@ -1740,25 +1752,26 @@
             }
         }
 
-        // The EFFECT runs before win-condition tracking — mirrors
-        // applyScrollEffects' real order (execute() at game-core ~1564,
-        // activation gate at ~1605 reading the POST-effect source pool).
-        // Order matters when an effect drains its own element's source:
-        // Mason's Savvy taking the last earth stones correctly forfeits
-        // the earth activation. (Caught by the harness as a genuine
-        // divergence when this block ran before the effect.)
+        // The EFFECT runs before win-condition tracking (applyScrollEffects'
+        // order), but the win stone is drawn BEFORE the effect (owner
+        // 2026-10-14, game-core sourceHasStone): the element counts when its
+        // source had a stone before the effect OR still has one after it.
+        // Mason's Savvy / Seed the Skies / Create / Respirate / Quick
+        // Reflexes taking the last stones no longer forfeit the activation.
+        const sourceBefore = Object.assign({}, snap.sourcePool);
         simCastEffect(snap, p, a.scroll, a.choice);
 
         // Win-condition activation (applyScrollEffects, AFTER the effect):
         //  - catacomb scrolls credit each component element, no source guard
         //  - otherwise credit only while the element's SOURCE pool has stones
+        //    (before or after the effect, see sourceBefore above)
         if (def) {
             if (def.element === 'catacomb' && def.patterns?.[0]) {
                 for (const el of new Set(def.patterns[0].map(c => c.type))) {
                     if (!p.activated.includes(el)) p.activated.push(el);
                 }
             } else if (ELEMENTS.includes(def.element)) {
-                if ((snap.sourcePool[def.element] || 0) > 0 &&
+                if (((sourceBefore[def.element] || 0) > 0 || (snap.sourcePool[def.element] || 0) > 0) &&
                     !p.activated.includes(def.element)) {
                     p.activated.push(def.element);
                 }
@@ -1803,7 +1816,7 @@
                 snap.commonArea = snap.commonArea.filter(name =>
                     window.SCROLL_DEFINITIONS?.[name]?.element !== element);
             }
-            if (!snap.commonArea.includes(a.scroll)) snap.commonArea.push(a.scroll);
+            if (!snap.commonArea.includes(a.scroll)) { snap.commonArea.push(a.scroll); simplifyGain(snap); }
         }
     }
 

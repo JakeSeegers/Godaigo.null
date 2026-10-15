@@ -23,6 +23,7 @@ These apply to all work on this repo. `tools/claude-hooks/` enforces rules 1 and
    - Entry shape: `{ id, date, title, changes[] }`. Title = a few words for the day.
    - Simple English, short lines, how it affects the player. No file names or code terms.
    - When you skip a note because players cannot notice the change, tell the user.
+   - Add the Spanish text of every new title and line to `js/i18n-es.js` (the Change Log is shown in Spanish too).
 3. **Start from `planning/current.md`** and drill down through the INDEX.md files before
    reading source (see below).
 4. **Bump the game version** when you change files the browser loads (js/, css/, index.html,
@@ -407,7 +408,7 @@ Order matters — later scripts depend on earlier ones.
 22. bot-sim.js             ← window.BotSim — pure forward model (simulate / legalActions / isTerminal) + validate() harness
 22c. bot-net.js           <- window.BotNet: the bot network (2026-10-13). A small network (50 features -> 8 tanh -> 1) that ADDS a
                              correction to bot.js evaluateSnapshot: chance to win = sigmoid(a * eval/1000 + b + net(features)); a, b fitted
-                             first (the weighted sum alone), the net learns what it misses; correction = net * 1000 / a eval units, max 2000.
+                             first (the weighted sum alone), the net learns what it misses; correction = net * 1000 / a eval units, max net.clip (default 60 since 2026-10-14; was 2000, while one move changes the score by about 2-15).
                              Lives in the weight table: WEIGHTS.net (+ WEIGHTS.netWeight, default 0 = off), so it travels with the champion
                              to every device. Data: position_samples from arena games AND mined real games (replay-viewer.js runMine,
                              source 'mined', key from the moves, the same game from two accounts counts once). Hermit menu "Bot Network":
@@ -428,12 +429,15 @@ Order matters — later scripts depend on earlier ones.
                              Rules (2026-09-27): if(c, a, b), between(x, lo, hi), > < >= <= ==, and / or / not
                              (true = 1); evolution can wrap a formula in if(). Triggers: oppCanWinNextTurn,
                              iCanWinThisTurn, neededShrineBlocked, oppRespondReady. describe() = plain words.
+                             Simplify inputs (2026-10-14): simplifyUp (my Simplify is up this turn), spareScrolls (held scrolls whose
+                             element is won or whose supply is empty). Formula-only: NET_SKIP keeps them out of the network features
+                             (adding them = FEATURE_VERSION 3, which would switch off every version 2 net).
 23. bot-effects.js         ← window.BotEffects — Stage 2.5 scroll-effect usage: driveSelection() (tile-flip,
                              scorched-earth, tile-swap, Create, Scholar's Insight, Quick Reflexes, Sacrificial
                              Pyre, Inspiring Draught), driveTransmute() (open-ended discard-for-AP modal),
                              decideResponse() (response-scroll respond/pass — both arena and real multiplayer,
                              wired from bot.js and bot-driver.js respectively)
-24. bot.js                 ← window.BotSystem — utility-scored bot + optional lookahead (WEIGHTS.searchDepth, default 0);
+24. bot.js                 ← window.BotSystem: utility-scored bot + lookahead search (WEIGHTS.searchDepth, default 3);
                              No pacing: noBacktrack() (never back onto a hex left this turn until the board changes);
                              intentions: mem.intent keeps the goal a move served, moveCommit makes it sticky.
                              Shift+R = one step, Shift+B = full turn; waitForQuiescence() tries BotEffects
@@ -464,6 +468,12 @@ Order matters — later scripts depend on earlier ones.
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
                              choices). A turn that moved on during the slices is not acted on.
+                             Skill dials (2026-10-14, docs/bot-systems.md 3.6): DIAL_KEYS (guardKeepAp, leaveResponseReady, l1WaitVoid,
+                             evalScrollResponse, castGuardFetch, evalResponseReady) never below half their default (floorDials, run by
+                             pinSocial on every loaded / applied table). evalResponseReady (20): evaluateSnapshot adds it x responseReadyFactor
+                             (inside my turn, standing in a usable level 1 pattern with the AP to pay; 1.5 needed element, 2 counter while a
+                             player is one cast from winning; patternHereCached = checkPattern cached per stones list). Test hooks:
+                             _review.guardOn / guardTry, _makePlan(snap, opts).
                              Slow decisions: a decision over 1 s becomes a lag-recorder moment with its mode, time per helper
                              (search / MCTS / plan / rank) and board size; the stress test summary lists them.
 24b. bot-memory.js         ← window.BotMemory — episodic "what happened after decisions like this" memory.
@@ -518,7 +528,7 @@ Order matters — later scripts depend on earlier ones.
                              back: round trip, server ack, lost (5 s), plus HTTP ping. Results box with plain-words verdicts
                              (drawing vs bot thinking vs network, late because the screen was busy) + Download report.
 25a4. idle-training.js   <- window.IdleTraining: idle training screensaver (sql/idle-training.sql). Signed in, in the lobby, no input
-                             for 3 min: plays watchable 2-player bot games (challenger vs champion) as an audience view
+                             for 3 min: plays watchable bot games (challenger vs champion; every 3rd pair a 4-player team game) as an audience view
                              (Spectate.showLocal: scoreboard, no follow camera (follow: false), hands hidden; sound off; one game per
                              BotArena.run call, 2 per challenger; after the first 3 games every other one is fast: speed 0.1 with
                              window.__arenaFx = effects kept and waited for (game-core.js fxOn, bot.js waitForQuiescence), ~3.8x faster) for a COMMUNAL "pooled climb":
@@ -574,6 +584,21 @@ Order matters — later scripts depend on earlier ones.
                              BotTerms.features(snap, seat) (48 numbers, FEATURE_VERSION 2: no homeCost (slow path search) or myAP; toCurrent() converts v1 rows) + evaluateSnapshot; at a win / turn cap each row
                              gets result 1 / 0 / 0.5 and progress -> report_positions (max 80 rows per game). Read-only (seed 777 identical).
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).
+                             BotExam (2026-10-14, BotArena.exam, docs/bot-systems.md 3.2): judgeGames(r, rule) = section A (rule 'margin':
+                             decided >= minDecided and win rate >= promoteWinRate; 'even': wins >= losses) and guardRails(challenger, champion,
+                             {puzzle, practice}, state) = sections E / D (block only; a failing check is ignored). hillClimb and screenDueCombo
+                             use it. The champion's puzzle score changes only when every rail passes. Idle verdict: same rule on the server.
+                             Team games (2026-10-14): run / _playSeries opts.fourPlayerEvery k = every k-th pair of games is a 4-player game,
+                             A and B on alternate seats (A on 0 and 2 when aIsPlayer0); a win is still one side's, so win rates and the idle
+                             verdict keep 50%. hillClimb challenger series default 3; idle training 3. Pacts, guard mode and responses only
+                             happen with 3+ players. Test trap: plain playMatch() leaves BotDiplomacy.enabled() false (no run / evolve flag).
+                             Test option opts.startScrolls = { seat: [scroll names] } (2026-10-14): those scrolls start in that seat's hand (out of
+                             the decks / common area), so a test can force a rare scroll into every game; run() swaps sides every other game.
+                             Scroll report (2026-10-14, hermit menu "Scroll report"): every arena game with a winner (not drill games) adds, per
+                             scroll, seats that held it (hand / active at any own turn start or end, or cast it) and their wins vs fair share
+                             (1/players), the same for seats that never held it, and how often a held scroll was cast (cast_execute, plus
+                             response_resolved / response_counter by casterIndex). localStorage godaigo_scroll_report; BotArena.scrollReport()
+                             (weakest first: "vs others" = lift minus the average lift), resetScrollReport(), openScrollReport() (+ Play 10 games).
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
                              One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /

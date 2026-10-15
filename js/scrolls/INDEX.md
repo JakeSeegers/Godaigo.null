@@ -101,6 +101,12 @@ SCROLL_DECKS = {
   (`applyScrollEffects`), responses (lobby.js `response-resolved`) and counters
   (multiplayer-state.js) all apply it; responses/counters use `spellSystem.grantElements(idx, els)`,
   which returns the elements really granted.
+- The win stone is drawn BEFORE the scroll's effect (owner, 2026-10-14): callers take
+  `spellSystem.sourcePoolSnapshot()` before `execute()` and the check is `sourceHasStone(el, poolBefore)`:
+  the element counts when its source had a stone before the effect OR still has one after it. So Seed the
+  Skies, Mason's Savvy, Create, Respirate, Quick Reflexes, Sigh of Recollection can take the last stones and
+  still count; an effect that returns a stone (Transmute, Combust) still works as before. Pass `poolBefore`
+  as the 3rd argument of `grantElements` from any new cast path. bot-sim.js simCast mirrors it.
 - `scroll-effect` / `spell-cast` broadcasts carry ONLY the granted elements (`activatedElements`,
   `granted`); receivers add exactly those. Before, the full list was sent and added without the rule.
 - The source pools are synced: `syncPlayerState()` sends `source` (the active player's `sourcePool`)
@@ -134,6 +140,7 @@ Some scrolls pause normal gameplay to collect player input:
 - `takeFlightState` on `window` — the CHOOSER drags the target pawn to a hex. Set up by `_enterTakeFlightDrag()`, called either directly (self-target, or opponent-target outside real multiplayer — the caster drives it) or from `enterTakeFlightChoiceAsTarget()` (real-multiplayer opponent-target — the TARGET's own client drives it instead). `window.pendingTakeFlightCompletion` on the CASTER's client (`{casterIndex, targetPlayerIndex, completionPayload}`) is how the caster's `onSelectionEffectComplete` gets resolved once the target's choice comes back over the `take-flight` broadcast — see lobby.js § Take Flight below.
 
 ### Scroll-specific gotchas
+- **Simplify (VOID_SCROLL_3)** (owner, 2026-10-14): buff `simplify` {expiresNextTurn, playerIndex} lasts until the caster's next turn starts (`clearSimplifyForPlayer`, called from `clearQuickReflexesForPlayer` at every turn start; before, it ended with the caster's turn). Cost: `getSpellCost(spell, idx)` = 1 for the caster, also for responses on other turns. Bonus: +2 AP each time a scroll newly lands in the common area, by anyone: `spellSystem.onCommonAreaArrival(name)` from `discardToCommonArea` and lobby.js `common-area-update` (only when the slot did not already hold that scroll), applied only on the board that holds the caster's AP (own browser, host for a bot, any seat locally), via `responseWindow.gainPlayerAP(idx, n)` (max 5, rest to void AP up to void stones; same four AP homes as spend/refund). ActionLog 'simplifyAP' -> Game Log line. Bots: bot-sim simplifyGain (+2, cap 5 + void) on every common-area move it models (discard, Pyre, Arson, Plunder; off-turn gains not modelled); bot.js discardSimplify (a dead scroll, spareScroll(), to the common area while AP has room) and castSimplifySpare (x dead scrolls held, max 3).
 - **Sacrificial Pyre (FIRE_SCROLL_3)**: `executeSpell()` refuses it before spending AP when the hand has no usable scroll (Level I responses don't count on your own turn), with a message. The effect's own empty-hand `cancelled:true` stays as a fallback (no fire win-con).
 - **Heavy Stomp (EARTH_SCROLL_3)**: calls `performTileFlip()` in scroll-effects.js (NOT `revealTile()`). Remote flips use `flipTileVisually()`. Only `revealTile()` grants +1 AP for catacomb tiles and fires tutorial hooks.
 - **Wandering River (WATER_SCROLL_X)**: uses `getEffectiveTileElement(tile)` to override shrine type for scroll drawing. Check this before assuming `tile.shrineType` is canonical.

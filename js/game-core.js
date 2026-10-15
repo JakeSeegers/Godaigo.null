@@ -241,7 +241,9 @@
                 }
 
                 // Place new scroll in common area
+                const arrivedNew = this.commonArea[element] !== scrollName;
                 this.commonArea[element] = scrollName;
+                if (arrivedNew) this.onCommonAreaArrival(scrollName);
 
                 // Update the scroll deck UI
                 try {
@@ -255,6 +257,33 @@
                         scrollName: scrollName,
                         replacedScroll: replacedScroll
                     });
+                }
+            }
+
+            // Simplify (owner 2026-10-14): until the caster's next turn, they regain
+            // 2 AP every time a scroll is added to the common area (by anyone).
+            // Called the first time a scroll lands there on this board (the same
+            // move can reach a board twice: the local discard and the broadcast).
+            // Only the board that holds the caster's AP applies it: the caster's
+            // own browser, the host for a bot, every seat in a local game. Replays
+            // and save rebuilds (myPlayerIndex -1, not host) never apply it.
+            onCommonAreaArrival(scrollName) {
+                const buff = this.scrollEffects?.activeBuffs?.simplify;
+                if (!buff || buff.playerIndex == null) return;
+                const idx = buff.playerIndex;
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer) {
+                    const realMe = window.BotDriver?.driverRealIndex?.() ?? (typeof myPlayerIndex !== 'undefined' ? myPlayerIndex : null);
+                    const hostOwnsBot = typeof isHost !== 'undefined' && isHost && window.BotDriver?.isBot?.(idx);
+                    const mine = realMe != null && realMe >= 0 && idx === realMe;
+                    if (!mine && !hostOwnsBot) return;
+                }
+                const gained = this.responseWindow?.gainPlayerAP
+                    ? this.responseWindow.gainPlayerAP(idx, 2)
+                    : 0;
+                if (gained > 0) {
+                    const who = typeof getPlayerColorName === 'function' ? getPlayerColorName(idx) : `Player ${idx + 1}`;
+                    updateStatus(`Simplify: ${who} regains ${gained} AP (a scroll went to the common area).`);
+                    window.ActionLog?.record?.('simplifyAP', { playerIndex: idx, scrollName, amount: gained }, idx);
                 }
             }
 
@@ -324,13 +353,16 @@
             // Give a player win-condition elements, with the empty-source rule: an
             // element whose shared source pool is empty does not count. Returns the
             // elements really granted (announce only these to the other players).
-            grantElements(playerIndex, elements) {
+            // poolBefore = a copy of the source pools taken before the scroll's effect
+            // ran (sourcePoolSnapshot): the win stone is drawn first, so an element
+            // counts when its source had a stone before the effect drew any.
+            grantElements(playerIndex, elements, poolBefore) {
                 this.ensurePlayerScrollsStructure(playerIndex);
                 const ps = this.playerScrolls[playerIndex];
                 const granted = [];
                 (elements || []).forEach(el => {
                     if (!el) return;
-                    if ((window.stonePools?.[el] ?? 1) > 0) {
+                    if (this.sourceHasStone(el, poolBefore)) {
                         const isNew = !ps.activated.has(el);
                         ps.activated.add(el);
                         granted.push(el);
@@ -340,6 +372,22 @@
                     }
                 });
                 return granted;
+            }
+
+            // Copy of the shared source pools, taken before a scroll's effect runs.
+            sourcePoolSnapshot() {
+                return Object.assign({}, window.stonePools || {});
+            }
+
+            // Empty-source rule: the win stone for an element is drawn BEFORE the
+            // scroll's effect (owner 2026-10-14), so a scroll that draws stones of
+            // its own element (Seed the Skies, Mason's Savvy, Create, Respirate,
+            // Quick Reflexes, Sigh of Recollection) cannot empty the source first.
+            // The pool after the effect still counts too (an effect that puts a
+            // stone back, like Transmute or Combust, kept working as before).
+            sourceHasStone(el, poolBefore) {
+                if (poolBefore && (poolBefore[el] ?? 1) > 0) return true;
+                return (window.stonePools?.[el] ?? 1) > 0;
             }
 
             ensurePlayerScrollsStructure(playerIndex) {
@@ -1682,6 +1730,8 @@
                         // Wrap execute in try/catch so win-condition tracking always runs even if the
                         // effect throws (e.g. DOM error inside enterTransmuteMode or similar)
                         let result = { success: false, requiresSelection: false };
+                        // Win stones are drawn before the effect (sourceHasStone).
+                        const poolBefore = this.sourcePoolSnapshot();
                         try {
                             result = this.scrollEffects.execute(name, activePlayerIndex, { spell, scrollName: name, previousScrollCast }) || result;
                         } catch (execErr) {
@@ -1719,8 +1769,7 @@
                             // element (a component whose source is depleted doesn't count).
                             const elements = new Set(spell.patterns[0].map(pos => pos.type));
                             elements.forEach(el => {
-                                const elSourcePool = window.stonePools?.[el] ?? 1;
-                                if (elSourcePool > 0) {
+                                if (this.sourceHasStone(el, poolBefore)) {
                                     const ps = this.getPlayerScrolls(false);
                                     const isNew = !ps.activated.has(el);
                                     ps.activated.add(el);
@@ -1737,8 +1786,7 @@
                             // Source pool guard: if the shared element source pool is fully depleted,
                             // the scroll fires but cannot count toward the win condition — there are
                             // no remaining stones of this element for anyone to use.
-                            const elementSourcePool = window.stonePools?.[spell.element] ?? 1;
-                            if (elementSourcePool > 0) {
+                            if (this.sourceHasStone(spell.element, poolBefore)) {
                                 const ps = this.getPlayerScrolls(false);
                                 const isNew = !ps.activated.has(spell.element);
                                 ps.activated.add(spell.element);

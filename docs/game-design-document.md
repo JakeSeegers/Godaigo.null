@@ -77,6 +77,9 @@ Scrolls can exist in three locations:
 - The win triggers immediately when both are true — either by arriving home with all five
   elements already activated, or by activating the fifth element while standing on the shrine
 - Catacomb scrolls can contribute to multiple elements at once
+- An element only counts while its shared source pool has a stone. The win stone is drawn
+  before the scroll's effect, so a scroll that draws stones of that element (Seed the Skies,
+  Mason's Savvy, Create, Respirate, Quick Reflexes) can take the last ones and still count
 
 ---
 

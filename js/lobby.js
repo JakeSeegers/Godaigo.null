@@ -2928,10 +2928,10 @@
             gameChannel.on('broadcast', { event: 'simplify-applied' }, ({ payload }) => {
                 const { playerIndex } = payload;
                 if (spellSystem?.scrollEffects) {
-                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresThisTurn: true, playerIndex };
+                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresNextTurn: true, playerIndex };
                 }
                 const playerName = getPlayerColorName(playerIndex);
-                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn.`);
+                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`);
             });
 
             // Reflect triggered at start of turn: run the reflected scroll's effect and update activated elements.
@@ -3383,8 +3383,10 @@
                     }
                 }
 
+                const arrivedNew = spellSystem.commonArea[element] !== scrollName;
                 spellSystem.commonArea[element] = scrollName;
                 console.log(`📜 Common area: ${scrollName} now in ${element} slot`);
+                if (arrivedNew) spellSystem.onCommonAreaArrival(scrollName);
                 spellSystem.validateScrollState();
                 spellSystem.updateScrollCount();
 
@@ -3544,6 +3546,7 @@
                                 // Execute on ALL clients receiving this broadcast — response effects
                                 // like Lamplight set pendingHandRedirect which must be set before we
                                 // call handleScrollDisposition for the triggering scroll below.
+                                const poolBefore = spellSystem.sourcePoolSnapshot();
                                 spellSystem.scrollEffects.execute(result.scrollName, result.casterIndex, {
                                     spell: scrollDef,
                                     triggeringScroll: trigScroll
@@ -3557,7 +3560,7 @@
                                     const activatedEls = spellSystem.grantElements(result.casterIndex,
                                         (scrollDef?.element === 'catacomb' && scrollDef?.patterns?.[0])
                                             ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                            : scrollDef?.element ? [scrollDef.element] : []);
+                                            : scrollDef?.element ? [scrollDef.element] : [], poolBefore);
                                     if (typeof updatePlayerElementSymbols === 'function') {
                                         updatePlayerElementSymbols(result.casterIndex);
                                     }
