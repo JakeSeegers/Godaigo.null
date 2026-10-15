@@ -619,6 +619,9 @@ Order matters — later scripts depend on earlier ones.
                              Live speed (2026-10-15): the training popup's Speed switch holds for the whole Train Bot job (setLiveSpeed sets
                              _jobSpeed; every run start (startSpeed) re-applies it; game-ui.js runHillClimbTraining clears it before and
                              after, clearJobSpeed). The popup's "–" button shrinks it to bar + buttons (localStorage godaigo_train_popup_min).
+                             Every training run (run / evolve / hillClimb / confirmAcrossSizes) calls muteEnvironment({keepSound: visual}): no win
+                             screen, end-turn prompt or XP even at Watchable (a win screen mid-run ended the run when closed). Extreme = MUTED_SPEED
+                             (0.02) also after a live switch (was 0.1: a Watchable run switched to Extreme played ~2x slower per turn).
                              One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /
                              Formulas / Anchor per run (localStorage godaigo_train_runs). The hermit panel keeps every row:
                              Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /

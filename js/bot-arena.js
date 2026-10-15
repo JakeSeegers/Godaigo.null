@@ -95,7 +95,8 @@
 //   actually advance activePlayerIndex before trusting it — see the comment
 //   in playMatch().
 //
-// SUPPRESSED DURING A MUTED (non-visual) RUN: win-screen modal
+// SUPPRESSED DURING EVERY TRAINING RUN (run / evolve / hillClimb / confirm,
+// also Watchable ones since 2026-10-15; muted runs also lose sound): win-screen modal
 // (spellSystem.showLevelComplete), end-turn AP prompt, SoundSystem,
 // gamification (window.gami — otherwise arena games would farm real XP onto
 // the logged-in profile). spectate() (one continuous game) keeps sounds,
@@ -181,7 +182,10 @@
     // Environment guard: everything a MUTED (non-visual) run mutes, saved
     // and restored even if a game throws.
     // ----------------------------------------------------------------
-    function muteEnvironment() {
+    // keepSound (Watchable training runs, 2026-10-15): keep sound and pacing,
+    // but still no win screen, end-turn prompt or real XP. A Watchable run
+    // showed the win screen mid-run, and closing it ended the run (owner).
+    function muteEnvironment({ keepSound = false } = {}) {
         const rw = window.spellSystem?.responseWindow;
         const saved = {
             random: Math.random,
@@ -192,7 +196,7 @@
             speedScale: window.BotSystem.speedScale,
             isBotPlayer: rw?.isBotPlayer,
         };
-        window.SoundSystem = null;
+        if (!keepSound) window.SoundSystem = null;
         // Joytone is handled separately (see suppressJoytone() / run() /
         // evolve()) — nulling window.JoytoneBridge here only stopped OTHER
         // code from calling into it, it never actually silenced audio
@@ -256,7 +260,9 @@
     let _jobSpeed = null;
     function applyLive(watchable) {
         _liveVisual = !!watchable;
-        window.BotSystem.speedScale = watchable ? 1 : 0.1;
+        // Extreme = the same short pause a run started at Extreme uses (it was
+        // 0.1, 5x the muted pause, so a switched run stayed slow; 2026-10-15)
+        window.BotSystem.speedScale = watchable ? 1 : MUTED_SPEED;
     }
     function setLiveSpeed(watchable) {
         _jobSpeed = !!watchable;
@@ -1163,7 +1169,7 @@
         _running = true;
         _stopRequested = false;
         const visual = !!opts.visual;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
@@ -1285,7 +1291,7 @@
         _stopRequested = false; // same stop() flag spectate() uses — shared "cancel a local bot job" signal
         _endEarlyRequested = false; // soft-stop for THIS run only — see its own comment above
         _saveRequested = false;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
@@ -1596,7 +1602,7 @@
         _stopRequested = false;
         _endEarlyRequested = false;
         _saveRequested = false;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
@@ -1904,7 +1910,7 @@
 
         _running = true;
         _stopRequested = false;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
         startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
