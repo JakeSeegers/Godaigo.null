@@ -133,7 +133,7 @@ Order matters — later scripts depend on earlier ones.
 6. connection-monitor.js   ← window.ConnectionMonitor — network health badge + isWorkable() gate (depends only on multiplayer-state.js's SUPABASE_URL)
 7. sounds.js               ← window.SoundSystem — SFX + login music
                              play(name, volume, {rate}) (rate also moves the pitch: preservesPitch off). playCollect(element)
-                             (2026-10-15): shrine collection sound, earth -4 / water -2 / fire 0 / wind +2 / void +4 semitones, +-1/4 wobble.
+                             (2026-10-15): shrine collection sound, earth -4 / water -2 / fire 0 / wind +2 / void +4 semitones, +-1/4 wobble, volume 0.55.
 8. joytone-bridge.js       ← window.JoytoneBridge: adaptive music via hidden joytone/ iframe (Shift+J+T popup).
                              Salsa mode: in Spanish (I18n.lang 'es', also on a mid-game switch) calls JoytoneAPI.setSalsa(true):
                              tempo x1.12 and a synthesized clave 3-2 / cowbell / conga layer (joytone/index.html scheduleSalsa).

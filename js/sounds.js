@@ -80,9 +80,10 @@
     // element, earth deepest, then water, fire, wind, void, two semitones
     // apart, plus a small random wobble (about 1/4 semitone) so repeats differ.
     const COLLECT_STEPS = { earth: -4, water: -2, fire: 0, wind: 2, void: 4 };
+    const COLLECT_VOLUME = 0.55; // softer than other sounds (owner 2026-10-15: a little too loud)
     function playCollect(element) {
         const semis = (COLLECT_STEPS[element] ?? 0) + (Math.random() - 0.5) * 0.5;
-        play('collectstones', 1.0, { rate: Math.pow(2, semis / 12) });
+        play('collectstones', COLLECT_VOLUME, { rate: Math.pow(2, semis / 12) });
     }
 
     function playFootstep() {
