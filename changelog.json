@@ -7,7 +7,7 @@
       "title": "Moving tiles and scrolls",
       "changes": [
         "Tiles now lift off, float through the air and land when they move (Shifting Sands, Telekinesis, starting tiles). A pawn on a moving tile rides along, and bots can now use Telekinesis to carry a player away.",
-        "Flipped tiles land with a puff of dust, Control the Current swirls a water stone into its new element, and Combust sends a wave of fire across the tile.",
+        "Flipped tiles land with a puff of dust, Control the Current swirls a water stone into its new element, Combust sends a wave of fire across the tile, and Avalanche stones crash down from the sky.",
         "Rule changes: with Take Flight, the caster now chooses where the target lands. Breath of Power now moves stones up to 3 hexes from your pawn.",
         "Scrolls now float to their new place when anyone moves them, and Opponent Status shows each player's scrolls like your own panels.",
         "Small fixes: End Turn no longer misses a click, and a water stone no longer copies a stone that a void cancels."

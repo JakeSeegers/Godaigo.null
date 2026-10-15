@@ -3845,6 +3845,8 @@
 
                 // Cast effect for another player's cast (js/cast-fx.js; own casts play from the cast log)
                 window.CastFX?.play(playerIndex, scrollName);
+                // Avalanche: their stones this turn fall from the sky (js/stone-drop-fx.js)
+                if (scrollName === 'EARTH_SCROLL_5') window.StoneDropFx?.avalancheBy?.(playerIndex);
 
                 spellSystem.ensurePlayerScrollsStructure(playerIndex);
 

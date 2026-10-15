@@ -10,6 +10,8 @@
 //   fire:  flickers, crackles and gives off a few floating sparks.
 //   wind:  expands slightly and contracts once, with a soft ring.
 //   void:  fades in with a spectral glow, as if summoned.
+//   While Avalanche is up for the placing player, every stone instead falls
+//   from high above and slams down (avalanche() below), then plays its own effect.
 //   Any other stone placed next to a void stone has its ability cancelled,
 //   so it only gets the light drop (no ripple, bob, sparks or swell).
 // window.StoneDropFx.transform(x, y, toType): Control the Current turning a
@@ -109,35 +111,7 @@
         ], { duration: 200, delay: LAND, easing: 'ease-out', composite: 'add' });
         scaleAnim(stone.element, [{ scale: '1' }, { scale: '0.93', offset: 0.3 }, { scale: '1.02', offset: 0.7 }, { scale: '1' }],
             { duration: 260, delay: LAND - 20, easing: 'ease-out' });
-        // ripple: stones and pawns 1-3 hexes away bounce, less with distance
-        // (the board itself stays still)
-        const things = [];
-        // Earth stones, and water stones using earth's ability, are too heavy
-        // to bounce, unless a void stone next to them cancels them
-        // (stoneAbilityAt already returns 'water' for a void-blocked water).
-        // Other stones and pawns bounce.
-        const heavy = (s) => {
-            if (s.type === 'earth') return !nextToVoid(s);
-            if (s.type === 'water') return window.stoneAbilityAt?.(s.x, s.y) === 'earth';
-            return false;
-        };
-        try { (placedStones || []).forEach(s => { if (s !== stone && s.element && !heavy(s)) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
-        // the pawn of the player who placed it stays still (owner 2026-10-08)
-        let placer = null;
-        try { placer = activePlayerIndex; } catch (e) {}
-        try { (playerPositions || []).forEach((p, i) => { if (p && p.element && i !== placer) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
-        things.forEach(t => {
-            const d = hexDist(stone, t);
-            if (d < 1 || d > 3) return;
-            const h = BOUNCE[d], u = upVec(h);
-            animate(t.node, [
-                { translate: '0px 0px' },
-                { translate: `${u.x.toFixed(2)}px ${u.y.toFixed(2)}px`, offset: 0.3 },
-                { translate: '0px 0px', offset: 0.62 },
-                { translate: `${(u.x * 0.25).toFixed(2)}px ${(u.y * 0.25).toFixed(2)}px`, offset: 0.8 },
-                { translate: '0px 0px' },
-            ], { duration: 460, delay: LAND + d * 70, easing: 'ease-out', composite: 'add' });
-        });
+        ripple(stone, LAND, 1);
         // a puff of dust on landing
         const L = layer(vp, stone.x, stone.y, 1000);
         const ring = el('circle', { r: 12, fill: 'none', stroke: colorOf('earth'), 'stroke-width': 2.5, opacity: 0 }, L);
@@ -209,6 +183,39 @@
             { duration: 1000, easing: 'ease-out', fill: 'both' });
     }
 
+    // `at` = ms until the impact, `k` = how hard (1 = a normal earth drop)
+    function ripple(stone, at, k) {
+    // ripple: stones and pawns 1-3 hexes away bounce, less with distance
+    // (the board itself stays still)
+    const things = [];
+    // Earth stones, and water stones using earth's ability, are too heavy
+    // to bounce, unless a void stone next to them cancels them
+    // (stoneAbilityAt already returns 'water' for a void-blocked water).
+    // Other stones and pawns bounce.
+    const heavy = (s) => {
+        if (s.type === 'earth') return !nextToVoid(s);
+        if (s.type === 'water') return window.stoneAbilityAt?.(s.x, s.y) === 'earth';
+        return false;
+    };
+    try { (placedStones || []).forEach(s => { if (s !== stone && s.element && !heavy(s)) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
+    // the pawn of the player who placed it stays still (owner 2026-10-08)
+    let placer = null;
+    try { placer = activePlayerIndex; } catch (e) {}
+    try { (playerPositions || []).forEach((p, i) => { if (p && p.element && i !== placer) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
+    things.forEach(t => {
+        const d = hexDist(stone, t);
+        if (d < 1 || d > 3) return;
+        const h = BOUNCE[d] * k, u = upVec(h);
+        animate(t.node, [
+            { translate: '0px 0px' },
+            { translate: `${u.x.toFixed(2)}px ${u.y.toFixed(2)}px`, offset: 0.3 },
+            { translate: '0px 0px', offset: 0.62 },
+            { translate: `${(u.x * 0.25).toFixed(2)}px ${(u.y * 0.25).toFixed(2)}px`, offset: 0.8 },
+            { translate: '0px 0px' },
+        ], { duration: 460, delay: at + d * 70, easing: 'ease-out', composite: 'add' });
+    });
+    }
+
     // ── light drop (water, fire, wind) ───────────────────────────
     // A short drop into place, lighter than earth's, before the element's
     // own effect starts.
@@ -253,6 +260,103 @@
         void color;
     }
 
+    // ── Avalanche (owner 2026-10-15) ─────────────────────────────
+    // While Avalanche is up for the player placing (they may place anywhere),
+    // each stone falls from high above like Take Flight's landing, but
+    // heavier: a shadow grows under the spot, two pebbles fall first, the
+    // stone drops fast and big (closer to the eye), slams down (squash,
+    // flash, dust rings, flying grit, cracks), everything 1-3 hexes away
+    // bounces harder than for an earth drop, then the stone's own element
+    // effect plays. On the caster's screen the game's own buff says so; other
+    // screens and replays get it from the 'scroll-used' message (avalancheBy).
+    const FALL = 560, FALL_H = 190;
+    let avalancheMark = null;                  // {player, turn} from another screen's cast
+    function avalancheBy(playerIndex) {
+        try { avalancheMark = { player: playerIndex, turn: currentTurnNumber }; } catch (e) { avalancheMark = { player: playerIndex, turn: null }; }
+    }
+    function avalancheOn() {
+        try {
+            const b = window.spellSystem?.scrollEffects?.activeBuffs?.globalPlacement;
+            if (b && b.playerIndex === activePlayerIndex) return true;
+            return !!avalancheMark && avalancheMark.player === activePlayerIndex &&
+                (avalancheMark.turn == null || avalancheMark.turn === currentTurnNumber);
+        } catch (e) { return false; }
+    }
+    function avalanche(stone, svg, vp, look) {
+        const up = upVec(1);
+        const at = (k) => `${(up.x * k).toFixed(2)}px ${(up.y * k).toFixed(2)}px`;
+        const L = layer(vp, stone.x, stone.y, FALL + 1800);
+        // the shadow: small and faint while the stone is high, dark when it lands
+        const sh = el('ellipse', { rx: 4, ry: 2.4, fill: '#000', opacity: 0 }, L);
+        animate(sh, [{ rx: 3, ry: 1.8, opacity: 0.05 }, { rx: 14, ry: 8, opacity: 0.5, offset: 0.97 }, { rx: 15, ry: 9, opacity: 0 }],
+            { duration: FALL + 260, easing: 'ease-in', fill: 'both' });
+        // two pebbles fall first and bounce off
+        for (let i = 0; i < 2; i++) {
+            const side = (i ? 1 : -1) * (6 + Math.random() * 5);
+            const sx = -up.y * side, sy = up.x * side;
+            const pb = el('circle', { r: 1.6 + Math.random(), fill: '#8a7560', stroke: '#2a2018', 'stroke-width': 0.6, opacity: 0 }, L);
+            const t0 = FALL * (0.45 + i * 0.12);
+            animate(pb, [
+                { transform: `translate(${(sx + up.x * FALL_H * 0.7).toFixed(1)}px, ${(sy + up.y * FALL_H * 0.7).toFixed(1)}px)`, opacity: 0.9 },
+                { transform: `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`, opacity: 1, offset: 0.7 },
+                { transform: `translate(${(sx * 1.8 + up.x * 6).toFixed(1)}px, ${(sy * 1.8 + up.y * 6).toFixed(1)}px)`, opacity: 0 },
+            ], { duration: 420, delay: t0 - 300, easing: 'ease-in', fill: 'both' });
+        }
+        // the fall: from far up, faster and faster, big then normal size
+        animate(stone.element, [
+            { translate: at(FALL_H), opacity: 0 },
+            { translate: at(FALL_H * 0.8), opacity: 1, offset: 0.12 },
+            { translate: '0px 0px', opacity: 1 },
+        ], { duration: FALL, easing: 'cubic-bezier(0.6, 0, 1, 0.5)', composite: 'add', fill: 'backwards' });
+        scaleAnim(stone.element, [{ scale: '1.45' }, { scale: '1', offset: 0.97 }, { scale: '0.8' }],
+            { duration: FALL + 40, easing: 'ease-in' });
+        // the slam: squash, a little hop, settle
+        setTimeout(() => {
+            if (!stone.element.isConnected) return;
+            scaleAnim(stone.element, [{ scale: '0.8' }, { scale: '1.08', offset: 0.35 }, { scale: '0.97', offset: 0.7 }, { scale: '1' }],
+                { duration: 300, easing: 'ease-out' });
+            animate(stone.element, [{ translate: '0px 0px' }, { translate: at(3), offset: 0.35 }, { translate: '0px 0px' }],
+                { duration: 300, easing: 'ease-out', composite: 'add' });
+        }, FALL + 40);
+        // impact flash, two dust rings, grit flying out, cracks in the ground
+        const dust = '#b49b7a';
+        const flash = el('circle', { r: 10, fill: glowFill(svg, '#fff1d6'), opacity: 0 }, L);
+        animate(flash, [{ opacity: 0, r: 6 }, { opacity: 0.9, r: 16, offset: 0.15 }, { opacity: 0, r: 22 }],
+            { duration: 320, delay: FALL, easing: 'ease-out', fill: 'both' });
+        [0, 110].forEach((d, i) => {
+            const ring = el('circle', { r: 12, fill: 'none', stroke: i ? dust : colorOf('earth'), 'stroke-width': i ? 2 : 3.5, opacity: 0 }, L);
+            animate(ring, [{ r: 10, opacity: 0.75 }, { r: i ? 52 : 40, opacity: 0 }],
+                { duration: 650, delay: FALL + d, easing: 'ease-out', fill: 'both' });
+        });
+        for (let i = 0; i < 10; i++) {
+            const a = (i / 10 + Math.random() * 0.06) * Math.PI * 2, rr = 22 + Math.random() * 18;
+            const lift = upVec(6 + Math.random() * 10);
+            const g = el('circle', { r: 1 + Math.random() * 1.6, fill: i % 3 ? dust : '#6b5a48', opacity: 0 }, L);
+            animate(g, [
+                { transform: 'translate(0px, 0px)', opacity: 1 },
+                { transform: `translate(${(Math.cos(a) * rr * 0.6 + lift.x).toFixed(1)}px, ${(Math.sin(a) * rr * 0.6 + lift.y).toFixed(1)}px)`, opacity: 0.9, offset: 0.45 },
+                { transform: `translate(${(Math.cos(a) * rr).toFixed(1)}px, ${(Math.sin(a) * rr).toFixed(1)}px)`, opacity: 0 },
+            ], { duration: 560 + Math.random() * 200, delay: FALL, easing: 'ease-out', fill: 'both' });
+        }
+        for (let i = 0; i < 6; i++) {
+            const a = Math.random() * Math.PI * 2, len = 9 + Math.random() * 8;
+            const pts = [0, 1, 2].map(j => {
+                const rr = 7 + len * j / 2, aa = a + (Math.random() - 0.5) * 0.45;
+                return `${(Math.cos(aa) * rr).toFixed(1)},${(Math.sin(aa) * rr).toFixed(1)}`;
+            }).join(' ');
+            const c = el('polyline', { points: pts, fill: 'none', stroke: '#2a2018', 'stroke-width': 1.1, 'stroke-linecap': 'round', opacity: 0 }, L);
+            animate(c, [{ opacity: 0 }, { opacity: 0.7, offset: 0.1 }, { opacity: 0.7, offset: 0.6 }, { opacity: 0 }],
+                { duration: 1100, delay: FALL, fill: 'both' });
+        }
+        // the ground shakes: everything 1-3 hexes away bounces, harder than earth
+        ripple(stone, FALL, 1.7);
+        setTimeout(() => { try { window.SoundSystem?.play?.('placeearthstone'); } catch (e) {} }, FALL); // the thud on impact
+        // then the stone's own element effect (earth and void: the fall says it all;
+        // next to a void stone the ability is cancelled, so nothing more)
+        const fn = { water, fire, wind }[look];
+        if (fn && !nextToVoid(stone)) setTimeout(() => { if (stone.element.isConnected) fn(stone, svg, vp, colorOf(look)); }, FALL + 260);
+    }
+
     const BY_TYPE = { earth, water, fire, wind, void: voidFx };
 
     function play(x, y, type) {
@@ -264,6 +368,13 @@
             if (!vp || !svg) return;
             // a water stone always plays the drop of the stone it takes its ability from
             let look = type || stone.type;
+            if (avalancheOn()) {
+                if (look === 'water') look = window.stoneAbilityAt?.(stone.x, stone.y) || 'water';
+                running++;
+                setTimeout(() => { running--; }, FALL + 1200);
+                avalanche(stone, svg, vp, look);
+                return;
+            }
             // next to a void stone a stone's ability is cancelled, so it only
             // gets the plain light drop (void itself keeps its summoning)
             if (look !== 'void' && nextToVoid(stone)) {
@@ -585,7 +696,7 @@
         } catch (e) { return false; }
     }
 
-    window.StoneDropFx = { play, collect, burn, combust, transform, isBurning: () => burning > 0 };
+    window.StoneDropFx = { play, collect, burn, combust, transform, avalancheBy, isBurning: () => burning > 0 };
 
     function hook() {
         if (!window.ActionLog?.onRecord) return false;

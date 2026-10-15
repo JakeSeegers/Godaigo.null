@@ -332,6 +332,10 @@ Order matters — later scripts depend on earlier ones.
                              transformWaterStoneVisually, called before the look changes): water stone swirls away, new stone pops out.
                              StoneDropFx.combust(cx, cy, stones): Combust (scroll-effects.js destroyStonesOnTile, lobby.js 'stones-destroyed',
                              before removal): fire wave across the tile, sparks, each stone burns (burn with delay) as the wave reaches it.
+                             Avalanche (2026-10-15): while globalPlacement is up for the placing player (other screens / replays:
+                             StoneDropFx.avalancheBy(player) from lobby.js 'scroll-used' EARTH_SCROLL_5, this turn only), play() runs
+                             avalanche(): growing shadow, pebbles, the stone falls from far up (big to normal), slams (flash, dust rings,
+                             grit, cracks), ripple x1.7 (shared ripple(stone, at, k), also used by the earth drop), then the element's effect.
 20b5. turn-banner.js      <- window.TurnBanner.play(): "Your Turn" banner. A 150 ms watcher sees your turn start in an online
                              game (real seat via BotDriver.driverRealIndex, not placement / replay / save rebuild / fxOn false; a
                              hidden tab waits): three diagonal stripes in your colour sweep in (alternating sides, wind whoosh each),
