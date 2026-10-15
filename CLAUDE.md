@@ -654,11 +654,12 @@ Order matters — later scripts depend on earlier ones.
 28. game-log-ui.js         ← Player-facing readable "Game Log" panel (#game-log-panel, left side), built
                              from ActionLog.onRecord() — colour-coded, collapses movement, never shows
                              discardScroll or anything else that would reveal another player's hand
-28b. scroll-move-fx.js     <- window.ScrollMoveFx: scroll move animation (2026-10-15). Every 100 ms compares where each scroll is
+28b. scroll-move-fx.js     <- window.ScrollMoveFx: scroll move animation (2026-10-15). Every 50 ms compares where each scroll is
                              (each player's hand / active, the common area); a scroll that changed place (any player, any cause) flies
                              as a chip with its name in its colors, on an arc, from its old spot to its new one (own panels Hand / Active /
                              Common, other players' rows in Opponent Status, dock buttons when a panel is closed), then the spot glows.
                              Name shown when the move touches active / common or your own hand, else a face-down chip. No game hooks.
+                             The scroll stays hidden at its new place until the chip lands (style rule #smf-hide).
                              Opponent Status (game-ui.js updateOpponentPanel) shows Hand / Active as compact rows like the player's own
                              collapsed panels (.opp-scroll-list[data-area], dot + name + element · level; another player's hand face down).
 29. thehermit.js           ← window.TheHermit — dev tool, drag-to-reorder editor for the dock-bar/hud-bar

@@ -6,7 +6,7 @@
 // other players' between their rows in the Opponent Status panel and the
 // Common panel.
 //
-// No game hooks: every 100 ms it reads where each scroll is
+// No game hooks: every 50 ms it reads where each scroll is
 // (spellSystem.playerScrolls[i].hand / .active and the common area) and
 // compares with the last read. So it covers buttons, keys, bots, other
 // players' messages and replays alike. A scroll that appears from nowhere
@@ -21,7 +21,7 @@
 // saved game is being rebuilt.
 (function () {
     'use strict';
-    const TICK = 100, MAX_FLIGHTS = 5, MAX_MOVES = 4;
+    const TICK = 50, MAX_FLIGHTS = 5, MAX_MOVES = 4;
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
     let prev = null;            // name -> 'seat:area' or 'common'
     let flights = 0;
@@ -117,6 +117,38 @@
         });
     }
 
+    // ---- keep the scroll hidden at its new place until the chip lands ----
+    // (owner 2026-10-15: the panel redraws with the card already there, so it
+    // showed in the new area first and then the chip flew to it). A style rule,
+    // not the element itself, so it also hides a card the panel draws again
+    // while the chip is in the air.
+    const hides = new Map();     // rule text -> count
+    function destSelectors(loc) {
+        const L = parse(loc);
+        if (L.area === 'common') return ['#fsp-common'];
+        const opp = `#new-opponent-cards .opponent-card[data-player-index="${L.seat}"] .opp-scroll-list[data-area="${L.area}"]`;
+        return L.seat === panelSeat() ? ['#fsp-' + L.area, opp] : [opp];
+    }
+    function renderHides() {
+        let st = document.getElementById('smf-hide');
+        if (!hides.size) { st?.remove(); return; }
+        if (!st) { st = document.createElement('style'); st.id = 'smf-hide'; document.head.appendChild(st); }
+        st.textContent = [...hides.keys()].join('\n');
+    }
+    function hide(loc, name) {
+        const safe = String(name).replace(/["\\]/g, '');
+        const rule = destSelectors(loc).map(sel => `${sel} [data-scroll-name="${safe}"]`).join(', ') + ' { visibility: hidden !important; }';
+        hides.set(rule, (hides.get(rule) || 0) + 1);
+        renderHides();
+        let undone = false;
+        return () => {
+            if (undone) return; undone = true;
+            const n = (hides.get(rule) || 1) - 1;
+            if (n > 0) hides.set(rule, n); else hides.delete(rule);
+            renderHides();
+        };
+    }
+
     // ---- the flying chip ----
     function chipFor(name, showName) {
         const look = window.ScrollLook;
@@ -153,10 +185,21 @@
         const mine = a => a.area === 'hand' && a.seat === seat && !spectating;
         const showName = isPublic(F) || isPublic(T) || mine(F) || mine(T);
         flights++;
-        // wait a moment so the destination panel has redrawn with the scroll in it
-        setTimeout(() => {
-            let done = false;
-            const finish = () => { if (!done) { done = true; flights--; } };
+        const unhide = hide(to, name);
+        let done = false;
+        const finish = () => { if (!done) { done = true; flights--; unhide(); } };
+        setTimeout(unhide, 4000); // never leave a scroll hidden
+        // fly as soon as the destination panel has drawn the scroll (or 150 ms)
+        const t0 = performance.now();
+        const ready = () => {
+            const a = anchor(to, name);
+            return a && a.el?.dataset?.scrollName === name ? a : null;
+        };
+        const wait = () => {
+            if (ready() || performance.now() - t0 > 150) start(); else requestAnimationFrame(wait);
+        };
+        requestAnimationFrame(wait);
+        function start() {
             try {
                 const dest = anchor(to, name);
                 const s = startRect || anchor(from, name)?.r;
@@ -206,7 +249,7 @@
                 const a = chip.animate(frames, { duration: T_MS, easing: 'linear', fill: 'both' });
                 const land = () => {
                     chip.remove();
-                    finish();
+                    finish(); // shows the scroll at its new place again
                     // glow on the scroll (or area) it landed on
                     const now = anchor(to, name);
                     const el = now?.el;
@@ -222,7 +265,7 @@
                 a.oncancel = () => { chip.remove(); finish(); };
                 setTimeout(() => { if (chip.isConnected) land(); }, T_MS * 2 + 1500); // only if the animation never ends (busy page)
             } catch (e) { finish(); }
-        }, 90);
+        }
     }
 
     function tick() {
