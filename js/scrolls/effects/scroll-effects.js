@@ -2531,12 +2531,14 @@ const ScrollEffects = {
         tile2.x = tempX;
         tile2.y = tempY;
 
-        // Update visual transforms
+        // Update visual transforms (same form as placeTile: the tile's rotation is
+        // inside the group; an extra rotate() here made a later reveal's flip
+        // animation miss the tile, owner 2026-10-15)
         if (tile1.element) {
-            tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y}) rotate(${tile1.rotation || 0})`);
+            tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y})`);
         }
         if (tile2.element) {
-            tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y}) rotate(${tile2.rotation || 0})`);
+            tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y})`);
         }
 
         // Recenter any carried player onto their tile's new position

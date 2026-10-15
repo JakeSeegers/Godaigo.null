@@ -3666,10 +3666,10 @@
 
                     // Update visuals
                     if (tile1.element) {
-                        tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y}) rotate(${tile1.rotation || 0})`);
+                        tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y})`);
                     }
                     if (tile2.element) {
-                        tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y}) rotate(${tile2.rotation || 0})`);
+                        tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y})`);
                     }
 
                     // Recenter any player that was carried along with its tile
@@ -3704,7 +3704,7 @@
                     tile.x = newPos.x;
                     tile.y = newPos.y;
                     if (tile.element) {
-                        tile.element.setAttribute('transform', `translate(${newPos.x}, ${newPos.y}) rotate(${tile.rotation || 0})`);
+                        tile.element.setAttribute('transform', `translate(${newPos.x}, ${newPos.y})`);
                     }
                 }
 

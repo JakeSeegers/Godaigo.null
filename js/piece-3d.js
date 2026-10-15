@@ -662,7 +662,10 @@
             for (const m of list) for (const n of m.addedNodes) {
                 if (n.nodeType !== 1 || !n.matches('g.placed-tile')) continue;
                 const old = removed.get(n.getAttribute('data-tile-id'));
-                if (!old || old.getAttribute('transform') !== n.getAttribute('transform')) continue;
+                // same spot (compared by position: the transform text can differ)
+                if (!old) continue;
+                const po = posOf(old), pn = posOf(n);
+                if (!po || !pn || Math.hypot(po.x - pn.x, po.y - pn.y) > 1) continue;
                 if (faceUp(old) === faceUp(n)) continue;           // same face: a rebuild, not a flip
                 try { tileFlip(old, n); } catch (e) {}
             }
