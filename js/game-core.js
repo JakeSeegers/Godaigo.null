@@ -2515,7 +2515,9 @@
         const INITIAL_PLAYER_STONES = { earth: 0, water: 0, fire: 0, wind: 0, void: 0 };
 
         // Elemental source pool - stones available from shrines (max 25 each)
-        const sourcePool = { earth: 20, water: 20, fire: 20, wind: 20, void: 20 };
+        // 25 of each at the start (owner 2026-10-16: it started at 20, so 5 of
+        // every element never existed while the counter read x/25)
+        const sourcePool = { earth: 25, water: 25, fire: 25, wind: 25, void: 25 };
         const sourcePoolCapacity = { earth: 25, water: 25, fire: 25, wind: 25, void: 25 };
 
         // Initialize spell system (after activePlayerIndex is defined)
@@ -8610,11 +8612,11 @@ function clearPlayerPath() {
 
             // Stone pools
             playerPools.length = 0;
-            sourcePool.earth = 20;
-            sourcePool.water = 20;
-            sourcePool.fire  = 20;
-            sourcePool.wind  = 20;
-            sourcePool.void  = 20;
+            sourcePool.earth = 25;
+            sourcePool.water = 25;
+            sourcePool.fire  = 25;
+            sourcePool.wind  = 25;
+            sourcePool.void  = 25;
 
             // AP
             currentAP = 5;

@@ -2213,4 +2213,6 @@ window.I18N_ES = {
     "Drag to resize (double-click to fit)": "Arrastra para cambiar el tamaño (doble clic para ajustar)",
     "Make this window small": "Hacer pequeña esta ventana",
     "Show everything": "Mostrar todo",
+    "Full stone supply": "Reserva de piedras completa",
+    "Each element's supply now starts with 25 stones, as intended. It started with only 20, so 5 of each were missing.": "La reserva de cada elemento ahora empieza con 25 piedras, como debía. Empezaba con solo 20, así que faltaban 5 de cada una.",
 };
