@@ -3755,7 +3755,12 @@ const ScrollEffects = {
                 btn.onmouseleave = () => btn.style.backgroundColor = '#2d2d44';
                 btn.onclick = () => {
                     overlay.remove();
-                    this.transformWaterStone(stone, element, casterIndex);
+                    // The supply may have run out since the picker opened:
+                    // show the picker again with fresh counts.
+                    if (!this.transformWaterStone(stone, element, casterIndex)) {
+                        this.showWaterTransformPopup(stone, casterIndex, onComplete);
+                        return;
+                    }
                     if (onComplete) onComplete();
                 };
             }
@@ -3783,6 +3788,15 @@ const ScrollEffects = {
 
     // Transform a water stone into another element
     transformWaterStone(stone, newElement, casterIndex) {
+        // The new stone comes out of that element's supply, so an empty
+        // supply means no stone to make: refuse (never below 0).
+        if (typeof stonePools !== 'undefined' && (stonePools[newElement] || 0) <= 0) {
+            if (typeof updateStatus === 'function') {
+                updateStatus(`No ${newElement} stones left in the supply.`);
+            }
+            return false;
+        }
+
         // Return water stone to source pool
         if (typeof stonePools !== 'undefined') {
             stonePools.water = (stonePools.water || 0) + 1;
@@ -3859,6 +3873,7 @@ const ScrollEffects = {
                 this.spellSystem.onSelectionEffectComplete(payload.scrollName, payload.effectName, payload.spell);
             }
         }
+        return true;
     },
 
     // Highlight stones with click handlers

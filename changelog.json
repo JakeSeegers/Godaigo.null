@@ -6,7 +6,8 @@
       "date": "2026-10-16",
       "title": "Full stone supply",
       "changes": [
-        "Each element's supply now starts with 25 stones, as intended. It started with only 20, so 5 of each were missing."
+        "Each element's supply now starts with 25 stones, as intended. It started with only 20, so 5 of each were missing.",
+        "Control the Current can no longer turn water into an element whose supply is empty."
       ]
     },
     {

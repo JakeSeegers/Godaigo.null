@@ -5580,7 +5580,8 @@
 
             // Pool swap (mirrors what caster's client does in transformWaterStone)
             stonePools.water = (stonePools.water || 0) + 1;
-            stonePools[newElement] = (stonePools[newElement] || 0) - 1;
+            // never below 0 (the caster refuses an empty supply)
+            stonePools[newElement] = Math.max(0, (stonePools[newElement] || 0) - 1);
             if (typeof updateStoneCount === 'function') {
                 updateStoneCount('water');
                 updateStoneCount(newElement);
