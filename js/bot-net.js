@@ -251,12 +251,14 @@
                 <button class="bn-train" style="padding:5px 10px;">Load positions and train</button>
                 <button class="bn-test" style="padding:5px 10px;" disabled>Quick test vs champion (20 games)</button>
                 <button class="bn-send" style="padding:5px 10px;" disabled>Send to idle training</button>
+                <button class="bn-fit" style="padding:5px 10px;">Fit formulas...</button>
             </div>
             <div class="bn-status" style="white-space:pre-line;font-family:monospace;font-size:12px;color:#cfc;"></div>`;
         document.body.appendChild(box);
         const $ = s => box.querySelector(s);
         const status = (t) => { $('.bn-status').textContent = t; };
         $('.bn-close').onclick = () => box.remove();
+        $('.bn-fit').onclick = () => { box.remove(); window.FormulaFit?.open(); };
 
         supabase.rpc('hermit_position_summary').then(({ data, error }) => {
             if (error || !data) { $('.bn-summary').textContent = 'No summary (is sql/position-samples.sql applied?)'; return; }

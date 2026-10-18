@@ -568,9 +568,28 @@
         return null;
     }
 
+    // Formula fitting (js/formula-fit.js): read a formula's inputs from a saved
+    // feature row instead of a live board. fittable(text) = every input it
+    // reads is in FEATURE_NAMES (homeCost, myAP, adjacent(a, b) are not saved).
+    const FEATURE_INDEX = new Map(FEATURE_NAMES.map((n, k) => [n, k]));
+    function leaves(n, out = []) {
+        if (n[0] === 'in') out.push(n[1]);
+        else if (n[0] === 'pin') out.push(`${n[1]}(${n.slice(2).join(',')})`);
+        else if (n[0] !== 'n') n.slice(1).forEach(c => leaves(c, out));
+        return out;
+    }
+    function missingInputs(text) {
+        const c = compile(text);
+        if (!c.tree) return null;
+        return [...new Set(leaves(c.tree).filter(k => !FEATURE_INDEX.has(k)))];
+    }
+    function rowContext(f) {
+        return { get: k => f[FEATURE_INDEX.get(k)], getP: k => f[FEATURE_INDEX.get(k)] };
+    }
+
     window.BotTerms = {
-        INPUTS, MAX_TERMS, MAX_NODES,
-        FEATURE_VERSION, FEATURE_NAMES, features, toCurrent,
+        INPUTS, MAX_TERMS, MAX_NODES, CLAMP,
+        FEATURE_VERSION, FEATURE_NAMES, features, toCurrent, missingInputs, rowContext,
         inputList: () => [...INPUT_NAMES.map(k => ({ name: k, label: INPUTS[k].label })),
             ...PARAM_NAMES.map(k => ({ name: PARAM_INPUTS[k].sig, label: PARAM_INPUTS[k].label }))],
         parse, toText, describe, compile, score, explain,

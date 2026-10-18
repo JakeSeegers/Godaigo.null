@@ -201,5 +201,5 @@
         });
     }
 
-    window.FormulaLab = { open, takeQueued, STARTER };
+    window.FormulaLab = { open, takeQueued, STARTER, ideaText: () => load().text ?? STARTER };
 })();

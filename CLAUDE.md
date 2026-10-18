@@ -483,6 +483,11 @@ Order matters — later scripts depend on earlier ones.
                              + one term vs champion, BotArena.run), queue for the next Train Bot run (takeQueued() in
                              game-ui.js runHillClimbTraining: each idea = a round-1 challenger; "invent" = hillClimb
                              opts.termMutations). localStorage godaigo_formula_lab.
+24e. formula-fit.js       <- window.FormulaFit: hermit menu "Fit Formulas" (2026-10-18). Tests formulas on the saved positions
+                             (position_samples via BotNet.loadRows), no games: each gets the weight that best predicts the winner on
+                             top of the bot's own score (1-D logistic fit, so the scale is right); games split fit / rank / check;
+                             up to 3 picked by forward selection, checked on the check games, then sent as a 'formula' challenger.
+                             BotTerms.rowContext / missingInputs read inputs from a saved row (homeCost, myAP, adjacent not saved).
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
 25a. test-game.js          ← window.TestGame: online test games (sql/test-games.sql). Host ticks "Test game" in the waiting
