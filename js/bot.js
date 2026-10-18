@@ -1042,6 +1042,12 @@
     // (turns separated by " / ", steps by " > ").
     // ----------------------------------------------------------------
     let COMBOS = [];
+    // Combo mining switch (owner 2026-10-18): the combo drill showed taught
+    // combos made bots weaker (1-9-2), so every automatic combo step is off:
+    // mining past games, the arena combo watcher, screenings, trial combos and
+    // practice duels (idle-training.js, game-ui.js, bot-arena.js check this).
+    // true = back on. Taught combos themselves are off on the server (combo_flags).
+    window.COMBO_MINING = false;
     function parseCombo(signature, score) {
         const turns = String(signature).split(' / ');
         const casts = [];

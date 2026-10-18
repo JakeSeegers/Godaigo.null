@@ -466,6 +466,9 @@ Order matters — later scripts depend on earlier ones.
                              default 0 = no change): comboKeep (handValue + comboKeep x evalScrollCredit x share of a taught combo's opening
                              pair held, comboPairShare) and comboSeek (scrollPickScore + comboSeek x 100 x how much closer a picked scroll
                              brings the pair). bot-arena.js makeChallenger fills settings missing from the saved champion with defaults.
+                             window.COMBO_MINING = false (2026-10-18, owner): every automatic combo step is off (idle + Train Bot mining of past
+                             games, arena combo watcher, screenings, trial combos, practice duels); true = back on. All taught families are
+                             'off' in combo_flags (get_bot_combos returns 0). Mining also fed real-game positions; those stop too.
                              WEIGHTS.combosOff === true (2026-10-18, Training Lab test only): activeCombos() returns [] for that table.
                              Trial combos (2026-10-11): WEIGHTS.extraCombos = signatures this bot follows on top of the taught list
                              (activeCombos(); per seat, since setWeights replaces the table); a champion without it clears it on load.

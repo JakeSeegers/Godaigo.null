@@ -4607,7 +4607,7 @@ document.getElementById('undo-move').onclick = function() {
             // Combo screening (2026-10-11, sql/combo-screening.sql): one combo bots
             // found in 5+ different games gets 8 fast games against the champion;
             // passing makes it a trial combo (just below and in idle training).
-            if (!resume && window.BotArena.screenDueCombo) {
+            if (!resume && window.COMBO_MINING !== false && window.BotArena.screenDueCombo) {
                 try {
                     await window.BotArena.screenDueCombo(climbAnchor, {
                         onStart: (sig) => { stats.event('Screening a combo bots found (8 fast games): ' + sig); report('screening'); },
@@ -4618,7 +4618,7 @@ document.getElementById('undo-move').onclick = function() {
 
             // Trial combo (2026-10-11, sql/combo-trials.sql): the champion plus one
             // combo bots found in training joins round 1, once per combo and champion.
-            if (!resume && typeof supabase !== 'undefined' && supabase?.rpc) {
+            if (!resume && window.COMBO_MINING !== false && typeof supabase !== 'undefined' && supabase?.rpc) {
                 try {
                     const t = await supabase.rpc('idle_trial_combo');
                     const sig = !t.error && typeof t.data === 'string' ? t.data : null;
@@ -4644,7 +4644,7 @@ document.getElementById('undo-move').onclick = function() {
             // challenger series this browser checks one past game for combos, the
             // same way idle training does (hermit: trusted path; others: anonymous).
             const mineHermit = !!window.isHermit?.();
-            const canMine = opts.mine !== false && !!(window.Replay && (mineHermit ? window.Replay.mineMatches : window.Replay.minePooled));
+            const canMine = opts.mine !== false && window.COMBO_MINING !== false && !!(window.Replay && (mineHermit ? window.Replay.mineMatches : window.Replay.minePooled));
             const mineTally = window.__trainMine = { n: 0, found: 0, idle: false, k: 0 };
             const result = await window.BotArena.hillClimb({
                 betweenSeries: canMine ? (async () => {
@@ -4683,7 +4683,7 @@ document.getElementById('undo-move').onclick = function() {
                 }) : undefined,
                 // Combo practice (2026-10-11, Replay.practiceDuel): up to 3 duels on
                 // spots where players pulled off taught combos. Nothing taught = skipped.
-                practiceCheck: window.Replay?.practiceDuel ? (async (challenger, champion) => {
+                practiceCheck: (window.COMBO_MINING !== false && window.Replay?.practiceDuel) ? (async (challenger, champion) => {
                     const out = { played: 0, wins: 0, losses: 0, draws: 0 };
                     stats.event('Combo practice: the would-be champion plays combo spots in the background (the board waits)');
                     report('puzzles');

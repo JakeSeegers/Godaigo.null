@@ -208,7 +208,7 @@
                     'Train Bot, idle training', testing('formula') + won('formula') + (queued ? `<br><span class="good">A fitted set is queued for your next Train Bot run.</span>` : ''),
                     btn('formulalab', 'Formula Lab') + btn('fit', 'Fit Formulas'))}
                 ${card('Combos', 'combo', 'Scroll combos found in real games (mining) and in bot games. A combo must show up in 5+ games and pass a short screening before it is tried.',
-                    'idle training (mining + trials), Train Bot', testing('combo') + won('combo') + (S.taught != null ? `<br>${S.taught} combo famil${S.taught === 1 ? 'y' : 'ies'} taught to every bot.` : ''),
+                    'idle training (mining + trials), Train Bot', (window.COMBO_MINING === false ? '<span class="bad">Off.</span> The combo drill showed taught combos made bots weaker (1-9-2), so mining, screening and trials are switched off. ' : '') + testing('combo') + won('combo') + (S.taught != null ? `<br>${S.taught} combo famil${S.taught === 1 ? 'y' : 'ies'} taught to every bot.` : ''),
                     btn('combos', 'Combos tab'))}
                 ${card('Learned from you', 'imitation', 'While on, it watches your choices in games with bots and nudges the bot\'s settings toward them.',
                     'your games (on), then Train Bot + idle training', `${imit?.isEnabled?.() ? '<span class="good">On</span>' : '<span class="muted">Off</span>'} · ${deltas} setting${deltas === 1 ? '' : 's'} nudged so far<br>` + testing('imitation') + won('imitation'),

@@ -907,7 +907,7 @@
 
         const result = { winner: null, turns: 0, activated: new Array(nPlayers).fill(0), stuckTurns, stalled: false, stallers: [] };
         srStart(nPlayers, opts);
-        const cw = (opts.comboWatch !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
+        const cw = (opts.comboWatch !== false && window.COMBO_MINING !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
         const pl = (opts.positionLog !== false && window.BotTerms?.features && window.BotSystem?.evaluateSnapshot) ? { rows: [], own: {} } : null;
         // one id per game: seed + seats + weights (the same game played
         // again gets the same id, so repeats do not count as new games)
