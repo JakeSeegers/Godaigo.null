@@ -8,7 +8,7 @@
       "changes": [
         "Bots no longer chase scroll \"combos\" that were making them play worse. They now pick their casts on their own judgment.",
         "Train Bot's final test is now a straight match: the new bot must win 58% of 40 games against the champion to replace it.",
-        "Bots now head for the elements they still need, and guess what face-down tiles are from the tiles already seen."
+        "Bots now head for the elements they still need, guess what face-down tiles are, and can use Wandering River to make a shrine they lack. They no longer get stuck placing and removing the same stone."
       ]
     },
     {

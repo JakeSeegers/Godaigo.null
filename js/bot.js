@@ -409,8 +409,8 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
-        riverTrip:         0,     // > 0.5: Wandering River as a tool to make a needed shrine (reviewRiver, 2026-10-18; off until its A/B passes); 0 = off
-        planFreeShrine:    0,     // > 0.5: a shape may not cover the shrine it still collects from (deficitCollectibleFor, 2026-10-18; off until its A/B passes); 0 = off
+        riverTrip:         1,     // > 0.5: Wandering River as a tool to make a needed shrine (reviewRiver, 2026-10-18; A/B 19-19-2); 0 = off
+        planFreeShrine:    1,     // > 0.5: a shape may not cover the shrine it still collects from (deficitCollectibleFor, 2026-10-18; A/B 19-19-2); 0 = off
         goalNeedFirst:     1,     // > 0.5: goal shrines = needed elements first, face-down tiles by their odds (2026-10-18, A/B 19-13-8); 0 = old rule
                                   // of an element still needed, before all 5. Without it a
                                   // teleport / tile move / road toward that shrine scored as
