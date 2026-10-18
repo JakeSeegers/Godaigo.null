@@ -135,7 +135,13 @@
         #training-lab ul.changes { margin:6px 0 0; padding-left:18px; color:#b8b8cc; font-size:12px; }
         #training-lab details > summary { cursor:pointer; color:#9a9ab0; margin:10px 0 6px; }
         #training-lab .testbox { border-color:#3a6b4a; background:#1a261e; }
-        #training-lab .note { border-left:3px solid #3a6b88; padding:6px 10px; background:#1a2129; border-radius:0 8px 8px 0; color:#c8d4e0; font-size:12.5px; }`;
+        #training-lab .note { border-left:3px solid #3a6b88; padding:6px 10px; background:#1a2129; border-radius:0 8px 8px 0; color:#c8d4e0; font-size:12.5px; }
+        #training-lab.min { left:auto; top:auto; right:16px; bottom:16px; transform:none; width:min(380px,92vw); height:auto; }
+        #training-lab.min .tl-tabs, #training-lab.min .tl-body, #training-lab.min .tl-sum { display:none; }
+        #training-lab.min .tl-head { border-bottom:none; padding:10px 14px; }
+        #training-lab.min h2 { font-size:15px; }
+        #training-lab .tl-mini { display:none; margin-top:6px; font-size:12.5px; color:#c8c8d8; }
+        #training-lab.min .tl-mini { display:block; }`;
 
     function bar(pct, color, marks = []) {
         return `<div class="bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${color};"></i>${marks.map(m => `<s style="left:${m}%"></s>`).join('')}</div>`;
@@ -339,6 +345,38 @@
     // A = live champion with one change, B = live champion. Same deals with
     // sides swapped (BotArena.run), every 3rd pair a 4-player game.
     const CHANGES_KEY = 'godaigo_training_lab_changes';
+    // Combos in plain words (signature e.g. "WATER_SCROLL_4[hidden tile] > reveal / EARTH_SCROLL_4").
+    const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+    const cap = x => x ? x[0].toUpperCase() + x.slice(1) : '';
+    function scrollLabel(name) {
+        const d = window.SCROLL_DEFINITIONS?.[name];
+        return d ? `${d.name} (${cap(d.element)} ${ROMAN[d.level] || d.level})` : name;
+    }
+    function comboShort(sig) {
+        return String(sig || '').split(' / ').map(turn => turn.split(' > ').map(tok => {
+            const m = /^([A-Z]+_SCROLL_\d+)/.exec(tok.trim());
+            return m ? (window.SCROLL_DEFINITIONS?.[m[1]]?.name || m[1]) : null;
+        }).filter(Boolean).join(' > ')).filter(Boolean).join(' / ');
+    }
+    function comboDetailHtml(c) {
+        const turns = String(c.signature || '').split(' / ');
+        const steps = turns.map((turn, i) => {
+            const parts = turn.split(' > ').map(tok => {
+                const t = tok.trim();
+                const m = /^([A-Z]+_SCROLL_\d+)(?:\[(.*)\])?$/.exec(t);
+                if (!m) return `<div class="small muted" style="margin-left:14px;">then: ${esc(t)}</div>`;
+                const d = window.SCROLL_DEFINITIONS?.[m[1]];
+                return `<div style="margin-left:14px;">cast <b>${esc(scrollLabel(m[1]))}</b>${m[2] ? ` <span class="muted">· choice: ${esc(m[2])}</span>` : ''}` +
+                    (d?.description ? `<div class="small muted">${esc(d.description)}</div>` : '') + '</div>';
+            }).join('');
+            return `<div style="margin-top:4px;"><b>Turn ${i + 1}</b>${parts}</div>`;
+        }).join('');
+        const stacked = (c.scrolls || []).map(n => {
+            const d = window.SCROLL_DEFINITIONS?.[n];
+            return `${cap(d?.element || '?')} tile → ${esc(d?.name || n)}`;
+        }).join(', ');
+        return `${steps}<div class="small" style="margin-top:6px;">Stacked for seat 1: its next reveals become ${stacked}. It still has to build each pattern and pay the AP.</div>`;
+    }
     const PRESETS = {
         drill:    { label: 'Combo drill (stacked deals)', a: 'following combos', b: 'champion ignoring combos' },
         combos:   { label: 'Taught combos in normal games', a: 'with taught combos', b: 'without combos' },
@@ -400,7 +438,8 @@
         const P = PRESETS[t.preset] || PRESETS.settings;
         if (t.error) return `<div class="bad" style="white-space:pre-line;">${esc(t.error)}</div>`;
         const head = `<div class="small muted">${esc(P.label)}: ${esc(t.summary)} · ${esc(t.at)}</div>`;
-        if (t.running) return head + `<div class="warn">Game ${t.done} of ${t.games}... (${P.a} ${t.w}-${t.l}-${t.d})</div>`;
+        if (t.running) return head + `<div class="warn">Game ${t.done} of ${t.games}... (${P.a} ${t.w}-${t.l}-${t.d})</div>` +
+            (t.current ? `<div class="card" style="margin-top:8px;"><b>Now testing, deal ${t.current.k} of ${t.current.deals}:</b> ${esc(comboShort(t.current.combo.signature))}${comboDetailHtml(t.current.combo)}</div>` : '');
         const p = chanceBetter(t.w, t.l);
         const helps = p >= 0.9, hurts = p <= 0.1;
         const word = helps ? `<b class="good">It helps.</b>` : hurts ? `<b class="bad">It hurts.</b>` : '<b class="warn">No clear difference yet.</b> More games would tell.';
@@ -416,7 +455,8 @@
         }
         const per = t.perCombo ? `<ul class="changes">${Object.entries(t.perCombo).map(([sig, r]) => {
             const q = chanceBetter(r.w, r.l), cls = q >= 0.8 ? 'good' : q <= 0.2 ? 'bad' : 'muted';
-            return `<li><span class="${cls}">${r.w}-${r.l}-${r.d}</span> ${esc(sig)}</li>`;
+            const c = (t.drillList || []).find(x => x.signature === sig) || { signature: sig };
+            return `<li><details><summary style="margin:0;color:inherit;"><span class="${cls}">${r.w}-${r.l}-${r.d}</span> ${esc(comboShort(sig))}</summary>${comboDetailHtml(c)}</details></li>`;
         }).join('')}</ul><div class="small muted">Per combo: won-lost-drawn when following it. Only a few deals each, so look for clear patterns, not single results.</div>` : '';
         return `${head}
             <div style="margin-top:4px;"><span class="rec">${t.w}-${t.l}-${t.d}</span> <span class="small muted">${esc(P.a)} won-lost-drawn vs ${esc(P.b)}</span></div>
@@ -433,7 +473,12 @@
             <div class="note">The quickest way to know if a change makes the bots stronger. Both sides play the same deals with seats swapped; every 3rd pair is a 4-player game. Your own fixes found the biggest gains so far, and this is the tool for testing them.</div>
             <h3>1. What to test</h3>
             <div class="row">${Object.entries(PRESETS).map(([k, v]) => `<button class="b ${k === preset ? 'primary' : ''}" data-tc-preset="${k}">${esc(v.label)}</button>`).join('')}</div>
-            ${preset === 'drill' ? `<div class="small muted" style="margin-top:6px;">Each deal is stacked for seat 1, like the tutorial: the next tiles it reveals become the elements of one taught combo, and it draws that combo's scrolls. The deal is played twice with seats swapped, so the combo bot and the champion (ignoring combos) each get the stacked seat once. Combos take turns, one per deal.</div>`
+            ${preset === 'drill' ? `<div class="small muted" style="margin-top:6px;">Each deal is stacked for seat 1, like the tutorial: the next tiles it reveals become the elements of one taught combo, and it draws that combo's scrolls. The deal is played twice with seats swapped, so the combo bot and the champion (ignoring combos) each get the stacked seat once. Combos take turns, one per deal.</div>${(() => {
+                const list = window.BotSystem?.combos?.() || [];
+                if (!list.length) return '<div class="small warn" style="margin-top:4px;">No taught combos are loaded in this browser yet.</div>';
+                return `<details style="margin-top:4px;"><summary>The ${list.length} taught combo${list.length === 1 ? '' : 's'} it will test</summary><div class="stack">${list.map((c, i) =>
+                    `<div class="card small"><b>${i + 1}. ${esc(comboShort(c.signature))}</b>${comboDetailHtml({ signature: c.signature, scrolls: [...new Set(c.casts.map(x => x.scroll))].slice(0, 3) })}</div>`).join('')}</div></details>`;
+            })()}`
             : preset === 'combos' ? `<div class="small muted" style="margin-top:6px;">Normal random deals: the live champion with the taught combos against the same champion that ignores them. Most games never give a bot a combo's scrolls, so this shows the real-game effect, which is usually small.</div>`
                 : `<textarea class="tc-text" spellcheck="false" placeholder="${esc(hint)}" style="margin-top:8px;width:100%;min-height:80px;background:#11111a;color:#e6e6ee;border:1px solid #3c3c52;border-radius:8px;padding:8px;font:12.5px/1.4 ui-monospace,Consolas,monospace;">${esc(S.tcText?.[preset] || '')}</textarea>`}
             <h3>2. How many games</h3>
@@ -467,7 +512,8 @@
         box.innerHTML = `
             <div class="tl-head">
                 <div class="tl-title"><h2>Training Lab</h2>
-                    <div class="row"><button class="b" data-act="refresh">Refresh</button><button class="b" data-act="close">✕</button></div></div>
+                    <div class="row"><button class="b" data-act="refresh">Refresh</button><button class="b" data-act="min" title="Minimize: watch the games, keep the progress in view">–</button><button class="b" data-act="close">✕</button></div></div>
+                <div class="tl-mini">No test running.</div>
                 <div class="tl-sum"><span class="chip">Loading...</span></div>
             </div>
             <div class="tl-tabs">${tabs.map(([k, l]) => `<button class="tl-tab" data-tab="${k}">${l}</button>`).join('')}</div>
@@ -475,6 +521,22 @@
         document.body.appendChild(box);
         const $ = s => box.querySelector(s);
         const pane = k => box.querySelector(`[data-pane="${k}"]`);
+        const MIN_KEY = 'godaigo_training_lab_min';
+        const setMin = (on) => {
+            box.classList.toggle('min', !!on);
+            const b = box.querySelector('[data-act="min"]');
+            if (b) { b.textContent = on ? '▢' : '–'; b.title = on ? 'Open the full Lab again' : 'Minimize: watch the games, keep the progress in view'; }
+            try { localStorage.setItem(MIN_KEY, on ? '1' : '0'); } catch (e) {}
+        };
+        const mini = (text) => { const m = box.querySelector('.tl-mini'); if (m) m.textContent = text; };
+        // One line for the minimized box, for a "Test a change" run.
+        const miniChange = (t) => {
+            const P = PRESETS[t.preset] || PRESETS.settings;
+            if (t.error) return mini(`${P.label}: ${t.error.split('\n')[0]}`);
+            if (t.running && t.current) return mini(`Deal ${t.current.k} of ${t.current.deals}: ${comboShort(t.current.combo.signature)} · games done ${t.done} · following combos ${t.w}-${t.l}-${t.d}`);
+            if (t.running) return mini(`${P.label}: game ${t.done} of ${t.games} · ${P.a} ${t.w}-${t.l}-${t.d}`);
+            mini(`${P.label}, done: ${t.w}-${t.l}-${t.d} · ${Math.round(100 * chanceBetter(t.w, t.l))}% chance it helps`);
+        };
 
         const S = { champs: [], candidates: [], data: null, taught: null, error: null, lastTest: null };
         try { const t = JSON.parse(localStorage.getItem(TEST_KEY)); if (t?.rows) S.lastTest = { ...t, running: false }; } catch (e) {}
@@ -521,35 +583,40 @@
             try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
             if (T.drill) {
                 t.perCombo = {};
+                t.drillList = T.drill;
                 const deals = Math.max(1, Math.round(games / 2));
                 const seed0 = (Date.now() % 100000) >>> 0;
                 try {
                     for (let k = 0; k < deals; k++) {
                         const c = T.drill[k % T.drill.length];
                         const pc = t.perCombo[c.signature] || (t.perCombo[c.signature] = { w: 0, l: 0, d: 0 });
+                        t.current = { k: k + 1, deals, combo: c };
+                        { const o = pane('test').querySelector('.tc-out'); if (o) o.innerHTML = changeResultHtml(t); miniChange(t); }
                         const r = await window.BotArena.run(T.a, T.b, 2, seed0 + k, {
                             visual: false, comboWatch: false, positionLog: false, stack: { seat: 0, scrolls: c.scrolls },
                         });
                         t.w += r.aWins; t.l += r.bWins; t.d += r.draws; t.done += 2;
                         pc.w += r.aWins; pc.l += r.bWins; pc.d += r.draws;
-                        const o = pane('test').querySelector('.tc-out'); if (o) o.innerHTML = changeResultHtml(t);
+                        const o = pane('test').querySelector('.tc-out'); if (o) o.innerHTML = changeResultHtml(t); miniChange(t);
                     }
                 } catch (e) { t.error = 'Test failed: ' + (e.message || e); }
                 t.games = t.done;
+                t.current = null;
             } else try {
                 const r = await window.BotArena.run(T.a, T.b, games, (Date.now() % 100000) >>> 0, {
                     visual: false, comboWatch: false, fourPlayerEvery: 3,
                     onGame: (i, n, g, info) => {
                         t.done = i;
                         if (g?.winner == null) t.d++; else if (info?.aWon) t.w++; else t.l++;
-                        const o = pane('test').querySelector('.tc-out'); if (o) o.innerHTML = changeResultHtml(t);
+                        const o = pane('test').querySelector('.tc-out'); if (o) o.innerHTML = changeResultHtml(t); miniChange(t);
                     },
                 });
                 Object.assign(t, { w: r.aWins, l: r.bWins, d: r.draws });
             } catch (e) { t.error = 'Test failed: ' + (e.message || e); }
             t.running = false;
-            if (!t.error) saveChange({ preset: t.preset, summary: t.summary, at: t.at, w: t.w, l: t.l, d: t.d, perCombo: t.perCombo || null });
+            if (!t.error) saveChange({ preset: t.preset, summary: t.summary, at: t.at, w: t.w, l: t.l, d: t.d, perCombo: t.perCombo || null, drillList: t.drillList || null });
             console.log(`🧪 [TrainingLab] test "${t.summary}": ${t.w}-${t.l}-${t.d}`);
+            miniChange(t);
             if (!box.isConnected) document.body.appendChild(box);
             box.style.zIndex = '10090';
             show('test');
@@ -600,7 +667,11 @@
         const runTest = async () => {
             const list = S.champs.filter(c => c.promoted !== false);
             const btn = box.querySelector('[data-act="test"]');
-            const draw = () => { const o = box.querySelector('.tl-test-out'); if (o) o.innerHTML = testHtml(S.lastTest); };
+            const draw = () => {
+                const o = box.querySelector('.tl-test-out'); if (o) o.innerHTML = testHtml(S.lastTest);
+                const t = S.lastTest;
+                if (t) mini(`Live vs last 3: ` + t.rows.map(r => r.error ? `#${r.id} failed` : r.playing ? `#${r.id} ${r.playing}` : `#${r.id} ${r.w}-${r.l}-${r.d}`).join(' · ') + (t.running ? '' : ' (done)'));
+            };
             if (list.length < 2) { S.lastTest = { running: false, at: '-', live: '?', rows: [{ id: '-', error: 'need at least 2 champions' }] }; draw(); return; }
             if (btn) btn.disabled = true;
             const live = list[0];
@@ -665,6 +736,7 @@
             }
             switch (el.dataset.act) {
                 case 'close': box.remove(); break;
+                case 'min': setMin(!box.classList.contains('min')); break;
                 case 'refresh': refresh(); break;
                 case 'test': runTest(); break;
                 case 'tc-run': runChange(); break;
@@ -685,6 +757,7 @@
         });
 
         show(tab);
+        try { if (localStorage.getItem(MIN_KEY) === '1') setMin(true); } catch (e) {}
         refresh();
     }
 

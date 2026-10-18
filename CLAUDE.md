@@ -537,14 +537,16 @@ Order matters — later scripts depend on earlier ones.
                              Learned from you, Bot network, Checks, Scroll report) with live status and the button that opens it;
                              Test a change = champion + one change vs champion (BotArena.run, 12/24/48 games, fourPlayerEvery 3): presets combo
                              drill (stacked deals, see bot-arena.js opts.stack; each deal played twice with seats swapped, one taught combo per
-                             deal, result per combo), taught combos on vs off in normal games (bot.js WEIGHTS.combosOff), settings lines `name = value`, formula lines; result + chance it
+                             deal, result per combo; combos in plain words: scroll names, element + level, what each does, turn, choice, stacked
+                             tiles; 'Now testing' card while it runs), taught combos on vs off in normal games (bot.js WEIGHTS.combosOff), settings lines `name = value`, formula lines; result + chance it
                              helps; 'Make it live now' (direct promoted insert, undo in Champions) / 'Send to idle training'; last 8 kept
                              (localStorage godaigo_training_lab_changes);
                              Challengers = every idle challenger (diff vs its champion, record, progress to 40, Beta chance it beats its
                              champion, Reject); Champions = "Test live vs last 3" (BotArena.run 10 games each, result kept in localStorage
                              godaigo_training_lab_test) + promoted champions with changes and "Make live again" (hermit_restore_champion);
                              Saved games = counts + meters (Fit Formulas 300 / 1,000, network 2,000 / 5,000). Server: sql/training-lab.sql
-                             (hermit_training_lab, hermit_reject_candidate, hermit_restore_champion).
+                             (hermit_training_lab, hermit_reject_candidate, hermit_restore_champion). '–' minimizes the Lab to a corner box with
+                             the running test's progress (localStorage godaigo_training_lab_min).
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
                              Human seats are off limits (2026-10-15): BotEffects.humanSeatActive() (online, not a test game, active seat
