@@ -21,6 +21,13 @@
 (function () {
     'use strict';
 
+    // Random formula invention switch (owner 2026-10-18): the "formula"
+    // challengers never carried a formula that could matter (3 of 5 had none,
+    // 2 had random ones worth a few points), so training no longer invents,
+    // drops or changes formulas. Existing formulas keep their weight nudges;
+    // Formula Lab, Fit Formulas and the Training Lab test still add them on
+    // purpose. true = back on.
+    window.FORMULA_INVENTION = false;
     const MAX_TERMS = 8;
     const MAX_NODES = 25;
     const MAX_TEXT = 200;
@@ -505,7 +512,7 @@
         for (const t of out) {
             if (typeof t.w === 'number') t.w = +(t.w + gauss(rng) * sigma * Math.max(1, Math.abs(t.w))).toFixed(3);
         }
-        if (opts.structural) {
+        if (opts.structural && window.FORMULA_INVENTION !== false) {
             const r = rng();
             // A brain with no formulas yet invents one more often, so a short
             // run with inventing on actually tries some.

@@ -4473,7 +4473,7 @@ document.getElementById('undo-move').onclick = function() {
             };
             let lastExploredChallenger = false; // current challenger = the explored bot
             let lastChallengerTerms = [];       // [{text, w, isNew}] of the current challenger (formulas box)
-            let termMutations = !!opts.formulas; // challengers may invent formulas (panel option or Formula Lab)
+            let termMutations = !!opts.formulas && window.FORMULA_INVENTION !== false; // challengers may invent formulas (panel option or Formula Lab); off with window.FORMULA_INVENTION
             const needPct = Math.round((window.BotArena.HILLCLIMB_PROMOTE_RATE ?? 0.58) * 100);
             // Local-game color assignment (game-core.js's colorRankOrder):
             // player index 0 = Purple, 1 = Yellow (only the first two matter —
@@ -4563,14 +4563,14 @@ document.getElementById('undo-move').onclick = function() {
             // "Formulas: Invent" option (opts.formulas) turns inventing on for
             // anyone.
             if (termMutations) stats.event('New senses: challengers may invent formulas this run');
-            if (resume?.termMutations) termMutations = true;
+            if (resume?.termMutations && window.FORMULA_INVENTION !== false) termMutations = true;
             const lab = (!resume && window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
             if (lab) {
                 if (lab.count) {
                     seedChallengers = [...(seedChallengers || []), ...lab.challengers].slice(0, lambda);
                     stats.event(`Formula Lab: ${Math.min(lab.count, lambda - (explored ? 1 : 0))} idea(s) join round 1`);
                 }
-                if (lab.invent && !termMutations) {
+                if (lab.invent && !termMutations && window.FORMULA_INVENTION !== false) {
                     termMutations = true;
                     stats.event('Formula Lab: training may invent new formulas this run');
                 }

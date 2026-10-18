@@ -442,6 +442,10 @@ Order matters — later scripts depend on earlier ones.
                              Rules (2026-09-27): if(c, a, b), between(x, lo, hi), > < >= <= ==, and / or / not
                              (true = 1); evolution can wrap a formula in if(). Triggers: oppCanWinNextTurn,
                              iCanWinThisTurn, neededShrineBlocked, oppRespondReady. describe() = plain words.
+                             window.FORMULA_INVENTION = false (2026-10-18, owner): mutateTerms never adds / drops / changes formulas (structural
+                             branch off; weight nudges of existing terms stay), idle training makes no 'formula' challengers, Train Bot ignores
+                             opts.formulas / Formula Lab invent (no formulas bonus gold). Formula Lab, Fit Formulas and the Training Lab test still
+                             add formulas on purpose. true = back on.
                              Simplify inputs (2026-10-14): simplifyUp (my Simplify is up this turn), spareScrolls (held scrolls whose
                              element is won or whose supply is empty). Formula-only: NET_SKIP keeps them out of the network features
                              (adding them = FEATURE_VERSION 3, which would switch off every version 2 net).

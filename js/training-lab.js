@@ -205,7 +205,7 @@
                 ${card('Explore', 'explore', 'Small random changes to the bot\'s settings (how much it values stones, scrolls, distance...).',
                     'Train Bot, idle training', testing('explore') + won('explore'), btn('trainbot', 'Open Train Bot'))}
                 ${card('Formulas', 'formula', 'New senses written as formulas. They come from your Formula Lab ideas, from fitting on saved games (automatic in your Train Bot), or from random invention.',
-                    'Train Bot, idle training', testing('formula') + won('formula') + (queued ? `<br><span class="good">A fitted set is queued for your next Train Bot run.</span>` : ''),
+                    'Train Bot, idle training', (window.FORMULA_INVENTION === false ? '<span class="bad">Random invention is off.</span> Formulas now only come from you: Formula Lab, Fit Formulas, or Test a change. ' : '') + testing('formula') + won('formula') + (queued ? `<br><span class="good">A fitted set is queued for your next Train Bot run.</span>` : ''),
                     btn('formulalab', 'Formula Lab') + btn('fit', 'Fit Formulas'))}
                 ${card('Combos', 'combo', 'Scroll combos found in real games (mining) and in bot games. A combo must show up in 5+ games and pass a short screening before it is tried.',
                     'idle training (mining + trials), Train Bot', (window.COMBO_MINING === false ? '<span class="bad">Off.</span> The combo drill showed taught combos made bots weaker (1-9-2), so mining, screening and trials are switched off. ' : '') + testing('combo') + won('combo') + (S.taught != null ? `<br>${S.taught} combo famil${S.taught === 1 ? 'y' : 'ies'} taught to every bot.` : ''),

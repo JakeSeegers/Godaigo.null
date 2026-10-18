@@ -138,7 +138,7 @@
             // one open per champion and never retests the same adjustments.
             const d = window.BotImitation?.getDeltas?.() || {};
             const hasDeltas = Object.values(d).some(v => typeof v === 'number' && Math.abs(v) > 1e-6);
-            let kind = Math.random() < 0.5 ? 'formula' : 'explore';
+            let kind = (window.FORMULA_INVENTION !== false && Math.random() < 0.5) ? 'formula' : 'explore';
             if (hasDeltas && Math.random() < 0.34) kind = 'imitation';
             // 'combo' (2026-10-11, sql/combo-trials.sql): the champion plus one
             // combo bots found in training (idle_trial_combo), 1 in 4 times.
