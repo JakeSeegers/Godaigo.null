@@ -5056,7 +5056,7 @@ document.getElementById('undo-move').onclick = function() {
                         <div style="color:#b8c6d2;margin-bottom:6px;">Bots can invent new things to notice about the board. One is kept only if its bot beats the champion. <span style="color:#8a9aa8;">[ ] = only when true.</span></div>
                         <div id="bt-popup-formulas-list"></div>
                     </div>
-                    <div id="bt-popup-combos" style="font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:8px 10px;background:#1a1410;border:1px solid #4a3a28;border-radius:5px;">
+                    <div id="bt-popup-combos" style="display:${window.COMBO_MINING === false ? 'none' : 'block'};font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:8px 10px;background:#1a1410;border:1px solid #4a3a28;border-radius:5px;">
                         <div style="color:#e8c48c;font-weight:600;font-size:13px;">Combos found</div>
                         <div style="color:#c8b8a0;margin-bottom:6px;">2 or more casts in 1 to 3 turns that clearly pay off. One found in 5 different games gets tested against the champion.</div>
                         <div id="bt-popup-combos-list"></div>
