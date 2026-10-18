@@ -350,7 +350,7 @@
         if (!snap.turn.buffs?.simplify) return;
         const p = activePlayer(snap);
         const cap = BASE_AP + (p?.pool?.void || 0);
-        snap.turn.ap = Math.min(cap, snap.turn.ap + 2);
+        snap.turn.ap = Math.min(cap, snap.turn.ap + 2 * (Number(snap.turn.buffs.simplify) || 1));
     }
 
     // Stones by area (cells of STONE_NEIGHBOR_MAX px, so every stone within
@@ -1341,7 +1341,8 @@
     // Simplify (VOID_SCROLL_3): no immediate effect — castCost() and
     // legalActions()'s cast-affordability gate read this buff directly.
     function simEffectSimplify(snap) {
-        buffs(snap).simplify = true;
+        const b = buffs(snap);
+        b.simplify = (Number(b.simplify) || 0) + 1; // stacks, like the real buff (2026-10-18)
     }
 
     // Mine (CATACOMB_SCROLL_2): if the caster is currently standing on the

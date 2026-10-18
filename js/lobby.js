@@ -2929,8 +2929,9 @@
             // Simplify applied by opponent
             gameChannel.on('broadcast', { event: 'simplify-applied' }, ({ payload }) => {
                 const { playerIndex } = payload;
+                const stacks = payload.stacks || 1; // the caster's count, so a repeat message cannot add a stack
                 if (spellSystem?.scrollEffects) {
-                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresNextTurn: true, playerIndex };
+                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresNextTurn: true, playerIndex, stacks };
                 }
                 const playerName = getPlayerColorName(playerIndex);
                 updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`);

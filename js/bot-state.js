@@ -50,7 +50,7 @@
         // Mason's Savvy: earth stones within `range` hexes (bot-sim earthRange).
         if (mine(raw.earthExtendedPlacement)) out.earthRange = raw.earthExtendedPlacement.range || 5;
         if (mine(raw.respirateWind)) out.respirateWind = true;
-        if (mine(raw.simplify)) out.simplify = true;
+        if (mine(raw.simplify)) out.simplify = raw.simplify.stacks || 1; // stacks (2 AP each per common-area scroll)
         if (mine(raw.mine)) out.mineShrineType = raw.mine.shrineType;
         if (mine(raw.steamVents)) out.steamVentsBanked = !!raw.steamVents.freeStepBanked;
         if (mine(raw.mudslide)) out.mudslide = true;

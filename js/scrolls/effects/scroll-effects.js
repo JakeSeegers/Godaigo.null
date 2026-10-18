@@ -1363,23 +1363,30 @@ const ScrollEffects = {
 
         VOID_SCROLL_3: {
             name: 'Simplify',
-            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 2 AP every time a scroll is added to the common area.',
+            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 2 AP every time a scroll is added to the common area. Stacks if activated multiple times.',
             isCounter: false,
             priority: 3,
             execute(casterIndex, context, system) {
                 console.log(`🔮 Simplify activated by player ${casterIndex}`);
                 // Lasts until the caster's next turn starts (clearSimplifyForPlayer),
                 // like the card says; it used to end with this turn (owner 2026-10-14).
+                // Stacks like Burning Motivation (owner 2026-10-18): each cast adds 2 AP
+                // to every regain; the 1 AP cost stays 1.
+                const existing = system.activeBuffs.simplify;
+                const stacks = existing && existing.playerIndex === casterIndex ? (existing.stacks || 1) + 1 : 1;
                 system.activeBuffs.simplify = {
                     expiresNextTurn: true,
-                    playerIndex: casterIndex
+                    playerIndex: casterIndex,
+                    stacks
                 };
                 const playerName = typeof getPlayerColorName === 'function' ? getPlayerColorName(casterIndex) : `Player ${casterIndex + 1}`;
-                const message = `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`;
+                const message = stacks > 1
+                    ? `Simplify! Stacks to ${stacks}: ${playerName} regains ${stacks * 2} AP for every scroll added to the common area.`
+                    : `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`;
                 updateStatus(message);
 
                 if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
-                    broadcastGameAction('simplify-applied', { playerIndex: casterIndex });
+                    broadcastGameAction('simplify-applied', { playerIndex: casterIndex, stacks });
                 }
 
                 return { success: true, message: message };

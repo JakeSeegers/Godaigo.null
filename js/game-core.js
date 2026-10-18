@@ -278,7 +278,7 @@
                     if (!mine && !hostOwnsBot) return;
                 }
                 const gained = this.responseWindow?.gainPlayerAP
-                    ? this.responseWindow.gainPlayerAP(idx, 2)
+                    ? this.responseWindow.gainPlayerAP(idx, 2 * (buff.stacks || 1)) // stacks (owner 2026-10-18)
                     : 0;
                 if (gained > 0) {
                     const who = typeof getPlayerColorName === 'function' ? getPlayerColorName(idx) : `Player ${idx + 1}`;
