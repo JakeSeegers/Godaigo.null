@@ -524,7 +524,9 @@ Order matters — later scripts depend on earlier ones.
 24e. formula-fit.js       <- window.FormulaFit: hermit menu "Fit Formulas" (2026-10-18). Tests formulas on the saved positions
                              (position_samples via BotNet.loadRows), no games: each gets the weight that best predicts the winner on
                              top of the bot's own score (1-D logistic fit, so the scale is right); games split fit / rank / check;
-                             up to 3 picked by forward selection, checked on the check games. Then: "Queue for Train Bot" (localStorage
+                             up to 3 picked by forward selection, checked on the check games. The hermit's Train Bot fits on its own at the start of
+                             every run (forTraining; a set that holds up joins round 1 once per champion + set, localStorage godaigo_fit_trained;
+                             the training window says what it found). Panel: "Queue for Train Bot" (localStorage
                              godaigo_formula_fit_queued; game-ui.js runHillClimbTraining takeQueued: champion + set joins round 1, once)
                              and / or "Send to idle training" (a 'formula' challenger).
                              BotTerms.rowContext / missingInputs read inputs from a saved row (homeCost, myAP, adjacent not saved).

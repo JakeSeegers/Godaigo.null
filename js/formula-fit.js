@@ -16,10 +16,11 @@
 //      (final honest test; picking the best of thousands on RANK flatters
 //      it). Forward selection: up to 3 formulas, each fitted on top of the
 //      ones already picked, so copies of a picked formula add nothing.
-//   3. Use the picked set: queue it for the next Train Bot run (champion +
-//      formulas joins round 1, once; takeQueued, game-ui.js
-//      runHillClimbTraining) and / or send it to idle training as a 'formula'
-//      challenger. Games still decide either way.
+//   3. Use the picked set. The hermit's Train Bot runs fit on their own at the
+//      start (forTraining, game-ui.js runHillClimbTraining) and add a set that
+//      holds up as one round-1 challenger, once per champion and set. The
+//      panel can also queue an exact set, or send it to idle training as a
+//      'formula' challenger. Games still decide either way.
 //
 // Limits: predicting who wins is not the same as choosing better moves
 // (the bot network predicted well and still lost). Formulas reading
@@ -268,10 +269,50 @@
         const terms = queued();
         if (!terms || !window.BotTerms) return null;
         try { localStorage.removeItem(QUEUE_KEY); } catch (e) {}
+        return withTerms(anchor, terms);
+    }
+    function withTerms(anchor, terms) {
         const old = Array.isArray(anchor.terms) ? anchor.terms : [];
         const all = [...old, ...terms.filter(t => !old.some(o => o.text === t.text))].slice(0, window.BotTerms.MAX_TERMS);
         if (all.length === old.length) return null;
         return { challenger: { ...(window.BotSystem?.DEFAULT_WEIGHTS || {}), ...anchor, terms: all }, count: all.length - old.length };
+    }
+
+    // The panel's rule for "this set is worth games": picked something, lower
+    // loss on the check games, and not worse at naming the winner.
+    function sendable(res) {
+        return !!(res?.terms?.length && res.checkGain >= MIN_GAIN &&
+            (res.check.acc == null || res.base.accCheck == null || res.check.acc >= res.base.accCheck - 0.005));
+    }
+
+    // Train Bot (hermit, owner 2026-10-18): called at the start of every run by
+    // game-ui.js runHillClimbTraining. A set queued in the panel wins; else it
+    // fits on the saved positions now. A sendable set joins round 1 as one
+    // challenger, once per (champion, set). log(text) = the training window.
+    const TRIED_KEY = 'godaigo_fit_trained';
+    async function forTraining(anchor, log = () => {}) {
+        const q = takeQueued(anchor);
+        if (q) { log(`Fitted formulas (queued in the panel): ${q.count} join round 1 as one challenger`); return q; }
+        if (!window.BotNet?.loadRows) return null;
+        log('Fitting formulas on the saved positions (no games)...');
+        const rows = await window.BotNet.loadRows();
+        const lab = window.BotTerms.parseLines(window.FormulaLab?.ideaText?.() || '', 'lab').terms.map(t => t.text);
+        const res = await run(rows, { lab });
+        if (!sendable(res)) {
+            const b = res.top[0];
+            log(`Fitted formulas: none held up on ${res.counts.rows} positions from ${res.counts.games} games` +
+                (b ? ` (best alone: ${b.text}, ${(100 * b.gain).toFixed(2)}% better)` : '') + '. Nothing added.');
+            return null;
+        }
+        const c = withTerms(anchor, res.terms);
+        if (!c) return null;
+        let h = 0; for (const ch of JSON.stringify(c.challenger)) h = (h * 31 + ch.charCodeAt(0)) | 0;
+        let tried = null; try { tried = localStorage.getItem(TRIED_KEY); } catch (e) {}
+        if (tried === String(h)) { log('Fitted formulas: same set as last run against this champion, not added again.'); return null; }
+        try { localStorage.setItem(TRIED_KEY, String(h)); } catch (e) {}
+        log(`Fitted formulas join round 1 (${(100 * res.checkGain).toFixed(1)}% better on check games): ` +
+            res.terms.map(t => `${t.w}: ${t.text}`).join(' | '));
+        return c;
     }
 
     // ── Hermit panel ─────────────────────────────────────────────
@@ -314,7 +355,7 @@
                     onProgress: p => status(p.stage === 'screen' ? `Fitting formulas: ${p.done} of ${p.total}...` : `Picking: ${p.picked} picked...`),
                 });
                 last = res;
-                const ok = res.terms.length && res.checkGain >= MIN_GAIN && (res.check.acc == null || res.base.accCheck == null || res.check.acc >= res.base.accCheck - 0.005);
+                const ok = sendable(res);
                 const lines = [
                     `Positions: ${res.counts.rows} in ${res.counts.games} games (fit ${res.counts.fit}, rank ${res.counts.rank}, check ${res.counts.check}). Formulas tried: ${res.counts.candidates}.`,
                     '',
@@ -330,7 +371,7 @@
                 if (!res.terms.length) lines.push('  none: no formula helped enough.');
                 for (const t of res.terms) lines.push(`  ${t.w}: ${t.text}`);
                 lines.push('', `Check games (not used to fit or pick): loss ${pct(res.checkGain)} lower, right ${pct(res.check.acc)} (bot's score alone ${pct(res.base.accCheck)}).`);
-                lines.push(ok ? 'Ready: queue it for your next Train Bot run and / or send it to idle training. Real games decide.'
+                lines.push(ok ? 'Ready. Train Bot fits and adds a set like this on its own; queue this exact one, or send it to idle training. Real games decide.'
                     : 'Not sendable: the picked set did not hold up on the check games. More saved positions will help.');
                 status(lines.join('\n'));
                 $('.ff-send').disabled = !ok; $('.ff-queue').disabled = !ok;
@@ -359,5 +400,5 @@
         };
     }
 
-    window.FormulaFit = { run, send, queue, queued, takeQueued, open, candidates, _split: split };
+    window.FormulaFit = { run, send, queue, queued, takeQueued, forTraining, sendable, open, candidates, _split: split };
 })();
