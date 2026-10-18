@@ -1062,6 +1062,10 @@
     // training tests a bot-found combo by giving it to ONE challenger only).
     let _extraKey = '', _extraParsed = [];
     function activeCombos() {
+        // combosOff (Training Lab "Test a change", 2026-10-18): this table follows
+        // no combos at all, so taught combos can be tested on vs off. Never set on
+        // a live champion; tables without it are unchanged.
+        if (WEIGHTS.combosOff === true) return [];
         const ex = Array.isArray(WEIGHTS.extraCombos) ? WEIGHTS.extraCombos : null;
         if (!ex || !ex.length) return COMBOS;
         const key = ex.join('|');

@@ -335,6 +335,108 @@
             <div class="small muted" style="margin-top:8px;">${num(d.rows)} positions in all (${num(d.move_rows)} saved move by move), from ${num(d.accounts)} account(s). The marks are rough rules of thumb.</div>`;
     }
 
+    // ── Test a change ────────────────────────────────────────────
+    // A = live champion with one change, B = live champion. Same deals with
+    // sides swapped (BotArena.run), every 3rd pair a 4-player game.
+    const CHANGES_KEY = 'godaigo_training_lab_changes';
+    const PRESETS = {
+        combos:   { label: 'Taught combos: do they help?', a: 'with taught combos', b: 'without combos' },
+        settings: { label: 'Change settings', a: 'with your change', b: 'live champion' },
+        formula:  { label: 'Add a formula', a: 'with your formula', b: 'live champion' },
+    };
+    function loadChanges() { try { return JSON.parse(localStorage.getItem(CHANGES_KEY)) || []; } catch (e) { return []; } }
+    function saveChange(t) { try { localStorage.setItem(CHANGES_KEY, JSON.stringify([t, ...loadChanges()].slice(0, 8))); } catch (e) {} }
+
+    // Parse "key = value" lines against the known settings.
+    function parseSettings(text, base) {
+        const changes = {}, errors = [];
+        String(text || '').split('\n').forEach((raw, i) => {
+            const line = raw.replace(/#.*$/, '').trim();
+            if (!line) return;
+            const m = line.match(/^([A-Za-z_][\w]*)\s*[=:]\s*(.+)$/);
+            if (!m) { errors.push(`line ${i + 1}: write it as  name = value`); return; }
+            const [, k, vRaw] = m;
+            if (!(k in base)) { errors.push(`line ${i + 1}: unknown setting "${k}"`); return; }
+            const v = vRaw.trim() === 'true' ? true : vRaw.trim() === 'false' ? false : Number(vRaw);
+            if (typeof v === 'number' && !Number.isFinite(v)) { errors.push(`line ${i + 1}: "${vRaw.trim()}" is not a number`); return; }
+            changes[k] = v;
+        });
+        return { changes, errors };
+    }
+
+    // Build {a, b, summary} for a preset, or {error}.
+    function buildTest(preset, text, live) {
+        const base = { ...(window.BotSystem?.DEFAULT_WEIGHTS || {}), ...live };
+        if (preset === 'combos') {
+            const n = window.BotSystem?.combos?.()?.length ?? null;
+            return { a: { ...base }, b: { ...base, combosOff: true }, summary: `taught combos on vs off${n != null ? ` (${n} loaded)` : ''}` };
+        }
+        if (preset === 'settings') {
+            const { changes, errors } = parseSettings(text, base);
+            if (errors.length) return { error: errors.join('\n') };
+            const keys = Object.keys(changes);
+            if (!keys.length) return { error: 'Write at least one line, for example:  discardFeeds = -14' };
+            return { a: { ...base, ...changes }, b: base, summary: keys.map(k => `${k} ${base[k]} → ${changes[k]}`).join(', ') };
+        }
+        if (preset === 'formula') {
+            const { terms, errors } = window.BotTerms.parseLines(text, 'hermit');
+            if (errors.length) return { error: errors.map(e => `line ${e.line}: ${e.message}`).join('\n') };
+            if (!terms.length) return { error: 'Write a formula line, for example:  5: freeNearHome' };
+            const old = Array.isArray(base.terms) ? base.terms : [];
+            const all = [...old, ...terms.filter(t => !old.some(o => o.text === t.text))].slice(0, window.BotTerms.MAX_TERMS);
+            return { a: { ...base, terms: all }, b: base, summary: terms.map(t => `${t.w}: ${t.text}`).join(' | ') };
+        }
+        return { error: 'Pick a test.' };
+    }
+
+    function changeResultHtml(t) {
+        if (!t) return '';
+        const P = PRESETS[t.preset] || PRESETS.settings;
+        if (t.error) return `<div class="bad" style="white-space:pre-line;">${esc(t.error)}</div>`;
+        const head = `<div class="small muted">${esc(P.label)}: ${esc(t.summary)} · ${esc(t.at)}</div>`;
+        if (t.running) return head + `<div class="warn">Game ${t.done} of ${t.games}... (${P.a} ${t.w}-${t.l}-${t.d})</div>`;
+        const p = chanceBetter(t.w, t.l);
+        const helps = p >= 0.9, hurts = p <= 0.1;
+        const word = helps ? `<b class="good">It helps.</b>` : hurts ? `<b class="bad">It hurts.</b>` : '<b class="warn">No clear difference yet.</b> More games would tell.';
+        let next = '';
+        if (t.preset === 'combos') {
+            next = helps ? 'The taught combos make the bots stronger: the miner is doing real work.'
+                : hurts ? 'The bots play better without them. Turn the weak combos Off in the Combos tab, or make teaching need a win test.'
+                : 'Run 48 games for a clearer answer.';
+        } else if (!hurts) {
+            next = `<div class="row" style="margin-top:6px;"><button class="b primary" data-act="tc-live">Make it live now</button>
+                <button class="b" data-act="tc-idle">Send to idle training</button></div>
+                <div class="small muted" style="margin-top:4px;">"Make it live now" skips the 40-game rule; you can undo it in the Champions tab.</div>`;
+        }
+        return `${head}
+            <div style="margin-top:4px;"><span class="rec">${t.w}-${t.l}-${t.d}</span> <span class="small muted">${esc(P.a)} won-lost-drawn vs ${esc(P.b)}</span></div>
+            <div style="margin-top:4px;">${word} <span class="muted small">Chance the change really helps: ${Math.round(100 * p)}%.</span></div>
+            <div class="small" style="margin-top:4px;">${next}</div>`;
+    }
+
+    function testChangeHtml(S) {
+        const preset = S.tcPreset || 'combos';
+        const hist = loadChanges();
+        const hint = preset === 'settings' ? 'One per line, for example:\ndiscardFeeds = -14\nevalStoneNeeded = 15'
+            : preset === 'formula' ? 'One per line:  weight: formula   (for example  5: freeNearHome)' : '';
+        return `
+            <div class="note">The quickest way to know if a change makes the bots stronger. Both sides play the same deals with seats swapped; every 3rd pair is a 4-player game. Your own fixes found the biggest gains so far, and this is the tool for testing them.</div>
+            <h3>1. What to test</h3>
+            <div class="row">${Object.entries(PRESETS).map(([k, v]) => `<button class="b ${k === preset ? 'primary' : ''}" data-tc-preset="${k}">${esc(v.label)}</button>`).join('')}</div>
+            ${preset === 'combos' ? `<div class="small muted" style="margin-top:6px;">The live champion with the taught combos against the same champion that ignores them.</div>`
+                : `<textarea class="tc-text" spellcheck="false" placeholder="${esc(hint)}" style="margin-top:8px;width:100%;min-height:80px;background:#11111a;color:#e6e6ee;border:1px solid #3c3c52;border-radius:8px;padding:8px;font:12.5px/1.4 ui-monospace,Consolas,monospace;">${esc(S.tcText?.[preset] || '')}</textarea>`}
+            <h3>2. How many games</h3>
+            <div class="row">${[12, 24, 48].map(n => `<button class="b ${n === (S.tcGames || 24) ? 'primary' : ''}" data-tc-games="${n}">${n}</button>`).join('')}
+                <span class="small muted">24 takes a few minutes; 48 gives a clearer answer.</span></div>
+            <h3>3. Run</h3>
+            <div class="row"><button class="b primary" data-act="tc-run" ${S.tcRun?.running ? 'disabled' : ''}>Run the test</button></div>
+            <div class="card testbox tc-out" style="margin-top:8px;${S.tcRun ? '' : 'display:none;'}">${changeResultHtml(S.tcRun)}</div>
+            ${hist.length ? `<h3>Earlier tests</h3><div class="stack">${hist.map(t => {
+                const p = chanceBetter(t.w, t.l), cls = p >= 0.9 ? 'good' : p <= 0.1 ? 'bad' : 'warn';
+                return `<div class="card small"><b>${esc((PRESETS[t.preset] || PRESETS.settings).label)}</b> · ${esc(t.summary)}<br><span class="rec" style="font-size:14px;">${t.w}-${t.l}-${t.d}</span> <span class="${cls}">${Math.round(100 * p)}% chance it helps</span> <span class="muted">· ${esc(t.at)}</span></div>`;
+            }).join('')}</div>` : ''}`;
+    }
+
     // ── Panel ────────────────────────────────────────────────────
     function open() {
         if (!window.isHermit?.()) return;
@@ -347,7 +449,7 @@
         }
         const box = document.createElement('div');
         box.id = 'training-lab';
-        const tabs = [['overview', 'Overview'], ['challengers', 'Challengers'], ['champions', 'Champions'], ['data', 'Saved games']];
+        const tabs = [['overview', 'Overview'], ['test', 'Test a change'], ['challengers', 'Challengers'], ['champions', 'Champions'], ['data', 'Saved games']];
         let tab = 'overview';
         try { tab = localStorage.getItem(TAB_KEY) || tab; } catch (e) {}
         if (!tabs.some(t => t[0] === tab)) tab = 'overview';
@@ -382,10 +484,68 @@
                 S.data ? `<span class="chip"><b>${num(games)}</b> games saved</span>` : '',
             ].join('');
             pane('overview').innerHTML = overviewHtml(S);
+            renderTest();
             pane('challengers').innerHTML = challengersHtml(S);
             pane('champions').innerHTML = championsHtml(S);
             pane('data').innerHTML = dataHtml(S);
             show(tab);
+        };
+
+        const renderTest = () => {
+            const ta = pane('test').querySelector('.tc-text');
+            if (ta) { S.tcText = S.tcText || {}; S.tcText[S.tcPreset || 'combos'] = ta.value; }
+            pane('test').innerHTML = testChangeHtml(S);
+        };
+        const runChange = async () => {
+            const ta = pane('test').querySelector('.tc-text');
+            const preset = S.tcPreset || 'combos';
+            if (ta) { S.tcText = S.tcText || {}; S.tcText[preset] = ta.value; }
+            const live = S.champs.find(c => c.promoted !== false)?.weights || { ...(window.BotSystem?.WEIGHTS || {}) };
+            const T = buildTest(preset, S.tcText?.[preset] || '', live);
+            const games = S.tcGames || 24;
+            const t = S.tcRun = { preset, summary: T.summary || '', at: new Date().toLocaleString(), games, done: 0, w: 0, l: 0, d: 0, running: !T.error, error: T.error || null };
+            renderTest();
+            if (T.error) return;
+            S.tcWeights = T.a;
+            try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
+            try {
+                const r = await window.BotArena.run(T.a, T.b, games, (Date.now() % 100000) >>> 0, {
+                    visual: false, comboWatch: false, fourPlayerEvery: 3,
+                    onGame: (i, n, g, info) => {
+                        t.done = i;
+                        if (g?.winner == null) t.d++; else if (info?.aWon) t.w++; else t.l++;
+                        const o = pane('test').querySelector('.tc-out'); if (o) o.innerHTML = changeResultHtml(t);
+                    },
+                });
+                Object.assign(t, { w: r.aWins, l: r.bWins, d: r.draws });
+            } catch (e) { t.error = 'Test failed: ' + (e.message || e); }
+            t.running = false;
+            if (!t.error) saveChange({ preset: t.preset, summary: t.summary, at: t.at, w: t.w, l: t.l, d: t.d });
+            console.log(`🧪 [TrainingLab] test "${t.summary}": ${t.w}-${t.l}-${t.d}`);
+            if (!box.isConnected) document.body.appendChild(box);
+            box.style.zIndex = '10090';
+            show('test');
+            renderTest();
+        };
+        const keepChange = async (where) => {
+            const w = S.tcWeights;
+            if (!w || !S.tcRun || S.tcRun.running) return;
+            if (where === 'live') {
+                if (!confirm('Make this the live champion now? Every bot uses it from the next page load. You can undo it in the Champions tab.')) return;
+                const { data: u } = await supabase.auth.getUser();
+                const { error } = await supabase.from('bot_champion_weights').insert({
+                    weights: w, confirm_wins: S.tcRun.w, confirm_losses: S.tcRun.l, confirm_draws: S.tcRun.d, promoted: true, created_by: u?.user?.id,
+                });
+                if (error) { alert('Failed: ' + error.message); return; }
+                alert('Done: it is the live champion. Reload the page to play against it.');
+                return refresh();
+            }
+            const { data: job, error } = await supabase.rpc('idle_training_job');
+            if (error || !job?.champion_id) { alert('Failed: ' + (error?.message || 'no champion')); return; }
+            const r = await supabase.rpc('idle_training_new', { p_champion: job.champion_id, p_weights: w, p_kind: S.tcRun.preset === 'formula' ? 'formula' : 'explore' });
+            if (r.error) { alert('Failed: ' + r.error.message); return; }
+            alert(`Sent: challenger #${r.data?.id ?? '?'} in idle training.`);
+            refresh();
         };
 
         const refresh = async () => {
@@ -453,6 +613,8 @@
             const el = ev.target.closest('button');
             if (!el || !box.contains(el)) return;
             if (el.dataset.tab) return show(el.dataset.tab);
+            if (el.dataset.tcPreset) { renderTest(); S.tcPreset = el.dataset.tcPreset; return renderTest(); }
+            if (el.dataset.tcGames) { renderTest(); S.tcGames = +el.dataset.tcGames; return renderTest(); }
             if (el.dataset.reject) {
                 if (!confirm(`Reject challenger #${el.dataset.reject}? Idle training stops testing it.`)) return;
                 el.disabled = true;
@@ -477,6 +639,9 @@
                 case 'close': box.remove(); break;
                 case 'refresh': refresh(); break;
                 case 'test': runTest(); break;
+                case 'tc-run': runChange(); break;
+                case 'tc-live': keepChange('live'); break;
+                case 'tc-idle': keepChange('idle'); break;
                 case 'tab-data': show('data'); break;
                 case 'trainbot': if (typeof window._gami_openTrainBot === 'function') window._gami_openTrainBot(); break;
                 case 'formulalab': window.FormulaLab?.open(); break;
