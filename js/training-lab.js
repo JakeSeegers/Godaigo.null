@@ -187,40 +187,56 @@
             </div>`;
         const btn = (cls, text, extra = '') => `<button class="b ${extra}" data-act="${cls}">${text}</button>`;
 
+        const offCard = (title, what, how) => `
+            <div class="card" style="opacity:.75;">
+                <h4><span>${title}</span><span class="tag bad">off</span></h4>
+                <div class="small">${what}</div>
+                <div class="where">${how}</div>
+            </div>`;
+        const comboOff = window.COMBO_MINING === false, inventOff = window.FORMULA_INVENTION === false;
+
         return `
             <h3>How the bot gets better</h3>
             <div class="flow">
-                <div class="step"><b>1. Ideas</b><span class="small muted">A change to try: new settings, a formula, a combo, what it learned from you.</span></div>
+                <div class="step"><b>1. You spot a problem</b><span class="small muted">Watch games. Click "Bad move" (Shift+K) when a bot does something dumb.</span></div>
                 <div class="arrow">→</div>
-                <div class="step"><b>2. Challenger</b><span class="small muted">The live champion plus that one change.</span></div>
+                <div class="step"><b>2. Fix and test</b><span class="small muted">Fix the cause, then "Test a change": your change vs the champion on the same deals.</span></div>
                 <div class="arrow">→</div>
-                <div class="step"><b>3. Games</b><span class="small muted">Challenger vs champion, in Train Bot and in idle training on everyone's computer.</span></div>
+                <div class="step"><b>3. Training fills in</b><span class="small muted">Train Bot and idle training try small setting changes against the champion.</span></div>
                 <div class="arrow">→</div>
-                <div class="step"><b>4. New champion</b><span class="small muted">58%+ of 40 decided games. Every bot uses it from the next page load.</span></div>
+                <div class="step"><b>4. New champion</b><span class="small muted">58%+ of 40 decided games against the champion, the same rule everywhere. Undo in Champions.</span></div>
             </div>
-            <div class="note" style="margin-top:8px;">Your best tool is still your eye: watch games, spot what the bots do badly, and fix it. Training fills in around that. If a new champion feels worse, undo it in the Champions tab.</div>
 
-            <h3>Where ideas come from</h3>
+            <h3>Running</h3>
             <div class="grid">
-                ${card('Explore', 'explore', 'Small random changes to the bot\'s settings (how much it values stones, scrolls, distance...).',
-                    'Train Bot, idle training', testing('explore') + won('explore'), btn('trainbot', 'Open Train Bot'))}
-                ${card('Formulas', 'formula', 'New senses written as formulas. They come from your Formula Lab ideas, from fitting on saved games (automatic in your Train Bot), or from random invention.',
-                    'Train Bot, idle training', (window.FORMULA_INVENTION === false ? '<span class="bad">Random invention is off.</span> Formulas now only come from you: Formula Lab, Fit Formulas, or Test a change. ' : '') + testing('formula') + won('formula') + (queued ? `<br><span class="good">A fitted set is queued for your next Train Bot run.</span>` : ''),
+                ${card('Your tests', null, 'The fastest way to make bots stronger: report bad moves, fix them, and test the fix against the champion.',
+                    'the Lab and any game', '"Test a change": a change vs the champion. "Bad move" button: downloads the game for Claude.',
+                    btn('tab-test', 'Test a change', 'primary'))}
+                ${card('Explore', 'explore', 'Small random changes to the bot\'s settings (how much it values stones, scrolls, distance...). The only source that ever made a champion.',
+                    'Train Bot (everyone), idle training', testing('explore') + won('explore'), btn('trainbot', 'Open Train Bot'))}
+                ${card('Formulas, on purpose', 'formula', 'New senses you write or fit yourself: Formula Lab ideas, a fitted set queued in Fit Formulas, or "Test a change" > Add a formula.',
+                    'your Train Bot runs, the Lab', (inventOff ? 'Random invention is off; formulas only come from you. ' : '') + testing('formula') + won('formula') + (queued ? `<br><span class="good">A fitted set is queued for your next Train Bot run.</span>` : ''),
                     btn('formulalab', 'Formula Lab') + btn('fit', 'Fit Formulas'))}
-                ${card('Combos', 'combo', 'Scroll combos found in real games (mining) and in bot games. A combo must show up in 5+ games and pass a short screening before it is tried.',
-                    'idle training (mining + trials), Train Bot', (window.COMBO_MINING === false ? '<span class="bad">Off.</span> The combo drill showed taught combos made bots weaker (1-9-2), so mining, screening and trials are switched off. ' : '') + testing('combo') + won('combo') + (S.taught != null ? `<br>${S.taught} combo famil${S.taught === 1 ? 'y' : 'ies'} taught to every bot.` : ''),
-                    btn('combos', 'Combos tab'))}
-                ${card('Learned from you', 'imitation', 'While on, it watches your choices in games with bots and nudges the bot\'s settings toward them.',
+                ${card('Learned from you', 'imitation', 'While on, it watches your choices in games with bots and nudges the bot\'s settings toward them. Saved to your account.',
                     'your games (on), then Train Bot + idle training', `${imit?.isEnabled?.() ? '<span class="good">On</span>' : '<span class="muted">Off</span>'} · ${deltas} setting${deltas === 1 ? '' : 's'} nudged so far<br>` + testing('imitation') + won('imitation'),
                     btn('imitation', imit?.isEnabled?.() ? 'Turn off' : 'Turn on'))}
                 ${card('Bot network', 'net', 'A small learned correction on top of the bot\'s score, trained on saved games. It needs many games first.',
                     'trained by you, tested in idle training', testing('net') + `<br>${num(games)} of ~${num(MARKS.net.min)} games for a fair try.`,
                     btn('net', 'Bot Network') + btn('tab-data', 'Saved games'))}
-                ${card('Checks', null, 'Puzzles (combo moments from real games) and practice duels. Train Bot will not promote a challenger that fails them.',
-                    'Train Bot', '<span class="muted">They only block, never promote.</span>', btn('puzzles', 'Puzzles tab'))}
                 ${card('Scroll report', null, 'Which scrolls the bots hold but use badly. Good for spotting what to fix by hand.',
                     'your bot games', '<span class="muted">Diagnostic only.</span>', btn('scrolls', 'Scroll report'))}
-            </div>`;
+            </div>
+
+            <h3>Switched off</h3>
+            <div class="grid">
+                ${comboOff ? offCard('Combos', 'Mining combos from games and teaching them to the bots. The combo drill showed bots got weaker following them (1-9-2), and 3 of the 9 taught ones were one scroll cast twice. All taught combos are off too.',
+                    'Back on: window.COMBO_MINING = true in bot.js, and Auto / On per family in the Combos tab.') : ''}
+                ${inventOff ? offCard('Random formulas', 'Training inventing formulas at random. The "formula" challengers never carried one that could matter.',
+                    'Back on: window.FORMULA_INVENTION = true in bot-terms.js.') : ''}
+                ${offCard('Puzzle check and practice duels', 'Extra checks before a Train Bot promotion, built on mined combo moments. They slowed every run and could block a good champion.',
+                    'Removed from Train Bot (2026-10-18).')}
+            </div>
+            <div class="small muted" style="margin-top:8px;">The combo drill and the Combos / Puzzles tabs still work by hand.</div>`;
     }
 
     // ── Challengers ──────────────────────────────────────────────
@@ -743,6 +759,7 @@
                 case 'tc-live': keepChange('live'); break;
                 case 'tc-idle': keepChange('idle'); break;
                 case 'tab-data': show('data'); break;
+                case 'tab-test': show('test'); break;
                 case 'trainbot': if (typeof window._gami_openTrainBot === 'function') window._gami_openTrainBot(); break;
                 case 'formulalab': window.FormulaLab?.open(); break;
                 case 'fit': window.FormulaFit?.open(); break;

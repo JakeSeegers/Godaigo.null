@@ -244,7 +244,7 @@ Order matters — later scripts depend on earlier ones.
                              then bots play every seat, the End Turn button re-enabled) -> bot gain / player gain,
                              solved >= 0.9; every 4th puzzle (id % 4 == 0) is test-only. Replay.puzzleScore(w) =
                              avg score on up to 6 training puzzles; BotArena.hillClimb opts.puzzleCheck gates a
-                             would-be promotion on it (hermit Train Bot passes it).
+                             would-be promotion on it (Train Bot no longer passes it, 2026-10-18).
 17e. save-game.js         ← window.SaveGame: save a game vs bots, continue later (docs/saved-games.md, sql/saved-games.sql,
                              applied; saved_games.state + save_game p_state applied 2026-10-11). In games where you are the only human
                              the Leave button reads "Save / Leave" (click caught in the capture phase) and asks Save & quit /
@@ -673,6 +673,12 @@ Order matters — later scripts depend on earlier ones.
                              Every training run (run / evolve / hillClimb / confirmAcrossSizes) calls muteEnvironment({keepSound: visual}): no win
                              screen, end-turn prompt or XP even at Watchable (a win screen mid-run ended the run when closed). Extreme = MUTED_SPEED
                              (0.02) also after a live switch (was 0.1: a Watchable run switched to Extreme played ~2x slower per turn).
+                             Training cleanup (2026-10-18, owner): Train Bot's final test is game-ui.js finalTestHeadToHead (new bot vs champion
+                             in seat-swapped pairs, every 3rd pair 4 players, until 40 decided games, max 60; pass = 58%+, the idle server rule;
+                             early stop at 24 wins / 17 losses; gold tiers 70% / 63% / pass) instead of confirmAcrossSizes' fitness across 2-5
+                             players. No puzzle check, no automatic Fit Formulas (only a set queued by hand). Hermit Focus: Training / Explore
+                             only (opts.pure: no Formula Lab queue, fitted set or learned adjustments); mining choices and the Formulas row hidden
+                             while COMBO_MINING / FORMULA_INVENTION are off.
                              One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /
                              Formulas / Anchor per run (localStorage godaigo_train_runs). The hermit panel keeps every row:
                              Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /

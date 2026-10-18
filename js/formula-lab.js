@@ -102,7 +102,7 @@
             </div>
             <div style="border-top:1px solid #333;padding-top:8px;margin-top:4px;">
               <label style="display:block;font-size:13px;"><input data-el="queued" type="checkbox"> Use these ideas in my next Train Bot run (each idea = one round-1 challenger)</label>
-              <label style="display:block;font-size:13px;"><input data-el="invent" type="checkbox"> Also let training invent and change formulas during that run</label>
+              <label style="display:${window.FORMULA_INVENTION === false ? 'none' : 'block'};font-size:13px;"><input data-el="invent" type="checkbox"> Also let training invent and change formulas during that run</label>
               <div style="color:#888;margin-top:4px;">Order matters: round 1 has 3 challenger slots (Quick), 4 (Standard) or 6 (Deep), and Explore takes one. Ideas past that are skipped, so put your favourites first.</div>
             </div>
             <div data-el="out" style="margin-top:10px;"></div>
