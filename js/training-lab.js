@@ -1,52 +1,65 @@
 // js/training-lab.js - window.TrainingLab: the hermit's Training Lab
-// (owner 2026-10-18). One screen to see and judge bot training; Train Bot for
-// gold stays one simple button for everyone.
+// (owner 2026-10-18; rebuilt the same day for clarity). One place to see and
+// steer bot training; Train Bot for gold stays one simple button for everyone.
 //
-//   1. Saved games meter: how many games' worth of positions are saved
-//      (position_samples), against rough marks for Fit Formulas and the bot
-//      network, with the last 7 days' pace.
-//   2. Challengers: every idle challenger (sql/training-lab.sql
-//      hermit_training_lab), what it changes vs its champion, its record, a
-//      plain verdict (chance it is better than the champion) and Reject.
-//   3. Champion history: promoted champions (bot_champion_weights, public
-//      read), what each changed, and a test of the current champion against
-//      the last 3 (BotArena.run, 10 muted games each) to catch circles.
-//   4. Shortcuts to Fit Formulas, Bot Network, Formula Lab, Scroll report.
+// Tabs:
+//   Overview    how the bot gets better (ideas -> challengers -> games ->
+//               champion) and one card per training method, with its live
+//               status and the button that opens it.
+//   Challengers every idle challenger (sql/training-lab.sql
+//               hermit_training_lab): what it changes, record, progress to
+//               40 decided games, chance it beats its champion, Reject.
+//   Champions   promoted champions (bot_champion_weights), what each changed,
+//               "Make live again" (hermit_restore_champion) and a test of the
+//               live champion vs the last 3 (BotArena.run, 10 games each).
+//   Saved games how much position data is saved, against rough marks.
 //
-// The Lab never promotes anything: real games and the server rules decide.
+// The Lab never promotes on its own: games and the server rules decide, and
+// the hermit can undo a promotion here.
 (function () {
     'use strict';
 
     // Rough marks (games' worth of saved positions), not hard rules.
-    const MARKS = {
-        fit: { min: 300, good: 1000 },
-        net: { min: 2000, good: 5000 },
-    };
+    const MARKS = { fit: { min: 300, good: 1000 }, net: { min: 2000, good: 5000 } };
     const DECIDED_FOR_VERDICT = 40;   // server: verdict at 40 decided games, 58%+
+    const TEST_KEY = 'godaigo_training_lab_test';
+    const TAB_KEY = 'godaigo_training_lab_tab';
+
+    const KIND = {
+        explore:   { label: 'Explore',          color: '#8fd3ff' },
+        formula:   { label: 'Formulas',         color: '#c9a2ff' },
+        combo:     { label: 'Combo',            color: '#ffb36b' },
+        imitation: { label: 'Learned from you', color: '#7fdc8f' },
+        net:       { label: 'Network',          color: '#ff8fc8' },
+    };
 
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const num = n => (+n || 0).toLocaleString('en-US');
-    const day = t => t ? String(t).slice(0, 10) : '-';
+    const day = t => {
+        if (!t) return '-';
+        const d = new Date(t);
+        return isNaN(d) ? String(t).slice(0, 10) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
 
+    // ── Math ─────────────────────────────────────────────────────
     // Chance the true win rate is above 50% (Beta(w+1, l+1), normal approximation).
     function chanceBetter(w, l) {
         const n = w + l;
         const m = (w + 1) / (n + 2), sd = Math.sqrt(m * (1 - m) / (n + 3));
         const z = (m - 0.5) / sd;
-        // Standard normal CDF (Abramowitz-Stegun 7.1.26 via erf).
         const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
         const erf = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
         return z >= 0 ? 0.5 * (1 + erf) : 0.5 * (1 - erf);
     }
     function verdict(w, l) {
         const p = chanceBetter(w, l);
-        if (w + l < 6) return { text: 'too early', p, color: '#aaa' };
-        if (p >= 0.9) return { text: 'likely better', p, color: '#7f7' };
-        if (p <= 0.1) return { text: 'likely worse', p, color: '#f77' };
-        return { text: 'unclear', p, color: '#fd7' };
+        if (w + l < 6) return { text: 'too early', p, cls: 'muted' };
+        if (p >= 0.9) return { text: 'likely better', p, cls: 'good' };
+        if (p <= 0.1) return { text: 'likely worse', p, cls: 'bad' };
+        return { text: 'unclear', p, cls: 'warn' };
     }
 
-    // What a weight table changes vs another one, in short words.
+    // What a weight table changes vs another one, as short lines.
     function diff(w, base) {
         if (!w || !base) return [];
         const out = [];
@@ -60,20 +73,75 @@
         }
         changed.sort((p, q) => q.rel - p.rel);
         if (changed.length) {
-            out.push(`${changed.length} weight(s) changed` + (changed.length ? ': ' +
-                changed.slice(0, 3).map(c => `${c.k} ${+c.b.toPrecision(3)} → ${+c.a.toPrecision(3)}`).join(', ') + (changed.length > 3 ? ', ...' : '') : ''));
+            out.push(`${changed.length} setting${changed.length > 1 ? 's' : ''} changed: ` +
+                changed.slice(0, 3).map(c => `${c.k} ${+c.b.toPrecision(3)} → ${+c.a.toPrecision(3)}`).join(', ') + (changed.length > 3 ? ', ...' : ''));
         }
         const oldT = new Set((base.terms || []).map(t => t.text));
         const newT = (w.terms || []).filter(t => !oldT.has(t.text));
         const goneT = (base.terms || []).filter(t => !(w.terms || []).some(x => x.text === t.text));
-        if (newT.length) out.push('formulas added: ' + newT.map(t => `${t.w}: ${t.text}`).join(' | '));
-        if (goneT.length) out.push('formulas removed: ' + goneT.map(t => t.text).join(' | '));
+        if (newT.length) out.push('new formula: ' + newT.map(t => `${t.w} × ${t.text}`).join(' | '));
+        if (goneT.length) out.push('formula removed: ' + goneT.map(t => t.text).join(' | '));
         const oldC = new Set(base.extraCombos || []);
         const newC = (w.extraCombos || []).filter(c => !oldC.has(c));
-        if (newC.length) out.push('trial combos: ' + newC.join(' | '));
+        if (newC.length) out.push('trial combo: ' + newC.join(' | '));
         return out;
     }
+    const sameWeights = (a, b) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return false; } };
 
+    // ── Look ─────────────────────────────────────────────────────
+    const CSS = `
+        #training-lab { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:10059;
+            width:min(820px,96vw); height:min(780px,90vh); display:flex; flex-direction:column;
+            background:#15151d; color:#e6e6ee; border:1px solid #34344a; border-radius:12px;
+            box-shadow:0 12px 40px rgba(0,0,0,.7); font:13.5px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+        #training-lab * { box-sizing:border-box; }
+        #training-lab .tl-head { padding:14px 18px 10px; border-bottom:1px solid #2a2a3a; }
+        #training-lab .tl-title { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+        #training-lab h2 { margin:0; font-size:18px; font-weight:650; letter-spacing:.2px; }
+        #training-lab .tl-sum { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+        #training-lab .chip { background:#22222f; border:1px solid #33334a; border-radius:999px; padding:2px 10px; font-size:12px; color:#c8c8d8; }
+        #training-lab .chip b { color:#fff; }
+        #training-lab .tl-tabs { display:flex; gap:2px; padding:0 14px; border-bottom:1px solid #2a2a3a; background:#18181f; }
+        #training-lab .tl-tab { background:none; border:none; color:#9a9ab0; padding:9px 12px; cursor:pointer; font:inherit; border-bottom:2px solid transparent; }
+        #training-lab .tl-tab:hover { color:#e6e6ee; }
+        #training-lab .tl-tab.on { color:#fff; border-bottom-color:#8fd3ff; }
+        #training-lab .tl-body { overflow:auto; padding:14px 18px 18px; }
+        #training-lab .tl-pane { display:none; } #training-lab .tl-pane.on { display:block; }
+        #training-lab h3 { margin:16px 0 8px; font-size:14px; font-weight:650; color:#fff; }
+        #training-lab h3:first-child { margin-top:2px; }
+        #training-lab .muted { color:#9a9ab0; } #training-lab .small { font-size:12px; }
+        #training-lab .good { color:#7fdc8f; } #training-lab .warn { color:#f2cf6a; } #training-lab .bad { color:#ff8a8a; }
+        #training-lab .card { background:#1d1d28; border:1px solid #2e2e3e; border-radius:10px; padding:10px 12px; }
+        #training-lab .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; }
+        #training-lab .stack > * + * { margin-top:8px; }
+        #training-lab .card h4 { margin:0 0 4px; font-size:14px; display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
+        #training-lab .tag { display:inline-block; font-size:11px; padding:0 7px; border-radius:999px; border:1px solid currentColor; opacity:.9; white-space:nowrap; }
+        #training-lab .where { font-size:11px; color:#9a9ab0; }
+        #training-lab .status { margin:6px 0 8px; font-size:12.5px; }
+        #training-lab button.b { background:#2a2a3a; color:#e6e6ee; border:1px solid #3c3c52; border-radius:7px; padding:4px 10px; cursor:pointer; font:inherit; font-size:12.5px; }
+        #training-lab button.b:hover { background:#34344a; }
+        #training-lab button.b:disabled { opacity:.5; cursor:default; }
+        #training-lab button.b.primary { background:#24465a; border-color:#3a6b88; }
+        #training-lab button.b.danger { background:#4a2228; border-color:#7a3a44; }
+        #training-lab .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+        #training-lab .flow { display:flex; align-items:stretch; gap:6px; flex-wrap:wrap; }
+        #training-lab .step { flex:1 1 150px; background:#1d1d28; border:1px solid #2e2e3e; border-radius:10px; padding:8px 10px; }
+        #training-lab .step b { display:block; color:#fff; margin-bottom:2px; }
+        #training-lab .arrow { align-self:center; color:#55556e; font-size:18px; }
+        #training-lab .bar { position:relative; height:8px; background:#2a2a36; border-radius:4px; overflow:hidden; margin:5px 0 3px; }
+        #training-lab .bar > i { position:absolute; left:0; top:0; bottom:0; border-radius:4px; }
+        #training-lab .bar > s { position:absolute; top:0; bottom:0; width:2px; background:#ffffffaa; text-decoration:none; }
+        #training-lab .rec { font-size:17px; font-weight:650; color:#fff; letter-spacing:.3px; }
+        #training-lab ul.changes { margin:6px 0 0; padding-left:18px; color:#b8b8cc; font-size:12px; }
+        #training-lab details > summary { cursor:pointer; color:#9a9ab0; margin:10px 0 6px; }
+        #training-lab .testbox { border-color:#3a6b4a; background:#1a261e; }
+        #training-lab .note { border-left:3px solid #3a6b88; padding:6px 10px; background:#1a2129; border-radius:0 8px 8px 0; color:#c8d4e0; font-size:12.5px; }`;
+
+    function bar(pct, color, marks = []) {
+        return `<div class="bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${color};"></i>${marks.map(m => `<s style="left:${m}%"></s>`).join('')}</div>`;
+    }
+
+    // ── Data ─────────────────────────────────────────────────────
     async function loadChampions() {
         const { data, error } = await supabase.from('bot_champion_weights')
             .select('id, created_at, weights, confirm_wins, confirm_losses, confirm_draws, promoted')
@@ -81,199 +149,349 @@
         if (error) throw error;
         return data || [];
     }
+    async function loadTaughtCombos() {
+        try { const { data, error } = await supabase.rpc('get_bot_combos'); return error ? null : (data || []).length; }
+        catch (e) { return null; }
+    }
 
-    // ── Sections ─────────────────────────────────────────────────
-    function meterHtml(label, games, marks, pace, note) {
-        const max = marks.good * 1.2;
-        const pct = Math.min(100, 100 * games / max);
-        const minAt = 100 * marks.min / max, goodAt = 100 * marks.good / max;
-        const state = games >= marks.good ? ['good amount', '#7f7'] : games >= marks.min ? ['enough to try', '#fd7'] : ['not enough yet', '#f99'];
-        const next = games < marks.min ? marks.min : games < marks.good ? marks.good : null;
-        const eta = next && pace > 0 ? ` About ${Math.ceil((next - games) / pace * 7)} day(s) to ${num(next)} at this week's pace.` : (next ? ' No games saved this week.' : '');
+    // ── Overview ─────────────────────────────────────────────────
+    function overviewHtml(S) {
+        const open = S.candidates.filter(c => c.status === 'open');
+        const openOf = k => open.filter(c => c.kind === k);
+        const lastWin = k => S.candidates.filter(c => c.kind === k && c.status === 'promoted')
+            .sort((a, b) => String(b.decided_at).localeCompare(String(a.decided_at)))[0];
+        const testing = k => {
+            const list = openOf(k);
+            if (!list.length) return '<span class="muted">nothing being tested right now</span>';
+            return `${list.length} being tested: ` + list.map(c => `#${c.id} ${c.wins}-${c.losses}-${c.draws}`).join(', ');
+        };
+        const won = k => { const c = lastWin(k); return c ? ` · last win: #${c.id} → champion #${c.new_champion_id}` : ''; };
+        const games = (+S.data?.games || 0) + (+S.data?.mined_games || 0);
+        const imit = window.BotImitation;
+        const deltas = imit?.getDeltas ? Object.values(imit.getDeltas() || {}).filter(v => Math.abs(+v || 0) > 1e-6).length : 0;
+        const queued = window.FormulaFit?.queued?.();
+
+        const card = (title, kind, what, where, status, buttons) => `
+            <div class="card">
+                <h4><span>${title}</span>${kind ? `<span class="tag" style="color:${KIND[kind].color}">${KIND[kind].label}</span>` : ''}</h4>
+                <div class="small">${what}</div>
+                <div class="where">Runs in: ${where}</div>
+                <div class="status">${status}</div>
+                <div class="row">${buttons}</div>
+            </div>`;
+        const btn = (cls, text, extra = '') => `<button class="b ${extra}" data-act="${cls}">${text}</button>`;
+
         return `
-            <div style="margin:6px 0 10px;">
-                <div style="display:flex;justify-content:space-between;"><span>${esc(label)}</span><span style="color:${state[1]};">${state[0]}</span></div>
-                <div style="position:relative;height:14px;background:#2a2a36;border-radius:7px;overflow:hidden;margin:3px 0;">
-                    <div style="height:100%;width:${pct}%;background:${state[1]};opacity:.75;"></div>
-                    <div title="enough to try" style="position:absolute;top:0;bottom:0;left:${minAt}%;width:2px;background:#fff8;"></div>
-                    <div title="good amount" style="position:absolute;top:0;bottom:0;left:${goodAt}%;width:2px;background:#fff;"></div>
-                </div>
-                <div style="color:#aaa;font-size:11px;">${num(games)} games. Marks: try at ${num(marks.min)}, good at ${num(marks.good)}.${eta} ${esc(note || '')}</div>
+            <h3>How the bot gets better</h3>
+            <div class="flow">
+                <div class="step"><b>1. Ideas</b><span class="small muted">A change to try: new settings, a formula, a combo, what it learned from you.</span></div>
+                <div class="arrow">→</div>
+                <div class="step"><b>2. Challenger</b><span class="small muted">The live champion plus that one change.</span></div>
+                <div class="arrow">→</div>
+                <div class="step"><b>3. Games</b><span class="small muted">Challenger vs champion, in Train Bot and in idle training on everyone's computer.</span></div>
+                <div class="arrow">→</div>
+                <div class="step"><b>4. New champion</b><span class="small muted">58%+ of 40 decided games. Every bot uses it from the next page load.</span></div>
+            </div>
+            <div class="note" style="margin-top:8px;">Your best tool is still your eye: watch games, spot what the bots do badly, and fix it. Training fills in around that. If a new champion feels worse, undo it in the Champions tab.</div>
+
+            <h3>Where ideas come from</h3>
+            <div class="grid">
+                ${card('Explore', 'explore', 'Small random changes to the bot\'s settings (how much it values stones, scrolls, distance...).',
+                    'Train Bot, idle training', testing('explore') + won('explore'), btn('trainbot', 'Open Train Bot'))}
+                ${card('Formulas', 'formula', 'New senses written as formulas. They come from your Formula Lab ideas, from fitting on saved games (automatic in your Train Bot), or from random invention.',
+                    'Train Bot, idle training', testing('formula') + won('formula') + (queued ? `<br><span class="good">A fitted set is queued for your next Train Bot run.</span>` : ''),
+                    btn('formulalab', 'Formula Lab') + btn('fit', 'Fit Formulas'))}
+                ${card('Combos', 'combo', 'Scroll combos found in real games (mining) and in bot games. A combo must show up in 5+ games and pass a short screening before it is tried.',
+                    'idle training (mining + trials), Train Bot', testing('combo') + won('combo') + (S.taught != null ? `<br>${S.taught} combo famil${S.taught === 1 ? 'y' : 'ies'} taught to every bot.` : ''),
+                    btn('combos', 'Combos tab'))}
+                ${card('Learned from you', 'imitation', 'While on, it watches your choices in games with bots and nudges the bot\'s settings toward them.',
+                    'your games (on), then Train Bot + idle training', `${imit?.isEnabled?.() ? '<span class="good">On</span>' : '<span class="muted">Off</span>'} · ${deltas} setting${deltas === 1 ? '' : 's'} nudged so far<br>` + testing('imitation') + won('imitation'),
+                    btn('imitation', imit?.isEnabled?.() ? 'Turn off' : 'Turn on'))}
+                ${card('Bot network', 'net', 'A small learned correction on top of the bot\'s score, trained on saved games. It needs many games first.',
+                    'trained by you, tested in idle training', testing('net') + `<br>${num(games)} of ~${num(MARKS.net.min)} games for a fair try.`,
+                    btn('net', 'Bot Network') + btn('tab-data', 'Saved games'))}
+                ${card('Checks', null, 'Puzzles (combo moments from real games) and practice duels. Train Bot will not promote a challenger that fails them.',
+                    'Train Bot', '<span class="muted">They only block, never promote.</span>', btn('puzzles', 'Puzzles tab'))}
+                ${card('Scroll report', null, 'Which scrolls the bots hold but use badly. Good for spotting what to fix by hand.',
+                    'your bot games', '<span class="muted">Diagnostic only.</span>', btn('scrolls', 'Scroll report'))}
             </div>`;
     }
 
-    function dataHtml(d) {
-        if (!d) return '<div style="color:#f99;">No data summary.</div>';
-        const pace = +d.games_7d || 0;
+    // ── Challengers ──────────────────────────────────────────────
+    function challengerCard(c, champW) {
+        const v = verdict(c.wins, c.losses);
+        const dec = c.wins + c.losses;
+        const k = KIND[c.kind] || { label: c.kind, color: '#aaa' };
+        const changes = diff(c.weights, champW);
+        if (c.has_net) changes.push('adds a trained network');
+        const status = c.status === 'open'
+            ? `<span class="small muted">${dec} of ${DECIDED_FOR_VERDICT} decided games</span>${bar(100 * dec / DECIDED_FOR_VERDICT, '#3a6b88')}`
+            : c.status === 'promoted' ? `<span class="good">Won: became champion #${c.new_champion_id}</span>`
+            : c.status === 'stale' ? '<span class="muted">Stopped: the champion changed</span>'
+            : '<span class="muted">Dropped</span>';
         return `
-            <div style="color:#ccc;margin-bottom:4px;">${num(d.games)} bot games and ${num(d.mined_games)} real games saved (${num(d.rows)} positions, ${num(d.move_rows)} of them move by move), from ${num(d.accounts)} account(s). This week: ${num(pace)} games.</div>
-            ${meterHtml('Fit Formulas', (+d.games || 0) + (+d.mined_games || 0), MARKS.fit, pace, '')}
-            ${meterHtml('Bot network', (+d.games || 0) + (+d.mined_games || 0), MARKS.net, pace, 'Real games count most: more mined games help it learn how people play.')}
-            <div style="color:#888;font-size:11px;">The marks are rough rules of thumb, not proof. The real test stays the same: does the new bot win games.</div>`;
+            <div class="card">
+                <h4><span>#${c.id} <span class="tag" style="color:${k.color}">${esc(k.label)}</span></span>
+                    <span class="small muted">vs champion #${c.champion_id} · ${day(c.created_at)} · ${c.players} player${c.players === 1 ? '' : 's'}</span></h4>
+                <div class="row" style="justify-content:space-between;">
+                    <span><span class="rec">${c.wins}-${c.losses}-${c.draws}</span> <span class="small muted">won-lost-drawn</span></span>
+                    <span class="${v.cls}" title="Chance it really beats its champion, from its games so far">${v.text} · ${Math.round(100 * v.p)}%</span>
+                </div>
+                ${status}
+                ${changes.length ? `<ul class="changes">${changes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<div class="small muted">No difference found from its champion.</div>'}
+                ${c.status === 'open' ? `<div class="row" style="margin-top:8px;"><button class="b danger" data-reject="${c.id}">Reject</button></div>` : ''}
+            </div>`;
+    }
+    function challengersHtml(S) {
+        if (S.error) return `<div class="note">${esc(S.error)}</div>`;
+        const byId = new Map(S.champs.map(c => [c.id, c.weights]));
+        const open = S.candidates.filter(c => c.status === 'open');
+        const done = S.candidates.filter(c => c.status !== 'open').slice(0, 12);
+        return `
+            <div class="note">A challenger is the champion plus one change. It needs 58%+ of ${DECIDED_FOR_VERDICT} decided games to become champion. The % is the chance it really beats its champion so far: under 90% is not much to go on.</div>
+            <h3>Being tested (${open.length})</h3>
+            <div class="stack">${open.length ? open.map(c => challengerCard(c, byId.get(c.champion_id))).join('') : '<div class="muted">None right now. Train Bot and idle training make new ones.</div>'}</div>
+            ${done.length ? `<details><summary>Finished recently (${done.length})</summary><div class="stack">${done.map(c => challengerCard(c, byId.get(c.champion_id))).join('')}</div></details>` : ''}`;
     }
 
-    function candidatesHtml(list, champs) {
-        if (!list.length) return '<div style="color:#aaa;">No challengers yet.</div>';
-        const byId = new Map(champs.map(c => [c.id, c.weights]));
-        const rows = list.map(c => {
-            const v = verdict(c.wins, c.losses);
-            const dec = c.wins + c.losses;
-            const changes = diff(c.weights, byId.get(c.champion_id));
-            if (c.has_net) changes.push('adds a network');
-            const status = c.status === 'open' ? `${dec}/${DECIDED_FOR_VERDICT} decided` :
-                c.status === 'promoted' ? `<b style="color:#7f7;">promoted → champion #${c.new_champion_id}</b>` : esc(c.status);
-            return `
-                <div style="border-top:1px solid #333;padding:6px 0;">
-                    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-                        <span><b>#${c.id}</b> ${esc(c.kind)} <span style="color:#888;">vs champion #${c.champion_id}, ${day(c.created_at)}, ${c.players} player(s)</span></span>
-                        <span>${c.wins}-${c.losses}-${c.draws} · <span style="color:${v.color};" title="chance it is better than its champion">${v.text} (${Math.round(100 * v.p)}%)</span> · ${status}
-                            ${c.status === 'open' ? `<button class="tl-reject" data-id="${c.id}" style="padding:1px 7px;margin-left:4px;">Reject</button>` : ''}</span>
-                    </div>
-                    <div style="color:#aaa;font-size:11px;margin-top:2px;">${changes.length ? changes.map(esc).join('<br>') : 'no change found (champion weights not loaded?)'}</div>
-                </div>`;
+    // ── Champions ────────────────────────────────────────────────
+    function testHtml(t) {
+        if (!t) return '<span class="muted small">Plays the live champion against the last 3 champions, 10 games each (a few minutes). Shows whether training lost skill.</span>';
+        const rows = t.rows.map(r => {
+            if (r.error) return `<div>vs #${r.id}: <span class="bad">failed: ${esc(r.error)}</span></div>`;
+            if (r.playing) return `<div>vs #${r.id}: <span class="warn">${esc(r.playing)}</span></div>`;
+            const v = verdict(r.w, r.l);
+            const word = r.w > r.l ? 'live won more' : r.w < r.l ? 'old won more' : 'even';
+            return `<div>vs #${r.id}: <b>${r.w}-${r.l}-${r.d}</b> <span class="muted small">(live-old-draw)</span> ${word}` +
+                (v.text === 'likely worse' ? ' · <b class="bad">live looks weaker</b>' : v.text === 'likely better' ? ' · <span class="good">live looks stronger</span>' : '') + '</div>';
         }).join('');
-        return `<div style="color:#888;font-size:11px;margin-bottom:4px;">The server promotes at ${DECIDED_FOR_VERDICT} decided games with 58%+. The % is the chance it really beats its champion, from its games so far.</div>${rows}`;
+        const done = t.rows.filter(r => !r.error && !r.playing);
+        let sum = '';
+        if (!t.running && done.length) {
+            const W = done.reduce((a, r) => a + r.w, 0), L = done.reduce((a, r) => a + r.l, 0), D = done.reduce((a, r) => a + r.d, 0);
+            const worse = done.filter(r => verdict(r.w, r.l).text === 'likely worse');
+            sum = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #2e4a36;">Total: live #${t.live} won <b>${W}</b>, lost <b>${L}</b>, drew ${D}. ` +
+                (worse.length ? `<b class="bad">Looks weaker than #${worse.map(r => r.id).join(', #')}. Consider making that one live again.</b>`
+                    : W >= L ? '<span class="good">No sign it got weaker.</span>' : 'Lost a bit more than it won, but not clearly.') + '</div>';
+        }
+        return `<div class="small muted">${t.running ? 'Testing...' : 'Last test: ' + esc(t.at)}</div>${rows}${sum}`;
     }
-
-    function championsHtml(champs) {
-        if (!champs.length) return '<div style="color:#aaa;">No champions found.</div>';
-        return champs.map((c, i) => {
-            const prev = champs[i + 1];
-            const changes = prev ? diff(c.weights, prev.weights) : ['first one in this list'];
+    function championsHtml(S) {
+        if (!S.champs.length) return '<div class="muted">No champions found.</div>';
+        const list = S.champs.filter(c => c.promoted !== false);
+        const cards = list.map((c, i) => {
+            const prev = list[i + 1];
+            const copyOf = list.slice(i + 1).find(o => sameWeights(o.weights, c.weights));
+            const changes = copyOf ? [`same bot as #${copyOf.id} (made live again)`] : prev ? diff(c.weights, prev.weights) : ['oldest in this list'];
             if (c.weights?.net && c.weights?.netWeight) changes.push('uses a network');
+            const rec = (c.confirm_wins || c.confirm_losses || c.confirm_draws) ? `own record ${c.confirm_wins}-${c.confirm_losses}-${c.confirm_draws}` : 'no record of its own';
             return `
-                <div style="border-top:1px solid #333;padding:6px 0;">
-                    <div><b>#${c.id}</b> ${i === 0 ? '<span style="color:#7f7;">(live)</span>' : ''} <span style="color:#888;">${day(c.created_at)}, own record ${c.confirm_wins ?? '-'}-${c.confirm_losses ?? '-'}-${c.confirm_draws ?? '-'}</span></div>
-                    <div style="color:#aaa;font-size:11px;margin-top:2px;">${changes.length ? changes.map(esc).join('<br>') : 'no weight changes over 10%'}</div>
+                <div class="card">
+                    <h4><span>#${c.id} ${i === 0 ? '<span class="tag good">live</span>' : ''}</span><span class="small muted">${day(c.created_at)} · ${rec}</span></h4>
+                    ${changes.length ? `<ul class="changes">${changes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<div class="small muted">No setting changed by more than 10%.</div>'}
+                    ${i > 0 ? `<div class="row" style="margin-top:8px;"><button class="b" data-restore="${c.id}">Make live again</button></div>` : ''}
                 </div>`;
         }).join('');
+        return `
+            <div class="card testbox">
+                <div class="row" style="justify-content:space-between;"><b>Did training lose skill?</b><button class="b primary" data-act="test">Test live vs last 3</button></div>
+                <div class="tl-test-out" style="margin-top:6px;">${testHtml(S.lastTest)}</div>
+            </div>
+            <h3>Champions, newest first</h3>
+            <div class="note">"Make live again" puts an older champion back. Every bot uses it from the next page load. Challengers being tested against the current one stop.</div>
+            <div class="stack" style="margin-top:8px;">${cards}</div>`;
+    }
+
+    // ── Saved games ──────────────────────────────────────────────
+    function meter(label, games, marks, pace, note) {
+        const max = marks.good * 1.2;
+        const st = games >= marks.good ? ['good amount', 'good', '#7fdc8f'] : games >= marks.min ? ['enough to try', 'warn', '#f2cf6a'] : ['not enough yet', 'bad', '#ff8a8a'];
+        const next = games < marks.min ? marks.min : games < marks.good ? marks.good : null;
+        const eta = next && pace > 0 ? `About ${Math.ceil((next - games) / pace * 7)} day(s) to ${num(next)} at this week's pace.` : next ? 'No games saved this week.' : '';
+        return `
+            <div class="card">
+                <h4><span>${label}</span><span class="${st[1]} small">${st[0]}</span></h4>
+                ${bar(100 * games / max, st[2], [100 * marks.min / max, 100 * marks.good / max])}
+                <div class="small muted">${num(games)} games · try at ${num(marks.min)} · good at ${num(marks.good)}. ${eta}</div>
+                ${note ? `<div class="small muted" style="margin-top:4px;">${note}</div>` : ''}
+            </div>`;
+    }
+    function dataHtml(S) {
+        if (S.error) return `<div class="note">${esc(S.error)}</div>`;
+        const d = S.data || {};
+        const games = (+d.games || 0) + (+d.mined_games || 0), pace = +d.games_7d || 0;
+        return `
+            <div class="note">Every bot game (training, idle) and every mined real game saves board positions with who won. Fit Formulas and the bot network learn from them.</div>
+            <div class="grid" style="margin-top:10px;">
+                <div class="card"><h4>Bot games</h4><div class="rec">${num(d.games)}</div></div>
+                <div class="card"><h4>Real games</h4><div class="rec">${num(d.mined_games)}</div><div class="small muted">mined from recorded online games</div></div>
+                <div class="card"><h4>This week</h4><div class="rec">${num(pace)}</div><div class="small muted">games saved in the last 7 days</div></div>
+            </div>
+            <h3>Enough to learn from?</h3>
+            <div class="stack">
+                ${meter('Fit Formulas', games, MARKS.fit, pace, '')}
+                ${meter('Bot network', games, MARKS.net, pace, 'Real games help most: they show how people play.')}
+            </div>
+            <div class="small muted" style="margin-top:8px;">${num(d.rows)} positions in all (${num(d.move_rows)} saved move by move), from ${num(d.accounts)} account(s). The marks are rough rules of thumb.</div>`;
     }
 
     // ── Panel ────────────────────────────────────────────────────
     function open() {
         if (!window.isHermit?.()) return;
         document.getElementById('training-lab')?.remove();
+        if (!document.getElementById('training-lab-css')) {
+            const st = document.createElement('style');
+            st.id = 'training-lab-css';
+            st.textContent = CSS;
+            document.head.appendChild(st);
+        }
         const box = document.createElement('div');
         box.id = 'training-lab';
-        box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10059;width:min(760px,96vw);max-height:90vh;overflow:auto;' +
-            'background:#16161f;border:1px solid #555;border-radius:10px;padding:14px 16px;color:#ddd;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.7);';
-        const btn = (cls, text) => `<button class="${cls}" style="padding:4px 9px;">${text}</button>`;
+        const tabs = [['overview', 'Overview'], ['challengers', 'Challengers'], ['champions', 'Champions'], ['data', 'Saved games']];
+        let tab = 'overview';
+        try { tab = localStorage.getItem(TAB_KEY) || tab; } catch (e) {}
+        if (!tabs.some(t => t[0] === tab)) tab = 'overview';
         box.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <b style="font-size:16px;">Training Lab</b>
-                <span>${btn('tl-refresh', 'Refresh')} ${btn('tl-close', '✕')}</span>
+            <div class="tl-head">
+                <div class="tl-title"><h2>Training Lab</h2>
+                    <div class="row"><button class="b" data-act="refresh">Refresh</button><button class="b" data-act="close">✕</button></div></div>
+                <div class="tl-sum"><span class="chip">Loading...</span></div>
             </div>
-            <div style="color:#aaa;font-size:12px;margin-bottom:10px;">See what bot training is doing and judge it. Nothing here promotes a bot: real games and the server rules decide.</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
-                ${btn('tl-fit', 'Fit Formulas')} ${btn('tl-net', 'Bot Network')} ${btn('tl-lab', 'Formula Lab')} ${btn('tl-scrolls', 'Scroll report')}
-            </div>
-            <h4 style="margin:8px 0 4px;">Saved games for learning</h4>
-            <div class="tl-data">Loading...</div>
-            <h4 style="margin:14px 0 4px;">Challengers</h4>
-            <div class="tl-cands">Loading...</div>
-            <h4 style="margin:14px 0 4px;">Champion history</h4>
-            <div style="margin-bottom:6px;">${btn('tl-test', 'Test the live champion vs the last 3 (10 games each)')}</div>
-            <div class="tl-test-out" style="display:none;margin:0 0 10px;padding:8px 10px;border:1px solid #4a6;border-radius:6px;background:#1c2a20;font-size:13px;"></div>
-            <div class="tl-champs">Loading...</div>`;
+            <div class="tl-tabs">${tabs.map(([k, l]) => `<button class="tl-tab" data-tab="${k}">${l}</button>`).join('')}</div>
+            <div class="tl-body">${tabs.map(([k]) => `<div class="tl-pane" data-pane="${k}"><div class="muted">Loading...</div></div>`).join('')}</div>`;
         document.body.appendChild(box);
         const $ = s => box.querySelector(s);
-        $('.tl-close').onclick = () => box.remove();
-        $('.tl-fit').onclick = () => window.FormulaFit?.open();
-        $('.tl-net').onclick = () => window.BotNet?.open();
-        $('.tl-lab').onclick = () => window.FormulaLab?.open();
-        $('.tl-scrolls').onclick = async () => { try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {} window.BotArena?.openScrollReport?.(); };
+        const pane = k => box.querySelector(`[data-pane="${k}"]`);
 
-        let champs = [];
+        const S = { champs: [], candidates: [], data: null, taught: null, error: null, lastTest: null };
+        try { const t = JSON.parse(localStorage.getItem(TEST_KEY)); if (t?.rows) S.lastTest = { ...t, running: false }; } catch (e) {}
+
+        const show = k => {
+            tab = k;
+            try { localStorage.setItem(TAB_KEY, k); } catch (e) {}
+            box.querySelectorAll('.tl-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === k));
+            box.querySelectorAll('.tl-pane').forEach(p => p.classList.toggle('on', p.dataset.pane === k));
+        };
+        const render = () => {
+            const live = S.champs[0];
+            const open = S.candidates.filter(c => c.status === 'open').length;
+            const games = (+S.data?.games || 0) + (+S.data?.mined_games || 0);
+            $('.tl-sum').innerHTML = [
+                live ? `<span class="chip">Live bot <b>#${live.id}</b> since ${day(live.created_at)}</span>` : '',
+                `<span class="chip"><b>${open}</b> challenger${open === 1 ? '' : 's'} being tested</span>`,
+                S.data ? `<span class="chip"><b>${num(games)}</b> games saved</span>` : '',
+            ].join('');
+            pane('overview').innerHTML = overviewHtml(S);
+            pane('challengers').innerHTML = challengersHtml(S);
+            pane('champions').innerHTML = championsHtml(S);
+            pane('data').innerHTML = dataHtml(S);
+            show(tab);
+        };
+
         const refresh = async () => {
-            $('.tl-data').textContent = $('.tl-cands').textContent = $('.tl-champs').textContent = 'Loading...';
-            try { champs = await loadChampions(); $('.tl-champs').innerHTML = championsHtml(champs); }
-            catch (e) { $('.tl-champs').textContent = 'Could not load champions: ' + (e.message || e); }
-            const { data, error } = await supabase.rpc('hermit_training_lab', { p_limit: 40 });
-            if (error) {
-                const msg = /function|does not exist|schema cache/i.test(error.message || '') ? 'Run sql/training-lab.sql in the Supabase SQL editor first.' : (error.message || error);
-                $('.tl-data').textContent = $('.tl-cands').textContent = msg;
-                return;
+            S.error = null;
+            try { S.champs = await loadChampions(); } catch (e) { S.error = 'Could not load champions: ' + (e.message || e); }
+            const [lab, taught] = await Promise.all([supabase.rpc('hermit_training_lab', { p_limit: 40 }), loadTaughtCombos()]);
+            S.taught = taught;
+            if (lab.error) {
+                S.error = /function|does not exist|schema cache/i.test(lab.error.message || '') ? 'Run sql/training-lab.sql in the Supabase SQL editor first.' : (lab.error.message || String(lab.error));
+                S.candidates = []; S.data = null;
+            } else {
+                S.candidates = lab.data.candidates || [];
+                S.data = lab.data.data || null;
+                // Champions the challengers were made from may be older than the list.
+                const need = [...new Set(S.candidates.map(c => c.champion_id))].filter(id => !S.champs.some(c => c.id === id));
+                if (need.length) {
+                    const r = await supabase.from('bot_champion_weights').select('id, weights, promoted').in('id', need);
+                    if (!r.error) S.champs = [...S.champs, ...(r.data || []).map(c => ({ ...c, promoted: false }))];
+                }
             }
-            $('.tl-data').innerHTML = dataHtml(data.data);
-            // Champions the challengers were made from may be older than the list.
-            const need = [...new Set((data.candidates || []).map(c => c.champion_id))].filter(id => !champs.some(c => c.id === id));
-            if (need.length) {
-                const r = await supabase.from('bot_champion_weights').select('id, weights').in('id', need);
-                if (!r.error) champs = [...champs, ...(r.data || [])];
-            }
-            $('.tl-cands').innerHTML = candidatesHtml(data.candidates || [], champs);
-            box.querySelectorAll('.tl-reject').forEach(b => b.onclick = async () => {
-                if (!confirm(`Reject challenger #${b.dataset.id}? Idle training stops testing it.`)) return;
-                b.disabled = true;
-                const r = await supabase.rpc('hermit_reject_candidate', { p_id: +b.dataset.id });
-                if (r.error) { alert('Reject failed: ' + r.error.message); b.disabled = false; return; }
-                refresh();
-            });
+            render();
         };
-        $('.tl-refresh').onclick = refresh;
 
-        // Test results: a box of its own (one row per older champion, then a
-        // summary), kept in localStorage so they are still here after a reload.
-        const TEST_KEY = 'godaigo_training_lab_test';
-        const showTest = (t) => {
-            const out = $('.tl-test-out');
-            out.style.display = '';
-            const rows = t.rows.map(r => {
-                if (r.error) return `<div>vs champion #${r.id}: <span style="color:#f99;">failed: ${esc(r.error)}</span></div>`;
-                if (r.playing) return `<div>vs champion #${r.id}: <span style="color:#fd7;">${esc(r.playing)}</span></div>`;
-                const v = verdict(r.w, r.l);
-                const word = r.w > r.l ? 'live won more' : r.w < r.l ? 'old won more' : 'even';
-                return `<div>vs champion #${r.id}: <b>${r.w}-${r.l}-${r.d}</b> (live-old-draw), ${word}` +
-                    (v.text === 'likely worse' ? ' <b style="color:#f77;">live looks WORSE</b>' : v.text === 'likely better' ? ' <span style="color:#7f7;">live looks better</span>' : '') + '</div>';
-            }).join('');
-            const done = t.rows.filter(r => !r.error && !r.playing);
-            let sum = '';
-            if (!t.running && done.length) {
-                const W = done.reduce((a, r) => a + r.w, 0), L = done.reduce((a, r) => a + r.l, 0), D = done.reduce((a, r) => a + r.d, 0);
-                const worse = done.filter(r => verdict(r.w, r.l).text === 'likely worse');
-                sum = `<div style="margin-top:6px;border-top:1px solid #355;padding-top:6px;">Total: live champion #${t.live} won <b>${W}</b>, lost <b>${L}</b>, drew ${D}. ` +
-                    (worse.length ? `<b style="color:#f77;">It looks weaker than #${worse.map(r => r.id).join(', #')}. Run the test again before trusting this.</b>`
-                        : W >= L ? 'No sign it got weaker.' : 'It lost more than it won, but not clearly. 10 games per champion is only a hint.') + '</div>';
-            }
-            out.innerHTML = `<div style="color:#aaa;font-size:11px;margin-bottom:4px;">${t.running ? 'Testing...' : 'Last test, ' + esc(t.at)}</div>${rows}${sum}`;
-        };
-        try { const t = JSON.parse(localStorage.getItem(TEST_KEY)); if (t?.rows) showTest({ ...t, running: false }); } catch (e) {}
-
-        $('.tl-test').onclick = async () => {
-            if (champs.length < 2) { showTest({ running: false, at: '-', live: '?', rows: [{ id: '-', error: 'need at least 2 champions' }] }); return; }
-            $('.tl-test').disabled = true;
-            const live = champs[0];
-            const t = { running: true, at: new Date().toLocaleString(), live: live.id, rows: [] };
+        const runTest = async () => {
+            const list = S.champs.filter(c => c.promoted !== false);
+            const btn = box.querySelector('[data-act="test"]');
+            const draw = () => { const o = box.querySelector('.tl-test-out'); if (o) o.innerHTML = testHtml(S.lastTest); };
+            if (list.length < 2) { S.lastTest = { running: false, at: '-', live: '?', rows: [{ id: '-', error: 'need at least 2 champions' }] }; draw(); return; }
+            if (btn) btn.disabled = true;
+            const live = list[0];
+            const t = S.lastTest = { running: true, at: new Date().toLocaleString(), live: live.id, rows: [] };
             try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
-            for (const old of champs.slice(1, 4)) {
+            for (const old of list.slice(1, 4)) {
                 const row = { id: old.id, playing: 'starting...' };
                 t.rows.push(row);
-                showTest(t);
+                draw();
                 try {
                     const r = await window.BotArena.run(live.weights, old.weights, 10, (Date.now() % 100000) >>> 0, {
                         visual: false, comboWatch: false,
                         onGame: (i, n, g, info) => {
-                            row.playing = `game ${i} of ${n} done` + (info ? (g?.winner == null ? ' (draw)' : info.aWon ? ' (live won)' : ' (old won)') : '');
-                            showTest(t);
+                            row.playing = `game ${i} of ${n}` + (info ? (g?.winner == null ? ' (draw)' : info.aWon ? ' (live won)' : ' (old won)') : '');
+                            draw();
                         },
                     });
                     delete row.playing;
                     Object.assign(row, { w: r.aWins, l: r.bWins, d: r.draws });
                 } catch (e) { delete row.playing; row.error = e.message || String(e); }
-                showTest(t);
+                draw();
             }
             t.running = false;
-            showTest(t);
+            draw();
             try { localStorage.setItem(TEST_KEY, JSON.stringify(t)); } catch (e) {}
             console.log('🧪 [TrainingLab] live champion #' + live.id + ' vs older champions: ' +
                 t.rows.map(r => r.error ? `#${r.id} failed (${r.error})` : `#${r.id} ${r.w}-${r.l}-${r.d}`).join(', '));
             // Arena games swap the screen; bring the Lab back to the front with the result in view.
             if (!box.isConnected) document.body.appendChild(box);
             box.style.zIndex = '10090';
-            $('.tl-test-out').scrollIntoView({ block: 'center' });
-            $('.tl-test').disabled = false;
+            show('champions');
+            box.querySelector('.tl-test-out')?.scrollIntoView({ block: 'center' });
+            if (btn) btn.disabled = false;
         };
 
+        // One click handler for the whole panel.
+        box.addEventListener('click', async (ev) => {
+            const el = ev.target.closest('button');
+            if (!el || !box.contains(el)) return;
+            if (el.dataset.tab) return show(el.dataset.tab);
+            if (el.dataset.reject) {
+                if (!confirm(`Reject challenger #${el.dataset.reject}? Idle training stops testing it.`)) return;
+                el.disabled = true;
+                const r = await supabase.rpc('hermit_reject_candidate', { p_id: +el.dataset.reject });
+                if (r.error) { alert('Reject failed: ' + r.error.message); el.disabled = false; return; }
+                return refresh();
+            }
+            if (el.dataset.restore) {
+                const id = +el.dataset.restore;
+                if (!confirm(`Make champion #${id} live again? Every bot uses it from the next page load, and challengers being tested now stop.`)) return;
+                el.disabled = true;
+                const r = await supabase.rpc('hermit_restore_champion', { p_id: id });
+                if (r.error) {
+                    alert(/function|does not exist|schema cache/i.test(r.error.message || '') ? 'Run the newest sql/training-lab.sql in the SQL editor first.' : 'Failed: ' + r.error.message);
+                    el.disabled = false; return;
+                }
+                if (r.data && r.data.ok === false) { alert('Not changed: ' + (r.data.reason || 'unknown')); el.disabled = false; return; }
+                alert(`Done. Champion #${id} is live again (new entry #${r.data?.new_id ?? '?'}). Reload the page to play against it.`);
+                return refresh();
+            }
+            switch (el.dataset.act) {
+                case 'close': box.remove(); break;
+                case 'refresh': refresh(); break;
+                case 'test': runTest(); break;
+                case 'tab-data': show('data'); break;
+                case 'trainbot': if (typeof window._gami_openTrainBot === 'function') window._gami_openTrainBot(); break;
+                case 'formulalab': window.FormulaLab?.open(); break;
+                case 'fit': window.FormulaFit?.open(); break;
+                case 'net': window.BotNet?.open(); break;
+                case 'combos': window.Replay?.openBrowser?.('combos'); break;
+                case 'puzzles': window.Replay?.openBrowser?.('puzzles'); break;
+                case 'scrolls': try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {} window.BotArena?.openScrollReport?.(); break;
+                case 'imitation':
+                    if (window.BotImitation) { window.BotImitation.setEnabled(!window.BotImitation.isEnabled()); render(); }
+                    break;
+            }
+        });
+
+        show(tab);
         refresh();
     }
 

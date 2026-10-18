@@ -62,3 +62,32 @@ grant execute on function public.hermit_reject_candidate(bigint) to authenticate
 
 -- Check: both functions exist.
 select proname, true as ok from pg_proc where proname in ('hermit_training_lab', 'hermit_reject_candidate');
+
+-- ── Rollback (owner 2026-10-18) ─────────────────────────────────
+-- hermit_restore_champion(p_id): makes an older champion live again by adding
+-- a new promoted row with the same weights (the table stays an append-only
+-- log). Open challengers made against the old live champion go stale, like
+-- after any promotion. Bots pick it up on their next page load.
+create or replace function public.hermit_restore_champion(p_id bigint)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_old bot_champion_weights;
+  v_live bigint;
+  v_new bigint;
+begin
+  if not public.is_hermit() then raise exception 'not authorized'; end if;
+  select * into v_old from bot_champion_weights where id = p_id and promoted;
+  if v_old.id is null then raise exception 'no promoted champion %', p_id; end if;
+  select id into v_live from bot_champion_weights order by promoted desc, created_at desc limit 1;
+  if v_live = p_id then return jsonb_build_object('ok', false, 'reason', 'already live'); end if;
+  insert into bot_champion_weights (weights, confirm_wins, confirm_losses, confirm_draws, promoted, created_by)
+    values (v_old.weights, 0, 0, 0, true, auth.uid()) returning id into v_new;
+  update idle_candidates set status = 'stale', decided_at = now()
+    where status = 'open' and champion_id = v_live;
+  return jsonb_build_object('ok', true, 'new_id', v_new, 'copied_from', p_id);
+end $$;
+
+revoke all on function public.hermit_restore_champion(bigint) from public, anon;
+grant execute on function public.hermit_restore_champion(bigint) to authenticated;
+
+select proname, true as ok from pg_proc where proname = 'hermit_restore_champion';

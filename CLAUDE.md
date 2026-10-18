@@ -530,13 +530,15 @@ Order matters — later scripts depend on earlier ones.
                              godaigo_formula_fit_queued; game-ui.js runHillClimbTraining takeQueued: champion + set joins round 1, once)
                              and / or "Send to idle training" (a 'formula' challenger).
                              BotTerms.rowContext / missingInputs read inputs from a saved row (homeCost, myAP, adjacent not saved).
-24f. training-lab.js      <- window.TrainingLab: hermit menu "Training Lab" (2026-10-18). One screen to judge training (Train Bot
-                             stays one button). Saved games meter (games' worth of position_samples vs rough marks: Fit Formulas
-                             try 300 / good 1,000, network 2,000 / 5,000; this week's pace + days to the next mark), challengers
-                             (every idle challenger, diff vs its champion, record, chance it beats its champion = Beta(w+1, l+1),
-                             verdict, Reject), champion history (promoted rows, diff vs the one before) + "Test the live champion vs
-                             the last 3" (BotArena.run 10 games each), shortcuts to Fit Formulas / Bot Network / Formula Lab /
-                             Scroll report. Server: sql/training-lab.sql (hermit_training_lab, hermit_reject_candidate).
+24f. training-lab.js      <- window.TrainingLab: hermit menu "Training Lab" (2026-10-18, rebuilt the same day for clarity). One place to
+                             see and steer training (Train Bot stays one button). Tabs (last tab kept, localStorage godaigo_training_lab_tab):
+                             Overview = the 4-step flow (ideas, challenger, games, champion) + one card per method (Explore, Formulas, Combos,
+                             Learned from you, Bot network, Checks, Scroll report) with live status and the button that opens it;
+                             Challengers = every idle challenger (diff vs its champion, record, progress to 40, Beta chance it beats its
+                             champion, Reject); Champions = "Test live vs last 3" (BotArena.run 10 games each, result kept in localStorage
+                             godaigo_training_lab_test) + promoted champions with changes and "Make live again" (hermit_restore_champion);
+                             Saved games = counts + meters (Fit Formulas 300 / 1,000, network 2,000 / 5,000). Server: sql/training-lab.sql
+                             (hermit_training_lab, hermit_reject_candidate, hermit_restore_champion).
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
                              Human seats are off limits (2026-10-15): BotEffects.humanSeatActive() (online, not a test game, active seat
