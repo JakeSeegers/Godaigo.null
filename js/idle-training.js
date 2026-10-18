@@ -224,6 +224,7 @@
             try {
                 await window.BotArena.run(run.cand.weights, run.job.champion, 1, seed, {
                     visual: true, speed: fast ? FAST_SPEED : 1, markChallenger: true, gameIndexOffset: played,
+                    fourPlayerEvery: 3, // every 3rd pair of games: 4-player team game (docs/bot-systems.md)
                     onGame: (n, total, g, side) => report(g, side),
                 });
             } finally { window.__arenaFx = false; }

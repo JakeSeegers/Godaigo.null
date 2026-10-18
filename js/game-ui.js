@@ -872,8 +872,9 @@
             // spectator or the seatless host of a spectate test.
             const dri = window.BotDriver?.driverRealIndex?.();
             const meIdx = dri != null ? dri : myPlayerIndex;
+            // Other players only (owner 2026-10-15: your own card is already in
+            // your Hand / Active / Elemental Stones panels). A spectator sees all.
             const playerOrder = [];
-            if (meIdx != null && meIdx >= 0) playerOrder.push(meIdx);
             for (let i = 0; i < totalPlayers; i++) {
                 if (i !== meIdx) playerOrder.push(i);
             }
@@ -917,23 +918,38 @@
                     `<span class="opponent-stone" style="color:${STONE_TYPES[el].color}" title="${pool[el]} ${el} stone${pool[el] !== 1 ? 's' : ''}"><img src="${STONE_TYPES[el].img}" class="element-icon-sm" alt="${el}">${pool[el]}</span>`).join('');
                 html += row('Stones', stones || '<span class="opp-none">none</span>');
 
-                // Hand: count + each scroll's ELEMENT only (name/pattern stay
-                // private, like a face-down card showing its suit). A catacomb
-                // scroll in hand is a plain light-tan symbol: its two element
-                // colors would tell others which catacomb scroll it is.
+                // Hand and Active as the same rows as the player's own collapsed
+                // Hand / Active panels (owner 2026-10-15: dot, name, element ·
+                // level). Another player's hand stays face down: only each
+                // scroll's ELEMENT shows (a catacomb scroll is plain light tan,
+                // its two colors would tell which one it is). js/scroll-move-fx.js
+                // flies scrolls between these rows ([data-area] on the list).
+                const meta = n => window.ScrollPanelSystem?.scrollMeta?.(n) || null;
+                const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                const shownRow = n => {
+                    const m = meta(n);
+                    const name = m ? m.name : n;
+                    const sub = m ? [m.elLabel, m.lvLabel].filter(Boolean).join(' · ') : '';
+                    return `<div class="opponent-scroll-card opp-scroll-row" data-scroll-name="${esc(n)}" title="${esc(name)}: hover to preview">`
+                        + `<span class="fsp-compact-dot" style="background:${m ? m.bg : '#888'}"></span>`
+                        + `<span class="opponent-scroll-name">${esc(name)}</span><span class="opp-scroll-meta">${esc(sub)}</span></div>`;
+                };
+                const hiddenRow = n => {
+                    const el = spellSystem.getScrollElement(n);
+                    const shown = el === 'catacomb' ? 'catacomb' : n;
+                    const bg = look ? look.gradient(look.colors(shown)) : '#888';
+                    const lbl = look ? look.label(shown) : el;
+                    return `<div class="opp-scroll-row opp-scroll-hidden"><span class="fsp-compact-dot" style="background:${bg}"></span>`
+                        + `<span class="opponent-scroll-name">Hidden scroll</span><span class="opp-scroll-meta">${esc(lbl)}</span></div>`;
+                };
+                const list = (area, names, rowFn, empty) => `<div class="opp-scroll-list" data-area="${area}">`
+                    + (names.length ? names.map(rowFn).join('') : `<span class="opp-none">${empty}</span>`) + '</div>';
                 const handNames = scrollData.hand ? [...scrollData.hand] : [];
-                html += row(`Hand ${handNames.length}`, handNames.length
-                    ? handNames.map(n => look ? look.iconHtml(spellSystem.getScrollElement(n) === 'catacomb' ? 'catacomb' : n, 'element-icon-sm opp-hand-icon') : '').join('')
-                    : '<span class="opp-none">empty</span>');
-
-                // Active scrolls (public): icon + name, hover = preview
+                // label above the list (rows need the card's full width)
+                const listRow = (label, inner) => `<div class="opp-row opp-row-list"><span class="opp-label">${label}</span>${inner}</div>`;
+                html += listRow(`Hand ${handNames.length}`, list('hand', handNames, isSelf ? shownRow : hiddenRow, 'empty'));
                 const activeNames = scrollData.active ? [...scrollData.active] : [];
-                if (activeNames.length) {
-                    html += row('Active', activeNames.map(n => {
-                        const pattern = spellSystem.patterns[n];
-                        return `<span class="opponent-scroll-card" data-scroll-name="${n}" title="${look ? look.label(n) : ''}: hover to preview">${look ? look.iconHtml(n) : ''}<span class="opponent-scroll-name" style="${look ? look.textStyle(n) : ''}">${pattern ? pattern.name : n}</span></span>`;
-                    }).join(''));
-                }
+                html += listRow(`Active ${activeNames.length}`, list('active', activeNames, shownRow, 'none'));
                 card.innerHTML = html;
 
                 if (cardsContainer) cardsContainer.appendChild(card);
@@ -1268,6 +1284,7 @@
             }
             return moved;
         }
+        window.carryPlayersOnTelekinesisMove = carryPlayersOnTelekinesisMove; // bot-effects.js driveTelekinesis
 
         document.addEventListener('mouseup', (e) => {
             if (e.button === 0) leftButtonDown = false;
@@ -1391,7 +1408,7 @@
                 draggedStoneOriginalPos = null;
 
                 if (!tryReturnStoneToElementalPanel(e.clientX, e.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
-                    const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
+                    const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType, capturedStoneId !== null);
                     if (stonePos.valid) {
                         if (capturedStoneId === null) {
                             window._pendingFireDestroys = [];
@@ -2046,7 +2063,7 @@
                     draggedStoneOriginalPos = null;
 
                     if (!tryReturnStoneToElementalPanel(coords.clientX, coords.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
-                        const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
+                        const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType, capturedStoneId !== null);
                         if (stonePos.valid && capturedStoneId === null) {
                             placeStone(stonePos.x, stonePos.y, capturedStoneType);
                             window.SoundSystem?.play(capturedStoneType === 'earth' ? 'placeearthstone' : 'placestone');
@@ -3188,6 +3205,39 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
 
         let isEndingTurn = false; // Double-click guard for end-turn button
 
+        // A press on a bar button keeps the release (pointer capture), so the
+        // click counts even if the button moved under the mouse while held:
+        // the pressed look shifts it 3 px (a press near its top or left edge
+        // ended outside it) and Smart UI fit could re-fit the bar mid-press.
+        // The browser then dropped the click and End Turn needed a second one
+        // (owner 2026-10-15). Released 40 px+ away from the button (where it was
+        // when pressed and where it is now) = cancelled, as before.
+        (function keepButtonPress() {
+            const SEL = '#end-turn, .hud-bar button, .dock-bar button';
+            let held = null, heldRect = null;
+            document.addEventListener('pointerdown', (e) => {
+                const btn = e.button === 0 && e.target?.closest?.(SEL);
+                held = null;
+                if (!btn || btn.disabled || btn.draggable) return; // draggable: TheHermit layout editor
+                try { btn.setPointerCapture(e.pointerId); held = btn; heldRect = btn.getBoundingClientRect(); } catch (err) {}
+            }, true);
+            document.addEventListener('pointerup', (e) => {
+                if (!held) return;
+                const M = 40;
+                const away = (r) => e.clientX < r.left - M || e.clientX > r.right + M || e.clientY < r.top - M || e.clientY > r.bottom + M;
+                // far from where the button was when pressed AND from where it is now
+                const far = away(heldRect) && away(held.getBoundingClientRect());
+                if (far) {
+                    // a drag away from the button: no click (the usual way to change your mind)
+                    const b = held;
+                    const stop = (ev) => { if (ev.target === b || b.contains(ev.target)) { ev.stopImmediatePropagation(); ev.preventDefault(); } };
+                    window.addEventListener('click', stop, true);
+                    setTimeout(() => window.removeEventListener('click', stop, true), 0);
+                }
+                held = null;
+            }, true);
+        })();
+
         document.getElementById('end-turn').onclick = function() {
             resetEndTurnPrompt();
             // Prevent double-click from advancing turn twice
@@ -3728,7 +3778,8 @@ document.getElementById('undo-move').onclick = function() {
                 sourcePool[shrineType] -= actualReplenished;
                 playerPool[shrineType] += actualReplenished;
                 updateStoneCount(shrineType);
-                window.SoundSystem?.play('collectstones');
+                if (window.SoundSystem?.playCollect) window.SoundSystem.playCollect(shrineType);
+                else window.SoundSystem?.play('collectstones');
                 // the collection effect here, and on other screens via the next
                 // turn-change message (payload.collected)
                 const at = (typeof playerPosition !== 'undefined' && playerPosition) ? { x: playerPosition.x, y: playerPosition.y } : null;
@@ -4339,7 +4390,16 @@ document.getElementById('undo-move').onclick = function() {
         window._trainSaveWanted = false;
         let trainPhase = null; // 'exploring' | 'training' | 'confirming' (Save & quit only before confirming)
 
+        // The Speed button's choice holds for the whole Train Bot run (owner
+        // 2026-10-15: a switch to Extreme went back to Watchable when the run
+        // moved on to its next part). Cleared before and after, so the next run
+        // and idle training start from their own speed.
         async function runHillClimbTraining(preset, onProgress, opts = {}) {
+            window.BotArena?.clearJobSpeed?.();
+            try { return await runHillClimbTrainingInner(preset, onProgress, opts); }
+            finally { window.BotArena?.clearJobSpeed?.(); }
+        }
+        async function runHillClimbTrainingInner(preset, onProgress, opts = {}) {
             const resume = opts.resume || null;
             if (resume) { preset = resume.preset; opts = { ...opts, ...resume.runOpts }; }
             else clearTrainSave(); // a new run replaces any older saved one
@@ -4934,18 +4994,20 @@ document.getElementById('undo-move').onclick = function() {
             el.innerHTML = `
                 <div class="panel-header" style="border-radius:7px 7px 0 0;">
                     <span class="panel-title">Bot Training</span>
+                    <span id="bt-popup-mini" style="margin-left:auto;margin-right:6px;font-size:12px;color:#d9b08c;"></span>
+                    <button id="bt-popup-min" class="hud-toggle-btn" title="Make this window small">–</button>
                     <button id="bt-popup-expand" class="hud-toggle-btn" title="Open full panel">⤢</button>
                 </div>
-                <div style="padding:12px 14px;">
+                <div id="bt-popup-body" style="padding:12px 14px;">
                     <div id="bt-popup-scenario" style="font-size:14px;font-weight:600;color:#fff;margin-bottom:2px;"></div>
                     <div id="bt-popup-phase" style="font-size:12px;color:#bbb;margin-bottom:10px;"></div>
 
                     <div id="bt-popup-matchup" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:#eee;margin-bottom:8px;min-height:16px;"></div>
 
-                    <div style="background:#0d0d18;border:1px solid #333;border-radius:5px;height:10px;overflow:hidden;margin-bottom:4px;">
+                    <div class="bt-keep" style="background:#0d0d18;border:1px solid #333;border-radius:5px;height:10px;overflow:hidden;margin-bottom:4px;">
                         <div id="bt-popup-bar" style="height:100%;background:linear-gradient(90deg,#8a6a3f,#d9b08c);width:0%;transition:width .25s ease-out;"></div>
                     </div>
-                    <div id="bt-popup-progress-text" style="font-size:12px;color:#aaa;margin-bottom:10px;"></div>
+                    <div id="bt-popup-progress-text" class="bt-keep" style="font-size:12px;color:#aaa;margin-bottom:10px;"></div>
 
                     <div id="bt-popup-stats" style="display:none;font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:6px 8px;background:#12121f;border:1px solid #2a2a40;border-radius:5px;">
                         <div id="bt-popup-current"></div>
@@ -4973,7 +5035,7 @@ document.getElementById('undo-move').onclick = function() {
 
                     <div id="bt-popup-summary" style="font-size:12px;color:#ccc;margin-bottom:10px;"></div>
 
-                    <div style="display:flex;gap:6px;">
+                    <div class="bt-keep" style="display:flex;gap:6px;">
                         <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:12px;">End Early → Test Now</button>
                         <button id="bt-popup-speed" title="Switch this run between Watchable (normal pace) and Extreme (fast). Sound stays as the run started." style="padding:4px 8px;background:#2d2d44;color:#eee;border:1px solid #666;border-radius:4px;cursor:pointer;font-size:12px;">Speed</button>
                         <button id="bt-popup-save" title="Stop now and keep this run. Continue it later from Train Bot (the game in progress is played again)." style="padding:4px 8px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:4px;cursor:pointer;font-size:12px;">Save &amp; Quit</button>
@@ -4982,6 +5044,28 @@ document.getElementById('undo-move').onclick = function() {
                 </div>
             `;
             document.body.appendChild(el);
+            // Minimize (owner 2026-10-15: the window is big): only the progress
+            // bar, its line and the buttons stay; the header shows the percent.
+            // Remembered in localStorage godaigo_train_popup_min.
+            if (!document.getElementById('bt-popup-min-style')) {
+                const st = document.createElement('style');
+                st.id = 'bt-popup-min-style';
+                st.textContent = '#bot-training-status-popup.bt-min #bt-popup-body > :not(.bt-keep){display:none !important}'
+                    + '#bot-training-status-popup:not(.bt-min) #bt-popup-mini{display:none}'
+                    + '#bot-training-status-popup.bt-min #bt-popup-body{padding:8px 10px !important}';
+                document.head.appendChild(st);
+            }
+            const minBtn = el.querySelector('#bt-popup-min');
+            const setMin = (m) => {
+                el.classList.toggle('bt-min', m);
+                minBtn.textContent = m ? '+' : '–';
+                minBtn.title = m ? 'Show everything' : 'Make this window small';
+                try { localStorage.setItem('godaigo_train_popup_min', m ? '1' : '0'); } catch (e) {}
+            };
+            let startMin = false;
+            try { startMin = localStorage.getItem('godaigo_train_popup_min') === '1'; } catch (e) {}
+            setMin(startMin);
+            minBtn.onclick = () => setMin(!el.classList.contains('bt-min'));
             el.querySelector('#bt-popup-expand').onclick = () => {
                 if (typeof window._openBotTrainingPanel === 'function') window._openBotTrainingPanel();
             };
@@ -5059,6 +5143,8 @@ document.getElementById('undo-move').onclick = function() {
             const el = ensureTrainingPopup();
             el.style.display = 'block';
             const pct = p.totalGames ? Math.min(100, (p.gamesDone / p.totalGames) * 100) : 0;
+            const miniEl = el.querySelector('#bt-popup-mini');
+            if (miniEl) miniEl.textContent = `${Math.round(pct)}%`;
             const elapsedS = (Date.now() - p.startedAt) / 1000;
             let scenarioLine, phaseLine, summaryLine, matchupHtml = '';
             // Formulas box: what the current challenger is trying (new ones
@@ -7563,6 +7649,10 @@ document.getElementById('undo-move').onclick = function() {
                 }));
                 menu.appendChild(makeItem('Fit Formulas (test formulas on saved positions)', () => {
                     if (window.FormulaFit) window.FormulaFit.open();
+                }));
+                menu.appendChild(makeItem('Scroll report (which scrolls bots use badly)', async () => {
+                    try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
+                    window.BotArena?.openScrollReport?.();
                 }));
                 menu.appendChild(makeItem('Rewards: sign-up events, game rewards', () => {
                     window.HermitRewards?.open();

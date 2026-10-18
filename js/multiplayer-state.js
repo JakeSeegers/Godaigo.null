@@ -219,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             // withStatusActor: this responder may be a bot deciding on its own (no
                             // impersonation involved), so gate its status text on the REAL responder
                             // index rather than whatever this client happens to be impersonating.
+                            const poolBefore = spellSystem.sourcePoolSnapshot();
                             window.withStatusActor(entry.casterIndex, () => {
                                 spellSystem.scrollEffects.execute(scrollName, entry.casterIndex, {
                                     spell: scrollDef,
@@ -238,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const grantedEls = spellSystem.grantElements(entry.casterIndex,
                                     (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0])
                                         ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                        : [scrollDef.element]);
+                                        : [scrollDef.element], poolBefore);
                                 if (typeof updatePlayerElementSymbols === 'function') {
                                     updatePlayerElementSymbols(entry.casterIndex);
                                 }
@@ -293,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             // withStatusActor: gate this counter's status text on the REAL
                             // counter-caster index — covers a bot responding on its own (no
                             // impersonation) as well as a bot's own turn.
+                            const poolBefore = spellSystem.sourcePoolSnapshot();
                             window.withStatusActor(counterCasterIdx, () => {
                                 spellSystem.scrollEffects.execute(scrollName, counterCasterIdx, {
                                     spell: scrollDef,
@@ -315,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const grantedEls = spellSystem.grantElements(counterCasterIdx,
                                     (scrollDef.element === 'catacomb' && scrollDef.patterns && scrollDef.patterns[0])
                                         ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                        : [scrollDef.element]);
+                                        : [scrollDef.element], poolBefore);
                                 if (typeof updatePlayerElementSymbols === 'function') {
                                     updatePlayerElementSymbols(counterCasterIdx);
                                 }

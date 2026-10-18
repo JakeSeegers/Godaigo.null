@@ -1181,6 +1181,87 @@ body {
     white-space: nowrap;
 }
 
+/* Opponent Status Hand / Active lists (owner 2026-10-15): the same rows as
+   the player's own collapsed Hand / Active panels (.fsp-compact-row: dot,
+   name, element · level). Another player's hand rows are face down. */
+.opp-row.opp-row-list {
+    grid-template-columns: 1fr;
+    gap: 2px;
+}
+.opp-scroll-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    width: 100%;
+}
+.opp-scroll-list .opp-scroll-row,
+.opp-scroll-list .opponent-scroll-card {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 6px;
+    border: none;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--bg-panel, #1d1831) 45%, transparent);
+    max-width: 100%;
+    min-width: 0;
+}
+.opp-scroll-list .opponent-scroll-card { cursor: help; }
+.opp-scroll-list .opponent-scroll-card:hover { background: rgba(255,255,255,0.08); border: none; }
+.opp-scroll-row .fsp-compact-dot { align-self: center; }
+.opp-scroll-row .opponent-scroll-name {
+    font-size: 14px;
+    color: #eee;
+    flex-shrink: 0;      /* the name keeps its room, the element / level text gives way */
+    max-width: 75%;
+}
+.opp-scroll-hidden .opponent-scroll-name { color: #9a9aa8; font-style: italic; }
+.opp-scroll-meta {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: #999;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+/* the flying scroll chip (js/scroll-move-fx.js) */
+.smf-chip {
+    position: fixed;
+    z-index: 9000;
+    pointer-events: none;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 4px 10px 4px 8px;
+    background: color-mix(in srgb, #15121f 92%, transparent);
+    border: 1px solid var(--smf-color, #888);
+    border-radius: 4px;
+    box-shadow: 0 0 10px 1px color-mix(in srgb, var(--smf-color, #888) 70%, transparent), 0 4px 14px rgba(0,0,0,0.6);
+    white-space: nowrap;
+    will-change: transform, opacity;
+}
+.smf-chip::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 3px;
+    border-radius: 4px 4px 0 0;
+    background: var(--smf-grad, var(--smf-color, #888));
+}
+.smf-trail { filter: blur(1px); box-shadow: none; }
+.smf-dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; flex-shrink: 0; }
+.smf-name { font-family: var(--font-terminal); font-size: 15px; }
+.smf-meta { font-family: var(--font-sans); font-size: 11px; color: #aaa; }
+/* a scroll that just landed here (js/scroll-move-fx.js) */
+.smf-landed { animation: smf-landed 0.6s ease-out; }
+@keyframes smf-landed {
+    0%   { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+    25%  { box-shadow: 0 0 0 2px var(--smf-color, #fff), 0 0 14px 2px var(--smf-color, #fff); filter: brightness(1.5); }
+    100% { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+}
+
 /* PlayerFlash (js/game-ui.js): a short glow in the player's color on their
    pawn, player shrine and Opponent Status card. */
 .player-flash { animation: player-flash 1.3s ease-out; }
@@ -4160,6 +4241,24 @@ label, .hud-ap-label, .hud-ap-value {
     );
 }
 .fsp-resize-handle:hover { opacity: 0.9; }
+/* Opponent Status: a visible expander button in the corner (scroll-panels.js opts.expander) */
+.fsp-resize-handle.fsp-expander {
+    width: 18px;
+    height: 18px;
+    right: 3px;
+    bottom: 3px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 4px;
+    color: rgba(255,255,255,0.75);
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+    opacity: 0.7;
+    user-select: none;
+    z-index: 2;
+}
+.fsp-resize-handle.fsp-expander:hover { opacity: 1; background: rgba(255,255,255,0.18); }
 
 
 /* ---- Scroll card ---- */
@@ -5217,3 +5316,11 @@ g.stone.stone-voided > image { filter: brightness(0.7); }
 #idle-training-bar .idle-verdict { margin-top: 6px; color: #ffb3b3; font-weight: bold; }
 #idle-training-bar .idle-verdict.win { color: #9dff7a; }
 #idle-training-bar .idle-hint { margin-top: 6px; color: #8d86a3; font-size: 12px; }
+
+/* A tile being carried (js/piece-3d.js, Telekinesis / your start tile): lifted look */
+#viewport g.ghost-tile.tile-carried {
+    transform-box: fill-box;
+    transform-origin: center;
+    scale: 1.06;
+    filter: drop-shadow(0 14px 8px rgba(0, 0, 0, 0.5));
+}

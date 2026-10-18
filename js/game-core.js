@@ -241,7 +241,9 @@
                 }
 
                 // Place new scroll in common area
+                const arrivedNew = this.commonArea[element] !== scrollName;
                 this.commonArea[element] = scrollName;
+                if (arrivedNew) this.onCommonAreaArrival(scrollName);
 
                 // Update the scroll deck UI
                 try {
@@ -255,6 +257,33 @@
                         scrollName: scrollName,
                         replacedScroll: replacedScroll
                     });
+                }
+            }
+
+            // Simplify (owner 2026-10-14): until the caster's next turn, they regain
+            // 2 AP every time a scroll is added to the common area (by anyone).
+            // Called the first time a scroll lands there on this board (the same
+            // move can reach a board twice: the local discard and the broadcast).
+            // Only the board that holds the caster's AP applies it: the caster's
+            // own browser, the host for a bot, every seat in a local game. Replays
+            // and save rebuilds (myPlayerIndex -1, not host) never apply it.
+            onCommonAreaArrival(scrollName) {
+                const buff = this.scrollEffects?.activeBuffs?.simplify;
+                if (!buff || buff.playerIndex == null) return;
+                const idx = buff.playerIndex;
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer) {
+                    const realMe = window.BotDriver?.driverRealIndex?.() ?? (typeof myPlayerIndex !== 'undefined' ? myPlayerIndex : null);
+                    const hostOwnsBot = typeof isHost !== 'undefined' && isHost && window.BotDriver?.isBot?.(idx);
+                    const mine = realMe != null && realMe >= 0 && idx === realMe;
+                    if (!mine && !hostOwnsBot) return;
+                }
+                const gained = this.responseWindow?.gainPlayerAP
+                    ? this.responseWindow.gainPlayerAP(idx, 2)
+                    : 0;
+                if (gained > 0) {
+                    const who = typeof getPlayerColorName === 'function' ? getPlayerColorName(idx) : `Player ${idx + 1}`;
+                    updateStatus(`Simplify: ${who} regains ${gained} AP (a scroll went to the common area).`);
+                    window.ActionLog?.record?.('simplifyAP', { playerIndex: idx, scrollName, amount: gained }, idx);
                 }
             }
 
@@ -324,13 +353,16 @@
             // Give a player win-condition elements, with the empty-source rule: an
             // element whose shared source pool is empty does not count. Returns the
             // elements really granted (announce only these to the other players).
-            grantElements(playerIndex, elements) {
+            // poolBefore = a copy of the source pools taken before the scroll's effect
+            // ran (sourcePoolSnapshot): the win stone is drawn first, so an element
+            // counts when its source had a stone before the effect drew any.
+            grantElements(playerIndex, elements, poolBefore) {
                 this.ensurePlayerScrollsStructure(playerIndex);
                 const ps = this.playerScrolls[playerIndex];
                 const granted = [];
                 (elements || []).forEach(el => {
                     if (!el) return;
-                    if ((window.stonePools?.[el] ?? 1) > 0) {
+                    if (this.sourceHasStone(el, poolBefore)) {
                         const isNew = !ps.activated.has(el);
                         ps.activated.add(el);
                         granted.push(el);
@@ -340,6 +372,22 @@
                     }
                 });
                 return granted;
+            }
+
+            // Copy of the shared source pools, taken before a scroll's effect runs.
+            sourcePoolSnapshot() {
+                return Object.assign({}, window.stonePools || {});
+            }
+
+            // Empty-source rule: the win stone for an element is drawn BEFORE the
+            // scroll's effect (owner 2026-10-14), so a scroll that draws stones of
+            // its own element (Seed the Skies, Mason's Savvy, Create, Respirate,
+            // Quick Reflexes, Sigh of Recollection) cannot empty the source first.
+            // The pool after the effect still counts too (an effect that puts a
+            // stone back, like Transmute or Combust, kept working as before).
+            sourceHasStone(el, poolBefore) {
+                if (poolBefore && (poolBefore[el] ?? 1) > 0) return true;
+                return (window.stonePools?.[el] ?? 1) > 0;
             }
 
             ensurePlayerScrollsStructure(playerIndex) {
@@ -1682,6 +1730,8 @@
                         // Wrap execute in try/catch so win-condition tracking always runs even if the
                         // effect throws (e.g. DOM error inside enterTransmuteMode or similar)
                         let result = { success: false, requiresSelection: false };
+                        // Win stones are drawn before the effect (sourceHasStone).
+                        const poolBefore = this.sourcePoolSnapshot();
                         try {
                             result = this.scrollEffects.execute(name, activePlayerIndex, { spell, scrollName: name, previousScrollCast }) || result;
                         } catch (execErr) {
@@ -1719,8 +1769,7 @@
                             // element (a component whose source is depleted doesn't count).
                             const elements = new Set(spell.patterns[0].map(pos => pos.type));
                             elements.forEach(el => {
-                                const elSourcePool = window.stonePools?.[el] ?? 1;
-                                if (elSourcePool > 0) {
+                                if (this.sourceHasStone(el, poolBefore)) {
                                     const ps = this.getPlayerScrolls(false);
                                     const isNew = !ps.activated.has(el);
                                     ps.activated.add(el);
@@ -1737,8 +1786,7 @@
                             // Source pool guard: if the shared element source pool is fully depleted,
                             // the scroll fires but cannot count toward the win condition — there are
                             // no remaining stones of this element for anyone to use.
-                            const elementSourcePool = window.stonePools?.[spell.element] ?? 1;
-                            if (elementSourcePool > 0) {
+                            if (this.sourceHasStone(spell.element, poolBefore)) {
                                 const ps = this.getPlayerScrolls(false);
                                 const isNew = !ps.activated.has(spell.element);
                                 ps.activated.add(spell.element);
@@ -2467,7 +2515,9 @@
         const INITIAL_PLAYER_STONES = { earth: 0, water: 0, fire: 0, wind: 0, void: 0 };
 
         // Elemental source pool - stones available from shrines (max 25 each)
-        const sourcePool = { earth: 20, water: 20, fire: 20, wind: 20, void: 20 };
+        // 25 of each at the start (owner 2026-10-16: it started at 20, so 5 of
+        // every element never existed while the counter read x/25)
+        const sourcePool = { earth: 25, water: 25, fire: 25, wind: 25, void: 25 };
         const sourcePoolCapacity = { earth: 25, water: 25, fire: 25, wind: 25, void: 25 };
 
         // Initialize spell system (after activePlayerIndex is defined)
@@ -3738,8 +3788,12 @@
             return matchingPos.tiles.some(tile => tile.isPlayerTile);
         }
 
-        function findValidStonePosition(x, y, stoneTypeOverride) {
+        // boardMove: a stone already on the board is being moved (Breath of
+        // Power): the drop must be within BREATH_RANGE hexes of the pawn
+        // instead of in placement range. Default: true while dragging one.
+        function findValidStonePosition(x, y, stoneTypeOverride, boardMove) {
             const stoneType = stoneTypeOverride !== undefined ? stoneTypeOverride : draggedStoneType;
+            if (boardMove === undefined) boardMove = isDraggingStone && draggedStoneId !== null;
             const hexPositions = getAllHexagonPositions();
             let nearest = null;
             let minDist = Infinity;
@@ -3778,7 +3832,9 @@
                 // Check if position is valid for placement based on active buffs
                 // (isInPlacementRange already refuses to place while the pawn
                 // itself is standing on a stone — see its stoneUnderPawn check)
-                const inPlacementRange = playerPosition && isInPlacementRange(nearest.x, nearest.y, stoneType);
+                const inPlacementRange = playerPosition && (boardMove
+                    ? inBreathRange(nearest.x, nearest.y)
+                    : isInPlacementRange(nearest.x, nearest.y, stoneType));
 
                 if (!occupied && !anyPlayerHere && !onFlippedTile && inPlacementRange) {
                     return { x: nearest.x, y: nearest.y, valid: true };
@@ -4191,6 +4247,22 @@
             window.dumpScrollDebug = window.dumpGameDebug;
         }
 
+        // Breath of Power (owner 2026-10-15): pick up and move stones within
+        // BREATH_RANGE hexes of the pawn, to an empty hex within that range.
+        const BREATH_RANGE = 3;
+        function hexDistanceFromPlayer(x, y) {
+            if (!playerPosition) return Infinity;
+            const a = pixelToHex(playerPosition.x, playerPosition.y, TILE_SIZE);
+            const b = pixelToHex(x, y, TILE_SIZE);
+            return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs((-a.q - a.r) - (-b.q - b.r)));
+        }
+        function inBreathRange(x, y) {
+            const d = hexDistanceFromPlayer(x, y);
+            return d >= 1 && d <= BREATH_RANGE;
+        }
+        window.inBreathRange = inBreathRange;
+        window.BREATH_RANGE = BREATH_RANGE;
+
         function isAdjacentToPlayer(x, y) {
             if (!playerPosition) return false;
 
@@ -4238,7 +4310,7 @@
 
             // Check for global placement buff (Avalanche - any stone anywhere)
             if (spellSystem && spellSystem.scrollEffects && spellSystem.scrollEffects.hasGlobalPlacement(currentPlayerIdx)) {
-                console.log(`ℹ️ Global placement active - allowing stone at any position`);
+                if (shouldDebugLog('globalPlacement', 2000)) console.log(`ℹ️ Global placement active - allowing stone at any position`);
                 return true;
             }
 
@@ -4246,7 +4318,8 @@
             if (stoneType && spellSystem && spellSystem.scrollEffects) {
                 const buff = spellSystem.scrollEffects.activeBuffs?.waterWindGlobalPlacement;
                 if (buff && buff.playerIndex === currentPlayerIdx && (stoneType === 'water' || stoneType === 'wind')) {
-                    console.log(`ℹ️ Seed the Skies active - allowing ${stoneType} stone at any position`);
+                    // throttled: this runs for every hex the bots and the drag check look at
+                    if (shouldDebugLog('seedSkies', 2000)) console.log(`ℹ️ Seed the Skies active - allowing ${stoneType} stone at any position`);
                     return true;
                 }
             }
@@ -4265,7 +4338,7 @@
                     const hexDistance = Math.max(dq, dr, ds);
 
                     if (hexDistance <= extended.range) {
-                        console.log(`🎯 Extended placement active - allowing ${stoneType} stone at distance ${hexDistance} (max ${extended.range})`);
+                        if (shouldDebugLog('extendedPlacement', 2000)) console.log(`🎯 Extended placement active - allowing ${stoneType} stone at distance ${hexDistance} (max ${extended.range})`);
                         return true;
                     }
                 }
@@ -5507,11 +5580,15 @@
 
             // Pool swap (mirrors what caster's client does in transformWaterStone)
             stonePools.water = (stonePools.water || 0) + 1;
-            stonePools[newElement] = (stonePools[newElement] || 0) - 1;
+            // never below 0 (the caster refuses an empty supply)
+            stonePools[newElement] = Math.max(0, (stonePools[newElement] || 0) - 1);
             if (typeof updateStoneCount === 'function') {
                 updateStoneCount('water');
                 updateStoneCount(newElement);
             }
+
+            // transformation animation (js/stone-drop-fx.js), before the look changes
+            window.StoneDropFx?.transform?.(stone.x, stone.y, newElement);
 
             stone.type = newElement;
 
@@ -5660,6 +5737,12 @@
                 window.TileMark.mark(ghostTile, { color: '#e8c84d' });
                 ghostTile.style.opacity = '0.85'; // the moving tile itself stays easy to see (ghost default 0.4)
                 if (draggedTileOriginalPos) window.TileMark.fromMark(draggedTileOriginalPos.x, draggedTileOriginalPos.y, '#e8c84d');
+            }
+            // Telekinesis: where the tile came from, so the drop plays the same
+            // flight from there that other players see (piece-3d.js tile moves).
+            if (window.telekinesisState?.active && draggedTileOriginalPos) {
+                ghostTile.setAttribute('data-from-x', draggedTileOriginalPos.x);
+                ghostTile.setAttribute('data-from-y', draggedTileOriginalPos.y);
             }
 
             // The tile has already been removed from placedTiles above, so the
@@ -8132,9 +8215,11 @@ function clearPlayerPath() {
         // bot training and quiet test games, so effects skip there, except
         // when training is switched to Watchable speed (someone is watching).
         window.fxOn = function () {
-            if (window.SoundSystem) return true;
+            // Bot training: the speed decides, not the sound (a run started at
+            // Watchable keeps its sound after a switch to Extreme, 2026-10-15).
             // window.__arenaFx: fast idle training games keep the effects (js/idle-training.js)
-            return !!(window.BotArena?.isRunning?.() && ((window.BotSystem?.speedScale ?? 0) >= 1 || window.__arenaFx));
+            if (window.BotArena?.isRunning?.()) return !!((window.BotSystem?.speedScale ?? 0) >= 1 || window.__arenaFx);
+            return !!window.SoundSystem;
         };
         // The ability a stone shows (a water stone takes its neighbour's or a
         // chained one, unless a void stone next to it blocks that). Used by
@@ -8164,6 +8249,10 @@ function clearPlayerPath() {
             let mimicType = 'water';
 
             neighbors.forEach(neighbor => {
+                // A stone cancelled by a void next to it has no ability to copy
+                // (owner 2026-10-15: water showed wind rings from voided wind)
+                if (neighbor.type !== 'void' && neighbor.type !== 'water' &&
+                    hasAdjacentStoneType(neighbor.x, neighbor.y, 'void')) return;
                 const rank = STONE_RANK[neighbor.type] || 999;
                 if (rank < bestRank && neighbor.type !== 'water') {
                     bestRank = rank;
@@ -8420,13 +8509,13 @@ function clearPlayerPath() {
                 return;
             }
 
-            if (!isAdjacentToPlayer(stone.x, stone.y)) {
-                updateStatus('Can only move stones adjacent to player!');
-                console.log(`❌ Cannot drag stone id=${stoneId}: not adjacent to player`);
+            if (!inBreathRange(stone.x, stone.y)) {
+                updateStatus(`Can only move stones within ${BREATH_RANGE} hexes of your pawn!`);
+                console.log(`❌ Cannot drag stone id=${stoneId}: more than ${BREATH_RANGE} hexes from the pawn`);
                 return;
             }
 
-            console.log(`✅ Starting drag for stone id=${stoneId}, type=${stone.type} (adjacent to player)`);
+            console.log(`✅ Starting drag for stone id=${stoneId}, type=${stone.type} (within ${BREATH_RANGE} hexes)`);
 
             // Clean up any pre-existing ghost (prevents orphaned stamps)
             if (ghostStone) {
@@ -8524,11 +8613,11 @@ function clearPlayerPath() {
 
             // Stone pools
             playerPools.length = 0;
-            sourcePool.earth = 20;
-            sourcePool.water = 20;
-            sourcePool.fire  = 20;
-            sourcePool.wind  = 20;
-            sourcePool.void  = 20;
+            sourcePool.earth = 25;
+            sourcePool.water = 25;
+            sourcePool.fire  = 25;
+            sourcePool.wind  = 25;
+            sourcePool.void  = 25;
 
             // AP
             currentAP = 5;

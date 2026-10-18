@@ -2112,6 +2112,50 @@ class ResponseWindowSystem {
         }
     }
 
+    // Give a player AP outside the normal turn refill (Simplify), capped like
+    // addAP: normal AP up to 5, the rest to void AP up to the player's void
+    // stones. Same four homes as spend/refund above: the host's preserved AP
+    // while it drives a bot, playerAPs for an off-turn bot or local seat, and
+    // currentAP otherwise. Returns the AP really gained.
+    gainPlayerAP(playerIndex, amount) {
+        if (!(amount > 0)) return 0;
+        const MAX = 5;
+        const voidCap = (idx) => {
+            const pools = typeof playerPools !== 'undefined' ? playerPools : window.playerPools;
+            return Math.max(0, pools?.[idx]?.void || 0);
+        };
+        const room = (cur, vd, idx) => Math.max(0, MAX - cur) + Math.max(0, voidCap(idx) - vd);
+        const driverIdx = (typeof window !== 'undefined' && window.BotDriver
+            && typeof window.BotDriver.driverRealIndex === 'function')
+            ? window.BotDriver.driverRealIndex() : null;
+        if (driverIdx != null && playerIndex === driverIdx && typeof window.BotDriver.spendDriverAP === 'function') {
+            // Driver AP is one total here; never above 5 + void stones.
+            const total = window.BotDriver.getDriverAP?.() || 0;
+            const add = Math.min(amount, Math.max(0, MAX + voidCap(playerIndex) - total));
+            if (add > 0) window.BotDriver.spendDriverAP(-add);
+            return add;
+        }
+        const isMultiplayerNow = typeof isMultiplayer !== 'undefined' && isMultiplayer;
+        const isUnclientedBot = typeof window !== 'undefined' && window.BotDriver
+            && typeof window.BotDriver.isBot === 'function' && window.BotDriver.isBot(playerIndex);
+        const isActive = typeof activePlayerIndex !== 'undefined' && playerIndex === activePlayerIndex;
+        if (!isActive && (!isMultiplayerNow || isUnclientedBot) && typeof playerAPs !== 'undefined') {
+            if (!playerAPs[playerIndex]) playerAPs[playerIndex] = { currentAP: 5, voidAP: 0 };
+            const p = playerAPs[playerIndex];
+            const cur = p.currentAP || 0, vd = p.voidAP || 0;
+            const add = Math.min(amount, room(cur, vd, playerIndex));
+            const toCur = Math.min(add, Math.max(0, MAX - cur));
+            p.currentAP = cur + toCur;
+            p.voidAP = vd + (add - toCur);
+            return add;
+        }
+        if (typeof currentAP === 'undefined') return 0;
+        const vdNow = typeof voidAP !== 'undefined' ? voidAP : 0;
+        const add = Math.min(amount, room(currentAP, vdNow, playerIndex));
+        if (add > 0 && typeof addAP === 'function') addAP(add);
+        return add;
+    }
+
     // Called by lobby.js for the response-resolved broadcast (after handleRemoteResolved).
     afterRemoteResolved(payload) {
         this.clearRansomPending();

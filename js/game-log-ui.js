@@ -380,6 +380,12 @@
                     className: 'gl-effect' };
                 return null;
             }
+            case 'simplifyAP': {
+                return {
+                    html: `<span style="${scrollStyle('VOID_SCROLL_3')}">${esc(`Simplify: +${entry.amount || 2} AP (a scroll went to the common area)`)}</span>`,
+                    className: 'gl-effect',
+                };
+            }
             case 'original_countered':
             case 'original_resolved':
             case 'sacrificial_pyre_response_opened':

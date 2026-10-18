@@ -200,7 +200,9 @@
     let stateVersion = 0, pendingVersion = -1, nextRankAt = 0;
     try { window.ActionLog?.onRecord?.(() => { stateVersion++; }); } catch (e) { /* no log: rank per poll as before */ }
     let lastSeenGameId = undefined;
-    function refreshPending() {
+    let ranking = false; // a sliced ranking is running (refreshPending is async)
+    async function refreshPending() {
+        if (ranking) return;
         // A fresh game means a fresh set of decisions to reason about — a
         // stale `pending`/tally from the previous game's final position must
         // never bleed into this game's first comparison. No dedicated
@@ -220,13 +222,23 @@
         // ranking it waits 4x that long before the next one.
         if (pending && pendingVersion === stateVersion) return;
         if (Date.now() < nextRankAt) return;
-        const t0 = performance.now();
+        // Runs in small time slices (bot.js rankSliced / searchPickSliced,
+        // like a bot turn) so the screen keeps drawing: under Seed the Skies
+        // the look-ahead has far more stone spots and the hermit's own turn
+        // stuttered after every placement and step (owner 2026-10-15). If the
+        // board changes before it is done, the result is dropped.
+        const startVersion = stateVersion;
+        const from = (() => { try { const p = playerPositions[activePlayerIndex]; return p ? { x: p.x, y: p.y } : null; } catch (e) { return null; } })();
+        let busy = 0;
+        pending = null;                  // never compare a new action with an older board
+        const sliced = typeof bs.rankSliced === 'function' && typeof bs.searchPickSliced === 'function';
+        ranking = true;
         try {
-            const ranked = bs.rank(null, { withTrace: true });
-            const took = performance.now() - t0;
-            window.LagRecorder?.learnThink?.(took);
-            pendingVersion = stateVersion;
-            nextRankAt = took > 150 ? Date.now() + took * 4 : 0;
+            let ranked;
+            if (sliced) { const r = await bs.rankSliced(null, { withTrace: true }); ranked = r.value; busy += r.busy; }
+            else { const t0 = performance.now(); ranked = bs.rank(null, { withTrace: true }); busy += performance.now() - t0; }
+            if (stateVersion !== startVersion || !eligibleNow()) { pending = null; return; }
+            pendingVersion = startVersion;
             if (!ranked || !ranked.length) {
                 console.log('🧠 [Imitation] eligible but rank() returned no candidates this tick');
                 pending = null; return;
@@ -250,12 +262,19 @@
             let bestType = ranked[0].action.type;
             if (typeof bs.searchPick === 'function') {
                 try {
-                    const searched = bs.searchPick();
+                    let searched;
+                    if (sliced) { const r = await bs.searchPickSliced(); searched = r.value; busy += r.busy; }
+                    else { const t0 = performance.now(); searched = bs.searchPick(); busy += performance.now() - t0; }
+                    if (stateVersion !== startVersion || !eligibleNow()) { pending = null; return; }
                     if (searched && searched.action) bestType = searched.action.type;
                 } catch (e) {
                     console.warn('⚠️ [Imitation] searchPick() failed, falling back to greedy top pick:', e);
                 }
             }
+            // time spent ranking + searching (main thread, both parts)
+            window.LagRecorder?.learnThink?.(busy);
+            pendingVersion = startVersion;
+            nextRankAt = busy > 150 ? Date.now() + busy * 4 : 0;
 
             // Casts: best-scored candidate per scroll (a scroll with choices
             // has several). Moves: every adjacent step with its trace.
@@ -278,11 +297,13 @@
                 castTraceByScroll,
                 moveEntries, // ranked best first
                 placeEntries, breakEntries,
-                from: (() => { try { const p = playerPositions[activePlayerIndex]; return p ? { x: p.x, y: p.y } : null; } catch (e) { return null; } })(),
+                from,
             };
         } catch (e) {
             console.warn('⚠️ [Imitation] refreshPending failed (non-fatal):', e);
             pending = null;
+        } finally {
+            ranking = false;
         }
     }
     let pollTimer = null;

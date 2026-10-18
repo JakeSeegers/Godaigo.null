@@ -97,6 +97,14 @@
                 const common = (s.commonArea || []).filter(isResp);
                 return s.players.filter((p, j) => j !== i && p && [...common, ...(p.active || []).filter(isResp)]
                     .some(n => { try { return !!window.BotSim?.checkPattern?.(s, n, j); } catch (e) { return false; } })).length; } },
+        // Simplify (2026-10-14): its caster regains 2 AP for every scroll that
+        // goes to the common area, so dead scrolls become AP while it is up.
+        simplifyUp:      { label: '1 if my Simplify is up this turn (its 1 AP casts and +2 AP per scroll to the common area)',
+            fn: (s, i) => (s.turn.activePlayerIndex === i && !(s.sim?.turnsEnded > 0) && s.turn.buffs?.simplify) ? 1 : 0 },
+        spareScrolls:    { label: 'scrolls I hold that no longer help me win (element already won, or its supply is empty)',
+            fn: (s, i) => { const p = s.players[i];
+                return [...(p.hand || []), ...(p.active || [])].filter(n => { const el = window.SCROLL_DEFINITIONS?.[n]?.element;
+                    return el && ELEMENTS.includes(el) && (p.activated.includes(el) || (s.sourcePool?.[el] || 0) <= 0); }).length; } },
     };
     const INPUT_NAMES = Object.keys(INPUTS);
 
@@ -279,7 +287,7 @@
     // (toText) stays the source of truth; this is only for reading.
     const WORDS = {
         myActivated: 'my elements', leaderActivated: "the leader's elements", allActivated: 'I have all 5',
-        myStones: 'my stones', neededStones: 'stones I need', voidHeld: 'my void stones', myAP: 'my AP',
+        myStones: 'my stones', neededStones: 'stones I need', voidHeld: 'my void stones', myAP: 'my AP', simplifyUp: 'my Simplify is up', spareScrolls: 'my dead scrolls',
         handCount: 'scrolls in my hand', activeCount: 'my active scrolls', commonCount: 'common scrolls',
         hiddenTiles: 'hidden tiles', distHome: 'steps home', distHidden: 'steps to a hidden tile',
         oppDistHome: "a rival's steps home", boardStones: 'stones on the board', sourceLeft: 'stones left in supply',
@@ -542,12 +550,16 @@
     // network runs at every search leaf) and myAP (changes within a turn, so it
     // pushed moves the wrong way). toCurrent() converts version 1 rows.
     const FEATURE_VERSION = 2;
-    const NET_SKIP = ['homeCost', 'myAP'];
+    // simplifyUp / spareScrolls (2026-10-14) are formula inputs only for now:
+    // adding them to the network needs FEATURE_VERSION 3, which turns off every
+    // version 2 network and needs the saved rows converted.
+    const NET_SKIP = ['homeCost', 'myAP', 'simplifyUp', 'spareScrolls'];
     const NET_INPUTS = INPUT_NAMES.filter(k => !NET_SKIP.includes(k));
     const PER_ELEMENT = ['myPool', 'oppNeeds', 'stonesOf', 'commonFor'];
     const tail = [...PER_ELEMENT.flatMap(n => ELEMENTS.map(el => `${n}(${el})`)), ...ELEMENTS.map(el => `iHave(${el})`)];
     const FEATURE_NAMES = [...NET_INPUTS, ...tail];
-    const V1_NAMES = [...INPUT_NAMES, ...tail];
+    // Version 1 layout: the inputs that existed then (not the later Simplify ones).
+    const V1_NAMES = [...INPUT_NAMES.filter(k => k !== 'simplifyUp' && k !== 'spareScrolls'), ...tail];
     function features(snap, i) {
         const p = snap?.players?.[i];
         if (!p) return null;

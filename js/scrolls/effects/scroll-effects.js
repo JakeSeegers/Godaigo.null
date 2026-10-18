@@ -297,11 +297,20 @@ const ScrollEffects = {
         }
     },
 
-    // Clear Quick Reflexes buff for a player when their next turn starts
+    // Clear Quick Reflexes buff for a player when their next turn starts.
+    // Simplify ends at the same moment (both last "until your next turn").
     clearQuickReflexesForPlayer(playerIndex) {
+        this.clearSimplifyForPlayer(playerIndex);
         const buff = this.activeBuffs.quickReflexes;
         if (!buff || buff.playerIndex !== playerIndex) return;
         delete this.activeBuffs.quickReflexes;
+    },
+
+    // Clear Simplify for a player when their next turn starts
+    clearSimplifyForPlayer(playerIndex) {
+        const buff = this.activeBuffs.simplify;
+        if (!buff || buff.playerIndex !== playerIndex) return;
+        delete this.activeBuffs.simplify;
     },
 
     // Cancel any active selection mode
@@ -1195,12 +1204,13 @@ const ScrollEffects = {
         },
         /**
          * Wind Scroll II - Breath of Power
-         * Move adjacent stones to another adjacent empty space until end of turn.
+         * Move stones within 3 hexes of the pawn to an empty space within 3 hexes
+         * until end of turn (owner 2026-10-15; was adjacent to adjacent).
          * (Was Wind III; swapped with Respirate, owner 2026-10-01.)
          */
         WIND_SCROLL_2: {
             name: 'Breath of Power',
-            description: 'Until end of turn, you may move adjacent stones to another adjacent empty space.',
+            description: 'Until end of turn, you may pick up stones within 3 hexes of your pawn and move them to an empty space within 3 hexes.',
             isCounter: false,
             priority: 2,
 
@@ -1212,7 +1222,7 @@ const ScrollEffects = {
                     playerIndex: casterIndex
                 };
 
-                const message = 'Breath of Power: move adjacent stones to adjacent empty spaces this turn.';
+                const message = 'Breath of Power: move stones within 3 hexes to empty spaces within 3 hexes this turn.';
                 updateStatus(message);
 
                 return {
@@ -1257,7 +1267,7 @@ const ScrollEffects = {
          */
         WIND_SCROLL_4: {
             name: 'Take Flight',
-            description: "Select a player to teleport. If you target yourself, you choose where to land; if you target another player, they choose instead. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists.",
+            description: "Select a player to teleport. You choose where they land. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists.",
             isCounter: false,
             priority: 4,
 
@@ -1353,17 +1363,19 @@ const ScrollEffects = {
 
         VOID_SCROLL_3: {
             name: 'Simplify',
-            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn.',
+            description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 2 AP every time a scroll is added to the common area.',
             isCounter: false,
             priority: 3,
             execute(casterIndex, context, system) {
                 console.log(`🔮 Simplify activated by player ${casterIndex}`);
+                // Lasts until the caster's next turn starts (clearSimplifyForPlayer),
+                // like the card says; it used to end with this turn (owner 2026-10-14).
                 system.activeBuffs.simplify = {
-                    expiresThisTurn: true,
+                    expiresNextTurn: true,
                     playerIndex: casterIndex
                 };
                 const playerName = typeof getPlayerColorName === 'function' ? getPlayerColorName(casterIndex) : `Player ${casterIndex + 1}`;
-                const message = `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn.`;
+                const message = `Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`;
                 updateStatus(message);
 
                 if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
@@ -2519,12 +2531,14 @@ const ScrollEffects = {
         tile2.x = tempX;
         tile2.y = tempY;
 
-        // Update visual transforms
+        // Update visual transforms (same form as placeTile: the tile's rotation is
+        // inside the group; an extra rotate() here made a later reveal's flip
+        // animation miss the tile, owner 2026-10-15)
         if (tile1.element) {
-            tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y}) rotate(${tile1.rotation || 0})`);
+            tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y})`);
         }
         if (tile2.element) {
-            tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y}) rotate(${tile2.rotation || 0})`);
+            tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y})`);
         }
 
         // Recenter any carried player onto their tile's new position
@@ -3741,7 +3755,12 @@ const ScrollEffects = {
                 btn.onmouseleave = () => btn.style.backgroundColor = '#2d2d44';
                 btn.onclick = () => {
                     overlay.remove();
-                    this.transformWaterStone(stone, element, casterIndex);
+                    // The supply may have run out since the picker opened:
+                    // show the picker again with fresh counts.
+                    if (!this.transformWaterStone(stone, element, casterIndex)) {
+                        this.showWaterTransformPopup(stone, casterIndex, onComplete);
+                        return;
+                    }
                     if (onComplete) onComplete();
                 };
             }
@@ -3769,6 +3788,15 @@ const ScrollEffects = {
 
     // Transform a water stone into another element
     transformWaterStone(stone, newElement, casterIndex) {
+        // The new stone comes out of that element's supply, so an empty
+        // supply means no stone to make: refuse (never below 0).
+        if (typeof stonePools !== 'undefined' && (stonePools[newElement] || 0) <= 0) {
+            if (typeof updateStatus === 'function') {
+                updateStatus(`No ${newElement} stones left in the supply.`);
+            }
+            return false;
+        }
+
         // Return water stone to source pool
         if (typeof stonePools !== 'undefined') {
             stonePools.water = (stonePools.water || 0) + 1;
@@ -3784,6 +3812,9 @@ const ScrollEffects = {
             updateStoneCount('water');
             updateStoneCount(newElement);
         }
+
+        // transformation animation (js/stone-drop-fx.js), before the look changes
+        window.StoneDropFx?.transform?.(stone.x, stone.y, newElement);
 
         // Update the stone's type and visual
         stone.type = newElement;
@@ -3842,6 +3873,7 @@ const ScrollEffects = {
                 this.spellSystem.onSelectionEffectComplete(payload.scrollName, payload.effectName, payload.spell);
             }
         }
+        return true;
     },
 
     // Highlight stones with click handlers
@@ -4782,13 +4814,11 @@ const ScrollEffects = {
             document.body.appendChild(overlay);
         };
 
-        // Step 2: the CHOOSER drags a pawn to a valid hex. Self-target: the
-        // caster always chooses (here, directly). Opponent-target: the target
-        // chooses instead — in real multiplayer that means handing control to
-        // the target's own client (see enterTakeFlightChoiceAsTarget below and
-        // the 'take-flight-choose-request' broadcast); outside multiplayer
-        // (solo/hotseat, only one client exists) this same client just drives
-        // the drag on the target's behalf, same as self-target.
+        // Step 2: the CASTER drags the target's pawn to a valid hex (owner
+        // 2026-10-15: the caster chooses where the target lands, also when
+        // the target is another player). In multiplayer the caster's
+        // 'take-flight' broadcast moves the pawn on every other screen. A
+        // bot caster picks through bot-effects.js driveTakeFlightDrag.
         const enterHexSelectionForPlayer = (targetPlayerIndex) => {
             const targetPlayer = (typeof playerPositions !== 'undefined') ? playerPositions[targetPlayerIndex] : null;
             if (!targetPlayer) {
@@ -4806,57 +4836,6 @@ const ScrollEffects = {
                 return;
             }
 
-            // A bot added via the lobby's Add Bot button has no client of its
-            // own — THIS client (if it's the host) already drives it via
-            // BotDriver's asBot() impersonation. Resolving that case through
-            // the broadcast hand-off below would never work: lobby.js's
-            // gameChannel is configured with broadcast:{self:false} (it
-            // doesn't receive its own sends), so a request this same client
-            // sent to itself would never come back. Treat it like a local
-            // pick instead — see the driveTakeFlightDrag() call below.
-            const targetIsBotIDrive = typeof isHost !== 'undefined' && isHost &&
-                typeof isMultiplayer !== 'undefined' && isMultiplayer &&
-                typeof window.BotDriver?.isBot === 'function' && window.BotDriver.isBot(targetPlayerIndex);
-
-            const handOffToTarget = !targetIsBotIDrive && targetPlayerIndex !== casterIndex &&
-                typeof isMultiplayer !== 'undefined' && isMultiplayer;
-
-            if (handOffToTarget) {
-                const cancelBtn = self.createCancelButton('Cancel Take Flight', () => {
-                    if (typeof broadcastGameAction === 'function') {
-                        broadcastGameAction('take-flight-cancel-request', { casterIndex, targetPlayerIndex });
-                    }
-                    window.pendingTakeFlightCompletion = null;
-                    self.cancelSelectionMode();
-                });
-
-                self.selectionMode = {
-                    type: 'take-flight-await-remote',
-                    casterIndex,
-                    targetPlayerIndex,
-                    cancelBtn,
-                    cleanup() {
-                        if (cancelBtn && cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
-                    }
-                };
-
-                // Stashed so the 'take-flight' result broadcast we get back
-                // (sent by the target once they choose) can finish this
-                // effect on OUR side — see lobby.js's 'take-flight' handler.
-                window.pendingTakeFlightCompletion = { casterIndex, targetPlayerIndex, completionPayload };
-
-                if (typeof broadcastGameAction === 'function') {
-                    broadcastGameAction('take-flight-choose-request', {
-                        casterIndex,
-                        targetPlayerIndex,
-                        scrollName: completionPayload?.scrollName || 'WIND_SCROLL_4'
-                    });
-                }
-
-                updateStatus(`Take Flight: waiting for ${targetName} to choose where to land...`);
-                return;
-            }
-
             self._enterTakeFlightDrag(casterIndex, targetPlayerIndex, targetPlayer, {
                 onDone: (destX, destY) => {
                     const scrollName = completionPayload?.scrollName || 'WIND_SCROLL_4';
@@ -4867,19 +4846,6 @@ const ScrollEffects = {
                 },
                 onCancelled: () => updateStatus('Take Flight cancelled.')
             });
-
-            // Nobody is going to manually drag a bot's pawn — resolve it
-            // immediately via the bot driver instead of sitting in the
-            // "drag to choose" state forever. driveSelection() dispatches on
-            // selectionMode.type — 'take-flight-drag', just set up above —
-            // to bot-effects.js's driveTakeFlightDrag(), which reads
-            // window.takeFlightState, rolls a random valid destination, and
-            // calls its onComplete (== onDone above) synchronously, so this
-            // still goes through the exact same finalize +
-            // onSelectionEffectComplete path as a human's own self-target pick.
-            if (targetIsBotIDrive && typeof window.BotEffects?.driveSelection === 'function') {
-                window.BotEffects.driveSelection();
-            }
         };
 
         showPlayerModal();
@@ -5567,6 +5533,13 @@ const ScrollEffects = {
         // Track which stones we're removing for multiplayer sync
         const removedStoneIds = [];
 
+        // Combust's fire wave and each stone burning (js/stone-drop-fx.js),
+        // started before the stones leave the board
+        try {
+            const doomed = placedStones.filter(st => Math.hypot(st.x - tile.x, st.y - tile.y) < tileRadius);
+            if (doomed.length) window.StoneDropFx?.combust?.(tile.x, tile.y, doomed.map(st => ({ x: st.x, y: st.y })));
+        } catch (e) { /* looks only */ }
+
         // Find and remove ALL stones on this tile (iterate backwards for safe splice)
         for (let i = placedStones.length - 1; i >= 0; i--) {
             const stone = placedStones[i];
@@ -6016,9 +5989,18 @@ const ScrollEffects = {
 
         updateStatus('Excavate: Click any unoccupied hex on a revealed tile to teleport there.');
 
+        // Always a way out (owner 2026-10-15: the turn was stuck in this mode
+        // with no pop-up on screen, so the pawn could not move or end the turn).
+        const cancelBtn = this.createCancelButton('Stay Here (no teleport)', () => {
+            if (cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
+            self.selectionMode = null;
+            updateStatus('Your turn begins!');
+        });
+
         this.selectionMode = {
             type: 'excavate-teleport',
             casterIndex: playerIndex,
+            cancelBtn,
 
             handleHexClick(hexPos) {
                 const destX = hexPos.x;
@@ -6074,11 +6056,12 @@ const ScrollEffects = {
 
                 if (typeof syncPlayerState === 'function') syncPlayerState();
 
+                if (cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
                 self.selectionMode = null;
             },
 
             cleanup() {
-                // No cancel button to clean up
+                if (cancelBtn.parentNode) cancelBtn.parentNode.removeChild(cancelBtn);
             }
         };
     }

@@ -2517,8 +2517,10 @@
                 }
             });
 
-            // Take Flight: caster targeted ME with an opponent-target — my own
-            // client drives the destination choice (see
+            // Take Flight from a client older than 2026-10-15 (since then the
+            // caster always picks the landing and only sends 'take-flight'; this
+            // stays for old replays and not yet reloaded tabs). Caster targeted ME
+            // with an opponent-target, my own client drives the destination choice (see
             // ScrollEffects.enterTakeFlightChoiceAsTarget). If the target is
             // a bot instead (added via the lobby's Add Bot button), it has no
             // client of its own to receive this — the host's BotDriver
@@ -2928,10 +2930,10 @@
             gameChannel.on('broadcast', { event: 'simplify-applied' }, ({ payload }) => {
                 const { playerIndex } = payload;
                 if (spellSystem?.scrollEffects) {
-                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresThisTurn: true, playerIndex };
+                    spellSystem.scrollEffects.activeBuffs.simplify = { expiresNextTurn: true, playerIndex };
                 }
                 const playerName = getPlayerColorName(playerIndex);
-                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn.`);
+                updateStatus(`Simplify: ${playerName}'s scrolls cost 1 AP to activate until their next turn, and ${playerName} regains 2 AP for every scroll added to the common area.`);
             });
 
             // Reflect triggered at start of turn: run the reflected scroll's effect and update activated elements.
@@ -3383,8 +3385,10 @@
                     }
                 }
 
+                const arrivedNew = spellSystem.commonArea[element] !== scrollName;
                 spellSystem.commonArea[element] = scrollName;
                 console.log(`📜 Common area: ${scrollName} now in ${element} slot`);
+                if (arrivedNew) spellSystem.onCommonAreaArrival(scrollName);
                 spellSystem.validateScrollState();
                 spellSystem.updateScrollCount();
 
@@ -3544,6 +3548,7 @@
                                 // Execute on ALL clients receiving this broadcast — response effects
                                 // like Lamplight set pendingHandRedirect which must be set before we
                                 // call handleScrollDisposition for the triggering scroll below.
+                                const poolBefore = spellSystem.sourcePoolSnapshot();
                                 spellSystem.scrollEffects.execute(result.scrollName, result.casterIndex, {
                                     spell: scrollDef,
                                     triggeringScroll: trigScroll
@@ -3557,7 +3562,7 @@
                                     const activatedEls = spellSystem.grantElements(result.casterIndex,
                                         (scrollDef?.element === 'catacomb' && scrollDef?.patterns?.[0])
                                             ? [...new Set(scrollDef.patterns[0].map(pos => pos.type))]
-                                            : scrollDef?.element ? [scrollDef.element] : []);
+                                            : scrollDef?.element ? [scrollDef.element] : [], poolBefore);
                                     if (typeof updatePlayerElementSymbols === 'function') {
                                         updatePlayerElementSymbols(result.casterIndex);
                                     }
@@ -3661,10 +3666,10 @@
 
                     // Update visuals
                     if (tile1.element) {
-                        tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y}) rotate(${tile1.rotation || 0})`);
+                        tile1.element.setAttribute('transform', `translate(${tile1.x}, ${tile1.y})`);
                     }
                     if (tile2.element) {
-                        tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y}) rotate(${tile2.rotation || 0})`);
+                        tile2.element.setAttribute('transform', `translate(${tile2.x}, ${tile2.y})`);
                     }
 
                     // Recenter any player that was carried along with its tile
@@ -3699,7 +3704,7 @@
                     tile.x = newPos.x;
                     tile.y = newPos.y;
                     if (tile.element) {
-                        tile.element.setAttribute('transform', `translate(${newPos.x}, ${newPos.y}) rotate(${tile.rotation || 0})`);
+                        tile.element.setAttribute('transform', `translate(${newPos.x}, ${newPos.y})`);
                     }
                 }
 
@@ -3840,6 +3845,8 @@
 
                 // Cast effect for another player's cast (js/cast-fx.js; own casts play from the cast log)
                 window.CastFX?.play(playerIndex, scrollName);
+                // Avalanche: their stones this turn fall from the sky (js/stone-drop-fx.js)
+                if (scrollName === 'EARTH_SCROLL_5') window.StoneDropFx?.avalancheBy?.(playerIndex);
 
                 spellSystem.ensurePlayerScrollsStructure(playerIndex);
 
@@ -3869,6 +3876,13 @@
 
                 // Remove the destroyed stones from the board
                 if (typeof placedStones !== 'undefined' && stoneIds && stoneIds.length > 0) {
+                    // Combust's fire wave + burns (js/stone-drop-fx.js), before removal
+                    try {
+                        const doomed = placedStones.filter(st => stoneIds.includes(st.id)).map(st => ({ x: st.x, y: st.y }));
+                        const t = (typeof placedTiles !== 'undefined') ? placedTiles.find(pt => pt.id === tileId) : null;
+                        const c = t ? { x: t.x, y: t.y } : (doomed.length ? { x: doomed.reduce((a, d) => a + d.x, 0) / doomed.length, y: doomed.reduce((a, d) => a + d.y, 0) / doomed.length } : null);
+                        if (c && doomed.length) window.StoneDropFx?.combust?.(c.x, c.y, doomed);
+                    } catch (e) { /* looks only */ }
                     stoneIds.forEach(stoneId => {
                         const stoneIndex = placedStones.findIndex(s => s.id === stoneId);
                         if (stoneIndex !== -1) {

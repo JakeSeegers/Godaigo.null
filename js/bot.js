@@ -58,6 +58,9 @@
                                  // than the counter costs (2, 0 with Quick Reflexes). A response
                                  // is paid from AP kept from your own turn, and bots spent it all  // guard mode, no counter in reach: Quick Reflexes / Scholar's
                                  // Insight to fetch Iron Stance or Psychic (owner 2026-09-28)
+        castNoEffect:     -250,  // a stone-drawing cast (Mason's Savvy, ...) that can draw nothing (supply
+                                 // empty) and wins no element: it only burns AP (owner 2026-10-15: a bot
+                                 // cast Mason's Savvy 3 times a turn for 30 turns, never moving)
         castDrawNotNeeded: -60,  // a scroll-drawing spell (Scholar's Insight, Inspiring Draught,
                                  // Refreshing Thought) while every needed element already has
                                  // a scroll to build: one bot cast Scholar's Insight 184 times
@@ -233,6 +236,7 @@
         // compete with anything that has real pattern/AP value either.
         moveStoneBase:          1,
         moveStoneDoomedPenalty: -5, // moving a stone somewhere it'd just be fire-destroyed
+        moveStoneMakesCast:    40,  // × held scrolls the move makes castable (Breath of Power reaches 3 hexes, 2026-10-15)
 
         // returning home — with all 5 elements activated the win now requires
         // standing on the centre of the bot's own player tile (player shrine),
@@ -257,11 +261,26 @@
         discardResponseOnly: 25, // level-1 scrolls are response-only: dead weight once
                                  // their element is won or dead (a needed one is kept:
                                  // a response activates its element)
+        // Keeping scrolls (owner 2026-10-15: bots dumped scrolls to the common
+        // area that an opponent, even the leader, could use):
+        discardFeeds:      -10,  // × each opponent the scroll would give an element to
+                                 // (1 + 0.5 per element it has, x1.5 for the leader)
+        discardHasRoom:    -50,  // voluntary discard while that area (hand / active) has room
+        discardEffect:     -15,  // voluntary discard of a level 2+ scroll: its effect is still castable
+        discardSimplify:    45,  // Simplify up (owner 2026-10-14): a dead scroll (spareScroll)
+                                 // to the common area pays 2 AP back, while AP has room
+        castSimplifySpare:  18,  // × dead scrolls held (max 3) when casting Simplify: each
+                                 // one is 2 AP later via discardSimplify
         l1WaitVoid:         30,  // owner's habit (2026-09-29): wait for a level 1 response on a void
                                  // shrine, collecting void (AP) meanwhile: ending the turn there with a
                                  // needed level 1 ready (half for building its pattern there)
         leaveResponseReady: -40, // moving off a spot where a needed level 1's pattern
                                  // is complete (ready to respond to the next cast)
+        evalResponseReady:  20,  // position score (owner 2026-10-14, docs/bot-systems.md 3.6): inside my
+                                 // turn, standing in a usable response / counter pattern with the AP to
+                                 // pay for it (x1.5 when it gives a needed element, x2 for a counter
+                                 // while a player is one cast from winning). Search then weighs keeping
+                                 // the AP and the spot against other moves.
         moveBlockedShrine:  1,   // × the shrine walk value, toward a needed shrine whose
                                  // centre holds a stone (walk up, break it, collect)
 
@@ -428,9 +447,35 @@
     // skip them) and every loaded table uses the values here (pinSocial).
     const SOCIAL_KEYS = ['attackBuildCredit', 'castHarmChoice', 'castHarmWall', 'breakLeaderPattern', 'moveToBreak',
         'moveCamp', 'campLeave', 'endTurnCamp', 'discardForAlly', 'placeAllyRoad'];
+    // Skill dials (owner 2026-10-14, docs/bot-systems.md 3.6): the weights behind
+    // hand-written skills (guarding, keeping a response ready). Training may tune
+    // them but never below half their default strength, so bots cannot drift
+    // into "unlearning" a skill whose games are too rare to judge it.
+    const DIAL_KEYS = ['guardKeepAp', 'leaveResponseReady', 'l1WaitVoid', 'evalScrollResponse',
+        'castGuardFetch', 'evalResponseReady', 'discardFeeds', 'discardHasRoom', 'discardEffect', 'castNoEffect'];
+    // Discard bonuses training may lower but never raise above their default
+    // (2026-10-15: the champion had them at about double, 92 / 86 / 52, so a bot
+    // threw away every scroll of an element it had already won).
+    const CAP_KEYS = ['discardActivated', 'discardDeadElement', 'discardResponseOnly'];
+    function floorDials(W) {
+        for (const k of DIAL_KEYS) {
+            const d = DEFAULT_WEIGHTS[k];
+            if (!d) continue;
+            const v = Number(W[k]);
+            const cur = Number.isFinite(v) ? v : d;
+            W[k] = d > 0 ? Math.max(cur, d / 2) : Math.min(cur, d / 2);
+        }
+        for (const k of CAP_KEYS) {
+            const d = DEFAULT_WEIGHTS[k], v = Number(W[k]);
+            W[k] = Number.isFinite(v) ? Math.min(v, d) : d;
+        }
+        return W;
+    }
+    // Every loaded or applied weight table passes here (localStorage, champion,
+    // bot-arena.js setWeights): social keys locked, skill dials floored.
     function pinSocial(W) {
         for (const k of SOCIAL_KEYS) W[k] = DEFAULT_WEIGHTS[k];
-        return W;
+        return floorDials(W);
     }
     // Evolved weights (Stage 3a) override defaults without code edits
     let WEIGHTS = { ...DEFAULT_WEIGHTS };
@@ -1123,6 +1168,26 @@
     // ----------------------------------------------------------------
     // scoreAction — the Stage-1 utility function. Tune WEIGHTS, not this.
     // ----------------------------------------------------------------
+    // A scroll with no win value left for this player (the same tests the
+    // discard scoring uses): its element is won or its source is empty, or a
+    // level 1 whose element is won / dead and is not a wanted guard counter.
+    // Never the scroll the current build plan needs.
+    function spareScroll(snap, self, name) {
+        const def = window.SCROLL_DEFINITIONS?.[name];
+        if (!def) return false;
+        const plan = mem(snap.turn.activePlayerIndex).plan;
+        if (plan && plan.scroll === name) return false;
+        if (COUNTERS.has(name) && guardWanted(snap)) return false;
+        const el = def.element;
+        if (!el || !ELEMENTS.includes(el)) return false; // catacomb: two elements, keep it simple
+        return self.activated.includes(el) || (snap.sourcePool[el] || 0) <= 0;
+    }
+
+    // Room for Simplify's +1 AP (capped like addAP: 5 + void pool).
+    function simplifyApRoom(snap, self) {
+        return Math.max(0, 5 + (self.pool?.void || 0) - (snap.turn.ap || 0));
+    }
+
     function scoreAction(a, snap, ctx) {
         const self = me(snap);
         // Optional feature-trace channel (js/bot-imitation.js's hermit-only
@@ -1160,7 +1225,14 @@
                     s += contrib('castStuckTool', 1);
                 }
                 if (drawNotNeeded(snap, self, a.scroll)) s += contrib('castDrawNotNeeded', 1);
+                if (castDoesNothing(snap, self, a.scroll)) s += contrib('castNoEffect', 1);
                 if (guardFetchHelps(snap, self, a.scroll)) s += contrib('castGuardFetch', 1);
+                if (a.scroll === 'VOID_SCROLL_3' && !snap.turn.buffs?.simplify) {
+                    // Each dead scroll held turns into 1 AP once Simplify is up.
+                    const held = [...(self.hand || []), ...(self.active || [])].filter(n => n !== a.scroll);
+                    const spare = held.filter(n => spareScroll(snap, self, n)).length;
+                    if (spare) s += contrib('castSimplifySpare', Math.min(3, spare));
+                }
                 s += harmCastBonus(snap, self, a);
                 if (mem(snap.turn.activePlayerIndex).noCreditScrolls.has(a.scroll)) {
                     s += contrib('castNoCredit', 1); // effect cancelled before - hard veto, don't recast
@@ -1338,6 +1410,8 @@
                 if (window.BotSim && !window.BotSim.stoneWouldSurvive(snap, a.toX, a.toY, a.stoneType)) {
                     s += WEIGHTS.moveStoneDoomedPenalty;
                 }
+                const made = moveStoneNewCasts(snap, a);
+                if (made) s += (WEIGHTS.moveStoneMakesCast ?? DEFAULT_WEIGHTS.moveStoneMakesCast) * made;
                 return s;
             }
 
@@ -1365,6 +1439,10 @@
                 let s = contrib('discardBase', 1) + contrib('discardLevel', def?.level || 0);
                 if (ctx.help?.gift.has(el) && def?.level > 1) s += contrib('discardForAlly', 1);
                 if (a.voluntary) s += contrib('discardVoluntary', 1);
+                // Simplify up: a dead scroll to the common area is 2 AP back.
+                if (snap.turn.buffs?.simplify && simplifyApRoom(snap, self) > 0 && spareScroll(snap, self, a.scroll)) {
+                    s += contrib('discardSimplify', 1);
+                }
                 // A level 1 for an element still needed is a real way to
                 // activate it (as a response), so it is only dead weight
                 // once that element is won or its source is empty.
@@ -1375,6 +1453,18 @@
                 if (el && ELEMENTS.includes(el)) {
                     if (self.activated.includes(el)) s += contrib('discardActivated', 1);
                     if ((snap.sourcePool[el] || 0) <= 0) s += contrib('discardDeadElement', 1);
+                }
+                // Who could use it from the common area: every opponent it would
+                // give an element to (a pact partner it is meant for is left out).
+                const feeds = discardFeedScore(snap, self, a.scroll, def, ctx);
+                if (feeds) s += contrib('discardFeeds', feeds);
+                if (a.voluntary && !(snap.turn.buffs?.simplify && simplifyApRoom(snap, self) > 0 && spareScroll(snap, self, a.scroll))) {
+                    // Room left in that area: no reason to let it go.
+                    const maxN = a.from === 'active'
+                        ? (window.spellSystem?.MAX_ACTIVE_SIZE ?? 2) : (window.spellSystem?.MAX_HAND_SIZE ?? 2);
+                    const n = ((a.from === 'active' ? self.active : self.hand) || []).length;
+                    if (n < maxN) s += contrib('discardHasRoom', 1);
+                    if ((def?.level || 0) >= 2) s += contrib('discardEffect', 1);
                 }
                 // Never discard the scroll the current build plan needs
                 const activePlan = mem(snap.turn.activePlayerIndex).plan;
@@ -2149,6 +2239,7 @@
         const role = D?.roleOf?.(idx);
         const partnerGuards = role && role !== 'guard' && D.roleHolder?.('guard') != null;
         const guard = ((guardWanted(snap) && !partnerGuards) || role === 'guard') && !D?.oneCastFromWin?.(idx, snap);
+        if (guard) _review.guardOn = (_review.guardOn || 0) + 1;
         if (m.plan && m.plan.guard) {
             // At most GUARD_WAIT own turns on the post, then GUARD_REST turns
             // of own progress (two guards facing each other stalled before).
@@ -2164,6 +2255,7 @@
         if (guard && !guardReady(snap, self) && (role === 'guard' || (m.ownTurns || 0) >= (m.guardRestUntil || 0))) {
             const inReach = new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])]);
             const counters = [...COUNTERS].filter(n => inReach.has(n) && window.SCROLL_DEFINITIONS?.[n]);
+            if (counters.length) _review.guardTry = (_review.guardTry || 0) + 1;
             if (counters.length) {
                 const alt = makePlan(snap, { only: new Set(counters), near: 4,
                     extra: counters.map(n => ({ name: n, def: window.SCROLL_DEFINITIONS[n], credit: 1.5 })) });
@@ -3141,6 +3233,7 @@
         // look like free value (single-player keeps the same activePlayerIndex)
         if (snap.turn.activePlayerIndex === forIndex && !(snap.sim?.turnsEnded > 0)) {
             v += snap.turn.ap * WEIGHTS.evalAp;
+            if (WEIGHTS.evalResponseReady) v += WEIGHTS.evalResponseReady * responseReadyFactor(snap, forIndex);
         }
         // Flat credit for effects the simulator honestly didn't model — but
         // only for casts that granted a new activation, or the search farms
@@ -3857,8 +3950,57 @@
         }
         return out.sort((a, b) => Math.hypot(a.x - lp.x, a.y - lp.y) - Math.hypot(b.x - lp.x, b.y - lp.y));
     }
+    // Discarding puts a scroll in the common area, where anyone can cast it.
+    // Sum over opponents who would get an element from it: 1 + 0.5 per element
+    // they already have, x1.5 for the leader (most elements). Level 1 scrolls
+    // count too (a response activates its element). Pact partners the scroll
+    // is a gift for (ctx.help) are left out.
+    function discardFeedScore(snap, self, name, def, ctx) {
+        if (!def) return 0;
+        const ai = snap.turn.activePlayerIndex;
+        const el = scrollElement(name);
+        const partners = new Set(ctx?.help?.partners || []);
+        let top = -1;
+        snap.players.forEach((q, j) => { if (q && j !== ai) top = Math.max(top, q.activated.length); });
+        let sum = 0;
+        snap.players.forEach((q, j) => {
+            if (!q || j === ai || partners.has(j)) return;
+            let gets;
+            if (def.level === 1) gets = !!el && ELEMENTS.includes(el) && !q.activated.includes(el) && (snap.sourcePool[el] || 0) > 0;
+            else { try { gets = scrollCreditElements(snap, q, { ...def, id: name }, j).length > 0; } catch (e) { gets = false; } }
+            if (!gets) return;
+            let w = 1 + 0.5 * q.activated.length;
+            if (q.activated.length === top && top >= self.activated.length) w *= 1.5;
+            sum += w;
+        });
+        return sum;
+    }
+
+    // Breath of Power: how many held scrolls (hand + active) a stone move makes
+    // castable that are not castable now. Castable-now is cached per snapshot.
+    const castableNow = new WeakMap();
+    function heldCastable(sn, idx) {
+        const p = sn.players[idx];
+        const out = new Set();
+        if (!p || !window.BotSim?.checkPattern) return out;
+        for (const n of new Set([...(p.hand || []), ...(p.active || [])])) {
+            try { if (window.BotSim.checkPattern(sn, n, idx)) out.add(n); } catch (e) {}
+        }
+        return out;
+    }
+    function moveStoneNewCasts(snap, a) {
+        if (!window.BotSim?.simulate) return 0;
+        const idx = snap.turn.activePlayerIndex;
+        let before = castableNow.get(snap);
+        if (!before) { before = heldCastable(snap, idx); castableNow.set(snap, before); }
+        let after;
+        try { after = heldCastable(window.BotSim.simulate(snap, a), idx); } catch (e) { return 0; }
+        let n = 0;
+        for (const x of after) if (!before.has(x)) n++;
+        return n;
+    }
     function harmChoices(snap, name) {
-        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4', 'EARTH_SCROLL_2'].includes(name)) return [];
+        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4', 'EARTH_SCROLL_2', 'VOID_SCROLL_2'].includes(name)) return [];
         const self = snap.players[snap.turn.activePlayerIndex];
         const h = self ? harmContext(snap, self) : null;
         if (!h) return [];
@@ -3890,6 +4032,32 @@
             }
             return out.slice(0, 2);
         }
+        if (name === 'VOID_SCROLL_2') {
+            // Telekinesis on the leader (owner 2026-10-15): a lone pawn rides
+            // along with its tile, so if the leader stands alone on a tile with
+            // no stones, move that tile to the free slot (next to the board,
+            // touching 2+ tiles) farthest from where it is heading.
+            const slotsFor = window.BotSim?.telekinesisSlots;
+            if (!slotsFor) return out;
+            const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
+            const home = snap.tiles.find(t => t.isPlayerTile && t.playerIndex === h.L);
+            const goal = ELEMENTS.every(el => lp.activated.includes(el)) ? home : keyShrines(snap, lp)[0];
+            if (!goal) return out;
+            const gd = (x, y) => Math.hypot(x - goal.x, y - goal.y);
+            const a = snap.tiles.find(t => !t.isPlayerTile && onTile(t, lp) && t.id !== goal.id &&
+                !snap.stones.some(q => onTile(t, q)) &&
+                snap.players.every((q, j) => !q || j === h.L || !onTile(t, q)));
+            if (!a) return out;
+            let best = null;
+            for (const b of snap.tiles) {
+                if (b.id === a.id) continue;
+                for (const c of slotsFor(snap, a, b)) if (!best || gd(c.x, c.y) > gd(best.x, best.y)) best = c;
+            }
+            if (!best) return out;
+            const farther = (gd(best.x, best.y) - gd(lp.x, lp.y)) / 35; // hexes further from its goal
+            if (farther >= 3) out.push({ tileId: a.id, x: +best.x.toFixed(1), y: +best.y.toFixed(1), harm: Math.min(1.5, farther / 6) });
+            return out;
+        }
         if (name === 'EARTH_SCROLL_4') {
             // Face-down, no stones or pawns, and clearly closer to the leader
             // than to me (the leader would explore it next).
@@ -3908,10 +4076,9 @@
         return out;
     }
     // Blocker post (pact role, owner 2026-09-30): Take Flight can only land
-    // the target on a tile another pawn stands on, and the target picks the
-    // landing nearest its goal. A blocker stands on a tile far from that goal
-    // (and never offers a close one), so when the pact's scholar casts, every
-    // landing is bad. Only while the pact's scroll is Take Flight and the target has 4+
+    // the target on a tile another pawn stands on, and the caster (the pact's
+    // scholar) picks the landing (2026-10-15). A blocker stands on a tile far
+    // from the target's goal, so the scholar has a far tile to send it to. Only while the pact's scroll is Take Flight and the target has 4+
     // elements (home is its goal soon). Chosen once per own turn.
     const BLOCK_PULL = 45, BLOCK_STAY = 25;
     function blockSpot(snap, self) {
@@ -3922,9 +4089,9 @@
         m.block = { turn: m.ownTurns, spot: null };
         const L = D.pact()?.target;
         const lp = L != null ? snap.players[L] : null;
-        if (!lp || lp.activated.length < 4 || !window.BotSim?.takeFlightLandingFor) return null;
+        if (!lp || lp.activated.length < 4 || !window.BotSim?.takeFlightSendFor) return null;
         const flownCost = sn => {
-            const d = window.BotSim.takeFlightLandingFor(sn, sn.players[L]);
+            const d = window.BotSim.takeFlightSendFor(sn, sn.players[L]);
             if (!d) return 0;
             const moved = { ...sn, players: sn.players.map((q, j) => j === L ? { ...q, x: d.x, y: d.y } : q) };
             try { return homeCost(moved, L); } catch (e) { return 0; }
@@ -3947,15 +4114,15 @@
         return m.block.spot;
     }
     // Take Flight on an opponent (owner, 2026-09-29: "the idea for Take
-    // Flight is to manipulate the movements of opponents"). They choose where
-    // to land (BotSim.takeFlightLandingFor, the same pick the game's driver
-    // makes for them), but only on a tile another pawn stands on, so it can
+    // Flight is to manipulate the movements of opponents"). The caster picks
+    // where they land (2026-10-15; BotSim.takeFlightSendFor, the same pick the
+    // game's driver makes), but only on a tile another pawn stands on, so it can
     // throw them off: a runner with five elements gets further from home, a
     // player on a ready pattern cannot cast there next turn, a player on a
     // shrine centre does not collect there. 0 = not worth it.
     function takeFlightHarm(snap, L) {
         const lp = snap.players[L];
-        const d = lp && window.BotSim?.takeFlightLandingFor?.(snap, lp);
+        const d = lp && window.BotSim?.takeFlightSendFor?.(snap, lp);
         if (!d || Math.hypot(d.x - lp.x, d.y - lp.y) < 5) return 0;
         let harm = 0;
         if (ELEMENTS.every(el => lp.activated.includes(el))) {
@@ -4202,6 +4369,60 @@
     // reach. bot-effects.js decideResponse fires it at the winning cast.
     const COUNTERS = new Set(['EARTH_SCROLL_1', 'VOID_SCROLL_1']);
     const GUARD_FETCH = new Set(['CATACOMB_SCROLL_9', 'VOID_SCROLL_4']);
+    // How good a response this seat could make on the next opponent cast, from
+    // where it stands now (0 = none): a level 1 it can use (active area, common
+    // area, or hand with a free active slot), its pattern complete here, and the
+    // AP left to pay (getSpellCost: 0 under its own Quick Reflexes, 1 under
+    // Simplify). 1.5 when it would give a needed element, 2 for a counter while
+    // a player is one cast from winning. Only the best one counts.
+    function responseReadyFactor(snap, i) {
+        const p = snap.players[i];
+        if (!p || !window.BotSim?.checkPattern) return 0;
+        const ap = snap.turn.ap || 0;
+        // Level 1 cost without the live lookups (same rules as getSpellCost):
+        // 0 under my own Quick Reflexes, 1 under my Simplify, else 2.
+        const qr = window.spellSystem?.scrollEffects?.activeBuffs?.quickReflexes;
+        const cost = (qr && qr.playerIndex === i) ? 0 : snap.turn.buffs?.simplify ? 1 : 2;
+        if (ap < cost) return 0;
+        const maxActive = window.spellSystem?.MAX_ACTIVE_SIZE ?? 2;
+        const fromHand = (p.activeCount ?? (p.active || []).length) < maxActive;
+        let best = 0, alert;
+        const look = (n) => {
+            const def = window.SCROLL_DEFINITIONS?.[n];
+            if (!def || def.level !== 1 || best >= 2) return;
+            if (!patternHereCached(snap, n, i)) return;
+            let f = 1;
+            const el = def.element;
+            if (el && ELEMENTS.includes(el) && !p.activated.includes(el) && (snap.sourcePool[el] || 0) > 0) f = 1.5;
+            if (COUNTERS.has(n)) {
+                if (alert === undefined) { try { alert = window.BotDiplomacy?.alertOn?.(i, snap) ?? null; } catch (e) { alert = null; } }
+                if (alert != null) f = 2;
+            }
+            if (f > best) best = f;
+        };
+        for (const n of p.active || []) look(n);
+        for (const n of snap.commonArea || []) look(n);
+        if (fromHand) for (const n of p.hand || []) look(n);
+        return best;
+    }
+    // checkPattern answers, cached per stones list (search scores thousands of
+    // positions on the same board; a real move always makes a new snapshot list).
+    const _patternCache = new WeakMap();
+    function patternHereCached(snap, n, i) {
+        const p = snap.players[i];
+        const arr = snap.stones;
+        if (!arr || !p) return false;
+        let m = _patternCache.get(arr);
+        if (!m) { m = new Map(); _patternCache.set(arr, m); }
+        const key = `${arr.length}|${Math.round(p.x)},${Math.round(p.y)}|${n}`;
+        let v = m.get(key);
+        if (v === undefined) {
+            try { v = !!window.BotSim.checkPattern(snap, n, i); } catch (e) { v = false; }
+            m.set(key, v);
+        }
+        return v;
+    }
+
     function guardWanted(snap) {
         const D = window.BotDiplomacy;
         if (!D?.enabled?.() || !D.alertOn) return false;
@@ -4269,6 +4490,18 @@
         const m = mem(idx);
         const t = m.drawCasts?.[scroll];
         return t != null && (m.ownTurns || 0) - t < DRAW_COOLDOWN;
+    }
+    // A stone-drawing scroll (Mason's Savvy, Seed the Skies, Respirate) that can
+    // draw nothing (supply empty or my pool of that stone full) and wins no
+    // element: the cast does nothing. Repeat casts that still draw are fine.
+    function castDoesNothing(snap, self, scroll) {
+        const el = DRAW_STONE_SCROLLS[scroll];
+        if (!el || !self) return false;
+        // stones it could actually draw: supply left AND room in my pool (5 max)
+        const drawable = Math.min(snap.sourcePool[el] || 0, POOL_CAP - ((self.pool || {})[el] || 0));
+        if (drawable > 0) return false;
+        try { if (hasWinCredit(snap, scroll)) return false; } catch (e) { return false; }
+        return true;
     }
     function drawNotNeeded(snap, self, scroll) {
         if (!DRAW_SCROLLS.has(scroll)) return false;
@@ -4426,7 +4659,7 @@
                 const path = home && pathToOrNear(q.x, q.y, home.x, home.y);
                 for (const st of path || []) road.add(hexKey(st.x, st.y));
             }
-            return (gift.size || road.size) ? { gift, road, push: 1.5 } : null;
+            return (gift.size || road.size) ? { gift, road, push: 1.5, partners: [md.target] } : null;
         }
         if (!P || !P.members.includes(ai)) return null;
         const lp = snap.players[P.target];
@@ -4448,7 +4681,7 @@
         }
         if (!gift.size && !road.size) return null;
         const push = (D.pressures(ai) || [])[P.target] || 1;
-        return { gift, road, push };
+        return { gift, road, push, partners };
     }
 
     // Rank all legal actions for the current position (debug + decision core)
@@ -4656,7 +4889,7 @@
                 if (c && a.scroll === 'FIRE_SCROLL_5') return `Cast ${n}: burn one of ${who(c.target)}'s ${c.element} stones`;
                 if (c && a.scroll === 'CATACOMB_SCROLL_8') return `Cast ${n}: send ${who(c.target)}'s ${scrollName(c.scroll)} to the common area`;
                 if (c && a.scroll === 'VOID_SCROLL_5') return `Cast ${n}: draw ${c.element} stones`;
-                if (c && a.scroll === 'WIND_SCROLL_4') return c.target != null ? `Cast ${n}: move ${who(c.target)} away (they pick where on another player's tile)` : `Cast ${n}: fly to another player's tile`;
+                if (c && a.scroll === 'WIND_SCROLL_4') return c.target != null ? `Cast ${n}: send ${who(c.target)} to another player's tile` : `Cast ${n}: fly to another player's tile`;
                 if (c && a.scroll === 'EARTH_SCROLL_2') return `Cast ${n}: swap a nearby tile with a tile worth having close`;
                 if (c && a.scroll === 'VOID_SCROLL_2') return `Cast ${n}: move a tile next to this one`;
                 if (c && c.tileId == null) {
@@ -5284,6 +5517,11 @@
         while (window.isGamePaused?.()) await sleep(250);
         const deadline = Date.now() + 25000;
         while (Date.now() < deadline) {
+            // The turn passed to a human seat (turn timer, or the bot's own end
+            // turn finishing late): their pop-ups and choices are theirs. Never
+            // click, drive or cancel them (owner 2026-10-15: the host's
+            // Excavate pop-up vanished and the turn was stuck).
+            if (window.BotEffects?.humanSeatActive?.()) return;
             // Let a playing effect (fire burning stones, ~0.75 s) finish first:
             // the bot's next decision runs on the main thread and can block
             // for a moment, which froze the animation mid-way. Real games
@@ -5466,7 +5704,13 @@
                 // unproductiveStreak's circuit breaker never fires. Pattern
                 // placements are recorded here but only COUNT as progress if
                 // they survive to end of turn (checked below).
-                if (applied.type === 'cast') castThisTurn = true;
+                // A cast that did nothing (castDoesNothing) is not progress, so the
+                // stuck breaker can still fire.
+                if (applied.type === 'cast') {
+                    let idle = false;
+                    try { const sn = window.BotState.snapshot(); idle = castDoesNothing(sn, sn.players[startingPlayer], applied.scroll); } catch (e) {}
+                    if (!idle) castThisTurn = true;
+                }
                 else if (applied.type === 'placeStone' && applied.scroll) {
                     placedThisTurn.push({ x: applied.x, y: applied.y, type: applied.stoneType });
                 }
@@ -5620,8 +5864,12 @@
         explain: (a, snap) => explainAction(a, snap || window.BotState.snapshot(), {}), // plain words for an action
         turn:  botTurn,       // play out the whole turn
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)
+        _castDoesNothing: castDoesNothing, // test hook (snap, self, scroll)
         score: scoreAction,   // (action, snapshot, ctx) → utility
         searchPick,           // Stage 2 lookahead pick — used when WEIGHTS.searchDepth > 0
+        // the same two, in time slices (await -> {value, busy}); js/bot-imitation.js
+        rankSliced: (fixationTarget, opts) => runSliced(rankActionsGen(fixationTarget, opts)),
+        searchPickSliced: () => runSliced(searchPickGen()),
         mctsPick,             // Stage 2 step 5 multi-turn MCTS — used when WEIGHTS.mctsEnabled
         evaluateSnapshot,     // Stage 2 state evaluator (search leaves)
         homeCost,             // real walking cost home (formula input, bot-terms.js)
@@ -5642,9 +5890,10 @@
         waitForQuiescence,    // settle response windows / selection modes / cascades
         WEIGHTS,              // live tuning surface (Stage 3a evolves this)
         DEFAULT_WEIGHTS,
-        SOCIAL_KEYS, pinSocial,
+        SOCIAL_KEYS, pinSocial, DIAL_KEYS, floorDials,
         _harmContext: harmContext, // tests
         _review,                    // tests: plan review counters
+        _makePlan: (snap, opts) => makePlan(snap, opts), // tests: the plan builder
         _winSpots: (snap, L) => winSpots(snap, L), // tests: finished shapes the leader could win with
         _planStats,                 // tests: plans made / away from the pawn / stones reused / already finished
         _shortcutStats,             // tests: teleport / walk-to-catacomb / Take Flight shortcuts taken
