@@ -16,8 +16,10 @@
 //      (final honest test; picking the best of thousands on RANK flatters
 //      it). Forward selection: up to 3 formulas, each fitted on top of the
 //      ones already picked, so copies of a picked formula add nothing.
-//   3. Send the picked set (champion + formulas) to idle training as a
-//      'formula' challenger. Games still decide: 58%+ over 40 games.
+//   3. Use the picked set: queue it for the next Train Bot run (champion +
+//      formulas joins round 1, once; takeQueued, game-ui.js
+//      runHillClimbTraining) and / or send it to idle training as a 'formula'
+//      challenger. Games still decide either way.
 //
 // Limits: predicting who wins is not the same as choosing better moves
 // (the bot network predicted well and still lost). Formulas reading
@@ -250,6 +252,28 @@
         return r.data;
     }
 
+    // ── Step 3b: queue for the next Train Bot run ────────────────
+    // Fitting needs the hermit-only position read, so the queue lives in the
+    // hermit's browser (like Formula Lab ideas).
+    const QUEUE_KEY = 'godaigo_formula_fit_queued';
+    function queue(terms) {
+        try { localStorage.setItem(QUEUE_KEY, JSON.stringify(terms || [])); } catch (e) {}
+    }
+    function queued() {
+        try { const t = JSON.parse(localStorage.getItem(QUEUE_KEY)); return Array.isArray(t) && t.length ? t : null; } catch (e) { return null; }
+    }
+    // Called once by runHillClimbTraining: anchor + the queued formulas as one
+    // round-1 challenger, then clears the queue. null when nothing is queued.
+    function takeQueued(anchor) {
+        const terms = queued();
+        if (!terms || !window.BotTerms) return null;
+        try { localStorage.removeItem(QUEUE_KEY); } catch (e) {}
+        const old = Array.isArray(anchor.terms) ? anchor.terms : [];
+        const all = [...old, ...terms.filter(t => !old.some(o => o.text === t.text))].slice(0, window.BotTerms.MAX_TERMS);
+        if (all.length === old.length) return null;
+        return { challenger: { ...(window.BotSystem?.DEFAULT_WEIGHTS || {}), ...anchor, terms: all }, count: all.length - old.length };
+    }
+
     // ── Hermit panel ─────────────────────────────────────────────
     let last = null;
     function open() {
@@ -268,6 +292,7 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
                 <label>Random formulas <input class="ff-random" type="number" min="0" max="3000" value="400" style="width:70px;"></label>
                 <button class="ff-run" style="padding:5px 10px;">Load positions and fit</button>
+                <button class="ff-queue" style="padding:5px 10px;" disabled>Queue for Train Bot</button>
                 <button class="ff-send" style="padding:5px 10px;" disabled>Send to idle training</button>
             </div>
             <div class="ff-status" style="white-space:pre-line;font-family:monospace;font-size:12px;color:#cfc;"></div>`;
@@ -276,9 +301,10 @@
         const status = t => { $('.ff-status').textContent = t; };
         const pct = x => x == null ? '-' : (100 * x).toFixed(2) + '%';
         $('.ff-close').onclick = () => box.remove();
+        if (queued()) status(`Queued for the next Train Bot run: ${queued().map(t => `${t.w}: ${t.text}`).join(' | ')}`);
 
         $('.ff-run').onclick = async () => {
-            $('.ff-run').disabled = true; $('.ff-send').disabled = true;
+            $('.ff-run').disabled = true; $('.ff-send').disabled = true; $('.ff-queue').disabled = true;
             try {
                 status('Loading positions...');
                 const rows = await window.BotNet.loadRows(n => status(`Loading positions... ${n}`));
@@ -304,13 +330,20 @@
                 if (!res.terms.length) lines.push('  none: no formula helped enough.');
                 for (const t of res.terms) lines.push(`  ${t.w}: ${t.text}`);
                 lines.push('', `Check games (not used to fit or pick): loss ${pct(res.checkGain)} lower, right ${pct(res.check.acc)} (bot's score alone ${pct(res.base.accCheck)}).`);
-                lines.push(ok ? 'Sendable. Idle training decides with real games.'
+                lines.push(ok ? 'Ready: queue it for your next Train Bot run and / or send it to idle training. Real games decide.'
                     : 'Not sendable: the picked set did not hold up on the check games. More saved positions will help.');
                 status(lines.join('\n'));
-                $('.ff-send').disabled = !ok;
+                $('.ff-send').disabled = !ok; $('.ff-queue').disabled = !ok;
             } catch (e) {
                 status('Fit failed: ' + (e.message || e));
             } finally { $('.ff-run').disabled = false; }
+        };
+
+        $('.ff-queue').onclick = () => {
+            if (!last?.terms?.length) return;
+            queue(last.terms);
+            $('.ff-queue').disabled = true;
+            status($('.ff-status').textContent + `\n\nQueued: champion + ${last.terms.length} formula(s) joins round 1 of your next Train Bot run.`);
         };
 
         $('.ff-send').onclick = async () => {
@@ -326,5 +359,5 @@
         };
     }
 
-    window.FormulaFit = { run, send, open, candidates, _split: split };
+    window.FormulaFit = { run, send, queue, queued, takeQueued, open, candidates, _split: split };
 })();

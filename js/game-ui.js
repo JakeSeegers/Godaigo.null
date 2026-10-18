@@ -4576,6 +4576,14 @@ document.getElementById('undo-move').onclick = function() {
                 }
             }
 
+            // Fit Formulas (js/formula-fit.js, hermit, 2026-10-18): a fitted set
+            // queued in that panel joins round 1 as champion + those formulas, once.
+            const fitted = (!resume && window.isHermit?.() && window.FormulaFit) ? window.FormulaFit.takeQueued(climbAnchor) : null;
+            if (fitted) {
+                seedChallengers = [...(seedChallengers || []).slice(0, lambda - 1), fitted.challenger];
+                stats.event(`Fitted formulas: ${fitted.count} formula(s) join round 1 as one challenger`);
+            }
+
             // Learn from my play (js/bot-imitation.js, owner 2026-10-10): the
             // champion plus this browser's learned adjustments joins round 1,
             // once per set of adjustments and champion (it must still win).

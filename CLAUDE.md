@@ -524,7 +524,9 @@ Order matters — later scripts depend on earlier ones.
 24e. formula-fit.js       <- window.FormulaFit: hermit menu "Fit Formulas" (2026-10-18). Tests formulas on the saved positions
                              (position_samples via BotNet.loadRows), no games: each gets the weight that best predicts the winner on
                              top of the bot's own score (1-D logistic fit, so the scale is right); games split fit / rank / check;
-                             up to 3 picked by forward selection, checked on the check games, then sent as a 'formula' challenger.
+                             up to 3 picked by forward selection, checked on the check games. Then: "Queue for Train Bot" (localStorage
+                             godaigo_formula_fit_queued; game-ui.js runHillClimbTraining takeQueued: champion + set joins round 1, once)
+                             and / or "Send to idle training" (a 'formula' challenger).
                              BotTerms.rowContext / missingInputs read inputs from a saved row (homeCost, myAP, adjacent not saved).
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
