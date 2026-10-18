@@ -2219,6 +2219,6 @@ window.I18N_ES = {
     "Each element's supply now starts with 25 stones, as intended. It started with only 20, so 5 of each were missing.": "La reserva de cada elemento ahora empieza con 25 piedras, como debía. Empezaba con solo 20, así que faltaban 5 de cada una.",
     "Control the Current can no longer turn water into an element whose supply is empty.": "Controlar la Corriente ya no puede convertir el agua en un elemento cuya reserva está vacía.",
     "Smarter bots": "Bots más listos",
-    "Train Bot's final test is now a straight match: the new bot must win 58% of 40 games against the champion to replace it.": "La prueba final de Entrenar Bot ahora es un duelo directo: el bot nuevo debe ganar el 58% de 40 partidas contra el campeón para reemplazarlo.",
+    "Train Bot's final test is now a straight match: the new bot must win 58% of 40 games against the champion to replace it.": "La prueba final de Entrenar bot ahora es un duelo directo: el bot nuevo debe ganar el 58% de 40 partidas contra el campeón para reemplazarlo.",
     "Bots no longer chase scroll \"combos\" that were making them play worse. They now pick their casts on their own judgment.": "Los bots ya no persiguen \"combos\" de pergaminos que los hacían jugar peor. Ahora eligen sus lanzamientos con su propio criterio.",
 };
