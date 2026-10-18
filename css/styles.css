@@ -4379,7 +4379,7 @@ label, .hud-ap-label, .hud-ap-value {
     margin-top: 0 !important;
 }
 
-/* Action buttons — stacked vertically, right under the header (owner 2026-10-18:
+/* Action buttons, stacked vertically, right under the header (owner 2026-10-18:
    top of the card / hover window, not the bottom; a little bigger) */
 .fsp-card-actions {
     display: flex;
