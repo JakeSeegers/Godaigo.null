@@ -812,6 +812,9 @@
         // Pacing follows the live speed switch (setLiveSpeed) when used.
         const vis = () => _liveVisual ?? visual0;
         const seed = opts.seed ?? Math.floor(Math.random() * 1e9);
+        // For the hermit's "Bad move" report (js/bad-move.js): which game this is.
+        window.__arenaMatch = { seed, nPlayers, startedAt: new Date().toISOString(), stack: opts.stack || null,
+            weights: weightsPerPlayer.map(w => (w ? Object.fromEntries(Object.entries(w).filter(([k]) => k !== 'net')) : null)) };
         const stuckTurns = {};
         for (let i = 0; i < nPlayers; i++) stuckTurns[i] = 0;
         // Per-player camping streak for the trap-loop detector: which

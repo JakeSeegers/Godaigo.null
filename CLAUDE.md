@@ -728,6 +728,12 @@ Order matters — later scripts depend on earlier ones.
 28. game-log-ui.js         ← Player-facing readable "Game Log" panel (#game-log-panel, left side), built
                              from ActionLog.onRecord() — colour-coded, collapses movement, never shows
                              discardScroll or anything else that would reveal another player's hand
+28a. bad-move.js          <- window.BadMove: hermit-only '⚑ Bad move' button (bottom left, in a game or while BotArena runs) and Shift+K
+                             (2026-10-18). A prompt (stops the page, so no bot acts) asks for a note, then one JSON downloads: note, version,
+                             where (training run / online / local), turn, active seat, training game (window.__arenaMatch from bot-arena.js
+                             _playMatchOnce: seed, players, each seat's weights without net, stack), challenger seat, BotState.snapshot,
+                             BotMind.last (only when Bot Mind is on), active weights, last 20 actions and this game's ActionLog from its gameStart
+                             (max 6,000). Nothing is sent anywhere; the file is for reading with Claude.
 28b. scroll-move-fx.js     <- window.ScrollMoveFx: scroll move animation (2026-10-15). Every 50 ms compares where each scroll is
                              (each player's hand / active, the common area); a scroll that changed place (any player, any cause) flies
                              as a chip with its name in its colors, on an arc, from its old spot to its new one (own panels Hand / Active /
