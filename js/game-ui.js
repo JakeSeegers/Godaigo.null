@@ -7651,6 +7651,9 @@ document.getElementById('undo-move').onclick = function() {
                     mindItem.textContent = mindLabel();
                 });
                 menu.appendChild(mindItem);
+                menu.appendChild(makeItem('Training Lab (challengers, champions, saved games)', () => {
+                    if (window.TrainingLab) window.TrainingLab.open();
+                }));
                 menu.appendChild(makeItem('Formula Lab (new bot senses)', () => {
                     if (window.FormulaLab) window.FormulaLab.open();
                 }));
