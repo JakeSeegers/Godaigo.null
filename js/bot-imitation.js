@@ -107,6 +107,7 @@
     function setEnabled(v) {
         enabled = !!v && isHermitUser(); // never persists ON for a non-hermit account
         try { localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0'); } catch (e) { /* ignore */ }
+        touchLocal();
         console.log(`🧠 [Imitation] ${enabled ? 'ON - watching your play' : 'OFF'}`);
         renderBadge();
     }
@@ -126,7 +127,59 @@
     }
     function saveDeltas(d) {
         try { localStorage.setItem(DELTAS_KEY, JSON.stringify(d)); } catch (e) { /* ignore */ }
+        touchLocal();
     }
+
+    // ── Saved to the account (sql/imitation-sync.sql, owner 2026-10-18) ──
+    // Before this, the learned adjustments and the on/off switch lived only in
+    // this browser, so learning elsewhere (or before a cleared cache) was lost.
+    // At sign-in the newer copy wins (server or this browser); every change is
+    // pushed a few seconds later. Hermit only, like the feature.
+    const AT_KEY = 'godaigo_bot_weight_deltas_at';
+    let pushTimer = null, synced = false, syncUser = null;
+    function localAt() { try { return Number(localStorage.getItem(AT_KEY)) || 0; } catch (e) { return 0; } }
+    function touchLocal() {
+        try { localStorage.setItem(AT_KEY, String(Date.now())); } catch (e) { /* ignore */ }
+        if (!synced) return;               // never push before the first pull (would overwrite the account copy)
+        clearTimeout(pushTimer);
+        pushTimer = setTimeout(pushNow, 3000);
+    }
+    async function pushNow() {
+        pushTimer = null;
+        if (!isHermitUser() || typeof supabase === 'undefined' || !supabase?.rpc) return;
+        try {
+            const { error } = await supabase.rpc('save_imitation_state', { p_deltas: loadDeltas(), p_enabled: enabled });
+            if (error) console.warn('🧠 [Imitation] not saved to the account:', error.message);
+        } catch (e) { /* offline: the next change tries again */ }
+    }
+    async function syncFromAccount() {
+        if (!isHermitUser() || typeof supabase === 'undefined' || !supabase?.rpc) return;
+        try {
+            const { data, error } = await supabase.rpc('my_imitation_state');
+            if (error) { console.warn('🧠 [Imitation] could not load from the account:', error.message); return; }
+            const local = loadDeltas();
+            const serverAt = data?.updated_at ? Date.parse(data.updated_at) : 0;
+            const localEmpty = !Object.keys(local).length;
+            if (data && (localEmpty || serverAt > localAt())) {
+                try {
+                    localStorage.setItem(DELTAS_KEY, JSON.stringify(data.deltas || {}));
+                    localStorage.setItem(ENABLED_KEY, data.enabled ? '1' : '0');
+                    localStorage.setItem(AT_KEY, String(serverAt || Date.now()));
+                } catch (e) { /* ignore */ }
+                enabled = !!data.enabled;
+                console.log(`🧠 [Imitation] loaded from the account: ${Object.keys(data.deltas || {}).length} adjustments, ${enabled ? 'ON' : 'OFF'}`);
+                renderBadge();
+            }
+            synced = true;
+            if (!data || (!localEmpty && localAt() > serverAt)) pushNow();   // this browser has the newer copy
+        } catch (e) { /* offline: try again on the next check */ }
+    }
+    // Sign-in can come after this script loads: check every 3 s, sync once per account.
+    if (!IN_REPLAY_FRAME) setInterval(() => {
+        const who = window.currentUsername || null;
+        if (who !== syncUser) { syncUser = who; synced = false; }
+        if (!synced && who && isHermitUser()) syncFromAccount();
+    }, 3000);
     // Only accumulate a delta for a key that's actually a real, numeric
     // weight — defends against a future trace shape carrying an unexpected
     // key and quietly polluting the delta table with garbage.
@@ -448,6 +501,7 @@
         resetStats,
         getStats: () => ({ ...stats }),
         getDeltas: loadDeltas,
+        syncFromAccount, saveToAccount: pushNow,
         applyDeltas, // (base) => base + learned delta — lobby.js calls this per bot seat
         resetDeltas: () => { saveDeltas({}); console.log('🧠 [Imitation] deltas cleared'); },
         _refreshPending: refreshPending, // exposed for console/testing only

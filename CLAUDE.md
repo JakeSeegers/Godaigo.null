@@ -716,6 +716,10 @@ Order matters — later scripts depend on earlier ones.
                              an idling browser with deltas makes an 'imitation' challenger that must win like any other, and Train Bot
                              (game-ui.js runHillClimbTraining) adds champion + deltas as a round-1 challenger once per set of
                              deltas and champion (localStorage godaigo_imitation_trained = hash).
+                             Saved to the account (2026-10-18, sql/imitation-sync.sql, applied): table bot_imitation_state (deltas, enabled),
+                             hermit-only RPCs my_imitation_state / save_imitation_state. Every 3 s until synced: at sign-in the newer copy wins
+                             (account or this browser, localStorage godaigo_bot_weight_deltas_at); every change is pushed 3 s later; never in
+                             replay pages. Before this, learning lived in one browser only and was lost elsewhere.
                              Cost (2026-10-08): it ranks once per board change (stateVersion bumped by every ActionLog entry), not
                              every 300 ms (a full ranking late in a game took 1-5 s, so the hermit's own turn froze for minutes);
                              after a ranking over 150 ms it waits 4x that long. Time shows as learnMs in the lag recorder.
@@ -833,6 +837,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `account_recovery` | edge fn account-recovery | Optional recovery email per account (+ verified flag, confirm token hash). RLS on, NO client policies; client only uses RPCs `my_recovery_email()` / `remove_my_recovery_email()`. `sql/account-recovery.sql` |
 | `mailing_list` | lobby.js register form, account-recovery.js settings | Opt-in for human-written news emails (max once a month, sent by hand). RLS on, no client policies: `set_mailing_list(bool)`, `my_mailing_list()`, hermit-only `hermit_mailing_list()` (opted in AND confirmed recovery email; address from `account_recovery`). sql/mailing-list.sql |
 | `recovery_email_log` | edge fn account-recovery | One row per email sent, for rate limits (2/account/hour, 3/address/day, 90/day total). Server only. |
+| `bot_imitation_state` | bot-imitation.js | Learn from my play, per account (sql/imitation-sync.sql, applied 2026-10-18): deltas jsonb (numbers only, max 20,000 chars), enabled, updated_at. RLS on, no client policies: hermit-only `my_imitation_state()`, `save_imitation_state(deltas, enabled)`. |
 | `bot_champion_weights` | bot.js, game-ui.js, lobby.js | THE single shared bot brain - append-only submission log. The CURRENT champion is the newest row with `promoted = true` (`order by promoted desc, created_at desc`, sql/champion-promoted.sql, 2026-09-27); `win_rate` is only that row's own confirm record and is NOT comparable between rows. Auto-applied on load (bot.js); the auth-bar "Train Bot" button (hillclimb) inserts a promoted row + pays gold on a confirmed win (game-ui.js `runHillClimbTraining`). |
 | `deployed_bots` | bot-elements.js, lobby.js, gamification-ui.js | Now holds SIX system-owned rows (`owner IS NULL`): the five elemental bots (`sql/elemental-bots-seed.sql`, nicknames Terran Sentinel / Tidewarden / Emberkin / Galewalker / The Void Knight) and **Twitchbot** (id 12, sql/stream-games.sql): every chat-steered bot seat in a stream game ("Twitchbot (Emberkin)") is this one ladder bot. Client READ-only (public SELECT); ids resolved by nickname at runtime. `ladder.bot_id` FKs here. The old Bot Tycoon leftovers (`captured_bots`, `void_knight`, `user_profiles.capture_stones`, `deployed_bots.captured_bot_id`, `record_deployed_bot_result`) were dropped by `sql/drop-bot-tycoon.sql` (applied 2026-10-13). |
 
