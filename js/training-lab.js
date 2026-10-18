@@ -172,7 +172,8 @@
             <h4 style="margin:14px 0 4px;">Challengers</h4>
             <div class="tl-cands">Loading...</div>
             <h4 style="margin:14px 0 4px;">Champion history</h4>
-            <div style="margin-bottom:6px;">${btn('tl-test', 'Test the live champion vs the last 3 (10 games each)')} <span class="tl-test-out" style="font-family:monospace;font-size:12px;color:#cfc;"></span></div>
+            <div style="margin-bottom:6px;">${btn('tl-test', 'Test the live champion vs the last 3 (10 games each)')}</div>
+            <div class="tl-test-out" style="display:none;margin:0 0 10px;padding:8px 10px;border:1px solid #4a6;border-radius:6px;background:#1c2a20;font-size:13px;"></div>
             <div class="tl-champs">Loading...</div>`;
         document.body.appendChild(box);
         const $ = s => box.querySelector(s);
@@ -211,26 +212,66 @@
         };
         $('.tl-refresh').onclick = refresh;
 
-        $('.tl-test').onclick = async () => {
+        // Test results: a box of its own (one row per older champion, then a
+        // summary), kept in localStorage so they are still here after a reload.
+        const TEST_KEY = 'godaigo_training_lab_test';
+        const showTest = (t) => {
             const out = $('.tl-test-out');
-            if (champs.length < 2) { out.textContent = 'Need at least 2 champions.'; return; }
+            out.style.display = '';
+            const rows = t.rows.map(r => {
+                if (r.error) return `<div>vs champion #${r.id}: <span style="color:#f99;">failed: ${esc(r.error)}</span></div>`;
+                if (r.playing) return `<div>vs champion #${r.id}: <span style="color:#fd7;">${esc(r.playing)}</span></div>`;
+                const v = verdict(r.w, r.l);
+                const word = r.w > r.l ? 'live won more' : r.w < r.l ? 'old won more' : 'even';
+                return `<div>vs champion #${r.id}: <b>${r.w}-${r.l}-${r.d}</b> (live-old-draw), ${word}` +
+                    (v.text === 'likely worse' ? ' <b style="color:#f77;">live looks WORSE</b>' : v.text === 'likely better' ? ' <span style="color:#7f7;">live looks better</span>' : '') + '</div>';
+            }).join('');
+            const done = t.rows.filter(r => !r.error && !r.playing);
+            let sum = '';
+            if (!t.running && done.length) {
+                const W = done.reduce((a, r) => a + r.w, 0), L = done.reduce((a, r) => a + r.l, 0), D = done.reduce((a, r) => a + r.d, 0);
+                const worse = done.filter(r => verdict(r.w, r.l).text === 'likely worse');
+                sum = `<div style="margin-top:6px;border-top:1px solid #355;padding-top:6px;">Total: live champion #${t.live} won <b>${W}</b>, lost <b>${L}</b>, drew ${D}. ` +
+                    (worse.length ? `<b style="color:#f77;">It looks weaker than #${worse.map(r => r.id).join(', #')}. Run the test again before trusting this.</b>`
+                        : W >= L ? 'No sign it got weaker.' : 'It lost more than it won, but not clearly. 10 games per champion is only a hint.') + '</div>';
+            }
+            out.innerHTML = `<div style="color:#aaa;font-size:11px;margin-bottom:4px;">${t.running ? 'Testing...' : 'Last test, ' + esc(t.at)}</div>${rows}${sum}`;
+        };
+        try { const t = JSON.parse(localStorage.getItem(TEST_KEY)); if (t?.rows) showTest({ ...t, running: false }); } catch (e) {}
+
+        $('.tl-test').onclick = async () => {
+            if (champs.length < 2) { showTest({ running: false, at: '-', live: '?', rows: [{ id: '-', error: 'need at least 2 champions' }] }); return; }
             $('.tl-test').disabled = true;
-            try {
-                await window.LazyScripts?.load?.('bot-arena');
-                const live = champs[0];
-                const lines = [];
-                for (const old of champs.slice(1, 4)) {
-                    out.textContent = [...lines, `vs #${old.id}: playing...`].join('  ');
+            const live = champs[0];
+            const t = { running: true, at: new Date().toLocaleString(), live: live.id, rows: [] };
+            try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
+            for (const old of champs.slice(1, 4)) {
+                const row = { id: old.id, playing: 'starting...' };
+                t.rows.push(row);
+                showTest(t);
+                try {
                     const r = await window.BotArena.run(live.weights, old.weights, 10, (Date.now() % 100000) >>> 0, {
                         visual: false, comboWatch: false,
-                        onGame: (i, t, g, info) => { out.textContent = [...lines, `vs #${old.id}: game ${i} of ${t} done${info ? (g?.winner == null ? ' (draw)' : info.aWon ? ' (live won)' : ' (old won)') : ''}...`].join('  '); },
+                        onGame: (i, n, g, info) => {
+                            row.playing = `game ${i} of ${n} done` + (info ? (g?.winner == null ? ' (draw)' : info.aWon ? ' (live won)' : ' (old won)') : '');
+                            showTest(t);
+                        },
                     });
-                    const v = verdict(r.aWins, r.bWins);
-                    lines.push(`vs #${old.id}: ${r.aWins}-${r.bWins}-${r.draws}${v.text === 'likely worse' ? ' (live looks WORSE)' : ''}`);
-                }
-                out.textContent = lines.join('  ') + '  (10 games is only a hint)';
-            } catch (e) { out.textContent = 'Test failed: ' + (e.message || e); }
-            finally { $('.tl-test').disabled = false; }
+                    delete row.playing;
+                    Object.assign(row, { w: r.aWins, l: r.bWins, d: r.draws });
+                } catch (e) { delete row.playing; row.error = e.message || String(e); }
+                showTest(t);
+            }
+            t.running = false;
+            showTest(t);
+            try { localStorage.setItem(TEST_KEY, JSON.stringify(t)); } catch (e) {}
+            console.log('🧪 [TrainingLab] live champion #' + live.id + ' vs older champions: ' +
+                t.rows.map(r => r.error ? `#${r.id} failed (${r.error})` : `#${r.id} ${r.w}-${r.l}-${r.d}`).join(', '));
+            // Arena games swap the screen; bring the Lab back to the front with the result in view.
+            if (!box.isConnected) document.body.appendChild(box);
+            box.style.zIndex = '10090';
+            $('.tl-test-out').scrollIntoView({ block: 'center' });
+            $('.tl-test').disabled = false;
         };
 
         refresh();
