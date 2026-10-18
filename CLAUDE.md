@@ -466,6 +466,7 @@ Order matters — later scripts depend on earlier ones.
                              default 0 = no change): comboKeep (handValue + comboKeep x evalScrollCredit x share of a taught combo's opening
                              pair held, comboPairShare) and comboSeek (scrollPickScore + comboSeek x 100 x how much closer a picked scroll
                              brings the pair). bot-arena.js makeChallenger fills settings missing from the saved champion with defaults.
+                             WEIGHTS.combosOff === true (2026-10-18, Training Lab test only): activeCombos() returns [] for that table.
                              Trial combos (2026-10-11): WEIGHTS.extraCombos = signatures this bot follows on top of the taught list
                              (activeCombos(); per seat, since setWeights replaces the table); a champion without it clears it on load.
                              Owner strategies (2026-10-11, docs/player-strategies.md): strategyParts / strategyBonus, greedy + search root
@@ -534,6 +535,10 @@ Order matters — later scripts depend on earlier ones.
                              see and steer training (Train Bot stays one button). Tabs (last tab kept, localStorage godaigo_training_lab_tab):
                              Overview = the 4-step flow (ideas, challenger, games, champion) + one card per method (Explore, Formulas, Combos,
                              Learned from you, Bot network, Checks, Scroll report) with live status and the button that opens it;
+                             Test a change = champion + one change vs champion (BotArena.run, 12/24/48 games, fourPlayerEvery 3): presets taught
+                             combos on vs off (bot.js WEIGHTS.combosOff), settings lines `name = value`, formula lines; result + chance it
+                             helps; 'Make it live now' (direct promoted insert, undo in Champions) / 'Send to idle training'; last 8 kept
+                             (localStorage godaigo_training_lab_changes);
                              Challengers = every idle challenger (diff vs its champion, record, progress to 40, Beta chance it beats its
                              champion, Reject); Champions = "Test live vs last 3" (BotArena.run 10 games each, result kept in localStorage
                              godaigo_training_lab_test) + promoted champions with changes and "Make live again" (hermit_restore_champion);
