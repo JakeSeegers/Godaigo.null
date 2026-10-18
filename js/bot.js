@@ -410,6 +410,7 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
+        riverHarm:         0,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; off until its A/B passes); 0 = old rule
         stoneShuffleGuard: 1,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18, A/B 19-18-3); 0 = off
         respPost:          1,     // > 0.5: build and wait on a level 1 response of a needed element (makePlan respExtra, 2026-10-18; A/B 20-17-3, 47 responses in 40 games); 0 = off
         searchDoomed:      1,     // > 0.5: the search's root charges placeDoomed for a stone fire burns at once (2026-10-18, A/B 20-20-0); 0 = off
@@ -2202,6 +2203,19 @@
         const self = me(snap);
         const t = snap.tiles.find(q => Number(q.id) === Number(rc.tileId));
         if (rc.turn !== (m.ownTurns || 0) || !self || !t) { m.riverCollect = null; return null; }
+        // Still standing in the shape: a second River at the leader's shrine first, when
+        // it hurts and leaves the AP to walk over (owner 2026-10-18).
+        if (!rc.harmTried && WEIGHTS.riverHarm > 0.5) {
+            rc.harmTried = true;
+            const path0 = Math.hypot(self.x - t.x, self.y - t.y) < 5 ? [] : window.BotState.findPath(self.x, self.y, t.x, t.y);
+            const walk = path0 ? pathCost(path0) : Infinity;
+            const hit = window.BotState.legalActions().filter(a => a.type === 'cast' && a.scroll === RIVER && a.choice?.harm)
+                .sort((x, y) => y.choice.harm - x.choice.harm)[0];
+            if (hit && walk + 2 <= snap.turn.ap && harmCastBonus(snap, self, hit) > 0) {
+                _shortcutStats.riverHarm = (_shortcutStats.riverHarm || 0) + 1;
+                return hit;
+            }
+        }
         if (Math.hypot(self.x - t.x, self.y - t.y) < 5) {
             m.riverCollect = null;
             _shortcutStats.riverCollects = (_shortcutStats.riverCollects || 0) + 1;
@@ -4147,6 +4161,12 @@
     // left), no stones or pawns on the tile, close to the leader, and one of
     // at most 2 free shrines of that element.
     const TILE_R = 80;
+    // An element a River-changed shrine would give this player nothing of: one it has
+    // won (never void: void stones raise anyone's AP limit) or whose pool is full.
+    function riverDudElement(snap, lp) {
+        const dud = el => (el !== 'void' && lp.activated.includes(el)) || (lp.pool[el] || 0) >= POOL_CAP;
+        return ELEMENTS.filter(dud).sort((a, b) => (lp.pool[b] || 0) - (lp.pool[a] || 0))[0] || null;
+    }
     function keyShrines(snap, lp) {
         const need = ELEMENTS.filter(el => !lp.activated.includes(el) && (snap.sourcePool[el] || 0) > 0);
         const onTile = (t, q) => Math.hypot(q.x - t.x, q.y - t.y) < TILE_R;
@@ -4318,9 +4338,29 @@
                 out.push({ tileId: t.id, harm: 0.8 });
             }
         } else if (name === 'WATER_SCROLL_4') {
-            const has = ELEMENTS.filter(el => lp.activated.includes(el));
-            const el = has.find(e => !self.activated.includes(e)) || has[0] || 'void';
-            for (const t of keyShrines(snap, lp).slice(0, 2)) out.push({ tileId: t.id, element: el, harm: 0.6 });
+            // Owner 2026-10-18: River the shrine the leader stands on (it collects
+            // there when its turn ends; the change lasts until my next turn) or one
+            // it needs within 2 steps, then its scarce key shrines, into an element
+            // it gains nothing from. keyShrines leaves out tiles with a pawn on them.
+            if (!(WEIGHTS.riverHarm > 0.5)) { // old rule, kept for the A/B switch
+                const has = ELEMENTS.filter(e => lp.activated.includes(e));
+                const old = has.find(e => !self.activated.includes(e)) || has[0] || 'void';
+                for (const t of keyShrines(snap, lp).slice(0, 2)) out.push({ tileId: t.id, element: old, harm: 0.6 });
+                return out;
+            }
+            const el = riverDudElement(snap, lp);
+            if (!el) return out;
+            const wants = t => t.revealed && !t.isPlayerTile && t.shrineType !== el &&
+                ELEMENTS.includes(t.shrineType) && !lp.activated.includes(t.shrineType) &&
+                (snap.sourcePool[t.shrineType] || 0) > 0 && (lp.pool[t.shrineType] || 0) < POOL_CAP &&
+                !snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5);
+            const d = t => Math.hypot(t.x - lp.x, t.y - lp.y);
+            const near = snap.tiles.filter(t => wants(t) && d(t) <= 2 * 35 + 5).sort((x, y) => d(x) - d(y));
+            for (const t of near.slice(0, 2)) out.push({ tileId: t.id, element: el, harm: d(t) < 5 ? 1 : 0.7 });
+            for (const t of keyShrines(snap, lp)) {
+                if (out.length >= 3) break;
+                if (wants(t) && !out.some(c => c.tileId === t.id)) out.push({ tileId: t.id, element: el, harm: 0.6 });
+            }
         }
         return out;
     }

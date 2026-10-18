@@ -510,6 +510,9 @@ Order matters — later scripts depend on earlier ones.
                              1, 0.5 when another held scroll gives that element, +0.5 while an opponent has 4+ elements or is one cast from
                              winning; reviewPlan drops it when the element is won or after RESP_WAIT 3 own turns, then RESP_REST 3). ON (A/B 20-17-3, 47 responses in 40 games). Test trap: bots answer
                              responses only while BotArena.isRunning() (waitForQuiescence); plain playMatch() lets every window time out.
+                             riverHarm (owner 2026-10-18): harmChoices River = the shrine the leader stands on (it collects there) or a needed
+                             one within 2 steps, then its scarce keyShrines, into riverDudElement (won, never void, or pool full; none = no
+                             attack); riverCollectStep fires it right after a river trip cast while still in the shape (rc.harmTried).
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
                              covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
                              castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).
