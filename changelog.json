@@ -6,7 +6,8 @@
       "date": "2026-10-18",
       "title": "Smarter bots",
       "changes": [
-        "Bots no longer chase scroll \"combos\" that were making them play worse. They now pick their casts on their own judgment."
+        "Bots no longer chase scroll \"combos\" that were making them play worse. They now pick their casts on their own judgment.",
+        "Train Bot's final test is now a straight match: the new bot must win 58% of 40 games against the champion to replace it."
       ]
     },
     {
