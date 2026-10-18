@@ -409,6 +409,7 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
+        goalNeedFirst:     0,     // > 0.5: goal shrines = needed elements first, face-down tiles by their odds (2026-10-18, off until its A/B test passes); 0 = old rule
                                   // of an element still needed, before all 5. Without it a
                                   // teleport / tile move / road toward that shrine scored as
                                   // "2 AP for nothing" (owner 2026-09-28: bots never cast
@@ -2786,19 +2787,63 @@
     // Goal field: cost to the nearest shrine centre forIndex still needs
     // stones from (element not activated, source alive, pool not full; void
     // always, its stones are AP), centre free of stones and other pawns.
+    // Odds of what each face-down tile is (owner 2026-10-18, "Bad move" report:
+    // a bot that needed only water never went to the last face-down tile).
+    // The tile deck holds the same number of each of the 6 types, so every
+    // revealed or remembered tile removes one; the rest are spread evenly over
+    // the unknown face-down tiles. Public information only. Map id -> {type: p}.
+    const TILE_TYPES = ['earth', 'water', 'fire', 'wind', 'void', 'catacomb'];
+    function hiddenTileOdds(snap) {
+        const tiles = snap.tiles.filter(t => !t.isPlayerTile);
+        if (!tiles.length || tiles.length % TILE_TYPES.length) return null;
+        const left = Object.fromEntries(TILE_TYPES.map(k => [k, tiles.length / TILE_TYPES.length]));
+        const unknown = [];
+        for (const t of tiles) {
+            const el = t.revealed ? t.shrineType : t.known;
+            if (el && el in left) left[el]--;
+            else if (!t.revealed) unknown.push(t);
+        }
+        const total = TILE_TYPES.reduce((a, k) => a + Math.max(0, left[k]), 0);
+        if (!unknown.length || total <= 0) return null;
+        const odds = new Map();
+        for (const t of unknown) odds.set(t.id, Object.fromEntries(TILE_TYPES.map(k => [k, Math.max(0, left[k]) / total])));
+        return odds;
+    }
+    // The element a tile stands for in planning: its face, the remembered
+    // face, or (face-down, never seen) the needed element it most likely is
+    // when that is 50%+ likely.
+    function planElement(t, odds, needed) {
+        if (t.revealed) return t.shrineType;
+        if (t.known) return t.known;
+        const o = odds?.get(t.id);
+        if (!o) return null;
+        let best = null, bp = 0;
+        for (const el of needed) if ((o[el] || 0) > bp) { bp = o[el]; best = el; }
+        return bp >= 0.5 ? best : null;
+    }
     function goalShrines(snap, forIndex) {
         const p = snap.players[forIndex];
         if (!p) return [];
-        return snap.tiles.filter(t => {
+        const needed = ELEMENTS.filter(el => !p.activated.includes(el));
+        const smart = WEIGHTS.goalNeedFirst > 0.5;
+        const odds = smart ? hiddenTileOdds(snap) : null;
+        const list = snap.tiles.filter(t => {
             // A face-down tile remembered as a shrine counts too: walking on
-            // reveals it (bot-state.js tile memory, 2026-09-29).
-            const el = t.revealed ? t.shrineType : t.known;
-            if (t.isPlayerTile || !ELEMENTS.includes(el)) return false;
+            // reveals it (bot-state.js tile memory, 2026-09-29); so does one
+            // that is 50%+ likely a needed element (hiddenTileOdds).
+            const el = t.isPlayerTile ? null : planElement(t, odds, needed);
+            if (!ELEMENTS.includes(el)) return false;
             if ((p.pool[el] || 0) >= POOL_CAP || (snap.sourcePool[el] || 0) <= 0) return false;
             if (p.activated.includes(el) && el !== 'void') return false;
             if (snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 5)) return false;
             return !snap.players.some((q, j) => q && j !== forIndex && Math.hypot(q.x - t.x, q.y - t.y) < 5);
         });
+        // Needed elements first: once void is activated, the void shrine (still
+        // useful for AP) is a goal only when no needed shrine is available.
+        // Before, a bot needing only water camped at the void shrine next to it.
+        if (!smart) return list;
+        const needs = list.filter(t => needed.includes(planElement(t, odds, needed)));
+        return needs.length ? needs : list;
     }
     function buildGoalField(snap, forIndex) {
         const ts = goalShrines(snap, forIndex);
@@ -5904,6 +5949,7 @@
         _harmContext: harmContext, // tests
         _review,                    // tests: plan review counters
         _makePlan: (snap, opts) => makePlan(snap, opts), // tests: the plan builder
+        _goalShrines: (snap, i) => goalShrines(snap, i), _hiddenTileOdds: (snap) => hiddenTileOdds(snap), // tests: goal shrines + face-down odds
         _winSpots: (snap, L) => winSpots(snap, L), // tests: finished shapes the leader could win with
         _planStats,                 // tests: plans made / away from the pawn / stones reused / already finished
         _shortcutStats,             // tests: teleport / walk-to-catacomb / Take Flight shortcuts taken
