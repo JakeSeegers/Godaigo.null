@@ -221,7 +221,10 @@
                 const lines = [];
                 for (const old of champs.slice(1, 4)) {
                     out.textContent = [...lines, `vs #${old.id}: playing...`].join('  ');
-                    const r = await window.BotArena.run(live.weights, old.weights, 10, (Date.now() % 100000) >>> 0, { visual: false, comboWatch: false });
+                    const r = await window.BotArena.run(live.weights, old.weights, 10, (Date.now() % 100000) >>> 0, {
+                        visual: false, comboWatch: false,
+                        onGame: (i, t, g, info) => { out.textContent = [...lines, `vs #${old.id}: game ${i} of ${t} done${info ? (g?.winner == null ? ' (draw)' : info.aWon ? ' (live won)' : ' (old won)') : ''}...`].join('  '); },
+                    });
                     const v = verdict(r.aWins, r.bWins);
                     lines.push(`vs #${old.id}: ${r.aWins}-${r.bWins}-${r.draws}${v.text === 'likely worse' ? ' (live looks WORSE)' : ''}`);
                 }
