@@ -5373,6 +5373,9 @@
 
             // Tutorial pre-reveal hook: runs BEFORE the visual is built so the
             // tutorial can override tile.shrineType and the visual + scroll both reflect it.
+            // Bot arena combo drill (bot-arena.js stackDeal): same trick as the
+            // tutorial, the drilled seat's next reveal becomes the element it needs.
+            if (typeof window.__arenaStack === 'function') { try { window.__arenaStack(tile); } catch (e) {} }
             if (window.isTutorialMode && window.TutorialMode?.onTilePreReveal) {
                 window.TutorialMode.onTilePreReveal(tile);
             }

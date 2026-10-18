@@ -535,8 +535,9 @@ Order matters — later scripts depend on earlier ones.
                              see and steer training (Train Bot stays one button). Tabs (last tab kept, localStorage godaigo_training_lab_tab):
                              Overview = the 4-step flow (ideas, challenger, games, champion) + one card per method (Explore, Formulas, Combos,
                              Learned from you, Bot network, Checks, Scroll report) with live status and the button that opens it;
-                             Test a change = champion + one change vs champion (BotArena.run, 12/24/48 games, fourPlayerEvery 3): presets taught
-                             combos on vs off (bot.js WEIGHTS.combosOff), settings lines `name = value`, formula lines; result + chance it
+                             Test a change = champion + one change vs champion (BotArena.run, 12/24/48 games, fourPlayerEvery 3): presets combo
+                             drill (stacked deals, see bot-arena.js opts.stack; each deal played twice with seats swapped, one taught combo per
+                             deal, result per combo), taught combos on vs off in normal games (bot.js WEIGHTS.combosOff), settings lines `name = value`, formula lines; result + chance it
                              helps; 'Make it live now' (direct promoted insert, undo in Champions) / 'Send to idle training'; last 8 kept
                              (localStorage godaigo_training_lab_changes);
                              Challengers = every idle challenger (diff vs its champion, record, progress to 40, Beta chance it beats its
@@ -644,6 +645,10 @@ Order matters — later scripts depend on earlier ones.
                              A and B on alternate seats (A on 0 and 2 when aIsPlayer0); a win is still one side's, so win rates and the idle
                              verdict keep 50%. hillClimb challenger series default 3; idle training 3. Pacts, guard mode and responses only
                              happen with 3+ players. Test trap: plain playMatch() leaves BotDiplomacy.enabled() false (no run / evolve flag).
+                             Stacked deal opts.stack = { seat, scrolls } (2026-10-18, Training Lab combo drill, the tutorial's trick): the scrolls
+                             are held back from decks / hands / common; each time that seat reveals a tile, game-core.js revealTile calls
+                             window.__arenaStack first, which turns the tile into the next scroll's element and puts the scroll on top of
+                             that deck. Cleared at every game start and after run(). Drill games skip the scroll report.
                              Test option opts.startScrolls = { seat: [scroll names] } (2026-10-14): those scrolls start in that seat's hand (out of
                              the decks / common area), so a test can force a rare scroll into every game; run() swaps sides every other game.
                              Scroll report (2026-10-14, hermit menu "Scroll report"): every arena game with a winner (not drill games) adds, per

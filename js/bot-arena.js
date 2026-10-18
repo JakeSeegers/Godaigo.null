@@ -669,7 +669,7 @@
         for (const n of ps.active || []) _sr.held[idx]?.add(n);
     }
     function srStart(n, opts) {
-        _sr = (opts.scrollReport === false || opts.startScrolls) ? null
+        _sr = (opts.scrollReport === false || opts.startScrolls || opts.stack) ? null
             : { held: Array.from({ length: n }, () => new Set()), cast: Array.from({ length: n }, () => new Map()) };
         if (_sr && !_srListen && window.ActionLog?.onRecord) {
             _srListen = true;
@@ -773,6 +773,38 @@
         };
     }
 
+    // Like the tutorial (tutorial-mode.js onTilePreReveal + primeEarthDeck): the
+    // combo scrolls are held back from every deck, hand and common slot, and
+    // each time the drilled seat reveals a tile (game-core.js revealTile calls
+    // window.__arenaStack first) that tile becomes the next scroll's element
+    // and the scroll goes on top of that deck, so the reveal draws it. Other
+    // seats reveal normally and can never draw a held-back scroll.
+    function stackDeal(stack, nPlayers) {
+        const ss = window.spellSystem;
+        const seat = stack.seat | 0;
+        if (!(seat >= 0 && seat < nPlayers) || !Array.isArray(stack.scrolls)) return;
+        const pending = [];
+        for (const name of stack.scrolls) {
+            let deckKey = null;
+            for (const el of Object.keys(ss.scrollDecks || {})) {
+                const i = ss.scrollDecks[el].indexOf(name);
+                if (i !== -1) { ss.scrollDecks[el].splice(i, 1); deckKey = el; }
+            }
+            for (const el of Object.keys(ss.commonArea || {})) if (ss.commonArea[el] === name) { ss.commonArea[el] = null; deckKey = deckKey || el; }
+            for (const ps of Object.values(ss.playerScrolls || {})) { ps?.hand?.delete?.(name); ps?.active?.delete?.(name); }
+            deckKey = deckKey || window.SCROLL_DEFINITIONS?.[name]?.element;
+            if (deckKey && ss.scrollDecks[deckKey]) pending.push({ name, deckKey });
+        }
+        window.__arenaStack = (tile) => {
+            if (activePlayerIndex !== seat || !pending.length || !tile || tile.isPlayerTile) return;
+            const next = pending.shift();
+            tile.shrineType = next.deckKey;
+            ss.scrollDecks[next.deckKey].unshift(next.name);
+        };
+        try { ss.updateScrollCount?.(); } catch (e) {}
+        log(`stacked deal for seat ${seat}: its next reveals give ${pending.map(p => `${p.name} (${p.deckKey})`).join(', ')}`);
+    }
+
     async function _playMatchOnce(weightsPerPlayer, opts = {}) {
         const nPlayers = weightsPerPlayer.length;
         const visual0 = !!opts.visual;
@@ -847,6 +879,16 @@
             }
             try { ss.updateScrollCount?.(); } catch (e) {}
         }
+        // Stacked deal (Training Lab combo drill, owner 2026-10-18):
+        // opts.stack = { seat, scrolls: [name, ...] }. Each scroll goes to the top
+        // of its element's deck, and the face-down tiles nearest that seat's
+        // home get those elements (types swapped with other face-down tiles, so
+        // the board keeps the same tiles). The seat finds the combo by playing
+        // normally: walk onto the nearby tiles, reveal them, draw the scrolls.
+        // Both sides of a drill play the same stacked deal with seats swapped.
+        // Not set = no change (seeded games stay identical).
+        window.__arenaStack = null;
+        if (opts.stack && window.spellSystem) stackDeal(opts.stack, nPlayers);
         // Game boundaries in the action log, so a downloaded log shows who won.
         try { window.ActionLog?.record?.('gameStart', { nPlayers, seed }, null); } catch (e) {}
         if (visual0) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it (the log needs it)
@@ -1182,6 +1224,7 @@
             }));
             return result;
         } finally {
+            window.__arenaStack = null; // a combo drill's stacking never outlives its run
             if (restore) restore();
             unsuppressJoytone();
             _running = false;

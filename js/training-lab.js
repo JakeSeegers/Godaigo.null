@@ -340,7 +340,8 @@
     // sides swapped (BotArena.run), every 3rd pair a 4-player game.
     const CHANGES_KEY = 'godaigo_training_lab_changes';
     const PRESETS = {
-        combos:   { label: 'Taught combos: do they help?', a: 'with taught combos', b: 'without combos' },
+        drill:    { label: 'Combo drill (stacked deals)', a: 'following combos', b: 'champion ignoring combos' },
+        combos:   { label: 'Taught combos in normal games', a: 'with taught combos', b: 'without combos' },
         settings: { label: 'Change settings', a: 'with your change', b: 'live champion' },
         formula:  { label: 'Add a formula', a: 'with your formula', b: 'live champion' },
     };
@@ -367,6 +368,11 @@
     // Build {a, b, summary} for a preset, or {error}.
     function buildTest(preset, text, live) {
         const base = { ...(window.BotSystem?.DEFAULT_WEIGHTS || {}), ...live };
+        if (preset === 'drill') {
+            const list = (window.BotSystem?.combos?.() || []).map(c => ({ signature: c.signature, scrolls: [...new Set(c.casts.map(x => x.scroll))].slice(0, 3) }));
+            if (!list.length) return { error: 'No taught combos are loaded in this browser yet (reload the page, or check the Combos tab).' };
+            return { a: { ...base }, b: { ...base, combosOff: true }, drill: list, summary: `${list.length} taught combos, stacked deals` };
+        }
         if (preset === 'combos') {
             const n = window.BotSystem?.combos?.()?.length ?? null;
             return { a: { ...base }, b: { ...base, combosOff: true }, summary: `taught combos on vs off${n != null ? ` (${n} loaded)` : ''}` };
@@ -399,7 +405,7 @@
         const helps = p >= 0.9, hurts = p <= 0.1;
         const word = helps ? `<b class="good">It helps.</b>` : hurts ? `<b class="bad">It hurts.</b>` : '<b class="warn">No clear difference yet.</b> More games would tell.';
         let next = '';
-        if (t.preset === 'combos') {
+        if (t.preset === 'drill' || t.preset === 'combos') {
             next = helps ? 'The taught combos make the bots stronger: the miner is doing real work.'
                 : hurts ? 'The bots play better without them. Turn the weak combos Off in the Combos tab, or make teaching need a win test.'
                 : 'Run 48 games for a clearer answer.';
@@ -408,14 +414,18 @@
                 <button class="b" data-act="tc-idle">Send to idle training</button></div>
                 <div class="small muted" style="margin-top:4px;">"Make it live now" skips the 40-game rule; you can undo it in the Champions tab.</div>`;
         }
+        const per = t.perCombo ? `<ul class="changes">${Object.entries(t.perCombo).map(([sig, r]) => {
+            const q = chanceBetter(r.w, r.l), cls = q >= 0.8 ? 'good' : q <= 0.2 ? 'bad' : 'muted';
+            return `<li><span class="${cls}">${r.w}-${r.l}-${r.d}</span> ${esc(sig)}</li>`;
+        }).join('')}</ul><div class="small muted">Per combo: won-lost-drawn when following it. Only a few deals each, so look for clear patterns, not single results.</div>` : '';
         return `${head}
             <div style="margin-top:4px;"><span class="rec">${t.w}-${t.l}-${t.d}</span> <span class="small muted">${esc(P.a)} won-lost-drawn vs ${esc(P.b)}</span></div>
             <div style="margin-top:4px;">${word} <span class="muted small">Chance the change really helps: ${Math.round(100 * p)}%.</span></div>
-            <div class="small" style="margin-top:4px;">${next}</div>`;
+            <div class="small" style="margin-top:4px;">${next}</div>${per}`;
     }
 
     function testChangeHtml(S) {
-        const preset = S.tcPreset || 'combos';
+        const preset = S.tcPreset || 'drill';
         const hist = loadChanges();
         const hint = preset === 'settings' ? 'One per line, for example:\ndiscardFeeds = -14\nevalStoneNeeded = 15'
             : preset === 'formula' ? 'One per line:  weight: formula   (for example  5: freeNearHome)' : '';
@@ -423,7 +433,8 @@
             <div class="note">The quickest way to know if a change makes the bots stronger. Both sides play the same deals with seats swapped; every 3rd pair is a 4-player game. Your own fixes found the biggest gains so far, and this is the tool for testing them.</div>
             <h3>1. What to test</h3>
             <div class="row">${Object.entries(PRESETS).map(([k, v]) => `<button class="b ${k === preset ? 'primary' : ''}" data-tc-preset="${k}">${esc(v.label)}</button>`).join('')}</div>
-            ${preset === 'combos' ? `<div class="small muted" style="margin-top:6px;">The live champion with the taught combos against the same champion that ignores them.</div>`
+            ${preset === 'drill' ? `<div class="small muted" style="margin-top:6px;">Each deal is stacked for seat 1, like the tutorial: the next tiles it reveals become the elements of one taught combo, and it draws that combo's scrolls. The deal is played twice with seats swapped, so the combo bot and the champion (ignoring combos) each get the stacked seat once. Combos take turns, one per deal.</div>`
+            : preset === 'combos' ? `<div class="small muted" style="margin-top:6px;">Normal random deals: the live champion with the taught combos against the same champion that ignores them. Most games never give a bot a combo's scrolls, so this shows the real-game effect, which is usually small.</div>`
                 : `<textarea class="tc-text" spellcheck="false" placeholder="${esc(hint)}" style="margin-top:8px;width:100%;min-height:80px;background:#11111a;color:#e6e6ee;border:1px solid #3c3c52;border-radius:8px;padding:8px;font:12.5px/1.4 ui-monospace,Consolas,monospace;">${esc(S.tcText?.[preset] || '')}</textarea>`}
             <h3>2. How many games</h3>
             <div class="row">${[12, 24, 48].map(n => `<button class="b ${n === (S.tcGames || 24) ? 'primary' : ''}" data-tc-games="${n}">${n}</button>`).join('')}
@@ -493,12 +504,12 @@
 
         const renderTest = () => {
             const ta = pane('test').querySelector('.tc-text');
-            if (ta) { S.tcText = S.tcText || {}; S.tcText[S.tcPreset || 'combos'] = ta.value; }
+            if (ta) { S.tcText = S.tcText || {}; S.tcText[S.tcPreset || 'drill'] = ta.value; }
             pane('test').innerHTML = testChangeHtml(S);
         };
         const runChange = async () => {
             const ta = pane('test').querySelector('.tc-text');
-            const preset = S.tcPreset || 'combos';
+            const preset = S.tcPreset || 'drill';
             if (ta) { S.tcText = S.tcText || {}; S.tcText[preset] = ta.value; }
             const live = S.champs.find(c => c.promoted !== false)?.weights || { ...(window.BotSystem?.WEIGHTS || {}) };
             const T = buildTest(preset, S.tcText?.[preset] || '', live);
@@ -508,7 +519,24 @@
             if (T.error) return;
             S.tcWeights = T.a;
             try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
-            try {
+            if (T.drill) {
+                t.perCombo = {};
+                const deals = Math.max(1, Math.round(games / 2));
+                const seed0 = (Date.now() % 100000) >>> 0;
+                try {
+                    for (let k = 0; k < deals; k++) {
+                        const c = T.drill[k % T.drill.length];
+                        const pc = t.perCombo[c.signature] || (t.perCombo[c.signature] = { w: 0, l: 0, d: 0 });
+                        const r = await window.BotArena.run(T.a, T.b, 2, seed0 + k, {
+                            visual: false, comboWatch: false, positionLog: false, stack: { seat: 0, scrolls: c.scrolls },
+                        });
+                        t.w += r.aWins; t.l += r.bWins; t.d += r.draws; t.done += 2;
+                        pc.w += r.aWins; pc.l += r.bWins; pc.d += r.draws;
+                        const o = pane('test').querySelector('.tc-out'); if (o) o.innerHTML = changeResultHtml(t);
+                    }
+                } catch (e) { t.error = 'Test failed: ' + (e.message || e); }
+                t.games = t.done;
+            } else try {
                 const r = await window.BotArena.run(T.a, T.b, games, (Date.now() % 100000) >>> 0, {
                     visual: false, comboWatch: false, fourPlayerEvery: 3,
                     onGame: (i, n, g, info) => {
@@ -520,7 +548,7 @@
                 Object.assign(t, { w: r.aWins, l: r.bWins, d: r.draws });
             } catch (e) { t.error = 'Test failed: ' + (e.message || e); }
             t.running = false;
-            if (!t.error) saveChange({ preset: t.preset, summary: t.summary, at: t.at, w: t.w, l: t.l, d: t.d });
+            if (!t.error) saveChange({ preset: t.preset, summary: t.summary, at: t.at, w: t.w, l: t.l, d: t.d, perCombo: t.perCombo || null });
             console.log(`🧪 [TrainingLab] test "${t.summary}": ${t.w}-${t.l}-${t.d}`);
             if (!box.isConnected) document.body.appendChild(box);
             box.style.zIndex = '10090';
