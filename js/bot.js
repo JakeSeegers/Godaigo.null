@@ -409,7 +409,9 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
-        goalNeedFirst:     0,     // > 0.5: goal shrines = needed elements first, face-down tiles by their odds (2026-10-18, off until its A/B test passes); 0 = old rule
+        riverTrip:         0,     // > 0.5: Wandering River as a tool to make a needed shrine (reviewRiver, 2026-10-18; off until its A/B passes); 0 = off
+        planFreeShrine:    0,     // > 0.5: a shape may not cover the shrine it still collects from (deficitCollectibleFor, 2026-10-18; off until its A/B passes); 0 = off
+        goalNeedFirst:     1,     // > 0.5: goal shrines = needed elements first, face-down tiles by their odds (2026-10-18, A/B 19-13-8); 0 = old rule
                                   // of an element still needed, before all 5. Without it a
                                   // teleport / tile move / road toward that shrine scored as
                                   // "2 AP for nothing" (owner 2026-09-28: bots never cast
@@ -1808,6 +1810,14 @@
     function deficitIsCollectible(deficit, collectible) {
         return Object.keys(deficit).every(t => collectible.some(s => s.shrineType === t));
     }
+    // A shrine under one of the shape's own cells can't be collected from once
+    // that stone is down (2026-10-18 bad-move report: a bot put its Simplify
+    // void on the void shrine centre, then broke it every turn to stand there
+    // and collect the void it still lacked).
+    function deficitCollectibleFor(deficit, collectible, cells) {
+        if (!(WEIGHTS.planFreeShrine > 0.5)) return deficitIsCollectible(deficit, collectible);
+        return deficitIsCollectible(deficit, collectible.filter(t => !cells.some(c => Math.hypot(c.x - t.x, c.y - t.y) < 5)));
+    }
 
     // How far (steps) makePlan looks for a pattern centre (owner, 2026-09-29:
     // "look further for built and partial patterns"). Stones already on the
@@ -1918,13 +1928,18 @@
                     const ap = hexToPixel(anchorHex.q, anchorHex.r, TILE_SIZE);
                     if (!window.BotSim?.travelTilesAt?.(snap, ap.x, ap.y, v.cells, snap.turn.activePlayerIndex)?.length) continue;
                 }
+                // Wandering River trip: only on a revealed tile whose centre stays free to collect on.
+                if (opts?.riverSpot) {
+                    const ap = hexToPixel(anchorHex.q, anchorHex.r, TILE_SIZE);
+                    if (!riverTileAt(snap, ap.x, ap.y, v.cells)) continue;
+                }
                 const totalDeficit = Object.values(v.deficit).reduce((a, b) => a + b, 0);
                 // Missing stone types are fine — planNextAction() routes
                 // through a collect leg (see stepTowardCollect()) — as long
                 // as every missing type is actually obtainable somewhere on
                 // the revealed board. Otherwise this shape can never finish;
                 // it's not a real plan, just a dream.
-                if (totalDeficit && !deficitIsCollectible(v.deficit, collectible)) continue;
+                if (totalDeficit && !deficitCollectibleFor(v.deficit, collectible, v.cells)) continue;
                 // catacombs can be worth 2 elements; a plan that still needs
                 // collecting is discounted (slower, riskier) but still far
                 // better than no plan at all — WEIGHTS.planDeficitPenalty is
@@ -2078,6 +2093,97 @@
         m.plan = { ...tp, travel: true, sands: true, goal, resume: m.plan || null, madeTurn: m.ownTurns || 0 };
         _shortcutStats.sandsPlans++;
         return true;
+    }
+    // Wandering River as a tool (owner bad-move report 2026-10-18): a bot holds
+    // a scroll of an element it still needs, has too few of its stones and no
+    // shrine of it to collect from. It builds Wandering River on a revealed
+    // tile, turns that tile into the needed element and ends its turn on the
+    // tile's centre to collect (riverCollectStep). River's own element is
+    // often won already, so makePlan never built it again on its own.
+    const RIVER = 'WATER_SCROLL_4', RIVER_TURNS = 4;
+    function riverTileAt(snap, x, y, cells) {
+        const ai = snap.turn.activePlayerIndex;
+        const t = snap.tiles.find(q => !q.isPlayerTile && q.revealed && Math.hypot(q.x - x, q.y - y) < 60);
+        if (!t) return null;
+        const at = q => Math.hypot(q.x - t.x, q.y - t.y) < 5;
+        if (snap.stones.some(at) || (cells || []).some(at)) return null;
+        if (snap.players.some((q, j) => q && j !== ai && at(q))) return null;
+        return t;
+    }
+    function riverNeed(snap, self, m) {
+        const free = new Set(collectibleShrines(snap).map(t => t.shrineType));
+        let best = null;
+        for (const { def, attack } of creditableSources(snap, self, m.noCreditScrolls || new Set())) {
+            const el = def.element;
+            if (attack || !ELEMENTS.includes(el) || self.activated.includes(el) || free.has(el)) continue;
+            if ((snap.sourcePool[el] || 0) <= 0) continue;
+            const want = (def.patterns[0] || []).filter(c => c.type === el).length;
+            const short = want - (self.pool[el] || 0);
+            if (short > 0 && (!best || short < best.short)) best = { el, short };
+        }
+        return best;
+    }
+    function reviewRiver(snap, idx, m, self) {
+        if (m.plan && m.plan.river) {
+            if ((m.ownTurns || 0) - m.plan.madeTurn > RIVER_TURNS) {
+                log('Wandering River trip took too long - back to the old plan');
+                m.plan = m.plan.resume || null;
+            }
+            return true;
+        }
+        if (!(WEIGHTS.riverTrip > 0.5)) return false;
+        if (m.plan && (m.plan.travel || m.plan.guard || m.plan.attack || m.plan.forPartner)) return false;
+        // Don't break off a shape that is one stone (or less) from done.
+        if (m.plan && m.plan.cells.filter(c => !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5)).length <= 1) return false;
+        const reach = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])];
+        if (!reach.includes(RIVER) || m.noCreditScrolls?.has(RIVER)) return false;
+        if (m.riverTried === (m.ownTurns || 0)) return false; // once per own turn
+        m.riverTried = m.ownTurns || 0;
+        const need = riverNeed(snap, self, m);
+        if (!need) { _tw('river:noNeed'); return false; }
+        const def = window.SCROLL_DEFINITIONS?.[RIVER];
+        if (!def) return false;
+        const tp = makePlan(snap, { only: new Set([RIVER]), near: 5, extra: [{ name: RIVER, def, credit: 0 }], riverSpot: true });
+        if (!tp) { _tw('river:noSpot'); return false; }
+        const ap = hexToPixel(tp.anchor.q, tp.anchor.r, TILE_SIZE);
+        const tile = riverTileAt(snap, ap.x, ap.y, tp.cells);
+        if (!tile) return false;
+        const missing = tp.cells.filter(c => !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5));
+        const needStones = {};
+        for (const c of missing) needStones[c.type] = (needStones[c.type] || 0) + 1;
+        let short = 0;
+        for (const [t, n] of Object.entries(needStones)) short += Math.max(0, n - (self.pool[t] || 0));
+        const viaRiver = (tp.steps || 0) + 3 * short + 2 + Math.round(Math.hypot(tile.x - ap.x, tile.y - ap.y) / 35);
+        // A face-down tile that is most likely the needed element is the
+        // other way to its shrine: walk there instead when it is closer.
+        const odds = hiddenTileOdds(snap);
+        for (const t of snap.tiles) {
+            if (t.revealed || t.isPlayerTile) continue;
+            const p = t.known ? (t.known === need.el ? 1 : 0) : (odds?.get(t.id)?.[need.el] || 0);
+            if (p >= 0.5 && Math.round(Math.hypot(t.x - self.x, t.y - self.y) / 35) < viaRiver) { _tw('river:explore'); return false; }
+        }
+        log(`Wandering River trip: turn tile ${tile.id} into ${need.el} to collect it (~${viaRiver} AP)`);
+        m.plan = { ...tp, river: { el: need.el, tileId: tile.id }, resume: m.plan || null, madeTurn: m.ownTurns || 0 };
+        _shortcutStats.riverPlans = (_shortcutStats.riverPlans || 0) + 1;
+        return true;
+    }
+    // After the River cast: walk to the changed tile's centre and end the
+    // turn there to collect. Same own turn only (the change ends next turn).
+    function riverCollectStep(snap, m) {
+        const rc = m.riverCollect;
+        if (!rc) return null;
+        const self = me(snap);
+        const t = snap.tiles.find(q => Number(q.id) === Number(rc.tileId));
+        if (rc.turn !== (m.ownTurns || 0) || !self || !t) { m.riverCollect = null; return null; }
+        if (Math.hypot(self.x - t.x, self.y - t.y) < 5) {
+            m.riverCollect = null;
+            _shortcutStats.riverCollects = (_shortcutStats.riverCollects || 0) + 1;
+            return { type: 'endTurn' };
+        }
+        if (!riverTileAt(snap, t.x, t.y, [])) { m.riverCollect = null; return null; }
+        const path = window.BotState.findPath(self.x, self.y, t.x, t.y);
+        if (!path || !path.length || pathCost(path) > snap.turn.ap) { m.riverCollect = null; return null; }
+        return { type: 'move', x: path[0].x, y: path[0].y, cost: path[0].cost };
     }
     // Builder (pact role, owner 2026-09-30): build the pact's attack scroll
     // shape within BUILD_NEAR steps of the scholar, who walks on and casts it
@@ -2281,6 +2387,7 @@
         }
         if (reviewTravel(snap, idx, m, self)) return;
         if (reviewSands(snap, idx, m, self)) return;
+        if (reviewRiver(snap, idx, m, self)) return;
         if (reviewBuilder(snap, idx, m, self)) return;
         const attacks = attackTools(snap, self);
         if (m.plan && m.plan.attack) {
@@ -2343,7 +2450,7 @@
                     const v = viablePatternAt(snap, self, variant, anchor, grid, cursedCells);
                     if (!v) continue;
                     const totalDeficit = Object.values(v.deficit).reduce((a, b) => a + b, 0);
-                    if (totalDeficit && !deficitIsCollectible(v.deficit, collectible)) continue;
+                    if (totalDeficit && !deficitCollectibleFor(v.deficit, collectible, v.cells)) continue;
                     const dist = Math.hypot(h.x - self.x, h.y - self.y);
                     // Same value shape as makePlan()'s score, lightly
                     // tie-broken toward the nearest viable option — the goal
@@ -2674,6 +2781,9 @@
                 if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
                     return { type: 'cast', scroll: plan.scroll, choice: { target: L, harm: hurt } }; // throw the target, not myself
                 }
+            }
+            if (plan.river) {
+                return { type: 'cast', scroll: plan.scroll, choice: { tileId: plan.river.tileId, element: plan.river.el } };
             }
             if (plan.travel && plan.sands) {
                 const land = sandsLanding(snap, plan.goal);
@@ -5284,7 +5394,7 @@
             m.plan = makePlan(snap);
             if (m.plan) log(`New plan: build ${m.plan.scroll} anchored at hex (${m.plan.anchor.q},${m.plan.anchor.r})`);
         }
-        let planAction = m.plan ? planNextAction(snap) : null;
+        let planAction = riverCollectStep(snap, m) || (m.plan ? planNextAction(snap) : null);
         // A plan step that ends on a stone with no AP left strands the pawn
         // there (moveStrandOnStone): let normal scoring pick instead.
         if (planAction && planAction.type === 'move' && snap.turn.ap - (planAction.cost || 0) < 1 &&
@@ -5311,6 +5421,10 @@
                     noteDrawCast(idx, planAction.scroll);
                     _castsApplied++;
                     advanceCombo(idx, planAction);
+                    if (m.plan && planAction.scroll === m.plan.scroll && m.plan.river) {
+                        m.riverCollect = { tileId: m.plan.river.tileId, turn: m.ownTurns || 0 }; // walk there and collect
+                        m.plan = m.plan.resume || null;
+                    }
                     if (m.plan && planAction.scroll === m.plan.scroll) m.plan = m.plan.travel ? (m.plan.resume || null) : null; // plan fulfilled (a Take Flight trip resumes the old plan)
                 }
                 if (planAction.type === 'move') recordVisited(idx, planAction.x, planAction.y);

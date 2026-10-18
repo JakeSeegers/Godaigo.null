@@ -2221,4 +2221,5 @@ window.I18N_ES = {
     "Smarter bots": "Bots más listos",
     "Train Bot's final test is now a straight match: the new bot must win 58% of 40 games against the champion to replace it.": "La prueba final de Entrenar bot ahora es un duelo directo: el bot nuevo debe ganar el 58% de 40 partidas contra el campeón para reemplazarlo.",
     "Bots no longer chase scroll \"combos\" that were making them play worse. They now pick their casts on their own judgment.": "Los bots ya no persiguen \"combos\" de pergaminos que los hacían jugar peor. Ahora eligen sus lanzamientos con su propio criterio.",
+    "Bots now head for the elements they still need, and guess what face-down tiles are from the tiles already seen.": "Los bots ahora van por los elementos que aún necesitan y adivinan qué son las losetas boca abajo a partir de las que ya se vieron.",
 };

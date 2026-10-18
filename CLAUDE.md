@@ -497,6 +497,12 @@ Order matters — later scripts depend on earlier ones.
                              castNoEffect (-250, DIAL_KEYS): castDoesNothing = a stone-drawing scroll (DRAW_STONE_SCROLLS) that can draw
                              nothing (supply empty or own pool at POOL_CAP) and has no win credit; such a cast is not progress for the stuck
                              breaker either (botTurn). Repeat casts that still draw are unaffected. Test hook _castDoesNothing.
+                             Bad move fixes (2026-10-18, each a setting, > 0.5 = on): goalNeedFirst (goal shrines = needed elements first;
+                             hiddenTileOdds: a face-down tile 50%+ likely a needed element is a goal; A/B 19-13-8), planFreeShrine
+                             (deficitCollectibleFor: a shape may not cover the shrine it still collects from; a bot looped place void on
+                             the void shrine centre / break it every turn), riverTrip (reviewRiver: holding a needed element's scroll, short
+                             of its stones, no shrine of it to collect: build Wandering River on a revealed tile with a free centre, turn
+                             that tile into the element, riverCollectStep walks to the centre and ends the turn there).
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
