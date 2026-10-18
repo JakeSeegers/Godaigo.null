@@ -410,7 +410,7 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
-        riverHarm:         0,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; off until its A/B passes); 0 = old rule
+        riverHarm:         1,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; A/B with River forced into seat 0: 20-20-0, 73 River casts, 32 trips); 0 = old rule
         stoneShuffleGuard: 1,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18, A/B 19-18-3); 0 = off
         respPost:          1,     // > 0.5: build and wait on a level 1 response of a needed element (makePlan respExtra, 2026-10-18; A/B 20-17-3, 47 responses in 40 games); 0 = off
         searchDoomed:      1,     // > 0.5: the search's root charges placeDoomed for a stone fire burns at once (2026-10-18, A/B 20-20-0); 0 = off
