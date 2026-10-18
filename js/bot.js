@@ -411,7 +411,7 @@
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
         stoneShuffleGuard: 1,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18, A/B 19-18-3); 0 = off
-        respPost:          0,     // > 0.5: build and wait on a level 1 response of a needed element (makePlan respExtra, 2026-10-18; off: 17 posts in 6 test games, 0 responses); 0 = off
+        respPost:          1,     // > 0.5: build and wait on a level 1 response of a needed element (makePlan respExtra, 2026-10-18; A/B 20-17-3, 47 responses in 40 games); 0 = off
         searchDoomed:      1,     // > 0.5: the search's root charges placeDoomed for a stone fire burns at once (2026-10-18, A/B 20-20-0); 0 = off
         riverTrip:         1,     // > 0.5: Wandering River as a tool to make a needed shrine (reviewRiver, 2026-10-18; A/B 19-19-2); 0 = off
         planFreeShrine:    1,     // > 0.5: a shape may not cover the shrine it still collects from (deficitCollectibleFor, 2026-10-18; A/B 19-19-2); 0 = off
