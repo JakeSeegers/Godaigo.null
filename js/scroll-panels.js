@@ -561,6 +561,10 @@ const ScrollPanelSystem = (() => {
         }
 
         card.appendChild(hdr);
+        // Action buttons sit right under the header (owner 2026-10-18: top, not bottom);
+        // filled in below, appended here so they come first.
+        const actsSlot = document.createElement('div');
+        card.appendChild(actsSlot);
 
         // ── Description ─────────────────────────────────────────────────
         if (def.description) {
@@ -690,8 +694,9 @@ const ScrollPanelSystem = (() => {
                 acts.appendChild(castBtn);
             }
 
-            if (acts.children.length) card.appendChild(acts);
+            if (acts.children.length) actsSlot.replaceWith(acts);
         }
+        if (actsSlot.parentNode) actsSlot.remove();
 
         // No click-to-popup — hovering the card already shows the enlarged
         // preview (see _initCardHoverPreview).
@@ -1274,6 +1279,7 @@ const ScrollPanelSystem = (() => {
 
         // ── Hover preview: enlarged card that floats outside the panel ──────
         _initCardHoverPreview();
+        _initPlayerTint();
 
         // Expose globally
         window.ScrollPanelSystem = {
@@ -1312,6 +1318,38 @@ const ScrollPanelSystem = (() => {
     // scrollName via _buildCard() each time (minus action buttons, since
     // 'preview' isn't a real area) rather than cloning the hovered element,
     // so it works the same regardless of which of the three triggered it.
+    // Player tint (owner 2026-10-18): the panels, HUD and dock pick up a subtle
+    // touch of the viewer's own seat colour through the CSS variable --pc
+    // (css/styles.css). Own seat when there is one; otherwise (replay,
+    // spectator, bot training) the active player's. html.pc-on only in a game.
+    function _initPlayerTint() {
+        const root = document.documentElement;
+        let last = null;
+        const colorOf = i => {
+            const pd = (typeof allPlayersData !== 'undefined' && Array.isArray(allPlayersData) ? allPlayersData : []).find(p => p.player_index === i);
+            return (pd && typeof PLAYER_COLORS !== 'undefined' && PLAYER_COLORS[pd.color]) || (typeof playerPositions !== 'undefined' && playerPositions[i]?.color) || null;
+        };
+        setInterval(() => {
+            if (document.hidden) return;
+            let c = null;
+            try {
+                const inGame = typeof playerPositions !== 'undefined' && playerPositions.length > 0;
+                if (inGame) {
+                    const real = window.BotDriver?.driverRealIndex?.();
+                    const training = !!window.BotArena?.isRunning?.();
+                    let i = real != null && real >= 0 ? real
+                        : (!training && typeof myPlayerIndex !== 'undefined' && myPlayerIndex >= 0) ? myPlayerIndex
+                        : (typeof activePlayerIndex !== 'undefined' ? activePlayerIndex : 0);
+                    c = colorOf(i);
+                }
+            } catch (e) { c = null; }
+            if (c === last) return;
+            last = c;
+            if (c) { root.style.setProperty('--pc', c); root.classList.add('pc-on'); }
+            else { root.style.removeProperty('--pc'); root.classList.remove('pc-on'); }
+        }, 500);
+    }
+
     function _initCardHoverPreview() {
         const preview = document.createElement('div');
         preview.className = 'fsp-card-preview';

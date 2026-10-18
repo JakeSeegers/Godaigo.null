@@ -142,6 +142,10 @@ Order matters — later scripts depend on earlier ones.
 10. effects-system.js      ← window.effectsSystem — sprite/particle visual effect definitions (fire, etc.), no game logic
 11. game-ui.js             ← HUD, drag-drop handlers, panel toggles, scroll deck UI
 12. scroll-panels.js       ← window.ScrollPanelSystem — shared floating-panel chrome (Hand/Active/Common/Game Log/Opponent Status/Elemental Stones)
+                             Player tint (2026-10-18): _initPlayerTint (500 ms) sets --pc = own seat colour (else the active player's: replay,
+                             spectator, training) and html.pc-on in a game; css/styles.css PLAYER TINT block tints panel borders / header /
+                             body (58% instead of 45%), card buttons, preview top, HUD and dock bars (text colours unchanged). Card action
+                             buttons are now right under the header (actsSlot), a little bigger (panel 11px, preview 13px).
 13. parallax.js            ← Animated background (no game deps)
 13b. lore-intro.js         ← window.LoreIntro — hand-drawn sketch/typewriter lore sequence
                              (LoreIntroClips/chunk*.mp4), played by boot-splash.js's
