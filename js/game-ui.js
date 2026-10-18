@@ -7751,7 +7751,13 @@ document.getElementById('undo-move').onclick = function() {
             // the menu) for everyone else. Called from onAuthSuccess/authSignOut.
             window.updateHermitUI = function () {
                 const isDev = (typeof window.isHermit === 'function') && window.isHermit();
-                if (isDev) buildMenu();
+                if (isDev) {
+                    // One broken menu item must never hide the whole launcher
+                    // (buildMenu appends the button only at its very end).
+                    try { buildMenu(); } catch (e) { console.error('[Hermit menu] a menu item failed to build:', e); }
+                    if (btn && !btn.isConnected) document.body.appendChild(btn);
+                    if (menu && !menu.isConnected) document.body.appendChild(menu);
+                }
                 if (btn) btn.style.display = isDev ? 'block' : 'none';
                 if (menu && !isDev) menu.style.display = 'none';
             };
