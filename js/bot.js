@@ -237,6 +237,7 @@
         moveStoneBase:          1,
         moveStoneDoomedPenalty: -5, // moving a stone somewhere it'd just be fire-destroyed
         moveStoneMakesCast:    40,  // × held scrolls the move makes castable (Breath of Power reaches 3 hexes, 2026-10-15)
+        moveStoneBlocksCast:   40,  // × opponents' public casts (needed element) the move breaks (owner 2026-10-18; needs stoneShuffleGuard)
 
         // returning home — with all 5 elements activated the win now requires
         // standing on the centre of the bot's own player tile (player shrine),
@@ -409,6 +410,9 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
+        stoneShuffleGuard: 0,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18; off until its A/B passes); 0 = off
+        respPost:          0,     // > 0.5: build and wait on a level 1 response of a needed element (makePlan respExtra, 2026-10-18; off: 17 posts in 6 test games, 0 responses); 0 = off
+        searchDoomed:      1,     // > 0.5: the search's root charges placeDoomed for a stone fire burns at once (2026-10-18, A/B 20-20-0); 0 = off
         riverTrip:         1,     // > 0.5: Wandering River as a tool to make a needed shrine (reviewRiver, 2026-10-18; A/B 19-19-2); 0 = off
         planFreeShrine:    1,     // > 0.5: a shape may not cover the shrine it still collects from (deficitCollectibleFor, 2026-10-18; A/B 19-19-2); 0 = off
         goalNeedFirst:     1,     // > 0.5: goal shrines = needed elements first, face-down tiles by their odds (2026-10-18, A/B 19-13-8); 0 = old rule
@@ -1425,7 +1429,9 @@
                 }
                 const made = moveStoneNewCasts(snap, a);
                 if (made) s += (WEIGHTS.moveStoneMakesCast ?? DEFAULT_WEIGHTS.moveStoneMakesCast) * made;
-                return s;
+                const blocks = moveStoneBlocks(snap, a);
+                if (blocks) s += (WEIGHTS.moveStoneBlocksCast ?? DEFAULT_WEIGHTS.moveStoneBlocksCast) * blocks;
+                return s + stoneShuffle(snap, a, made || blocks);
             }
 
             case 'endTurn': {
@@ -1916,8 +1922,29 @@
             }
             return best;
         };
+        // Response posts (owner bad-move report 2026-10-18: a bot never set up Unbidden
+        // Lamplight). A level 1 of an element I still need gives that element when I answer
+        // someone's cast with it, so it may be built like any scroll; planNextAction then
+        // waits on it with the AP kept and reviewPlan limits the wait. Worth more when no
+        // other held scroll gives that element or an opponent is close to winning.
+        const respExtra = [];
+        const rm = mem(snap.turn.activePlayerIndex);
+        if (!opts && WEIGHTS.respPost > 0.5 && (rm.ownTurns || 0) >= (rm.respRestUntil || 0)) {
+            const covered = new Set();
+            for (const { def, attack } of creditableSources(snap, self, noCreditScrolls)) if (!attack) covered.add(def.element);
+            const D = window.BotDiplomacy;
+            const close = snap.players.some((q, j) => q && j !== snap.turn.activePlayerIndex &&
+                (q.activated.length >= 4 || D?.oneCastFromWin?.(j, snap)));
+            for (const name of new Set([...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])])) {
+                const def = window.SCROLL_DEFINITIONS?.[name];
+                if (!def || def.level !== 1 || !Array.isArray(def.patterns) || noCreditScrolls.has(name)) continue;
+                const el = def.element;
+                if (!ELEMENTS.includes(el) || self.activated.includes(el) || (snap.sourcePool[el] || 0) <= 0) continue;
+                respExtra.push({ name, def, credit: (covered.has(el) ? 0.5 : 1) + (close ? 0.5 : 0), resp: true });
+            }
+        }
         const cands = [];
-        for (const { name, def, credit, attack } of [...creditableSources(snap, self, noCreditScrolls), ...(opts?.extra || [])]) {
+        for (const { name, def, credit, attack } of [...creditableSources(snap, self, noCreditScrolls), ...(opts?.extra || []), ...respExtra]) {
             if (opts?.only && !opts.only.has(name)) continue;
             for (const variant of def.patterns) for (const { hex: anchorHex, steps } of anchors) {
                 const v = viable(variant, anchorHex);
@@ -1963,7 +1990,7 @@
             }
             if (!best || c.score > best.score) best = c;
         }
-        if (best && !opts) { _planStats.made++; if (best.steps > 0) _planStats.away++; _planStats.reused += best.placed; if (best.placed === best.cells.length) _planStats.finished++; if (best.side) _planStats.side++; }
+        if (best && !opts) { _planStats.made++; if (best.steps > 0) _planStats.away++; _planStats.reused += best.placed; if (best.placed === best.cells.length) _planStats.finished++; if (best.side) _planStats.side++; if (window.SCROLL_DEFINITIONS?.[best.scroll]?.level === 1) _planStats.resp = (_planStats.resp || 0) + 1; }
         return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps,
                         side: best.side ? { scroll: best.side.scroll, cells: best.side.cells } : null } : null;
     }
@@ -2304,7 +2331,7 @@
         return travelStep(snap, self, plan.x, plan.y, path);
     }
     const SIDE_COUNTER_BONUS = 8;
-    const GUARD_WAIT = 3, GUARD_REST = 3;
+    const GUARD_WAIT = 3, GUARD_REST = 3, RESP_WAIT = 3, RESP_REST = 3;
     const _planStats = { made: 0, away: 0, reused: 0, finished: 0, side: 0, sidePlaced: 0 }; // tests
     // A side-counter stone to place now, or null: only stones the main shape
     // does not still need, only cells in placement range that are empty and
@@ -2357,6 +2384,17 @@
         const partnerGuards = role && role !== 'guard' && D.roleHolder?.('guard') != null;
         const guard = ((guardWanted(snap) && !partnerGuards) || role === 'guard') && !D?.oneCastFromWin?.(idx, snap);
         if (guard) _review.guardOn = (_review.guardOn || 0) + 1;
+        // A response post (makePlan respExtra): drop it once its element is won, or after
+        // RESP_WAIT own turns of waiting, then RESP_REST turns without one.
+        if (m.plan && !m.plan.guard && window.SCROLL_DEFINITIONS?.[m.plan.scroll]?.level === 1) {
+            const el = window.SCROLL_DEFINITIONS[m.plan.scroll].element;
+            const waited = m.plan.waitFrom != null ? (m.ownTurns || 0) - m.plan.waitFrom : 0;
+            if (self.activated.includes(el) || waited >= RESP_WAIT) {
+                log(self.activated.includes(el) ? 'Response post done - element won' : 'Waited long enough on my response post');
+                m.plan = null;
+                m.respRestUntil = (m.ownTurns || 0) + RESP_REST;
+            }
+        }
         if (m.plan && m.plan.guard) {
             // At most GUARD_WAIT own turns on the post, then GUARD_REST turns
             // of own progress (two guards facing each other stalled before).
@@ -3671,6 +3709,7 @@
             if (a.type !== 'cast' || !me(snap0)) return 0;
             let v = (mem(meIdx).unproductiveStreak >= UNPRODUCTIVE_LIMIT && stuckToolHelps(snap0, me(snap0), a.scroll)) ? WEIGHTS.castStuckTool : 0;
             if (drawNotNeeded(snap0, me(snap0), a.scroll)) v += WEIGHTS.castDrawNotNeeded;
+            if (castDoesNothing(snap0, me(snap0), a.scroll)) v += WEIGHTS.castNoEffect;
             if (guardFetchHelps(snap0, me(snap0), a.scroll)) v += WEIGHTS.castGuardFetch;
             return v;
         };
@@ -3702,6 +3741,15 @@
             }
             if (c.a.type === 'teleport') v += revisitPenalty(mem(meIdx).recentPositions, c.a, WEIGHTS.teleportRevisitPenalty);
             if (c.a.type === 'breakStone' || c.a.type === 'placeStone') v += unblockBonus(c.a, snap0, uctx);
+            // A stone fire burns at once, same charge as greedy scoring (2026-10-18 bad-move
+            // reports: the leaf eval only misses one stone's small value, so the search kept
+            // placing water next to unvoided fire, up to 3 times a turn on the same hex).
+            if (c.a.type === 'moveStone') {
+                const made = moveStoneNewCasts(snap0, c.a), blocks = moveStoneBlocks(snap0, c.a);
+                v += WEIGHTS.moveStoneBlocksCast * blocks + stoneShuffle(snap0, c.a, made || blocks);
+            }
+            if (c.a.type === 'placeStone' && WEIGHTS.searchDoomed > 0.5 && !window.BotSim.stoneWouldSurvive(snap0, c.a.x, c.a.y, c.a.stoneType) &&
+                !wantedBurn(c.a, snap0)) v += WEIGHTS.placeDoomed;
             if (c.a.type === 'cast') v += comboBonus(c.a, snap0);
             v += stratRoot.get(c) || 0;
             if (c.a.type === 'placeStone') {
@@ -4153,6 +4201,42 @@
         }
         return out;
     }
+    // Breath of Power moves are free and repeatable, so a move that achieves nothing
+    // must score below ending the turn, and the same stone shuffled again (worse: back
+    // to a hex it left this turn) is charged (2026-10-18 bad-move report: a bot moved
+    // its wind stones back and forth after casting it). Greedy and the search root.
+    // Breath of Power as defence (owner 2026-10-18): opponents' casts a stone move breaks.
+    // Only public scrolls (their active area and the common area), only ones whose element
+    // they still need; their pawn stands at the shape's centre.
+    const oppCastableNow = new WeakMap();
+    function oppCastable(sn) {
+        const me0 = sn.turn.activePlayerIndex;
+        let n = 0;
+        sn.players.forEach((q, j) => {
+            if (!q || j === me0) return;
+            for (const name of new Set([...(q.active || []), ...(sn.commonArea || [])])) {
+                const el = window.SCROLL_DEFINITIONS?.[name]?.element;
+                if (!el || (ELEMENTS.includes(el) && q.activated.includes(el))) continue;
+                try { if (window.BotSim.checkPattern(sn, name, j)) n++; } catch (e) {}
+            }
+        });
+        return n;
+    }
+    function moveStoneBlocks(snap, a) {
+        if (!window.BotSim?.simulate || !(WEIGHTS.stoneShuffleGuard > 0.5)) return 0;
+        let before = oppCastableNow.get(snap);
+        if (before === undefined) { before = oppCastable(snap); oppCastableNow.set(snap, before); }
+        if (!before) return 0;
+        try { return Math.max(0, before - oppCastable(window.BotSim.simulate(snap, a))); } catch (e) { return 0; }
+    }
+    function stoneShuffle(snap, a, made) {
+        if (!(WEIGHTS.stoneShuffleGuard > 0.5)) return 0;
+        const moved = mem(snap.turn.activePlayerIndex).movedStones || [];
+        const from = hexKey(a.fromX, a.fromY), to = hexKey(a.toX, a.toY);
+        let v = made ? 0 : -15;
+        if (moved.some(x => x.to === from)) v -= moved.some(x => x.to === from && x.from === to) ? 80 : 40;
+        return v;
+    }
     function moveStoneNewCasts(snap, a) {
         if (!window.BotSim?.simulate) return 0;
         const idx = snap.turn.activePlayerIndex;
@@ -4445,7 +4529,11 @@
                     out.travel += WEIGHTS.stratTravel * Math.min(12, before - after);
                 }
             }
-            if (WEIGHTS.stratTrap && a.scroll === 'EARTH_SCROLL_3') {
+            // Not again once its range is up and it can draw nothing (2026-10-18: a bot
+            // cast it a third time each turn at 5 earth, 2 AP for nothing).
+            const masonSpent = snap.turn.buffs?.earthRange &&
+                Math.min(snap.sourcePool.earth || 0, POOL_CAP - (self.pool.earth || 0)) <= 0;
+            if (WEIGHTS.stratTrap && a.scroll === 'EARTH_SCROLL_3' && !masonSpent) {
                 const earth = Math.min(POOL_CAP, (self.pool.earth || 0) + Math.min(5, snap.sourcePool.earth || 0));
                 const t = trapTarget(snap, idx, self, earth);
                 if (t) out.trap += WEIGHTS.stratTrap * t.threat;
@@ -4659,9 +4747,25 @@
     // A stone-drawing scroll (Mason's Savvy, Seed the Skies, Respirate) that can
     // draw nothing (supply empty or my pool of that stone full) and wins no
     // element: the cast does nothing. Repeat casts that still draw are fine.
+    // Tiles Heavy Stomp / Call to Adventure can flip: not a player tile, no stones, no pawns
+    // (scroll-effects.js getEligibleTilesForFlip).
+    function flipTargets(snap) {
+        return snap.tiles.filter(t => !t.isPlayerTile &&
+            !snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 80) &&
+            !snap.players.some(q => q && Math.hypot(q.x - t.x, q.y - t.y) < 80)); // bot-sim.js TILE_RADIUS
+    }
     function castDoesNothing(snap, self, scroll) {
+        if (!self) return false;
+        // Heavy Stomp with no tile it may flip (2026-10-18 bad-move report: both bots cast it
+        // from the common area twice a turn for 10+ turns, every tile had stones on it).
+        // Call to Adventure still pays on a step onto a face-down tile, so only when none is left.
+        if (scroll === 'EARTH_SCROLL_4' || scroll === 'CATACOMB_SCROLL_3') {
+            if (flipTargets(snap).length) return false;
+            if (scroll === 'CATACOMB_SCROLL_3' && snap.tiles.some(t => !t.revealed && !t.isPlayerTile)) return false;
+            try { return !hasWinCredit(snap, scroll); } catch (e) { return false; }
+        }
         const el = DRAW_STONE_SCROLLS[scroll];
-        if (!el || !self) return false;
+        if (!el) return false;
         // stones it could actually draw: supply left AND room in my pool (5 max)
         const drawable = Math.min(snap.sourcePool[el] || 0, POOL_CAP - ((self.pool || {})[el] || 0));
         if (drawable > 0) return false;
@@ -4682,7 +4786,7 @@
         const st = stuckTools(snap, self);
         if (!st) return false;
         if (scroll === 'VOID_SCROLL_4' || scroll === 'WATER_SCROLL_3' || scroll === 'WATER_SCROLL_2') return st.needScroll;
-        if (scroll === 'EARTH_SCROLL_4') return st.needScroll && stompDraws(snap);
+        if (scroll === 'EARTH_SCROLL_4') return st.needScroll && stompDraws(snap) && flipTargets(snap).length > 0;
         if (scroll === 'CATACOMB_SCROLL_10') return st.blockedTiles.size > 0;
         if (scroll === 'WIND_SCROLL_4') return st.occupiers.length > 0;
         return false;
@@ -5639,6 +5743,7 @@
         // same hex is a wasted loop (2026-09-29: a bot broke and re-placed its
         // own void stone every turn until the turn cap).
         if (action.type === 'breakStone') (mem(idx).brokeThisTurn ||= new Set()).add(`${hexKey(action.x, action.y)}:${action.stoneType}`);
+        if (action.type === 'moveStone') (mem(idx).movedStones ||= []).push({ from: hexKey(action.fromX, action.fromY), to: hexKey(action.toX, action.toY) });
         if (harmCast) mem(idx).harmCastTurn = mem(idx).ownTurns;
         announceIntent(snap, action, idx);
         // Episodic memory (js/bot-memory.js, optional — window.BotMemory may
@@ -5806,6 +5911,7 @@
         const m = mem(startingPlayer);
         m.ownTurns = (m.ownTurns || 0) + 1; // combo timing (Phase 4)
         m.brokeThisTurn = new Set();
+        m.movedStones = [];
         if (m.noCreditAt) for (const [n, t] of m.noCreditAt) {
             if (m.ownTurns - t >= 5) { m.noCreditScrolls.delete(n); m.noCreditAt.delete(n); }
         }

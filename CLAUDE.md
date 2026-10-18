@@ -503,6 +503,15 @@ Order matters — later scripts depend on earlier ones.
                              the void shrine centre / break it every turn), riverTrip (reviewRiver: holding a needed element's scroll, short
                              of its stones, no shrine of it to collect: build Wandering River on a revealed tile with a free centre, turn
                              that tile into the element, riverCollectStep walks to the centre and ends the turn there).
+                             More (2026-10-18 evening): searchDoomed (search root charges placeDoomed for a stone fire burns at once;
+                             the leaf eval only missed one stone's small value, A/B 20-20-0), stoneShuffleGuard (stoneShuffle: a Breath of
+                             Power move that makes nothing castable scores -15, moving the same stone again -40, back to where it was -80;
+                             greedy + root), respPost (makePlan respExtra: a level 1 of a needed element in reach is a build target, credit
+                             1, 0.5 when another held scroll gives that element, +0.5 while an opponent has 4+ elements or is one cast from
+                             winning; reviewPlan drops it when the element is won or after RESP_WAIT 3 own turns, then RESP_REST 3).
+                             No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
+                             covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
+                             castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
