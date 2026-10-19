@@ -2013,13 +2013,17 @@
             return out;
         };
         const cands = [];
-        const normalFor = new Set(); // scrolls with a normal shape: no current plan for them
+        // Fewest stones still missing over a scroll's normal shapes: a current plan
+        // must beat it by CURRENT_SAVE (owner 2026-10-19: the old rule, no current plan
+        // when ANY normal shape exists, made none in 8 games, since a normal shape that
+        // still collects its stones nearly always exists).
+        const normalDeficit = {};
+        const CURRENT_SAVE = 2, CURRENT_COST = 15;
         for (const { name, def, credit, attack } of [...creditableSources(snap, self, noCreditScrolls), ...(opts?.extra || []), ...respExtra]) {
             if (opts?.only && !opts.only.has(name)) continue;
             const variants = [...def.patterns.map(v => ({ v, current: false })),
                 ...(attack || name === CTC ? [] : def.patterns.flatMap(v => currentVariants(v).map(m => ({ v: m, current: true }))))];
             for (const { v: variant, current } of variants) for (const { hex: anchorHex, steps } of anchors) {
-                if (current && normalFor.has(name)) break;
                 const v = viable(variant, anchorHex);
                 if (!v) continue;
                 // Shifting Sands travel set-up: only spots where, with this
@@ -2034,6 +2038,7 @@
                     if (!riverTileAt(snap, ap.x, ap.y, v.cells)) continue;
                 }
                 const totalDeficit = Object.values(v.deficit).reduce((a, b) => a + b, 0);
+                if (current && normalDeficit[name] != null && totalDeficit > normalDeficit[name] - CURRENT_SAVE) continue;
                 // Missing stone types are fine — planNextAction() routes
                 // through a collect leg (see stepTowardCollect()) — as long
                 // as every missing type is actually obtainable somewhere on
@@ -2045,8 +2050,8 @@
                 // better than no plan at all — WEIGHTS.planDeficitPenalty is
                 // negative, same sign convention as moveApPenalty etc.
                 const side = sideScrolls.length ? sideFor(anchorHex, v.cells) : null;
-                const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit + (side ? side.val : 0);
-                if (!current) normalFor.add(name);
+                const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit + (side ? side.val : 0) - (current ? CURRENT_COST : 0);
+                if (!current) normalDeficit[name] = Math.min(normalDeficit[name] ?? Infinity, totalDeficit);
                 cands.push({ base, score: base + WEIGHTS.planDeficitPenalty * steps, placed: v.placed, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps, side, current });
             }
         }
