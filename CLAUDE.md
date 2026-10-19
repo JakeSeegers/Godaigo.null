@@ -547,8 +547,10 @@ Order matters — later scripts depend on earlier ones.
                              currentPlan (owner 2026-10-19, Control the Current as a wildcard): makePlan currentVariants = a scroll shape
                              whose cells next to the centre that the bot is short of hold water placeholders (cell.type 'water', cell.alt =
                              the real element; cellStoneOk accepts either) plus a Control the Current shape at the same centre with no
-                             clash; allowed when it needs at least CURRENT_SAVE (2) fewer missing stones than the scroll's best normal shape, scored
-                             CURRENT_COST (15) lower (2026-10-19; before: only for scrolls with no normal shape at all, which made 0 plans in 8 games). planNextAction: with 2 + 2 AP at the centre cast
+                             clash. Allowed when its missing stones (water counted WATER_EASE 0.4) are at least CURRENT_SAVE (1) fewer than the
+                             scroll's normal shape at the same centre; scored + 10 per scarce stone saved - CURRENT_COST 10 (2026-10-19; before:
+                             only for scrolls with no normal shape at all, 0 plans in 8 games). Troubleshooting counters: _review.currentSteps
+                             (where shapes fail), _review.currentGap (best current candidate vs the plan picked), _review.currentDrop. planNextAction: with 2 + 2 AP at the centre cast
                              Control the Current, else wait there; bot-effects.js driveWaterTransform and bot-sim.js turn only the
                              placeholders (BotSystem.ctcTargets(idx)), each into its alt; then cast the scroll. Dropped when Control the
                              Current leaves reach or the centre cannot be reached. A/B 19-21-0, but ON since 2026-10-19 at the owner's request (to troubleshoot):

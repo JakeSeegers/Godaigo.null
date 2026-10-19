@@ -1988,6 +1988,9 @@
         const ctcDef = window.SCROLL_DEFINITIONS?.[CTC];
         const ctcReach = !opts && WEIGHTS.currentPlan > 0.5 && ctcDef && !noCreditScrolls.has(CTC) &&
             [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])].includes(CTC);
+        const cs = _review.currentSteps || (_review.currentSteps = {});   // where current shapes fail (troubleshooting)
+        const bump = k => { cs[k] = (cs[k] || 0) + 1; };
+        if (!opts) bump(ctcReach ? 'makePlan with CtC in reach' : 'makePlan without CtC');
         const currentVariants = (variant) => {
             if (!ctcReach) return [];
             const short = {};
@@ -2001,31 +2004,34 @@
                     if (req.type !== 'water' && isAdj(req) && left[req.type] > 0) { left[req.type]--; return { q: req.q, r: req.r, type: 'water', alt: req.type }; }
                     return req;
                 });
-                if (!merged.some(c => c.alt)) continue;
+                if (!merged.some(c => c.alt)) { bump('no short stone next to the centre'); continue; }
                 let clash = false;
                 for (const w of vc) {
                     const same = merged.find(c => c.q === w.q && c.r === w.r);
                     if (same) { if (same.type !== 'water') clash = true; }
                     else merged.push(w);
                 }
-                if (!clash) out.push(merged);
+                if (!clash) { out.push(merged); bump('current shape made'); } else bump('clash with the CtC water shape');
             }
             return out;
         };
         const cands = [];
-        // Fewest stones still missing over a scroll's normal shapes: a current plan
-        // must beat it by CURRENT_SAVE (owner 2026-10-19: the old rule, no current plan
-        // when ANY normal shape exists, made none in 8 games, since a normal shape that
-        // still collects its stones nearly always exists).
+        // Fewest stones still missing over a scroll's normal shapes at the same centre, a missing water
+        // stone counting WATER_EASE (water is the easy one to get: the owner's idea is
+        // to collect water and turn it into the scarce stones). A current plan must
+        // beat it by CURRENT_SAVE (2026-10-19: the old rule, no current plan when ANY
+        // normal shape exists, made none in 8 games; a plain count never saved
+        // anything either, the missing void just became missing water).
         const normalDeficit = {};
-        const CURRENT_SAVE = 2, CURRENT_COST = 15;
+        const CURRENT_SAVE = 1, CURRENT_COST = 10, WATER_EASE = 0.4;
+        const hardDeficit = d => Object.entries(d).reduce((a, [t, n]) => a + n * (t === 'water' ? WATER_EASE : 1), 0);
         for (const { name, def, credit, attack } of [...creditableSources(snap, self, noCreditScrolls), ...(opts?.extra || []), ...respExtra]) {
             if (opts?.only && !opts.only.has(name)) continue;
             const variants = [...def.patterns.map(v => ({ v, current: false })),
                 ...(attack || name === CTC ? [] : def.patterns.flatMap(v => currentVariants(v).map(m => ({ v: m, current: true }))))];
             for (const { v: variant, current } of variants) for (const { hex: anchorHex, steps } of anchors) {
                 const v = viable(variant, anchorHex);
-                if (!v) continue;
+                if (!v) { if (current) bump('shape does not fit at an anchor'); continue; }
                 // Shifting Sands travel set-up: only spots where, with this
                 // shape built, a tile under the centre stays clean to ride.
                 if (opts?.travelSpot) {
@@ -2038,20 +2044,25 @@
                     if (!riverTileAt(snap, ap.x, ap.y, v.cells)) continue;
                 }
                 const totalDeficit = Object.values(v.deficit).reduce((a, b) => a + b, 0);
-                if (current && normalDeficit[name] != null && totalDeficit > normalDeficit[name] - CURRENT_SAVE) continue;
+                const hard = hardDeficit(v.deficit);
+                const nk = name + '@' + anchorHex.q + ',' + anchorHex.r;
+                if (current && normalDeficit[nk] != null && hard > normalDeficit[nk] - CURRENT_SAVE) { bump('no cheaper than a normal shape here'); continue; }
                 // Missing stone types are fine — planNextAction() routes
                 // through a collect leg (see stepTowardCollect()) — as long
                 // as every missing type is actually obtainable somewhere on
                 // the revealed board. Otherwise this shape can never finish;
                 // it's not a real plan, just a dream.
-                if (totalDeficit && !deficitCollectibleFor(v.deficit, collectible, v.cells)) continue;
+                if (totalDeficit && !deficitCollectibleFor(v.deficit, collectible, v.cells)) { if (current) bump('missing stones not collectible'); continue; }
                 // catacombs can be worth 2 elements; a plan that still needs
                 // collecting is discounted (slower, riskier) but still far
                 // better than no plan at all — WEIGHTS.planDeficitPenalty is
                 // negative, same sign convention as moveApPenalty etc.
                 const side = sideScrolls.length ? sideFor(anchorHex, v.cells) : null;
-                const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit + (side ? side.val : 0) - (current ? CURRENT_COST : 0);
-                if (!current) normalDeficit[name] = Math.min(normalDeficit[name] ?? Infinity, totalDeficit);
+                // a current shape earns each scarce stone it saves like a stone already placed
+                const saved = current ? Math.max(0, (normalDeficit[nk] ?? (hard + variant.filter(c => c.alt).length * (1 - WATER_EASE))) - hard) : 0;
+                const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit + (side ? side.val : 0) + (current ? saved * 10 - CURRENT_COST : 0);
+                if (!current) normalDeficit[nk] = Math.min(normalDeficit[nk] ?? Infinity, hard);
+                if (current) bump('current candidate');
                 cands.push({ base, score: base + WEIGHTS.planDeficitPenalty * steps, placed: v.placed, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps, side, current });
             }
         }
@@ -2071,6 +2082,10 @@
         }
         if (best && !opts) { _planStats.made++; if (best.steps > 0) _planStats.away++; _planStats.reused += best.placed; if (best.placed === best.cells.length) _planStats.finished++; if (best.side) _planStats.side++; if (window.SCROLL_DEFINITIONS?.[best.scroll]?.level === 1) _planStats.resp = (_planStats.resp || 0) + 1; }
         if (best && best.current) _review.currentPlans = (_review.currentPlans || 0) + 1;
+        else if (best && !opts) {
+            const cc = cands.filter(c => c.current).sort((x, y) => y.score - x.score)[0];
+            if (cc) { const g = _review.currentGap || (_review.currentGap = []); if (g.length < 40) g.push({ cur: cc.scroll, curScore: +cc.score.toFixed(1), curSteps: cc.steps, best: best.scroll, bestScore: +best.score.toFixed(1), bestPlaced: best.placed, curPlaced: cc.placed, top6: cands.indexOf(cc) < 6 }); }
+        }
         return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps, current: !!best.current,
                         side: best.side ? { scroll: best.side.scroll, cells: best.side.cells } : null } : null;
     }
