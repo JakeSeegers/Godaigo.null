@@ -519,8 +519,9 @@ Order matters — later scripts depend on earlier ones.
                              attack); riverCollectStep fires it right after a river trip cast while still in the shape (rc.harmTried).
                              breakAttackShape (owner 2026-10-19): an ActionLog hook remembers where each seat cast an attack scroll
                              (Take Flight, Shifting Sands, Telekinesis, Arson, Plunder; last 4 spots); while that scroll is still in its
-                             active area or the common area, the stones of that shape (whole or one short) join harmContext's stones, any
-                             element (before, only fresh stones of elements the leader still needs). Test hook _attackShapeStones.
+                             active area or the common area, the stones of that shape (whole only) go in harmContext's `shape` set, any element
+                             (before, only fresh stones of elements the leader still needs): break bonus like `stones`, but never walked to.
+                             A/B with Take Flight in seat 0's hand: first try (one short, walked to) 18-21-1, this one 21-18-1, ON. Test hook _attackShapeStones.
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
                              covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
                              castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).
