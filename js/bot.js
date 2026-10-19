@@ -411,8 +411,8 @@
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
         currentPlan:       0,     // > 0.5: Control the Current plans: water placeholders turned into scarce stones (makePlan currentVariants, 2026-10-19; off until its A/B passes); 0 = off
-        stompGuard:        0,     // > 0.5: Heavy Stomp whose flip can only draw an unneeded scroll, or hides a tile for nothing, counts as castDoesNothing (stompPointless, 2026-10-19; off until its A/B passes); 0 = off
-        trapEscape:        0,     // > 0.5: walled in (no move, no teleport) with a break affordable: break out first (trapEscape, 2026-10-19; off until its A/B passes); 0 = off
+        stompGuard:        1,     // > 0.5: Heavy Stomp whose flip can only draw an unneeded scroll, or hides a tile for nothing, counts as castDoesNothing (stompPointless, 2026-10-19; A/B 22-17-1); 0 = off
+        trapEscape:        0,     // > 0.5: walled in (no move, no teleport) with a break affordable: break out first (trapEscape, 2026-10-19; A/B 19-21-0, 9 escapes: OFF); 0 = off
         breakAttackShape:  1,     // > 0.5: harm also breaks whole shapes the leader cast attack scrolls from, never walked to (attackShapeStones, 2026-10-19; A/B 21-18-1); 0 = off
         riverHarm:         1,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; A/B with River forced into seat 0: 20-20-0, 73 River casts, 32 trips); 0 = old rule
         stoneShuffleGuard: 1,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18, A/B 19-18-3); 0 = off

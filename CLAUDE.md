@@ -541,7 +541,8 @@ Order matters — later scripts depend on earlier ones.
                              driveTileFlip reveals a hidden tile of a needed / unknown element first. trapEscape (report: an Avalanche put earth on
                              all six hexes around a bot, which spent 2 AP on Mason's Savvy and could not pay the 5 AP break, then walled its own
                              way out): no move and no teleport legal but a break is -> break the stone with the best unblockBonus first (not while
-                             on a shrine it collects from; _review.trapEscape). Test hooks _trapEscape, _stompPointless.
+                             on a shrine it collects from; _review.trapEscape). stompGuard ON (A/B with Heavy Stomp in hand 22-17-1); trapEscape OFF (A/B with
+                             Avalanche in hand 19-21-0, 9 escapes). Test hooks _trapEscape, _stompPointless.
                              currentPlan (owner 2026-10-19, Control the Current as a wildcard): makePlan currentVariants = a scroll shape
                              whose cells next to the centre that the bot is short of hold water placeholders (cell.type 'water', cell.alt =
                              the real element; cellStoneOk accepts either) plus a Control the Current shape at the same centre with no
