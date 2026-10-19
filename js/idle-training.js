@@ -8,8 +8,9 @@
 //   idle_training_new()     -> a new challenger, 'explore' or 'formula' (random)
 //   idle_training_report()  -> one finished game; the server adds up everyone's
 //                              games and promotes or drops the challenger.
-// Games run as an audience view: hands hidden, scoreboard, follow camera
-// (Spectate.showLocal), sound off. Any key, click, wheel or real mouse move
+// Games run as a clean audience view (owner 2026-10-19): hands hidden, sound
+// off, and html.idle-clean hides every bar, panel and pop-up, so only the board
+// and what happens on it shows (css/styles.css). Train Bot is not touched. Any key, click, wheel or real mouse move
 // stops it and reloads back to the lobby (a game cut short is not reported).
 // Settings > Display "Idle Training" (localStorage godaigo_idle_training = 'off').
 (function () {
@@ -26,6 +27,7 @@
     let lastInput = Date.now(), lastX = null, lastY = null;
     let run = null;                 // { job, cand, champion, stopping }
     let backoffUntil = 0;
+    let graceUntil = 0;             // secret start: input right after it does not wake
 
     function enabled() {
         try { return localStorage.getItem(KEY) !== 'off'; } catch (e) { return true; }
@@ -43,7 +45,7 @@
             lastX = e.clientX; lastY = e.clientY;
         }
         lastInput = Date.now();
-        if (run && !run.stopping) wake();
+        if (run && !run.stopping && Date.now() > graceUntil) wake();
         // back before the idle run started: straight back to the saved game
         else if (!run && flag(FLAG_RESUME) && !gameSaving && inLobby()) resumeSavedGame();
     }
@@ -162,7 +164,13 @@
         return { job: data, cand };
     }
 
+    let starting = false;
     async function start() {
+        if (starting || run) return;
+        starting = true;
+        try { await startRun(); } finally { starting = false; }
+    }
+    async function startRun() {
         await window.LazyScripts?.load?.('bot-arena');
         if (!window.BotArena?.makeChallenger) throw new Error('bot arena not loaded');
         if (Date.now() - lastInput < IDLE_MS || !inLobby()) return;      // woke up while loading
@@ -170,6 +178,7 @@
         if (Date.now() - lastInput < IDLE_MS || !inLobby()) return;
         run = { ...first, stopping: false, games: 0, verdict: null };
         window.SoundSystem = null;                     // quiet screensaver (effects stay on at Watchable speed)
+        document.documentElement.classList.add('idle-clean');
         buildBar();
         // no follow camera (owner 2026-10-10: jarring)
         window.Spectate?.showLocal?.({ seats: seatList, follow: false });
@@ -293,6 +302,7 @@
     function cleanupFailed() {
         if (!run) return;
         run = null;
+        document.documentElement.classList.remove('idle-clean');
         document.getElementById('idle-training-bar')?.remove();
         window.Spectate?.hideLocal?.();
     }
@@ -343,5 +353,21 @@
                 : '<div class="idle-hint">Move the mouse or press a key to go back to the lobby.</div>'}`;
     }
 
-    window.IdleTraining = { enabled, setEnabled, isRunning: () => !!run, startNow: () => { lastInput = 0; } };
+    // Secret start (owner 2026-10-19): type "idle" in the lobby, not in a text
+    // box. Starts at once, even with Idle Training off in Settings.
+    function startNow() {
+        if (run || !signedIn() || !inLobby()) return false;
+        lastInput = 0; graceUntil = Date.now() + 2000;
+        start().catch(err => { console.warn('[idle] could not start', err); cleanupFailed(); });
+        return true;
+    }
+    let typed = '';
+    window.addEventListener('keydown', (e) => {
+        const t = e.target;
+        if (e.ctrlKey || e.altKey || e.metaKey || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))) { typed = ''; return; }
+        typed = (typed + (e.key || '').toLowerCase()).slice(-4);
+        if (typed === 'idle') { typed = ''; startNow(); }
+    }, true);
+
+    window.IdleTraining = { enabled, setEnabled, isRunning: () => !!run, startNow };
 })();

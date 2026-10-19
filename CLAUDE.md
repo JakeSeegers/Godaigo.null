@@ -671,6 +671,8 @@ Order matters — later scripts depend on earlier ones.
                              opts.practiceCheck (game-ui.js: up to 3 duels) blocks a promotion that loses more duels than it wins. In a solo game vs bots: 10 min idle on your turn
                              (godaigo_idle_game_minutes) -> SaveGame.saveAndQuit({quiet}) -> lobby -> starts at once; waking up
                              continues the saved game (sessionStorage godaigo_idle_start_now / _resume_game / _woke). Never starts while Replay.isMining() or Train Bot mining (window.__trainMining): the reload on wake killed a hand-started mining run. Settings > Display "Idle Training" (localStorage godaigo_idle_training).
+                             Clean view (2026-10-19): html.idle-clean hides every bar, panel and window, only the board shows (not in Train Bot).
+                             Secret start: type "idle" in the lobby (outside text boxes).
 25b. stream-votes.js       ← window.StreamVotes: Twitch chat votes on what the bots do (docs/twitch-votes.md). Unlocked once
                              for 500g (buy_stream_mode -> 'feature_stream' in cosmetics_owned; owned(), Hermit free; locked
                              panel + Shop > Features card in gamification-ui.js). Lobby "Stream" button -> openPanel(): on/off, channel, vote time 10-45 s, mood / cast votes (localStorage
