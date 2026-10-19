@@ -6900,11 +6900,11 @@ function clearPlayerPath() {
             const symbolsGroup = playerTile.element.querySelector('.player-tile-element-symbols');
             if (!symbolsGroup) return;
 
-            // Get activated elements for THIS specific player
-            const playerScrollData = spellSystem.playerScrolls[playerIndex];
-            if (!playerScrollData) return;
-
-            const activated = playerScrollData.activated;
+            // Get activated elements for THIS specific player (none yet when the
+            // seat has no scroll data: bots' tiles were left blank until their
+            // first cast, owner 2026-10-19)
+            const playerScrollData = spellSystem?.playerScrolls?.[playerIndex];
+            const activated = playerScrollData?.activated || new Set();
             const activatedElements = Array.from(activated);
 
             // Five inlaid stones around the centre hex, faint until won, plus the

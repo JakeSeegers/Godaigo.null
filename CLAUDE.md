@@ -320,7 +320,7 @@ Order matters — later scripts depend on earlier ones.
                              all five = lit lines + pulse (.pt-anim, fxOn only) + a subtle white return beam from the tile centre, fed by
                              coloured light from each stone (top layer g.pt-fx-layer, every screen). Win: ascend(seat) (game-core.js
                              checkWinCondition, lobby.js showGameOverToAll): white crackling bolts up the beam carry the pawn off screen;
-                             both win screens wait holdMs() (~2.6 s, looks only). Turn-start light sweep. Replaced the .shrine-return-beacon ring.
+                             both win screens wait holdMs() (~2.6 s, looks only). Turn-start light sweep (max once a minute per tile). Replaced the .shrine-return-beacon ring.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),

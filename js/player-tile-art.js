@@ -19,7 +19,8 @@
 // beam rises from the centre of their tile, fed by coloured light from each
 // stone. When the pawn gets there, white crackling energy shoots up the beam
 // and carries the pawn up and off screen (ascend(); the win screen waits for
-// it, holdMs()). Also a light sweep around the tile at each turn start.
+// it, holdMs()). Also a light sweep around the tile when its player's turn
+// starts, at most once a minute per tile.
 // Only the all-five pulse and the return beam run all the time (a
 // never-ending animation makes the whole board redraw every frame), and the
 // effects only while window.fxOn().
@@ -115,14 +116,14 @@
     function build(group, color) {
         group.textContent = '';
         group.setAttribute('pointer-events', 'none');
-        const line = mix(color, 0.17);
+        const line = mix(color, 0.26);
         group.style.setProperty('--pt-line', line);
         group.style.setProperty('--pt-lit', mix(color, 0.75, 255));
         const tile = tileOf(group);
         if (tile) {
-            tile.style.setProperty('--pt-bg', mix(color, 0.36));
-            tile.style.setProperty('--pt-bg2', mix(color, 0.5));
-            tile.style.setProperty('--pt-grid', mix(color, 0.12));
+            tile.style.setProperty('--pt-bg', mix(color, 0.5));
+            tile.style.setProperty('--pt-bg2', mix(color, 0.64));
+            tile.style.setProperty('--pt-grid', mix(color, 0.2));
         }
 
         const art = el('g', { class: 'pt-art' }, group);
@@ -455,6 +456,7 @@
 
     // Turn start sweep + return beams.
     let lastTurnKey = null;
+    const SWEEP_GAP = 60000;
     setInterval(() => {
         try { tickBeams(); } catch (_) {}
         if (typeof activePlayerIndex === 'undefined' || typeof placedTiles === 'undefined') return;
@@ -465,7 +467,12 @@
         if (first || !fxOk()) return;
         const t = placedTiles.find(t => t && t.isPlayerTile && t.playerIndex === activePlayerIndex);
         const g = t?.element?.querySelector('.player-tile-element-symbols');
-        if (g && g.dataset.ptBuilt) { try { sweep(g); } catch (_) {} }
+        // at most once a minute per tile (owner: with bots, turns come fast)
+        const now = Date.now();
+        if (g && g.dataset.ptBuilt && now - (+g.dataset.ptSwept || 0) > SWEEP_GAP) {
+            g.dataset.ptSwept = now;
+            try { sweep(g); } catch (_) {}
+        }
     }, 300);
 
     window.PlayerTileArt = { render, level, ascend, holdMs, _beamDown: beamDown, _complete: completeBurst, _sweep: sweep };
