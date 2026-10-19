@@ -306,18 +306,29 @@
     function driveWaterTransform(se, sm) {
         const pos = (typeof playerPositions !== 'undefined') ? playerPositions[sm.casterIndex] : null;
         if (!pos) return false;
-        const stones = se.getAdjacentWaterStones(pos, sm.casterIndex);
+        let stones = se.getAdjacentWaterStones(pos, sm.casterIndex);
         if (!stones.length) return false;
+        // A current plan (bot.js ctcTargets, 2026-10-19): turn only its placeholders,
+        // each into the element its cell needs; leave every other water stone.
+        let want = null;
+        const planned = window.BotSystem?.ctcTargets?.(sm.casterIndex);
+        if (planned) {
+            const pick = stones.map(st => ({ st, t: planned.find(t => Math.hypot(t.x - st.x, t.y - st.y) < 5) })).find(o => o.t);
+            if (!pick) return false;
+            stones = [pick.st];
+            want = pick.t.type;
+        }
         // Every target element's source pool empty: nothing can be made, so
         // do not open the picker at all (owner report 2026-09-28: the bot
         // clicked a disabled button forever and the turn never ended).
         const pools = (typeof stonePools !== 'undefined') ? stonePools : {};
         const targets = ['earth', 'fire', 'wind', 'void'].filter(el => (pools[el] || 0) > 0);
         if (!targets.length) return false;
+        if (want && !targets.includes(want)) return false; // that element's supply is empty
         sm.handleStoneClick(stones[0]); // opens water-transform-modal synchronously
         const modal = document.getElementById('water-transform-modal');
         if (modal) {
-            const order = [...rankedElements().filter(el => targets.includes(el)), ...targets];
+            const order = want && targets.includes(want) ? [want] : [...rankedElements().filter(el => targets.includes(el)), ...targets];
             if (!clickBestElement(modal, order)) {
                 // Nothing clickable after all: close it instead of looping.
                 [...modal.querySelectorAll('button')].find(b => srcText(b) === 'Cancel')?.click();

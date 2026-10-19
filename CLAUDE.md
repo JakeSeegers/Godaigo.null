@@ -522,6 +522,14 @@ Order matters — later scripts depend on earlier ones.
                              active area or the common area, the stones of that shape (whole only) go in harmContext's `shape` set, any element
                              (before, only fresh stones of elements the leader still needs): break bonus like `stones`, but never walked to.
                              A/B with Take Flight in seat 0's hand: first try (one short, walked to) 18-21-1, this one 21-18-1, ON. Test hook _attackShapeStones.
+                             currentPlan (owner 2026-10-19, Control the Current as a wildcard): makePlan currentVariants = a scroll shape
+                             whose cells next to the centre that the bot is short of hold water placeholders (cell.type 'water', cell.alt =
+                             the real element; cellStoneOk accepts either) plus a Control the Current shape at the same centre with no
+                             clash; only for scrolls with no normal shape (normalFor). planNextAction: with 2 + 2 AP at the centre cast
+                             Control the Current, else wait there; bot-effects.js driveWaterTransform and bot-sim.js turn only the
+                             placeholders (BotSystem.ctcTargets(idx)), each into its alt; then cast the scroll. Dropped when Control the
+                             Current leaves reach or the centre cannot be reached. noStrand: a last-AP step onto a stone / another
+                             player's tile becomes endTurn when that is legal (_review.noStrand).
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
                              covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
                              castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).

@@ -1421,10 +1421,24 @@
         if (!buff) return;
         const p = snap.players[buff.playerIndex];
         if (!p) return;
-        const stone = neighborStones(snap, p.x, p.y).find(s => s.type === 'water');
-        if (!stone) return;
-        const el = effectRankedElements(snap, p)
-            .find(e => e !== 'water' && (snap.sourcePool[e] || 0) > 0);
+        // A current plan (bot.js ctcTargets) turns exactly its placeholders into
+        // their elements and leaves other water alone, like driveWaterTransform.
+        let targets = null;
+        try { targets = window.BotSystem?.ctcTargets?.(buff.playerIndex) || null; } catch (e) { targets = null; }
+        let stone, el;
+        if (targets) {
+            for (const s of neighborStones(snap, p.x, p.y)) {
+                if (s.type !== 'water') continue;
+                const t = targets.find(t => dist(t.x, t.y, s.x, s.y) < 5 && (snap.sourcePool[t.type] || 0) > 0);
+                if (t) { stone = s; el = t.type; break; }
+            }
+            if (!stone) return;
+        } else {
+            stone = neighborStones(snap, p.x, p.y).find(s => s.type === 'water');
+            if (!stone) return;
+            el = effectRankedElements(snap, p)
+                .find(e => e !== 'water' && (snap.sourcePool[e] || 0) > 0);
+        }
         if (!el) return; // every non-water source pool empty — real modal has nothing clickable
         snap.sourcePool.water = Math.min(SOURCE_CAP, (snap.sourcePool.water || 0) + 1);
         snap.sourcePool[el]--;

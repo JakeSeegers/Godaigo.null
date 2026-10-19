@@ -410,6 +410,8 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
+        noStrand:          0,     // > 0.5: end the turn instead of a last-AP step onto a stone / another player's tile (2026-10-19; off until its A/B passes); 0 = off
+        currentPlan:       0,     // > 0.5: Control the Current plans: water placeholders turned into scarce stones (makePlan currentVariants, 2026-10-19; off until its A/B passes); 0 = off
         breakAttackShape:  1,     // > 0.5: harm also breaks whole shapes the leader cast attack scrolls from, never walked to (attackShapeStones, 2026-10-19; A/B 21-18-1); 0 = off
         riverHarm:         1,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; A/B with River forced into seat 0: 20-20-0, 73 River casts, 32 trips); 0 = old rule
         stoneShuffleGuard: 1,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18, A/B 19-18-3); 0 = off
@@ -1864,9 +1866,10 @@
                 if (!t || !t.ok) return null;
                 const px = hexToPixel(q, r, TILE_SIZE);
                 const c = { q, r, x: px.x, y: px.y, type: req.type };
+                if (req.alt) c.alt = req.alt;
                 if (cursedCells.has(cellKey(c))) return null;
                 if (t.stone) {
-                    if (t.stone.type !== c.type) return null;
+                    if (!cellStoneOk(c, t.stone)) return null;
                     placed++;
                 } else {
                     const sk = `${q},${r},${c.type}`;
@@ -1945,10 +1948,46 @@
                 respExtra.push({ name, def, credit: (covered.has(el) ? 0.5 : 1) + (close ? 0.5 : 0), resp: true });
             }
         }
+        // Current plans (owner 2026-10-19): with Control the Current in reach, a scroll
+        // shape may hold water placeholders on cells next to its centre (where the
+        // bot is short of that stone), with Control the Current's own water shape
+        // around the same centre. Cast Control the Current there, the placeholders
+        // are turned into their elements, then cast the scroll (planNextAction).
+        const ctcDef = window.SCROLL_DEFINITIONS?.[CTC];
+        const ctcReach = !opts && WEIGHTS.currentPlan > 0.5 && ctcDef && !noCreditScrolls.has(CTC) &&
+            [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])].includes(CTC);
+        const currentVariants = (variant) => {
+            if (!ctcReach) return [];
+            const short = {};
+            for (const req of variant) if (req.type !== 'water') short[req.type] = (short[req.type] || 0) + 1;
+            for (const t of Object.keys(short)) short[t] -= (self.pool[t] || 0);
+            const out = [];
+            const isAdj = req => Math.max(Math.abs(req.q), Math.abs(req.r), Math.abs(req.q + req.r)) === 1;
+            for (const vc of ctcDef.patterns || []) {
+                const left = { ...short };
+                const merged = variant.map(req => {
+                    if (req.type !== 'water' && isAdj(req) && left[req.type] > 0) { left[req.type]--; return { q: req.q, r: req.r, type: 'water', alt: req.type }; }
+                    return req;
+                });
+                if (!merged.some(c => c.alt)) continue;
+                let clash = false;
+                for (const w of vc) {
+                    const same = merged.find(c => c.q === w.q && c.r === w.r);
+                    if (same) { if (same.type !== 'water') clash = true; }
+                    else merged.push(w);
+                }
+                if (!clash) out.push(merged);
+            }
+            return out;
+        };
         const cands = [];
+        const normalFor = new Set(); // scrolls with a normal shape: no current plan for them
         for (const { name, def, credit, attack } of [...creditableSources(snap, self, noCreditScrolls), ...(opts?.extra || []), ...respExtra]) {
             if (opts?.only && !opts.only.has(name)) continue;
-            for (const variant of def.patterns) for (const { hex: anchorHex, steps } of anchors) {
+            const variants = [...def.patterns.map(v => ({ v, current: false })),
+                ...(attack || name === CTC ? [] : def.patterns.flatMap(v => currentVariants(v).map(m => ({ v: m, current: true }))))];
+            for (const { v: variant, current } of variants) for (const { hex: anchorHex, steps } of anchors) {
+                if (current && normalFor.has(name)) break;
                 const v = viable(variant, anchorHex);
                 if (!v) continue;
                 // Shifting Sands travel set-up: only spots where, with this
@@ -1975,7 +2014,8 @@
                 // negative, same sign convention as moveApPenalty etc.
                 const side = sideScrolls.length ? sideFor(anchorHex, v.cells) : null;
                 const base = v.placed * 10 + credit * 20 + WEIGHTS.planDeficitPenalty * totalDeficit + (side ? side.val : 0);
-                cands.push({ base, score: base + WEIGHTS.planDeficitPenalty * steps, placed: v.placed, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps, side });
+                if (!current) normalFor.add(name);
+                cands.push({ base, score: base + WEIGHTS.planDeficitPenalty * steps, placed: v.placed, scroll: name, anchor: anchorHex, cells: v.cells, credit, attack: !!attack, steps, side, current });
             }
         }
         if (!cands.length) return null;
@@ -1993,7 +2033,8 @@
             if (!best || c.score > best.score) best = c;
         }
         if (best && !opts) { _planStats.made++; if (best.steps > 0) _planStats.away++; _planStats.reused += best.placed; if (best.placed === best.cells.length) _planStats.finished++; if (best.side) _planStats.side++; if (window.SCROLL_DEFINITIONS?.[best.scroll]?.level === 1) _planStats.resp = (_planStats.resp || 0) + 1; }
-        return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps,
+        if (best && best.current) _review.currentPlans = (_review.currentPlans || 0) + 1;
+        return best ? { scroll: best.scroll, anchor: best.anchor, cells: best.cells, credit: best.credit, attack: best.attack, steps: best.steps, current: !!best.current,
                         side: best.side ? { scroll: best.side.scroll, cells: best.side.cells } : null } : null;
     }
     // Take Flight as a travel plan (owner, 2026-09-29: "make them plan Take
@@ -2003,6 +2044,7 @@
     // if that beats walking by TRAVEL_SAVE AP. The old plan resumes after
     // the flight; a travel plan older than TRAVEL_TURNS own turns is given up.
     const TF = 'WIND_SCROLL_4', TRAVEL_MIN = 6, TRAVEL_SAVE = 4, TRAVEL_TURNS = 4;
+    const CTC = 'WATER_SCROLL_5'; // Control the Current (current plans, makePlan)
     function travelGoal(snap, self, m) {
         if (m.plan && !m.plan.travel) {
             const a = hexToPixel(m.plan.anchor.q, m.plan.anchor.r, TILE_SIZE);
@@ -2372,7 +2414,7 @@
     // margin, the same "change my mind" bar as movement goals).
     function planScoreNow(snap, plan) {
         const self = me(snap);
-        const missing = plan.cells.filter(c => !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5));
+        const missing = plan.cells.filter(c => !placedStones.some(st => cellStoneOk(c, st) && Math.hypot(st.x - c.x, st.y - c.y) < 5));
         const need = {};
         for (const c of missing) need[c.type] = (need[c.type] || 0) + 1;
         let deficit = 0;
@@ -2517,6 +2559,17 @@
         return best;
     }
 
+    // A plan cell is filled by its stone type, or, for a Control the Current
+    // placeholder (c.alt, the element the water will be turned into), by either.
+    const cellStoneOk = (c, st) => st.type === c.type || (!!c.alt && st.type === c.alt);
+    // Placeholders of seat idx's current plan still waiting to be turned:
+    // [{ x, y, type }] (bot-effects.js driveWaterTransform, bot-sim.js). null = no current plan.
+    function ctcTargets(idx) {
+        const plan = mem(idx).plan;
+        if (!plan || !plan.current) return null;
+        return plan.cells.filter(c => c.alt && placedStones.some(st => st.type === 'water' && Math.hypot(st.x - c.x, st.y - c.y) < 5))
+            .map(c => ({ x: c.x, y: c.y, type: c.alt }));
+    }
     function planValid(snap) {
         const plan = mem(snap.turn.activePlayerIndex).plan;
         if (!plan) return false;
@@ -2526,6 +2579,7 @@
         const holding = plan.forPartner || (self.hand || []).includes(plan.scroll) || self.active.includes(plan.scroll) ||
                         (snap.commonArea || []).includes(plan.scroll); // common-area scrolls are castable too
         if (!holding) return false;
+        if (plan.current && ![...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])].includes(CTC)) return false;
         // Cells were on the board when the plan was MADE (viablePatternAt
         // checks the grid) — but Telekinesis / Shifting Sands can move the
         // tile out from under an in-flight plan, leaving its cells floating
@@ -2537,7 +2591,7 @@
         }
         for (const c of plan.cells) {
             const s = placedStones.find(st => Math.hypot(st.x - c.x, st.y - c.y) < 5);
-            if (s && s.type !== c.type) return false;                       // cell corrupted
+            if (s && !cellStoneOk(c, s)) return false;                      // cell corrupted
             // NOTE: deliberately no "pool[c.type] > 0" check here — a plan
             // may legitimately still be in its COLLECT leg for this cell's
             // type (see makePlan()'s deficit handling and
@@ -2698,7 +2752,7 @@
         const self = me(snap);
         if (plan.blockWin) return blockWinStep(snap, self, plan, m);
         const missing = plan.cells.filter(c =>
-            !placedStones.some(st => st.type === c.type && Math.hypot(st.x - c.x, st.y - c.y) < 5));
+            !placedStones.some(st => cellStoneOk(c, st) && Math.hypot(st.x - c.x, st.y - c.y) < 5));
 
         // Did our last attempt actually stick? If the cell we just tried to
         // fill is still missing, something (e.g. an adjacent fire stone)
@@ -2820,9 +2874,30 @@
         if (Math.hypot(self.x - aPx.x, self.y - aPx.y) >= 5) {
             if (snap.turn.ap > 0) {
                 const path = window.BotState.findPath(self.x, self.y, aPx.x, aPx.y);
+                // A current plan whose finished shape walls its own centre off: give it up.
+                if (plan.current && (!path || !path.length)) { log('Current plan: cannot reach its centre - dropping it'); m.plan = null; return null; }
                 const step = travelStep(snap, self, aPx.x, aPx.y, path);
                 if (step) return step;
             }
+            return null;
+        }
+        // Current plan: Control the Current first (this turn only), then the scroll
+        // once its placeholders are turned; both casts in one turn.
+        if (plan.current) {
+            const cost = n => window.spellSystem?.getSpellCost?.(window.SCROLL_DEFINITIONS?.[n], snap.turn.activePlayerIndex) ?? 2;
+            if (!snap.turn.buffs?.controlTheCurrent) {
+                if (snap.turn.ap >= cost(CTC) + cost(plan.scroll) && window.spellSystem.checkPattern(CTC)) {
+                    _review.currentCasts = (_review.currentCasts || 0) + 1;
+                    return { type: 'cast', scroll: CTC };
+                }
+                if (window.spellSystem.checkPattern(CTC)) return { type: 'endTurn' }; // wait here for a full turn of AP
+                m.plan = null; return null;
+            }
+            if (snap.turn.ap >= cost(plan.scroll) && window.spellSystem.checkPattern(plan.scroll)) {
+                _review.currentDone = (_review.currentDone || 0) + 1;
+                return { type: 'cast', scroll: plan.scroll };
+            }
+            if (!ctcTargets(snap.turn.activePlayerIndex)?.length) { m.plan = null; } // turned, still no cast: give up
             return null;
         }
         if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
@@ -5796,6 +5871,14 @@
         }
         // sliced thinking: the turn may have moved on while the bot thought
         if (activePlayerIndex !== idx) { log('Turn changed while thinking - not acting'); return null; }
+        // Never strand the pawn on a stone with its last AP when it may end the turn
+        // where it stands (owner bad-move report 2026-10-19: a red bot paced, then ended
+        // its turn on a stone; moveStrandOnStone alone was outweighed by other pulls).
+        if (WEIGHTS.noStrand > 0.5 && choice.action.type === 'move' && snap.turn.ap - (choice.action.cost || 0) < 1 &&
+            (snap.stones.some(q => Math.hypot(q.x - choice.action.x, q.y - choice.action.y) < 5) || onOpponentTile(snap, choice.action.x, choice.action.y))) {
+            const stay = window.BotState.legalActions().find(a => a.type === 'endTurn');
+            if (stay) { log('That step would strand me on a stone - ending the turn here instead'); _review.noStrand = (_review.noStrand || 0) + 1; choice = { action: stay, score: choice.score }; }
+        }
         return applyChosen(snap, idx, choice);
     }
 
@@ -6232,6 +6315,7 @@
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)
         _castDoesNothing: castDoesNothing, // test hook (snap, self, scroll)
         _memOf: idx => mem(idx),           // test hook: one seat's bot memory (plan, ...)
+        ctcTargets,                         // (idx) current plan placeholders to turn [{x, y, type}] or null
         _attackShapeStones: (snap, L) => [...attackShapeStones(snap, L)], // test hook
         score: scoreAction,   // (action, snapshot, ctx) → utility
         searchPick,           // Stage 2 lookahead pick — used when WEIGHTS.searchDepth > 0
