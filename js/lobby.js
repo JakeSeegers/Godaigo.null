@@ -1148,6 +1148,11 @@
             const overlay = document.createElement('div');
             overlay.id = 'game-over-notification';
             overlay.className = 'game-over-overlay';
+            // The winner's pawn is carried up its beam first (js/player-tile-art.js;
+            // looks only, everything above already ran).
+            if (winType === 'scrolls') window.PlayerTileArt?.ascend(winnerPlayerIndex);
+            const hold = window.PlayerTileArt?.holdMs?.() || 0;
+            if (hold) { overlay.style.visibility = 'hidden'; setTimeout(() => { overlay.style.visibility = ''; }, hold); }
 
             const box = document.createElement('div');
             box.className = 'game-over-box';

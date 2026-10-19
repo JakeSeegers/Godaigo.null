@@ -315,8 +315,12 @@ Order matters — later scripts depend on earlier ones.
                              row): game-core.js updatePlayerElementSymbols -> render(group, activated, colour). Five stones on the ring
                              hexes (water top-left, fire top-right, earth left, wind right, void bottom-right), drawn like real stones:
                              g.pt-bead (circle.stone-piece + image, never class 'stone'), which piece-3d.js PIECES makes a glass bead;
-                             faint (32%) until won, burst when won; line art in the player's colour x 0.5, black rosette on the centre hex;
-                             all five = lit lines + the only never-ending pulse (.pt-anim, fxOn only); turn-start light sweep.
+                             faint (32%) until won, then it beams down from above on a column of its colour. Tile in a deep shade of the
+                             player's colour (--pt-bg / --pt-bg2 / --pt-grid), dense darker line art, black rosette on the centre hex;
+                             all five = lit lines + pulse (.pt-anim, fxOn only) + a subtle white return beam from the tile centre, fed by
+                             coloured light from each stone (top layer g.pt-fx-layer, every screen). Win: ascend(seat) (game-core.js
+                             checkWinCondition, lobby.js showGameOverToAll): white crackling bolts up the beam carry the pawn off screen;
+                             both win screens wait holdMs() (~2.6 s, looks only). Turn-start light sweep. Replaced the .shrine-return-beacon ring.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),

@@ -2044,6 +2044,8 @@
 
                 const overlay = document.createElement('div');
                 overlay.className = 'game-over-overlay';
+                const hold = window.PlayerTileArt?.holdMs?.() || 0;   // the pawn's lift-off plays first
+                if (hold) { overlay.style.visibility = 'hidden'; setTimeout(() => { overlay.style.visibility = ''; }, hold); }
 
                 const box = document.createElement('div');
                 box.className = 'game-over-box';
@@ -4876,6 +4878,7 @@
                 tintOverlay.setAttribute('fill', assignedColor);
                 tintOverlay.setAttribute('opacity', '0.38'); // owner 2026-10-01: was 0.15, too faint
                 tintOverlay.setAttribute('pointer-events', 'none'); // Don't interfere with clicks
+                tintOverlay.setAttribute('class', 'player-tile-tint'); // hidden once player-tile-art.js colours the tile
                 tileGroup.appendChild(tintOverlay);
 
                 // Border around the whole tile in the player's color (owner 2026-10-01)
@@ -6845,6 +6848,9 @@ function clearPlayerPath() {
             }
 
             updateShrineReturnBeacon(playerIndex, false);
+            // white energy carries the pawn up the beam (looks only; the win
+            // screens wait for it, PlayerTileArt.holdMs)
+            window.PlayerTileArt?.ascend(playerIndex);
             const isLocalWinner = !isMultiplayer ||
                 (typeof myPlayerIndex !== 'undefined' && playerIndex === myPlayerIndex);
             if (isLocalWinner) {
@@ -6863,39 +6869,13 @@ function clearPlayerPath() {
             updateStatus('🏠 All five elements activated! Return to the centre of your player shrine to win!');
         }
 
-        // Pulsing ring on the player's shrine centre while they still need
-        // to walk home to claim the win. Removed once the win fires.
+        // While a player has all five elements and is not home yet, a white
+        // beam rises from their tile centre (js/player-tile-art.js draws it from
+        // the tile's own state, on every screen). This only clears the old
+        // pulsing ring (owner 2026-10-19: replaced by the beam).
         function updateShrineReturnBeacon(playerIndex, show) {
             const tile = getPlayerShrineTile(playerIndex);
-            if (!tile || !tile.element) return;
-            const existing = tile.element.querySelector('.shrine-return-beacon');
-            if (!show) {
-                if (existing) existing.remove();
-                return;
-            }
-            if (existing) return;
-            const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            ring.setAttribute('class', 'shrine-return-beacon');
-            ring.setAttribute('cx', 0);
-            ring.setAttribute('cy', 0);
-            ring.setAttribute('r', TILE_SIZE);
-            ring.setAttribute('fill', 'none');
-            ring.setAttribute('stroke', playerPositions[playerIndex]?.color || '#f0c040');
-            ring.setAttribute('stroke-width', '3');
-            ring.style.pointerEvents = 'none';
-            const animR = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-            animR.setAttribute('attributeName', 'r');
-            animR.setAttribute('values', `${TILE_SIZE * 0.6};${TILE_SIZE * 1.4};${TILE_SIZE * 0.6}`);
-            animR.setAttribute('dur', '1.6s');
-            animR.setAttribute('repeatCount', 'indefinite');
-            ring.appendChild(animR);
-            const animO = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-            animO.setAttribute('attributeName', 'stroke-opacity');
-            animO.setAttribute('values', '0.9;0.3;0.9');
-            animO.setAttribute('dur', '1.6s');
-            animO.setAttribute('repeatCount', 'indefinite');
-            ring.appendChild(animO);
-            tile.element.appendChild(ring);
+            tile?.element?.querySelector('.shrine-return-beacon')?.remove();
         }
 
         // Expose for modules outside the shared lexical scope (bot files, handlers)

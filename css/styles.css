@@ -5382,23 +5382,34 @@ html.pc-on .dock-bar {
 
 /* =========================================================================
    PLAYER TILE ART (owner 2026-10-19, js/player-tile-art.js)
-   Win-progress stones (looks only, glass beads via piece-3d.js), line art in a darker shade of the
-   player's colour, black rosette on the centre hex. The only animation that
-   never stops is the all-five pulse (.pt-complete.pt-anim).
+   Deep player-colour tile (--pt-bg / --pt-bg2 / --pt-grid set on the tile),
+   dark line art in the player's colour, black rosette on the centre hex,
+   win-progress stones (looks only, glass beads via piece-3d.js), the return
+   beam. Never-ending animations: only the all-five pulse (.pt-complete.pt-anim)
+   and the beam shimmer.
    ========================================================================= */
+.placed-tile[data-player-tile] .hex-tile:not(.empty-center) {
+    fill: var(--pt-bg, #8b7355);
+    stroke: var(--pt-grid, #1b2a35);
+}
+.placed-tile[data-player-tile] .hex-tile.center-hex { fill: var(--pt-bg2, #8b7355); }
+.placed-tile[data-player-tile] .player-tile-tint { display: none; }
 .player-tile-element-symbols .pt-line {
     fill: none;
-    stroke: var(--pt-line, #444);
+    stroke: var(--pt-line, #222);
     stroke-width: 0.8;
-    stroke-opacity: 0.55;
+    stroke-opacity: 0.9;
     stroke-linejoin: round;
+    stroke-linecap: round;
 }
-.player-tile-element-symbols .pt-line.pt-thin { stroke-width: 0.5; stroke-opacity: 0.45; }
+.player-tile-element-symbols .pt-line.pt-thin { stroke-width: 0.5; stroke-opacity: 0.8; }
+.player-tile-element-symbols .pt-line.pt-dash { stroke-dasharray: 3 2.2; }
+.player-tile-element-symbols .pt-line.pt-dots { stroke-dasharray: 0.1 2.4; stroke-width: 1.1; }
 .player-tile-element-symbols .pt-ink {
     fill: none;
-    stroke: #0b0b0e;
+    stroke: #050507;
     stroke-width: 0.55;
-    stroke-opacity: 0.85;
+    stroke-opacity: 0.9;
 }
 .player-tile-element-symbols .pt-ink.pt-fine { stroke-width: 0.35; }
 .player-tile-element-symbols .pt-ink.pt-dash { stroke-dasharray: 1.2 1.6; }
@@ -5415,13 +5426,18 @@ html.pc-on .dock-bar {
 .player-tile-element-symbols .pt-stone.on .pt-glow { opacity: 0.35; }
 .player-tile-element-symbols .pt-stone.on .pt-socket { opacity: 0; }
 /* all five: the line art lights up, every stone pulses brighter */
-.player-tile-element-symbols.pt-complete .pt-line { stroke: var(--pt-lit, #ddd); stroke-opacity: 0.85; }
+.player-tile-element-symbols.pt-complete .pt-line { stroke: var(--pt-lit, #ddd); stroke-opacity: 0.7; }
 .player-tile-element-symbols.pt-complete .pt-stone .pt-glow { opacity: 0.9; }
 .player-tile-element-symbols.pt-complete.pt-anim .pt-stone .pt-glow { animation: pt-pulse 1.6s ease-in-out infinite; }
 .player-tile-element-symbols.pt-complete.pt-anim .pt-stone .pt-flash { animation: pt-shine 1.6s ease-in-out infinite; }
 @keyframes pt-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 @keyframes pt-shine { 0%, 100% { opacity: 0; } 50% { opacity: 0.3; } }
+/* the return beam: subtle, a slow shimmer */
+.pt-fx-layer .pt-beam { opacity: 0.7; }
+.pt-fx-layer .pt-beam-core { animation: pt-beam-shimmer 2.4s ease-in-out infinite; }
+@keyframes pt-beam-shimmer { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
 @media (prefers-reduced-motion: reduce) {
     .player-tile-element-symbols .pt-glow,
-    .player-tile-element-symbols .pt-flash { animation: none !important; }
+    .player-tile-element-symbols .pt-flash,
+    .pt-fx-layer .pt-beam-core { animation: none !important; }
 }
