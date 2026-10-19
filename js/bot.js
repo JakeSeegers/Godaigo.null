@@ -410,7 +410,7 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
-        currentPlan:       0,     // > 0.5: Control the Current plans: water placeholders turned into scarce stones (makePlan currentVariants, 2026-10-19; off until its A/B passes); 0 = off
+        currentPlan:       1,     // > 0.5: Control the Current plans: water placeholders turned into scarce stones (makePlan currentVariants, 2026-10-19; A/B 19-21-0, ON at the owner's request to troubleshoot; drop reasons in _review.currentDrop); 0 = off
         stompGuard:        1,     // > 0.5: Heavy Stomp whose flip can only draw an unneeded scroll, or hides a tile for nothing, counts as castDoesNothing (stompPointless, 2026-10-19; A/B 22-17-1); 0 = off
         trapEscape:        0,     // > 0.5: walled in (no move, no teleport) with a break affordable: break out first (trapEscape, 2026-10-19; A/B 19-21-0, 9 escapes: OFF); 0 = off
         breakAttackShape:  1,     // > 0.5: harm also breaks whole shapes the leader cast attack scrolls from, never walked to (attackShapeStones, 2026-10-19; A/B 21-18-1); 0 = off
@@ -2602,6 +2602,15 @@
         return plan.cells.filter(c => c.alt && placedStones.some(st => st.type === 'water' && Math.hypot(st.x - c.x, st.y - c.y) < 5))
             .map(c => ({ x: c.x, y: c.y, type: c.alt }));
     }
+    // Control the Current plans (currentPlan): why each one died, for the owner
+    // to troubleshoot (log line + BotSystem._review.currentDrop counts).
+    function noteCurrentDrop(plan, why) {
+        if (!plan || !plan.current || plan._dropNoted) return;
+        plan._dropNoted = true;
+        const d = _review.currentDrop || (_review.currentDrop = {});
+        d[why] = (d[why] || 0) + 1;
+        log(`Control the Current plan for ${plan.scroll} dropped: ${why}`);
+    }
     function planValid(snap) {
         const plan = mem(snap.turn.activePlayerIndex).plan;
         if (!plan) return false;
@@ -2610,8 +2619,9 @@
         if (!self) return false;
         const holding = plan.forPartner || (self.hand || []).includes(plan.scroll) || self.active.includes(plan.scroll) ||
                         (snap.commonArea || []).includes(plan.scroll); // common-area scrolls are castable too
-        if (!holding) return false;
-        if (plan.current && ![...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])].includes(CTC)) return false;
+        const no = why => { plan._why = why; return false; };   // why a Control the Current plan died (noteCurrentDrop)
+        if (!holding) return no('scroll gone');
+        if (plan.current && ![...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])].includes(CTC)) return no('Control the Current gone');
         // Cells were on the board when the plan was MADE (viablePatternAt
         // checks the grid) — but Telekinesis / Shifting Sands can move the
         // tile out from under an in-flight plan, leaving its cells floating
@@ -2619,11 +2629,11 @@
         // replans, instead of trying to build a pattern in the void.
         const grid = window.BotState.hexGrid();
         for (const c of plan.cells) {
-            if (!grid.some(h => Math.hypot(h.x - c.x, h.y - c.y) < 5)) return false;
+            if (!grid.some(h => Math.hypot(h.x - c.x, h.y - c.y) < 5)) return no('tile moved');
         }
         for (const c of plan.cells) {
             const s = placedStones.find(st => Math.hypot(st.x - c.x, st.y - c.y) < 5);
-            if (s && !cellStoneOk(c, s)) return false;                      // cell corrupted
+            if (s && !cellStoneOk(c, s)) return no('wrong stone on a cell');  // cell corrupted
             // NOTE: deliberately no "pool[c.type] > 0" check here — a plan
             // may legitimately still be in its COLLECT leg for this cell's
             // type (see makePlan()'s deficit handling and
@@ -2633,7 +2643,7 @@
             // A fire stone may have appeared next to a still-missing cell
             // since the plan was made — the stone would die on placement
             if (!s && window.BotSim &&
-                !window.BotSim.stoneWouldSurvive(snap, c.x, c.y, c.type)) return false;
+                !window.BotSim.stoneWouldSurvive(snap, c.x, c.y, c.type)) return no('fire next to a cell');
         }
         return true;
     }
@@ -2907,7 +2917,7 @@
             if (snap.turn.ap > 0) {
                 const path = window.BotState.findPath(self.x, self.y, aPx.x, aPx.y);
                 // A current plan whose finished shape walls its own centre off: give it up.
-                if (plan.current && (!path || !path.length)) { log('Current plan: cannot reach its centre - dropping it'); m.plan = null; return null; }
+                if (plan.current && (!path || !path.length)) { noteCurrentDrop(plan, 'centre unreachable'); m.plan = null; return null; }
                 const step = travelStep(snap, self, aPx.x, aPx.y, path);
                 if (step) return step;
             }
@@ -2923,13 +2933,13 @@
                     return { type: 'cast', scroll: CTC };
                 }
                 if (window.spellSystem.checkPattern(CTC)) return { type: 'endTurn' }; // wait here for a full turn of AP
-                m.plan = null; return null;
+                noteCurrentDrop(plan, 'at the centre but its water shape is not there'); m.plan = null; return null;
             }
             if (snap.turn.ap >= cost(plan.scroll) && window.spellSystem.checkPattern(plan.scroll)) {
                 _review.currentDone = (_review.currentDone || 0) + 1;
                 return { type: 'cast', scroll: plan.scroll };
             }
-            if (!ctcTargets(snap.turn.activePlayerIndex)?.length) { m.plan = null; } // turned, still no cast: give up
+            if (!ctcTargets(snap.turn.activePlayerIndex)?.length) { noteCurrentDrop(plan, 'stones turned but the scroll still cannot be cast'); m.plan = null; } // give up
             return null;
         }
         if (snap.turn.ap >= 2 && window.spellSystem.checkPattern(plan.scroll)) {
@@ -5724,8 +5734,10 @@
             const give = giveScroll(snap, idx);
             if (give) { const r = window.BotState.applyAction(give); if (r.ok) return give; }
         } catch (e) { log('Hand-over failed: ' + e.message); }
+        const prevPlan = m.plan;
         try { reviewPlan(snap, idx); } catch (e) { log('Plan review failed: ' + e.message); }
         if (!m.plan || !planValid(snap)) {
+            if (prevPlan?.current) noteCurrentDrop(prevPlan, m.plan ? (prevPlan._why || 'not valid') : 'plan review (too slow / replaced)');
             m.plan = makePlan(snap);
             if (m.plan) log(`New plan: build ${m.plan.scroll} anchored at hex (${m.plan.anchor.q},${m.plan.anchor.r})`);
         }

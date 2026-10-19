@@ -550,7 +550,8 @@ Order matters — later scripts depend on earlier ones.
                              clash; only for scrolls with no normal shape (normalFor). planNextAction: with 2 + 2 AP at the centre cast
                              Control the Current, else wait there; bot-effects.js driveWaterTransform and bot-sim.js turn only the
                              placeholders (BotSystem.ctcTargets(idx)), each into its alt; then cast the scroll. Dropped when Control the
-                             Current leaves reach or the centre cannot be reached. OFF (A/B 19-21-0). Stranding: bot-state.js stepStrands
+                             Current leaves reach or the centre cannot be reached. A/B 19-21-0, but ON since 2026-10-19 at the owner's request (to troubleshoot):
+                             noteCurrentDrop logs why each such plan dies ("Control the Current plan for X dropped: why") and counts it in _review.currentDrop. Stranding: bot-state.js stepStrands
                              (and bot-sim.js) now also refuse a step onto a VOID stone or another player's tile unless the AP left
                              reaches a hex the turn may end on (2026-10-19: a bot ended on a void stone with 0 AP).
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
