@@ -624,11 +624,18 @@
     // adjacent stone that helps the goals most (unblockBonus), first thing.
     // Not while standing on a shrine it still collects from (the wall then
     // only keeps others off it).
+    // Narrower (owner 2026-10-19, after the first A/B lost 19-21): not while a
+    // cast that wins an element is affordable (do that first, the break comes on
+    // the next action if AP is left), and not while a scroll that can get out
+    // some other way can be cast now (Breath of Power, Take Flight, Freedom,
+    // Mudslide, Excavate, Combust): normal scoring decides then.
+    const ESCAPE_SCROLLS = new Set(['WIND_SCROLL_2', 'WIND_SCROLL_4', 'WIND_SCROLL_5', 'CATACOMB_SCROLL_1', 'CATACOMB_SCROLL_4', 'CATACOMB_SCROLL_10']);
     function trapEscape(snap) {
         const legal = window.BotState.legalActions();
         if (legal.some(a => a.type === 'move' || a.type === 'teleport')) return null;
         const breaks = legal.filter(a => a.type === 'breakStone');
         if (!breaks.length || shrineUnderfoot(snap)) return null;
+        if (legal.some(a => a.type === 'cast' && (ESCAPE_SCROLLS.has(a.scroll) || (() => { try { return hasWinCredit(snap, a.scroll); } catch (e) { return false; } })()))) return null;
         const u = makeUnblockCtx(snap);
         let best = null, bestV = -Infinity;
         for (const a of breaks) {
