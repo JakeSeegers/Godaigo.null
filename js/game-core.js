@@ -3304,8 +3304,9 @@
         }
         window.getScreenFromBoardXY = getScreenFromBoardXY;
 
-        // Fit all placed tiles into view, centered
-        function fitBoardToView() {
+        // Fit all placed tiles into view, centered. opts.padding = share of the
+        // screen the board may use (default 0.8; idle training uses less).
+        function fitBoardToView(opts) {
             if (placedTiles.length === 0) return;
 
             // Calculate bounding box of all tiles
@@ -3336,7 +3337,7 @@
             const screenHeight = svgRect.height;
 
             // Add padding (10% on each side)
-            const paddingFactor = 0.8;
+            const paddingFactor = opts?.padding || 0.8;
             const scaleX = (screenWidth * paddingFactor) / boardWidth;
             const scaleY = (screenHeight * paddingFactor) / boardHeight;
             const newScale = Math.min(scaleX, scaleY, 2); // Cap at 2x zoom

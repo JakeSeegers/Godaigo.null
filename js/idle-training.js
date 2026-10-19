@@ -299,6 +299,16 @@
         if (flag(FLAG_RESUME)) flag(FLAG_WAKE, true);
         setTimeout(() => location.reload(), 150);
     }
+    // Clean view: the board is fit before the player tiles are placed, so they
+    // stuck out of the screen (owner 2026-10-19). Refit whenever the tiles change.
+    let fitKey = '';
+    setInterval(() => {
+        if (!run || run.stopping || typeof placedTiles === 'undefined' || typeof fitBoardToView !== 'function') return;
+        const key = placedTiles.map(t => Math.round(t.x) + ',' + Math.round(t.y)).join(';');
+        if (!key || key === fitKey) return;
+        fitKey = key;
+        fitBoardToView({ padding: 0.7 });
+    }, 500);
     function cleanupFailed() {
         if (!run) return;
         run = null;
