@@ -5217,3 +5217,14 @@ g.stone.stone-voided > image { filter: brightness(0.7); }
 #idle-training-bar .idle-verdict { margin-top: 6px; color: #ffb3b3; font-weight: bold; }
 #idle-training-bar .idle-verdict.win { color: #9dff7a; }
 #idle-training-bar .idle-hint { margin-top: 6px; color: #8d86a3; font-size: 12px; }
+
+/* Idle training clean view (js/idle-training.js, owner 2026-10-19): only the
+   board and what happens on it. Everything else on the page is hidden: HUD,
+   dock, panels, scoreboard, the info bar, pop-ups. Kept: .board-area (the
+   board is placed from its size), the background, and iframes (combo mining
+   runs in an off-screen frame and needs its layout). */
+html.idle-clean #game-layout > *:not(.board-area):not(#board-viewport),
+html.idle-clean body > *:not(#game-layout):not(#parallax-bg):not(iframe):not(script):not(style):not(link):not(svg:empty):not(canvas) {
+    display: none !important;
+}
+html.idle-clean .game-layout.active { grid-template-rows: 1fr; grid-template-areas: "board"; }
