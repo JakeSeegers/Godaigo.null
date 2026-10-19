@@ -68,10 +68,10 @@
         for (const key in BUFFS) {
             const b = ab[key];
             if (!b || typeof b !== 'object' || b.playerIndex == null) continue;
-            let when = b.expiresNextTurn || key === 'freedom' || key === 'excavate' || key === 'quickReflexes'
+            let when = b.expiresNextTurn || key === 'freedom' || key === 'excavate' || key === 'quickReflexes' || key === 'simplify'
                 ? 'until their next turn' : 'this turn';
             let extra = '';
-            if (key === 'burningMotivation' && b.stacks > 1) extra = ` x${b.stacks}`;
+            if ((key === 'burningMotivation' || key === 'simplify') && b.stacks > 1) extra = ` x${b.stacks}`;
             if (key === 'mine' && b.shrineType) extra = ` (${b.shrineType})`;
             out.push({ key, name: BUFFS[key], extra, owner: b.playerIndex, when });
         }

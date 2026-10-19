@@ -170,6 +170,12 @@
     const TILE = 20;               // TILE_SIZE — small board hex size
     const HEX_NEAR = 5;            // px — "same hex"
     const HEX_STEP = 40;           // px — "adjacent hex" upper bound
+    // Breath of Power reach (game-core.js BREATH_RANGE = 3 hexes). Adjacent
+    // hex centres are TILE * sqrt(3) apart: ring 3 is at most 3 steps away,
+    // ring 4 at least 4 * cos 30 steps, so this pixel bound splits them.
+    const BREATH_PX = 3.2 * TILE * Math.sqrt(3);
+    const inBreathRange = (p, q) => { const d = dist(p.x, p.y, q.x, q.y); return d >= HEX_NEAR && d <= BREATH_PX; };
+    const MOVE_STONE_CAP = 60;     // mirrors bot-state.js
     const STONE_NEIGHBOR_MAX = 50; // px — getNeighborStones() window (5..50)
     const POOL_CAP = 5;            // per-element player pool capacity
     const SOURCE_CAP = 25;         // per-element source pool capacity
@@ -333,6 +339,18 @@
     // own turn (see the "Turn buffs" note in the file header).
     function castCost(snap) {
         return snap.turn.buffs?.simplify ? 1 : CAST_COST;
+    }
+
+    // Simplify's second part (owner 2026-10-14, game-core onCommonAreaArrival):
+    // while it is up, the caster regains 2 AP each time a scroll lands in the
+    // common area. Every common-area move in this model (discard, Pyre, Arson,
+    // Plunder) is the active player's own, so only turn.buffs.simplify is read.
+    // Capped like addAP (base 5 + void pool). Off-turn gains are not modelled.
+    function simplifyGain(snap) {
+        if (!snap.turn.buffs?.simplify) return;
+        const p = activePlayer(snap);
+        const cap = BASE_AP + (p?.pool?.void || 0);
+        snap.turn.ap = Math.min(cap, snap.turn.ap + 2 * (Number(snap.turn.buffs.simplify) || 1));
     }
 
     // Stones by area (cells of STONE_NEIGHBOR_MAX px, so every stone within
@@ -932,7 +950,7 @@
         if (!snap.commonArea) snap.commonArea = [];
         snap.commonArea = snap.commonArea.filter(name =>
             window.SCROLL_DEFINITIONS?.[name]?.element !== 'fire');
-        if (!snap.commonArea.includes(scrollName)) snap.commonArea.push(scrollName);
+        if (!snap.commonArea.includes(scrollName)) { snap.commonArea.push(scrollName); simplifyGain(snap); }
     }
 
     // Plunder (CATACOMB_SCROLL_8): same "biggest threat" opponent targeting
@@ -969,7 +987,7 @@
         const el = window.SCROLL_DEFINITIONS?.[best]?.element;
         if (!snap.commonArea) snap.commonArea = [];
         if (el) snap.commonArea = snap.commonArea.filter(name => window.SCROLL_DEFINITIONS?.[name]?.element !== el);
-        if (!snap.commonArea.includes(best)) snap.commonArea.push(best);
+        if (!snap.commonArea.includes(best)) { snap.commonArea.push(best); simplifyGain(snap); }
     }
 
     // ── Tranche 2 ────────────────────────────────────────────────────
@@ -1093,8 +1111,7 @@
         });
     }
 
-    // Where player v lands when Take Flight moves them and THEY choose (the
-    // rule for an opponent target, and the bot's own default): the landing
+    // Where player v lands when v casts Take Flight on itself: the landing
     // nearest their next objective, home with all 5 elements, else the
     // nearest face-down tile. Mirrors bot-effects.js _bestTakeFlightDestination.
     function takeFlightLandingFor(snap, v) {
@@ -1114,12 +1131,25 @@
             : candidates[0];
     }
 
+    // Where the CASTER sends opponent v (owner 2026-10-15: the caster
+    // chooses the landing): with all 5 elements the landing farthest from
+    // v's home, else the one farthest from where v stands. Mirrors
+    // bot-effects.js _worstTakeFlightDestination.
+    function takeFlightSendFor(snap, v) {
+        const candidates = takeFlightCandidates(snap, v);
+        if (!candidates.length) return null;
+        const home = ELEMENTS.every(el => v.activated.includes(el))
+            ? snap.tiles.find(t => t.isPlayerTile && t.playerIndex === v.index) : null;
+        const from = home || v;
+        return candidates.reduce((a, b) => (!a || dist(from.x, from.y, b.x, b.y) > dist(from.x, from.y, a.x, a.y)) ? b : a, null);
+    }
+
     function simEffectTakeFlight(snap, p, choice) {
         // Aimed at an opponent (owner, 2026-09-29: Take Flight is for moving
-        // opponents): they are moved, and they pick where to land.
+        // opponents): the caster picks where they land (2026-10-15).
         if (choice && choice.target != null && choice.target !== p.index) {
             const v = snap.players[choice.target];
-            const d = v ? takeFlightLandingFor(snap, v) : null;
+            const d = v ? takeFlightSendFor(snap, v) : null;
             if (d) { v.x = d.x; v.y = d.y; }
             return;
         }
@@ -1311,7 +1341,8 @@
     // Simplify (VOID_SCROLL_3): no immediate effect — castCost() and
     // legalActions()'s cast-affordability gate read this buff directly.
     function simEffectSimplify(snap) {
-        buffs(snap).simplify = true;
+        const b = buffs(snap);
+        b.simplify = (Number(b.simplify) || 0) + 1; // stacks, like the real buff (2026-10-18)
     }
 
     // Mine (CATACOMB_SCROLL_2): if the caster is currently standing on the
@@ -1390,10 +1421,24 @@
         if (!buff) return;
         const p = snap.players[buff.playerIndex];
         if (!p) return;
-        const stone = neighborStones(snap, p.x, p.y).find(s => s.type === 'water');
-        if (!stone) return;
-        const el = effectRankedElements(snap, p)
-            .find(e => e !== 'water' && (snap.sourcePool[e] || 0) > 0);
+        // A current plan (bot.js ctcTargets) turns exactly its placeholders into
+        // their elements and leaves other water alone, like driveWaterTransform.
+        let targets = null;
+        try { targets = window.BotSystem?.ctcTargets?.(buff.playerIndex) || null; } catch (e) { targets = null; }
+        let stone, el;
+        if (targets) {
+            for (const s of neighborStones(snap, p.x, p.y)) {
+                if (s.type !== 'water') continue;
+                const t = targets.find(t => dist(t.x, t.y, s.x, s.y) < 5 && (snap.sourcePool[t.type] || 0) > 0);
+                if (t) { stone = s; el = t.type; break; }
+            }
+            if (!stone) return;
+        } else {
+            stone = neighborStones(snap, p.x, p.y).find(s => s.type === 'water');
+            if (!stone) return;
+            el = effectRankedElements(snap, p)
+                .find(e => e !== 'water' && (snap.sourcePool[e] || 0) > 0);
+        }
         if (!el) return; // every non-water source pool empty — real modal has nothing clickable
         snap.sourcePool.water = Math.min(SOURCE_CAP, (snap.sourcePool.water || 0) + 1);
         snap.sourcePool[el]--;
@@ -1636,7 +1681,7 @@
         if (!snap.commonArea) snap.commonArea = [];
         snap.commonArea = snap.commonArea.filter(name =>
             window.SCROLL_DEFINITIONS?.[name]?.element !== def.element);
-        if (!snap.commonArea.includes(chosen)) snap.commonArea.push(chosen);
+        if (!snap.commonArea.includes(chosen)) { snap.commonArea.push(chosen); simplifyGain(snap); }
 
         // No stone grant any more (the old test rule was removed 2026-10-01):
         // only the sacrificed scroll's own effect runs.
@@ -1740,25 +1785,26 @@
             }
         }
 
-        // The EFFECT runs before win-condition tracking — mirrors
-        // applyScrollEffects' real order (execute() at game-core ~1564,
-        // activation gate at ~1605 reading the POST-effect source pool).
-        // Order matters when an effect drains its own element's source:
-        // Mason's Savvy taking the last earth stones correctly forfeits
-        // the earth activation. (Caught by the harness as a genuine
-        // divergence when this block ran before the effect.)
+        // The EFFECT runs before win-condition tracking (applyScrollEffects'
+        // order), but the win stone is drawn BEFORE the effect (owner
+        // 2026-10-14, game-core sourceHasStone): the element counts when its
+        // source had a stone before the effect OR still has one after it.
+        // Mason's Savvy / Seed the Skies / Create / Respirate / Quick
+        // Reflexes taking the last stones no longer forfeit the activation.
+        const sourceBefore = Object.assign({}, snap.sourcePool);
         simCastEffect(snap, p, a.scroll, a.choice);
 
         // Win-condition activation (applyScrollEffects, AFTER the effect):
         //  - catacomb scrolls credit each component element, no source guard
         //  - otherwise credit only while the element's SOURCE pool has stones
+        //    (before or after the effect, see sourceBefore above)
         if (def) {
             if (def.element === 'catacomb' && def.patterns?.[0]) {
                 for (const el of new Set(def.patterns[0].map(c => c.type))) {
                     if (!p.activated.includes(el)) p.activated.push(el);
                 }
             } else if (ELEMENTS.includes(def.element)) {
-                if ((snap.sourcePool[def.element] || 0) > 0 &&
+                if (((sourceBefore[def.element] || 0) > 0 || (snap.sourcePool[def.element] || 0) > 0) &&
                     !p.activated.includes(def.element)) {
                     p.activated.push(def.element);
                 }
@@ -1803,7 +1849,7 @@
                 snap.commonArea = snap.commonArea.filter(name =>
                     window.SCROLL_DEFINITIONS?.[name]?.element !== element);
             }
-            if (!snap.commonArea.includes(a.scroll)) snap.commonArea.push(a.scroll);
+            if (!snap.commonArea.includes(a.scroll)) { snap.commonArea.push(a.scroll); simplifyGain(snap); }
         }
     }
 
@@ -2269,20 +2315,21 @@
             }
         }
 
-        // Breath of Power (WIND_SCROLL_2): move a stone adjacent to the pawn
-        // onto a DIFFERENT, currently-empty hex within the same placement
-        // range placeStone uses (honors Avalanche/Seed the Skies too, same
-        // as a real placement would through isInPlacementRange) — free,
-        // repeatable, no AP gate. Not restricted by pawnOnStone (mirrors
-        // 'move', not 'cast'/'placeStone' — see BotState.legalActions()).
+        // Breath of Power (WIND_SCROLL_2, owner 2026-10-15): move a stone
+        // within 3 hexes of the pawn onto a DIFFERENT empty hex within 3 hexes,
+        // free, repeatable, no AP gate. Mirrors BotState.legalActions(): only
+        // spots next to another stone or next to the pawn, max MOVE_STONE_CAP.
         if (snap.turn.buffs?.breathOfPower?.playerIndex === snap.turn.activePlayerIndex) {
-            for (const stone of neighborStones(snap, p.x, p.y)) {
+            const near = (a, b) => dist(a.x, a.y, b.x, b.y) < HEX_STEP;
+            let n = 0;
+            for (const stone of snap.stones) {
+                if (n >= MOVE_STONE_CAP) break;
+                if (!inBreathRange(p, stone)) continue;
                 for (const h of g) {
+                    if (n >= MOVE_STONE_CAP) break;
                     if (dist(h.x, h.y, stone.x, stone.y) < HEX_NEAR) continue; // must actually move
-                    const d = dist(h.x, h.y, p.x, p.y);
-                    const globalOk = snap.turn.buffs?.globalPlacement ||
-                        (snap.turn.buffs?.waterWindGlobalPlacement && (stone.type === 'water' || stone.type === 'wind'));
-                    if (!globalOk && d >= HEX_STEP) continue;
+                    if (!inBreathRange(p, h)) continue;
+                    if (!near(h, p) && !snap.stones.some(o => o !== stone && near(o, h))) continue;
                     if (h.tileIds.some(id => {
                         const t = snap.tiles.find(tt => tt.id === id);
                         return t && !t.revealed && !t.isPlayerTile;
@@ -2293,6 +2340,7 @@
                         type: 'moveStone', fromX: stone.x, fromY: stone.y,
                         toX: h.x, toY: h.y, stoneType: stone.type,
                     });
+                    n++;
                 }
             }
         }
@@ -2305,9 +2353,13 @@
             // the banked state itself at simulation time (same input either way
             // within one ply).
             const svBanked = snap.turn.buffs?.steamVentsBanked;
-            // Mirrors bot-state.js: a step onto a non-void stone only when the
-            // AP left still reaches a hex the turn may end on.
-            const restStone = (x, y) => { const s = stoneAt(snap, x, y); return s && s.type !== 'void'; };
+            // Mirrors bot-state.js: a step onto a stone (void too) or another
+            // player's tile only when the AP left still reaches a hex the turn
+            // may end on.
+            const me = snap.turn.activePlayerIndex;
+            const restStone = (x, y) => !!stoneAt(snap, x, y) || snap.tiles.some(t =>
+                t.isPlayerTile && t.playerIndex !== null && t.playerIndex !== undefined &&
+                t.playerIndex !== me && dist(t.x, t.y, x, y) < TILE * 4);
             const nbrs = gridNeighbors(g);
             const canRestFrom = (from, apLeft, depth) => (nbrs.get(from) || []).some(n => {
                 const mv = canMoveTo(snap, n.x, n.y);
@@ -2530,8 +2582,8 @@
         simulate, legalActions, isTerminal, winner,
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
         stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
-        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, isUnknownScroll, unknownScrollElement,
-        travelTilesAt, travelGoalPoint,
+        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, takeFlightSendFor, isUnknownScroll, unknownScrollElement,
+        travelTilesAt, travelGoalPoint, telekinesisSlots,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');
 })();

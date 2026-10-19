@@ -23,6 +23,7 @@ These apply to all work on this repo. `tools/claude-hooks/` enforces rules 1 and
    - Entry shape: `{ id, date, title, changes[] }`. Title = a few words for the day.
    - Simple English, short lines, how it affects the player. No file names or code terms.
    - When you skip a note because players cannot notice the change, tell the user.
+   - Add the Spanish text of every new title and line to `js/i18n-es.js` (the Change Log is shown in Spanish too).
 3. **Start from `planning/current.md`** and drill down through the INDEX.md files before
    reading source (see below).
 4. **Bump the game version** when you change files the browser loads (js/, css/, index.html,
@@ -131,6 +132,8 @@ Order matters — later scripts depend on earlier ones.
                              is stamped by the server (trigger). Match 43: a player's clock was 107 s slow.
 6. connection-monitor.js   ← window.ConnectionMonitor — network health badge + isWorkable() gate (depends only on multiplayer-state.js's SUPABASE_URL)
 7. sounds.js               ← window.SoundSystem — SFX + login music
+                             play(name, volume, {rate}) (rate also moves the pitch: preservesPitch off). playCollect(element)
+                             (2026-10-15): shrine collection sound, earth -4 / water -2 / fire 0 / wind +2 / void +4 semitones, +-1/4 wobble, volume 0.55.
 8. joytone-bridge.js       ← window.JoytoneBridge: adaptive music via hidden joytone/ iframe (Shift+J+T popup).
                              Salsa mode: in Spanish (I18n.lang 'es', also on a mid-game switch) calls JoytoneAPI.setSalsa(true):
                              tempo x1.12 and a synthesized clave 3-2 / cowbell / conga layer (joytone/index.html scheduleSalsa).
@@ -139,6 +142,10 @@ Order matters — later scripts depend on earlier ones.
 10. effects-system.js      ← window.effectsSystem — sprite/particle visual effect definitions (fire, etc.), no game logic
 11. game-ui.js             ← HUD, drag-drop handlers, panel toggles, scroll deck UI
 12. scroll-panels.js       ← window.ScrollPanelSystem — shared floating-panel chrome (Hand/Active/Common/Game Log/Opponent Status/Elemental Stones)
+                             Player tint (2026-10-18): _initPlayerTint (500 ms) sets --pc = own seat colour (else the active player's: replay,
+                             spectator, training) and html.pc-on in a game; css/styles.css PLAYER TINT block tints panel borders / header /
+                             body (58% instead of 45%), card buttons, preview top, HUD and dock bars (text colours unchanged). Card action
+                             buttons are now right under the header (actsSlot), a little bigger (panel 11px, preview 13px).
 13. parallax.js            ← Animated background (no game deps)
 13b. lore-intro.js         ← window.LoreIntro — hand-drawn sketch/typewriter lore sequence
                              (LoreIntroClips/chunk*.mp4), played by boot-splash.js's
@@ -241,7 +248,7 @@ Order matters — later scripts depend on earlier ones.
                              then bots play every seat, the End Turn button re-enabled) -> bot gain / player gain,
                              solved >= 0.9; every 4th puzzle (id % 4 == 0) is test-only. Replay.puzzleScore(w) =
                              avg score on up to 6 training puzzles; BotArena.hillClimb opts.puzzleCheck gates a
-                             would-be promotion on it (hermit Train Bot passes it).
+                             would-be promotion on it (Train Bot no longer passes it, 2026-10-18).
 17e. save-game.js         ← window.SaveGame: save a game vs bots, continue later (docs/saved-games.md, sql/saved-games.sql,
                              applied; saved_games.state + save_game p_state applied 2026-10-11). In games where you are the only human
                              the Leave button reads "Save / Leave" (click caught in the capture phase) and asks Save & quit /
@@ -296,14 +303,31 @@ Order matters — later scripts depend on earlier ones.
                              half, scaleX through 0), and comes back down (~0.76 s).
                              A pawn stepping onto a flipping tile waits on its old hex until the flip ends, then glides on
                              (flipZones; a glide started up to 0.4 s before the flip is redone); bot.js waitForQuiescence waits on
-                             window.TileFlipFx.isFlipping() (also in Watchable training). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces).
+                             window.TileFlipFx.isFlipping() (also in Watchable training). Settings > Display "3D Pieces" (localStorage godaigo_3d_pieces). Bot training at Extreme speed draws flat pieces
+                             (paused while BotArena runs and window.fxOn() is false; a 400 ms watcher flips it on a live speed switch).
+                             Tile moves (2026-10-14, window.TileMoveFx.fly): a tile that changes place lifts, floats over a curved path
+                             and lands with a dust ring (Shifting Sands, Telekinesis, own drops, player tiles at the start drop in from
+                             above; game-core.js placeTile marks every start tile data-player-tile, since bots' tiles placed on the host had no
+                             .player-tile class and did not drop, 2026-10-19); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
+                             Your own carried tile (ghost) looks lifted (.tile-carried) and comes down clearly where you drop it; a Telekinesis
+                             drop (ghost data-from-x/y, set in game-core.js startTileDrag) plays the full flight from the tile's old spot.
+20b2b. player-tile-art.js <- window.PlayerTileArt (owner 2026-10-19): player tile look + win progress (looks only, same job as the old ring
+                             row): game-core.js updatePlayerElementSymbols -> render(group, activated, colour). Five stones on the ring
+                             hexes (water top-left, fire top-right, earth left, wind right, void bottom-right), drawn like real stones:
+                             g.pt-bead (circle.stone-piece + image, never class 'stone'), which piece-3d.js PIECES makes a glass bead;
+                             faint (32%) until won, then it beams down from above on a column of its colour. Tile in a deep shade of the
+                             player's colour (--pt-bg / --pt-bg2 / --pt-grid), dense darker line art, black rosette on the centre hex;
+                             all five = lit lines + pulse (.pt-anim, fxOn only) + a subtle white return beam from the tile centre, fed by
+                             coloured light from each stone (top layer g.pt-fx-layer, every screen). Win: ascend(seat) (game-core.js
+                             checkWinCondition, lobby.js showGameOverToAll): white crackling bolts up the beam carry the pawn off screen;
+                             both win screens wait holdMs() (~2.6 s, looks only). Turn-start light sweep (max once a minute per tile). Replaced the .shrine-return-beacon ring.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),
                              a rune ring turns, sparks drift; lines re-jag every frame, then break up and fade (~1.1 s). Layer
                              .cast-fx in #viewport. Own casts: ActionLog 'cast_execute'; other players: lobby.js 'scroll-used'.
-                             Skipped when window.fxOn() is false (game-core.js: sound off, i.e. muted training or quiet
-                             test games, unless training runs at Watchable speed), hidden tab, reduced motion; max 3 at once.
+                             Skipped when window.fxOn() is false (game-core.js: while bot training runs, only at Watchable speed
+                             (2026-10-15: speed, not sound); otherwise sound off, i.e. quiet test games), hidden tab, reduced motion; max 3 at once.
                              Two layers: lines, aura and the far half of three energy arcs wrapping the pawn go BEHIND pawns; stone
                              flares and the near half of the arcs go in front. While a response window is open on this cast the hold
                              keeps crackling (max 20 s). CastFX.resolve(results) (from response-window.js announceOutcome): a
@@ -322,6 +346,14 @@ Order matters — later scripts depend on earlier ones.
                              StoneDropFx.burn(x, y): fire destroying a stone (game-core.js fireBurnFx, before removal; replaced
                              the 1.7 s effects-system.js 'fire_effect' sprite): copy chars dark and shrinks, flame tongues, crackle,
                              embers, ~0.75 s. isBurning() also holds bot.js's next action like effectsSystem.isPlaying().
+                             StoneDropFx.transform(x, y, toType): Control the Current (scroll-effects.js transformWaterStone, game-core.js
+                             transformWaterStoneVisually, called before the look changes): water stone swirls away, new stone pops out.
+                             StoneDropFx.combust(cx, cy, stones): Combust (scroll-effects.js destroyStonesOnTile, lobby.js 'stones-destroyed',
+                             before removal): fire wave across the tile, sparks, each stone burns (burn with delay) as the wave reaches it.
+                             Avalanche (2026-10-15): while globalPlacement is up for the placing player (other screens / replays:
+                             StoneDropFx.avalancheBy(player) from lobby.js 'scroll-used' EARTH_SCROLL_5, this turn only), play() runs
+                             avalanche(): growing shadow, pebbles, the stone falls from far up (big to normal), slams (flash, dust rings,
+                             grit, cracks), ripple x1.7 (shared ripple(stone, at, k), also used by the earth drop), then the element's effect.
 20b5. turn-banner.js      <- window.TurnBanner.play(): "Your Turn" banner. A 150 ms watcher sees your turn start in an online
                              game (real seat via BotDriver.driverRealIndex, not placement / replay / save rebuild / fxOn false; a
                              hidden tab waits): three diagonal stripes in your colour sweep in (alternating sides, wind whoosh each),
@@ -336,7 +368,7 @@ Order matters — later scripts depend on earlier ones.
                              of a turn and showed no markers until the pawn was put down again).
 20b7. target-notice.js   <- window.TargetNotice: "You were targeted!" cards (#target-notices, top right, 6 s, click closes) when
                              another player's scroll hits your seat: scroll-plundered, opponent-stone-destroyed (Arson), take-flight
-                             (+ -choose-request), tile-swap / telekinesis-move carrying your pawn (movedPlayers), scroll-countered. Reads
+                             (+ -choose-request from old clients), tile-swap / telekinesis-move carrying your pawn (movedPlayers), scroll-countered. Reads
                              messages, no scroll hooks: wraps broadcastGameAction (outgoing, so a host-driven bot hitting the host
                              counts) and GamePause.note (incoming). Online only, not in replays / save rebuild; duplicates dropped.
                              Also records ActionLog 'targeted' {kind plunder / arson / flight / moved, actor, target, scroll, stone} for
@@ -404,7 +436,7 @@ Order matters — later scripts depend on earlier ones.
 22. bot-sim.js             ← window.BotSim — pure forward model (simulate / legalActions / isTerminal) + validate() harness
 22c. bot-net.js           <- window.BotNet: the bot network (2026-10-13). A small network (50 features -> 8 tanh -> 1) that ADDS a
                              correction to bot.js evaluateSnapshot: chance to win = sigmoid(a * eval/1000 + b + net(features)); a, b fitted
-                             first (the weighted sum alone), the net learns what it misses; correction = net * 1000 / a eval units, max 2000.
+                             first (the weighted sum alone), the net learns what it misses; correction = net * 1000 / a eval units, max net.clip (default 60 since 2026-10-14; was 2000, while one move changes the score by about 2-15).
                              Lives in the weight table: WEIGHTS.net (+ WEIGHTS.netWeight, default 0 = off), so it travels with the champion
                              to every device. Data: position_samples from arena games AND mined real games (replay-viewer.js runMine,
                              source 'mined', key from the moves, the same game from two accounts counts once). Hermit menu "Bot Network":
@@ -425,12 +457,19 @@ Order matters — later scripts depend on earlier ones.
                              Rules (2026-09-27): if(c, a, b), between(x, lo, hi), > < >= <= ==, and / or / not
                              (true = 1); evolution can wrap a formula in if(). Triggers: oppCanWinNextTurn,
                              iCanWinThisTurn, neededShrineBlocked, oppRespondReady. describe() = plain words.
+                             window.FORMULA_INVENTION = false (2026-10-18, owner): mutateTerms never adds / drops / changes formulas (structural
+                             branch off; weight nudges of existing terms stay), idle training makes no 'formula' challengers, Train Bot ignores
+                             opts.formulas / Formula Lab invent (no formulas bonus gold). Formula Lab, Fit Formulas and the Training Lab test still
+                             add formulas on purpose. true = back on.
+                             Simplify inputs (2026-10-14): simplifyUp (my Simplify is up this turn), spareScrolls (held scrolls whose
+                             element is won or whose supply is empty). Formula-only: NET_SKIP keeps them out of the network features
+                             (adding them = FEATURE_VERSION 3, which would switch off every version 2 net).
 23. bot-effects.js         ← window.BotEffects — Stage 2.5 scroll-effect usage: driveSelection() (tile-flip,
                              scorched-earth, tile-swap, Create, Scholar's Insight, Quick Reflexes, Sacrificial
                              Pyre, Inspiring Draught), driveTransmute() (open-ended discard-for-AP modal),
                              decideResponse() (response-scroll respond/pass — both arena and real multiplayer,
                              wired from bot.js and bot-driver.js respectively)
-24. bot.js                 ← window.BotSystem — utility-scored bot + optional lookahead (WEIGHTS.searchDepth, default 0);
+24. bot.js                 ← window.BotSystem: utility-scored bot + lookahead search (WEIGHTS.searchDepth, default 3);
                              No pacing: noBacktrack() (never back onto a hex left this turn until the board changes);
                              intentions: mem.intent keeps the goal a move served, moveCommit makes it sticky.
                              Shift+R = one step, Shift+B = full turn; waitForQuiescence() tries BotEffects
@@ -446,6 +485,10 @@ Order matters — later scripts depend on earlier ones.
                              default 0 = no change): comboKeep (handValue + comboKeep x evalScrollCredit x share of a taught combo's opening
                              pair held, comboPairShare) and comboSeek (scrollPickScore + comboSeek x 100 x how much closer a picked scroll
                              brings the pair). bot-arena.js makeChallenger fills settings missing from the saved champion with defaults.
+                             window.COMBO_MINING = false (2026-10-18, owner): every automatic combo step is off (idle + Train Bot mining of past
+                             games, arena combo watcher, screenings, trial combos, practice duels); true = back on. All taught families are
+                             'off' in combo_flags (get_bot_combos returns 0). Mining also fed real-game positions; those stop too.
+                             WEIGHTS.combosOff === true (2026-10-18, Training Lab test only): activeCombos() returns [] for that table.
                              Trial combos (2026-10-11): WEIGHTS.extraCombos = signatures this bot follows on top of the taught list
                              (activeCombos(); per seat, since setWeights replaces the table); a champion without it clears it on load.
                              Owner strategies (2026-10-11, docs/player-strategies.md): strategyParts / strategyBonus, greedy + search root
@@ -456,11 +499,72 @@ Order matters — later scripts depend on earlier ones.
                              burn = under Burning Motivation a spare stone next to an unvoided fire still pays AP (no placeDoomed), draw-stones
                              scrolls recast, AP room only (cap 5 + void), 6 loops per turn; trap = Mason's Savvy near an opponent whose exits
                              earth can hold, earth on those exits (rangedTargets). BotSystem.strategyStats(). Tested vs champion 16: 98-93-11.
-                             harmChoices also has Shifting Sands on the leader: its lone, stone-free tile swapped to the clean tile farthest from its goal.
+                             harmChoices also has Shifting Sands on the leader: its lone, stone-free tile swapped to the clean tile farthest from its goal,
+                             and Telekinesis (2026-10-15): that tile moved to the free slot farthest from its goal (BotSim.telekinesisSlots);
+                             bot-effects.js driveTelekinesis now moves tiles with one pawn and carries it (window.carryPlayersOnTelekinesisMove).
+                             Breath of Power (2026-10-15, stones within 3 hexes): moveStone scored + moveStoneMakesCast (held scrolls a move makes
+                             castable); BotState snapshot carries the breathOfPower buff (before, the search never saw stone moves).
+                             Keeping scrolls (2026-10-15): discard score adds discardFeeds (-10 x discardFeedScore: each opponent the scroll
+                             would give an element to, 1 + 0.5 per element it has, x1.5 leader; pact partners left out via helpContext
+                             partners), discardHasRoom (-50, voluntary while that area has room), discardEffect (-15, voluntary level 2+);
+                             these are DIAL_KEYS; CAP_KEYS (discardActivated / DeadElement / ResponseOnly) never above default (champion 16
+                             had 92 / 86 / 52). Champion + this vs champion 16: 16-8 in 24 games (2p 9-3, 4p 7-5), ~15% fewer discards.
+                             castNoEffect (-250, DIAL_KEYS): castDoesNothing = a stone-drawing scroll (DRAW_STONE_SCROLLS) that can draw
+                             nothing (supply empty or own pool at POOL_CAP) and has no win credit; such a cast is not progress for the stuck
+                             breaker either (botTurn). Repeat casts that still draw are unaffected. Test hook _castDoesNothing.
+                             Bad move fixes (2026-10-18, each a setting, > 0.5 = on): goalNeedFirst (goal shrines = needed elements first;
+                             hiddenTileOdds: a face-down tile 50%+ likely a needed element is a goal; A/B 19-13-8), planFreeShrine
+                             (deficitCollectibleFor: a shape may not cover the shrine it still collects from; a bot looped place void on
+                             the void shrine centre / break it every turn), riverTrip (reviewRiver: holding a needed element's scroll, short
+                             of its stones, no shrine of it to collect: build Wandering River on a revealed tile with a free centre, turn
+                             that tile into the element, riverCollectStep walks to the centre and ends the turn there).
+                             More (2026-10-18 evening): searchDoomed (search root charges placeDoomed for a stone fire burns at once;
+                             the leaf eval only missed one stone's small value, A/B 20-20-0), stoneShuffleGuard (A/B 19-18-3; stoneShuffle: a Breath of
+                             Power move that makes nothing castable scores -15, moving the same stone again -40, back to where it was -80;
+                             greedy + root), respPost (makePlan respExtra: a level 1 of a needed element in reach is a build target, credit
+                             1, 0.5 when another held scroll gives that element, +0.5 while an opponent has 4+ elements or is one cast from
+                             winning; reviewPlan drops it when the element is won or after RESP_WAIT 3 own turns, then RESP_REST 3). ON (A/B 20-17-3, 47 responses in 40 games). Test trap: bots answer
+                             responses only while BotArena.isRunning() (waitForQuiescence); plain playMatch() lets every window time out.
+                             riverHarm (owner 2026-10-18): harmChoices River = the shrine the leader stands on (it collects there) or a needed
+                             one within 2 steps, then its scarce keyShrines, into riverDudElement (won, never void, or pool full; none = no
+                             attack); riverCollectStep fires it right after a river trip cast while still in the shape (rc.harmTried).
+                             breakAttackShape (owner 2026-10-19): an ActionLog hook remembers where each seat cast an attack scroll
+                             (Take Flight, Shifting Sands, Telekinesis, Arson, Plunder; last 4 spots); while that scroll is still in its
+                             active area or the common area, the stones of that shape (whole only) go in harmContext's `shape` set, any element
+                             (before, only fresh stones of elements the leader still needs): break bonus like `stones`, but never walked to.
+                             A/B with Take Flight in seat 0's hand: first try (one short, walked to) 18-21-1, this one 21-18-1, ON. Test hook _attackShapeStones.
+                             stompGuard (2026-10-19 bad-move report: a bot hid a revealed earth tile and revealed it again, 3 Heavy Stomps a
+                             turn, drawing earth scrolls with earth won; a plan kept making Stomp a draw goal, and plan casts skip scoring):
+                             stompPointless (mirrors bot-effects.js driveTileFlip: a face-down tile of an unknown / needed element to reveal, else
+                             a revealed needed shrine to hide) feeds castDoesNothing, creditableSources skips Stomp as a draw tool when pointless,
+                             Stomp gets the draw cooldown (isDrawTool), a plan cast that does nothing drops the plan (_review.stompDrop);
+                             driveTileFlip reveals a hidden tile of a needed / unknown element first. trapEscape (report: an Avalanche put earth on
+                             all six hexes around a bot, which spent 2 AP on Mason's Savvy and could not pay the 5 AP break, then walled its own
+                             way out): no move and no teleport legal but a break is -> break the stone with the best unblockBonus first (not while
+                             on a shrine it collects from; _review.trapEscape). stompGuard ON (A/B with Heavy Stomp in hand 22-17-1); trapEscape OFF (A/B with
+                             Avalanche in hand 19-21-0, 9 escapes). Test hooks _trapEscape, _stompPointless.
+                             currentPlan (owner 2026-10-19, Control the Current as a wildcard): makePlan currentVariants = a scroll shape
+                             whose cells next to the centre that the bot is short of hold water placeholders (cell.type 'water', cell.alt =
+                             the real element; cellStoneOk accepts either) plus a Control the Current shape at the same centre with no
+                             clash; only for scrolls with no normal shape (normalFor). planNextAction: with 2 + 2 AP at the centre cast
+                             Control the Current, else wait there; bot-effects.js driveWaterTransform and bot-sim.js turn only the
+                             placeholders (BotSystem.ctcTargets(idx)), each into its alt; then cast the scroll. Dropped when Control the
+                             Current leaves reach or the centre cannot be reached. OFF (A/B 19-21-0). Stranding: bot-state.js stepStrands
+                             (and bot-sim.js) now also refuse a step onto a VOID stone or another player's tile unless the AP left
+                             reaches a hex the turn may end on (2026-10-19: a bot ended on a void stone with 0 AP).
+                             No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
+                             covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
+                             castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).
                              Time slicing (2026-10-10): botAct / botActCore / searchPick / rankActions are generators (botActGen, botActCoreGen,
                              searchPickGen, rankActionsGen) that pause at each root candidate, scored action and set-up step; botTurn() runs them with runSliced (8-50 ms slices: as long as the last pause for drawing,
                              setTimeout 0 between) while window.fxOn() and the tab is visible, everything else with runSync (same
                              choices). A turn that moved on during the slices is not acted on.
+                             Skill dials (2026-10-14, docs/bot-systems.md 3.6): DIAL_KEYS (guardKeepAp, leaveResponseReady, l1WaitVoid,
+                             evalScrollResponse, castGuardFetch, evalResponseReady) never below half their default (floorDials, run by
+                             pinSocial on every loaded / applied table). evalResponseReady (20): evaluateSnapshot adds it x responseReadyFactor
+                             (inside my turn, standing in a usable level 1 pattern with the AP to pay; 1.5 needed element, 2 counter while a
+                             player is one cast from winning; patternHereCached = checkPattern cached per stones list). Test hooks:
+                             _review.guardOn / guardTry, _makePlan(snap, opts).
                              Slow decisions: a decision over 1 s becomes a lag-recorder moment with its mode, time per helper
                              (search / MCTS / plan / rank) and board size; the stress test summary lists them.
 24b. bot-memory.js         ← window.BotMemory — episodic "what happened after decisions like this" memory.
@@ -483,8 +587,37 @@ Order matters — later scripts depend on earlier ones.
                              + one term vs champion, BotArena.run), queue for the next Train Bot run (takeQueued() in
                              game-ui.js runHillClimbTraining: each idea = a round-1 challenger; "invent" = hillClimb
                              opts.termMutations). localStorage godaigo_formula_lab.
+24e. formula-fit.js       <- window.FormulaFit: hermit menu "Fit Formulas" (2026-10-18). Tests formulas on the saved positions
+                             (position_samples via BotNet.loadRows), no games: each gets the weight that best predicts the winner on
+                             top of the bot's own score (1-D logistic fit, so the scale is right); games split fit / rank / check;
+                             up to 3 picked by forward selection, checked on the check games. The hermit's Train Bot fits on its own at the start of
+                             every run (forTraining; a set that holds up joins round 1 once per champion + set, localStorage godaigo_fit_trained;
+                             the training window says what it found). Panel: "Queue for Train Bot" (localStorage
+                             godaigo_formula_fit_queued; game-ui.js runHillClimbTraining takeQueued: champion + set joins round 1, once)
+                             and / or "Send to idle training" (a 'formula' challenger).
+                             BotTerms.rowContext / missingInputs read inputs from a saved row (homeCost, myAP, adjacent not saved).
+24f. training-lab.js      <- window.TrainingLab: hermit menu "Training Lab" (2026-10-18, rebuilt the same day for clarity). One place to
+                             see and steer training (Train Bot stays one button). Tabs (last tab kept, localStorage godaigo_training_lab_tab):
+                             Overview = the 4-step flow (ideas, challenger, games, champion) + one card per method (Explore, Formulas, Combos,
+                             Learned from you, Bot network, Checks, Scroll report) with live status and the button that opens it;
+                             Test a change = champion + one change vs champion (BotArena.run, 12/24/48 games, fourPlayerEvery 3): presets combo
+                             drill (stacked deals, see bot-arena.js opts.stack; each deal played twice with seats swapped, one taught combo per
+                             deal, result per combo; combos in plain words: scroll names, element + level, what each does, turn, choice, stacked
+                             tiles; 'Now testing' card while it runs), taught combos on vs off in normal games (bot.js WEIGHTS.combosOff), settings lines `name = value`, formula lines; result + chance it
+                             helps; 'Make it live now' (direct promoted insert, undo in Champions) / 'Send to idle training'; last 8 kept
+                             (localStorage godaigo_training_lab_changes);
+                             Challengers = every idle challenger (diff vs its champion, record, progress to 40, Beta chance it beats its
+                             champion, Reject); Champions = "Test live vs last 3" (BotArena.run 10 games each, result kept in localStorage
+                             godaigo_training_lab_test) + promoted champions with changes and "Make live again" (hermit_restore_champion);
+                             Saved games = counts + meters (Fit Formulas 300 / 1,000, network 2,000 / 5,000). Server: sql/training-lab.sql
+                             (hermit_training_lab, hermit_reject_candidate, hermit_restore_champion). '–' minimizes the Lab to a corner box with
+                             the running test's progress (localStorage godaigo_training_lab_min).
 25. bot-driver.js          ← window.BotDriver — host-only multiplayer bot player ("🤖 Add Bot" lobby button);
                              host's client impersonates the bot's index to drive its turns
+                             Human seats are off limits (2026-10-15): BotEffects.humanSeatActive() (online, not a test game, active seat
+                             not a bot) makes driveSelection and bot.js waitForQuiescence leave every pop-up / choice alone (a late bot
+                             turn clicked the host's own Excavate "Teleport", leaving a hidden pick-a-hex mode that blocked the turn).
+                             Excavate's pick-a-hex mode now has a "Stay Here (no teleport)" button (createCancelButton).
 25a. test-game.js          ← window.TestGame: online test games (sql/test-games.sql). Host ticks "Test game" in the waiting
                              room (game_room.test_mode; Hammer pixel emote badge on room cards, banner for everyone). In a test room each human
                              browser's autopilot plays its own seat (BotSystem.step / turn, BotEffects.decideResponse, Take Flight
@@ -515,7 +648,7 @@ Order matters — later scripts depend on earlier ones.
                              back: round trip, server ack, lost (5 s), plus HTTP ping. Results box with plain-words verdicts
                              (drawing vs bot thinking vs network, late because the screen was busy) + Download report.
 25a4. idle-training.js   <- window.IdleTraining: idle training screensaver (sql/idle-training.sql). Signed in, in the lobby, no input
-                             for 3 min: plays watchable 2-player bot games (challenger vs champion) as an audience view
+                             for 3 min: plays watchable bot games (challenger vs champion; every 3rd pair a 4-player team game) as an audience view
                              (Spectate.showLocal: scoreboard, no follow camera (follow: false), hands hidden; sound off; one game per
                              BotArena.run call, 2 per challenger; after the first 3 games every other one is fast: speed 0.1 with
                              window.__arenaFx = effects kept and waited for (game-core.js fxOn, bot.js waitForQuiescence), ~3.8x faster) for a COMMUNAL "pooled climb":
@@ -573,8 +706,39 @@ Order matters — later scripts depend on earlier ones.
                              BotTerms.features(snap, seat) (48 numbers, FEATURE_VERSION 2: no homeCost (slow path search) or myAP; toCurrent() converts v1 rows) + evaluateSnapshot; at a win / turn cap each row
                              gets result 1 / 0 / 0.5 and progress -> report_positions (max 80 rows per game). Read-only (seed 777 identical).
                              opts.positionLog false = off; BotArena.positionStats(). The combo miner adds real games (js/bot-net.js row).
+                             BotExam (2026-10-14, BotArena.exam, docs/bot-systems.md 3.2): judgeGames(r, rule) = section A (rule 'margin':
+                             decided >= minDecided and win rate >= promoteWinRate; 'even': wins >= losses) and guardRails(challenger, champion,
+                             {puzzle, practice}, state) = sections E / D (block only; a failing check is ignored). hillClimb and screenDueCombo
+                             use it. The champion's puzzle score changes only when every rail passes. Idle verdict: same rule on the server.
+                             Team games (2026-10-14): run / _playSeries opts.fourPlayerEvery k = every k-th pair of games is a 4-player game,
+                             A and B on alternate seats (A on 0 and 2 when aIsPlayer0); a win is still one side's, so win rates and the idle
+                             verdict keep 50%. hillClimb challenger series default 3; idle training 3. Pacts, guard mode and responses only
+                             happen with 3+ players. Test trap: plain playMatch() leaves BotDiplomacy.enabled() false (no run / evolve flag).
+                             Stacked deal opts.stack = { seat, scrolls } (2026-10-18, Training Lab combo drill, the tutorial's trick): the scrolls
+                             are held back from decks / hands / common; each time that seat reveals a tile, game-core.js revealTile calls
+                             window.__arenaStack first, which turns the tile into the next scroll's element and puts the scroll on top of
+                             that deck. Cleared at every game start and after run(). Drill games skip the scroll report.
+                             Test option opts.startScrolls = { seat: [scroll names] } (2026-10-14): those scrolls start in that seat's hand (out of
+                             the decks / common area), so a test can force a rare scroll into every game; run() swaps sides every other game.
+                             Scroll report (2026-10-14, hermit menu "Scroll report"): every arena game with a winner (not drill games) adds, per
+                             scroll, seats that held it (hand / active at any own turn start or end, or cast it) and their wins vs fair share
+                             (1/players), the same for seats that never held it, and how often a held scroll was cast (cast_execute, plus
+                             response_resolved / response_counter by casterIndex). localStorage godaigo_scroll_report; BotArena.scrollReport()
+                             (weakest first: "vs others" = lift minus the average lift), resetScrollReport(), openScrollReport() (+ Play 10 games).
                              hillClimb opts.betweenSeries (awaited before each challenger series): Train Bot mines one past game there every
                              other series (game-ui.js; hermit Replay.mineMatches, others minePooled; window.__trainMine tally in the Combos box).
+                             Live speed (2026-10-15): the training popup's Speed switch holds for the whole Train Bot job (setLiveSpeed sets
+                             _jobSpeed; every run start (startSpeed) re-applies it; game-ui.js runHillClimbTraining clears it before and
+                             after, clearJobSpeed). The popup's "–" button shrinks it to bar + buttons (localStorage godaigo_train_popup_min).
+                             Every training run (run / evolve / hillClimb / confirmAcrossSizes) calls muteEnvironment({keepSound: visual}): no win
+                             screen, end-turn prompt or XP even at Watchable (a win screen mid-run ended the run when closed). Extreme = MUTED_SPEED
+                             (0.02) also after a live switch (was 0.1: a Watchable run switched to Extreme played ~2x slower per turn).
+                             Training cleanup (2026-10-18, owner): Train Bot's final test is game-ui.js finalTestHeadToHead (new bot vs champion
+                             in seat-swapped pairs, every 3rd pair 4 players, until 40 decided games, max 60; pass = 58%+, the idle server rule;
+                             early stop at 24 wins / 17 losses; gold tiers 70% / 63% / pass) instead of confirmAcrossSizes' fitness across 2-5
+                             players. No puzzle check, no automatic Fit Formulas (only a set queued by hand). Hermit Focus: Training / Explore
+                             only (opts.pure: no Formula Lab queue, fitted set or learned adjustments); mining choices and the Formulas row hidden
+                             while COMBO_MINING / FORMULA_INVENTION are off.
                              One-click Train Bot (2026-10-13): players see only Length + Speed; game-ui.js autoTrainChoices() picks Explore /
                              Formulas / Anchor per run (localStorage godaigo_train_runs). The hermit panel keeps every row:
                              Train Bot menu "Focus:" (localStorage godaigo_train_focus): Training + mining (default) / Training only (opts.mine false) /
@@ -618,12 +782,35 @@ Order matters — later scripts depend on earlier ones.
                              an idling browser with deltas makes an 'imitation' challenger that must win like any other, and Train Bot
                              (game-ui.js runHillClimbTraining) adds champion + deltas as a round-1 challenger once per set of
                              deltas and champion (localStorage godaigo_imitation_trained = hash).
+                             Saved to the account (2026-10-18, sql/imitation-sync.sql, applied): table bot_imitation_state (deltas, enabled),
+                             hermit-only RPCs my_imitation_state / save_imitation_state. Every 3 s until synced: at sign-in the newer copy wins
+                             (account or this browser, localStorage godaigo_bot_weight_deltas_at); every change is pushed 3 s later; never in
+                             replay pages. Before this, learning lived in one browser only and was lost elsewhere.
                              Cost (2026-10-08): it ranks once per board change (stateVersion bumped by every ActionLog entry), not
                              every 300 ms (a full ranking late in a game took 1-5 s, so the hermit's own turn froze for minutes);
                              after a ranking over 150 ms it waits 4x that long. Time shows as learnMs in the lag recorder.
+                             Sliced (2026-10-15): rank + searchPick run in time slices (BotSystem.rankSliced / searchPickSliced),
+                             dropped if the board changes meanwhile; Seed the Skies made the hermit's turn stutter (166 ms blocks -> ~25-50 ms).
 28. game-log-ui.js         ← Player-facing readable "Game Log" panel (#game-log-panel, left side), built
                              from ActionLog.onRecord() — colour-coded, collapses movement, never shows
                              discardScroll or anything else that would reveal another player's hand
+28a. bad-move.js          <- window.BadMove: hermit-only '⚑ Bad move' button (bottom left, in a game or while BotArena runs) and Shift+K
+                             (2026-10-18). A prompt (stops the page, so no bot acts) asks for a note, then one JSON downloads: note, version,
+                             where (training run / online / local), turn, active seat, training game (window.__arenaMatch from bot-arena.js
+                             _playMatchOnce: seed, players, each seat's weights without net, stack), challenger seat, BotState.snapshot,
+                             BotMind.last (only when Bot Mind is on), active weights, last 20 actions and this game's ActionLog from its gameStart
+                             (max 6,000). Nothing is sent anywhere; the file is for reading with Claude.
+28b. scroll-move-fx.js     <- window.ScrollMoveFx: scroll move animation (2026-10-15). Every 50 ms compares where each scroll is
+                             (each player's hand / active, the common area); a scroll that changed place (any player, any cause) flies
+                             as a chip with its name in its colors, on an arc, from its old spot to its new one (own panels Hand / Active /
+                             Common, other players' rows in Opponent Status, dock buttons when a panel is closed), then the spot glows.
+                             Name shown when the move touches active / common or your own hand, else a face-down chip. No game hooks.
+                             The scroll stays hidden at its new place until the chip lands (style rule #smf-hide).
+                             A scroll that vanishes and shows up elsewhere within 2 s also flies (other players' moves come as two messages).
+                             Opponent Status (game-ui.js updateOpponentPanel) shows Hand / Active as compact rows like the player's own
+                             collapsed panels (.opp-scroll-list[data-area], dot + name + element · level; another player's hand face down).
+                             Since 2026-10-15 it lists only the OTHER players (a spectator sees all) and has an expander corner (scroll-panels.js
+                             createPanel opts.expander: visible ⤡ button, dragging sets your size and turns auto-fit off, double-click fits again).
 29. thehermit.js           ← window.TheHermit — dev tool, drag-to-reorder editor for the dock-bar/hud-bar
                              buttons and indicators (Shift+H, or the cheat-panel button); persists the
                              chosen order to localStorage and exports it as JSON for hardcoding back in
@@ -635,6 +822,10 @@ Order matters — later scripts depend on earlier ones.
                              Train Bot) and, under 760 px, the game list stacks. All CSS scoped to html.ui-fit-on.
                              Measured 2026-10-03: off = 1366 wide loses timer / Pause / E C S / End Turn off screen; on = nothing
                              off screen at 1920 / 1366 / 1024 / 800 / 390.
+                             Never re-fits while the pointer is over a bar or a button is held (deferred until it leaves);
+                             checks every 250 ms incl. the End Turn label length (2026-10-15: a late re-fit moved End Turn
+                             mid-press and the click was lost). game-ui.js keepButtonPress: bar buttons keep the press
+                             (setPointerCapture), so a button that moves while held (pressed look 3 px, re-fit) still clicks.
 30. asset-preloader.js     ← window.AssetPreloader — background-loads in-game art + sounds after the intro;
                              shows a loading bar over the board if a match starts before it's done
                              Also window.LazyScripts.load('tutorial'|'bot-arena'|'matter'|'plinko-sim'): loads #18/#26 on idle after
@@ -694,7 +885,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `combo_screens` | bot-arena.js screenDueCombo | Gate 2 screenings (sql/combo-screening.sql, applied 2026-10-11): signature, champion, record, passed. `combo_screen_due()`, `report_combo_screen(sig, champion, w, l, d)` (first per combo + champion counts, 20 per account per day), `_combo_gate1(champion)` (found in 5+ games), `idle_trial_combo()` now needs a passed screening. `report_bot_combos(..., p_game)` stores `bot_combo_finds.game_key`. |
 | `combo_train_trials` | game-ui.js (Train Bot) | Train Bot trial combos (sql/combo-train-trials.sql, applied 2026-10-11): signature, champion, user, won (null = started or stopped). `report_combo_trial(sig, won)`: won null at round 1 (only the combo `idle_trial_combo()` names, 10 per account per day), true / false when the climb ends (localStorage godaigo_trial_combo_pending carries it across a continue). `_combo_gate1` leaves out combos tried here against the current champion. |
 | (combo families) | server | `_combo_family(sig)` = the first 2 scrolls cast, in order, no choices / turns / reveals / breaks (sql/combo-families.sql, applied 2026-10-12). Teaching (`get_bot_combos`: one row per family, best example signature), gate 1, screenings, trials, practice spots and both hermit summaries count by family. |
-| `position_samples` | bot-arena.js, replay-viewer.js (miner), bot-net.js | Positions from bot arena games for the bot network (sql/position-samples.sql, applied 2026-10-13): features real[] (js/bot-terms.js FEATURE_NAMES, version), eval (weighted sum), result (1 / 0 / 0.5), progress, seat, turn, n_players, source, game_key. RLS on, no client policies: `report_positions(rows, source, game, players, version)` (80 rows per call, 6000 per account per day, same game once per account, rows older than 90 days deleted), hermit `hermit_position_samples(after_id, limit)` and `hermit_position_summary()`. |
+| `position_samples` | bot-arena.js, replay-viewer.js (miner), bot-net.js, training-lab.js | Positions from bot arena games for the bot network (sql/position-samples.sql, applied 2026-10-13): features real[] (js/bot-terms.js FEATURE_NAMES, version), eval (weighted sum), result (1 / 0 / 0.5), progress, seat, turn, n_players, source, game_key. RLS on, no client policies: `report_positions(rows, source, game, players, version)` (80 rows per call, 6000 per account per day, same game once per account, rows older than 90 days deleted), hermit `hermit_position_samples(after_id, limit)` and `hermit_position_summary()`. |
 | `combo_flags` | replay-viewer.js (Combos tab) | Hermit override per combo FAMILY (set on a signature, matched by `_combo_family`): `on` / `off` (no row = auto). RLS on, no client policies; `hermit_set_combo_state`, public `get_bot_combos()` (taught combos: signature, times, score) (sql/combo-teach.sql). |
 | `featured_replay` | replay-viewer.js | One row: the hermit's featured match for the lobby button. RLS on, no client policies: `hermit_set_featured_match(id or null)`, `get_featured_match()` (sql/featured-replay.sql). |
 | `friend_links` / `friend_invites` | social.js | Friends (requester, addressee, pending/accepted) and room invites. RLS on, no client policies; RPCs `send_friend_request(p_user or p_name)`, `respond_friend_request`, `remove_friend`, `my_friends`, `send_game_invite` (friends, or anyone you shared a game with in the last 3 h; from your waiting room, 1 per friend per 20 s, 5/min), `my_recent_players` (sql/recent-players.sql), `my_game_invites`, `dismiss_game_invite`, `get_player_card(uid)`; `user_profiles.last_seen_at` / `hide_online` via `touch_last_seen` / `set_hide_online` (sql/friends.sql). |
@@ -718,6 +909,7 @@ Full list: see `js/INDEX.md § Window Globals`.
 | `account_recovery` | edge fn account-recovery | Optional recovery email per account (+ verified flag, confirm token hash). RLS on, NO client policies; client only uses RPCs `my_recovery_email()` / `remove_my_recovery_email()`. `sql/account-recovery.sql` |
 | `mailing_list` | lobby.js register form, account-recovery.js settings | Opt-in for human-written news emails (max once a month, sent by hand). RLS on, no client policies: `set_mailing_list(bool)`, `my_mailing_list()`, hermit-only `hermit_mailing_list()` (opted in AND confirmed recovery email; address from `account_recovery`). sql/mailing-list.sql |
 | `recovery_email_log` | edge fn account-recovery | One row per email sent, for rate limits (2/account/hour, 3/address/day, 90/day total). Server only. |
+| `bot_imitation_state` | bot-imitation.js | Learn from my play, per account (sql/imitation-sync.sql, applied 2026-10-18): deltas jsonb (numbers only, max 20,000 chars), enabled, updated_at. RLS on, no client policies: hermit-only `my_imitation_state()`, `save_imitation_state(deltas, enabled)`. |
 | `bot_champion_weights` | bot.js, game-ui.js, lobby.js | THE single shared bot brain - append-only submission log. The CURRENT champion is the newest row with `promoted = true` (`order by promoted desc, created_at desc`, sql/champion-promoted.sql, 2026-09-27); `win_rate` is only that row's own confirm record and is NOT comparable between rows. Auto-applied on load (bot.js); the auth-bar "Train Bot" button (hillclimb) inserts a promoted row + pays gold on a confirmed win (game-ui.js `runHillClimbTraining`). |
 | `deployed_bots` | bot-elements.js, lobby.js, gamification-ui.js | Now holds SIX system-owned rows (`owner IS NULL`): the five elemental bots (`sql/elemental-bots-seed.sql`, nicknames Terran Sentinel / Tidewarden / Emberkin / Galewalker / The Void Knight) and **Twitchbot** (id 12, sql/stream-games.sql): every chat-steered bot seat in a stream game ("Twitchbot (Emberkin)") is this one ladder bot. Client READ-only (public SELECT); ids resolved by nickname at runtime. `ladder.bot_id` FKs here. The old Bot Tycoon leftovers (`captured_bots`, `void_knight`, `user_profiles.capture_stones`, `deployed_bots.captured_bot_id`, `record_deployed_bot_result`) were dropped by `sql/drop-bot-tycoon.sql` (applied 2026-10-13). |
 

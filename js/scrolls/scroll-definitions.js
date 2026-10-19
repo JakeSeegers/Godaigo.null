@@ -88,7 +88,7 @@ const FIRE_SCROLL_EFFECTS = {
 const VOID_SCROLL_EFFECTS = {
     1: { name: 'Psychic', description: "Counter the previous scroll, then play it during your turn - unless its caster pays 2 AP to negate Psychic. Move Psychic to the common area.", isCounter: true, oncePerTurn: true },
     2: { name: 'Telekinesis', description: 'Move a tile that has no stones on it. If one player is on the tile, they move to its center. Cannot move a tile with multiple players on it. It must be touching 1 other tile. Cannot move a tile if it would strand an adjacent tile.' },
-    3: { name: 'Simplify', description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn.' },
+    3: { name: 'Simplify', description: 'Scrolls cost 1 AP for you to activate until the beginning of your next turn. Until then, regain 2 AP every time a scroll is added to the common area. Stacks if activated multiple times.' },
     4: { name: "Scholar's Insight", description: 'Search through a Scroll Deck and add a scroll of your choice to your hand. Shuffle that deck afterwards.' },
     5: { name: 'Create', description: 'Choose a stone type and draw stones equal to that stone\'s rank (Earth 5, Water 4, Fire 3, Wind 2, Void 1). Cannot exceed 5 of that type.' }
 };
@@ -96,9 +96,9 @@ const VOID_SCROLL_EFFECTS = {
 // Wind scroll effect definitions
 const WIND_SCROLL_EFFECTS = {
     1: { name: 'Sigh of Recollection', description: 'Draw a scroll and a stone of the type that was just activated, if available. Draw one stone of each if it was a Catacomb scroll.', isResponse: true, oncePerTurn: true },
-    2: { name: 'Breath of Power', description: 'Until end of turn, you may move adjacent stones to another adjacent empty space.' },
+    2: { name: 'Breath of Power', description: 'Until end of turn, you may pick up stones within 3 hexes of your pawn and move them to an empty space within 3 hexes.' },
     3: { name: 'Respirate', description: 'Draw 3 wind stones. At end of turn, return all your wind stones to the source pools.' },
-    4: { name: 'Take Flight', description: "Select a player to teleport. If you target yourself, you choose where to land; if you target another player, they choose instead. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists." },
+    4: { name: 'Take Flight', description: "Select a player to teleport. You choose where they land. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists." },
     5: { name: 'Freedom', description: 'Until your next turn, you may teleport for free between elemental shrine centers, the same way a catacomb tile lets you teleport (only applies to you).' }
 };
 

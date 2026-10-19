@@ -24,6 +24,7 @@
     const ELEMENTS = ['earth', 'water', 'fire', 'wind', 'void'];
     const HEX_NEAR = 5;   // px — "same hex" threshold (matches game-core usage)
     const HEX_STEP = 40;  // px — "adjacent hex" threshold
+    const MOVE_STONE_CAP = 60; // Breath of Power moves listed per board (BotSim has the same)
 
     function log(...args) { console.log('🧠 [BotState]', ...args); }
 
@@ -49,13 +50,16 @@
         // Mason's Savvy: earth stones within `range` hexes (bot-sim earthRange).
         if (mine(raw.earthExtendedPlacement)) out.earthRange = raw.earthExtendedPlacement.range || 5;
         if (mine(raw.respirateWind)) out.respirateWind = true;
-        if (mine(raw.simplify)) out.simplify = true;
+        if (mine(raw.simplify)) out.simplify = raw.simplify.stacks || 1; // stacks (2 AP each per common-area scroll)
         if (mine(raw.mine)) out.mineShrineType = raw.mine.shrineType;
         if (mine(raw.steamVents)) out.steamVentsBanked = !!raw.steamVents.freeStepBanked;
         if (mine(raw.mudslide)) out.mudslide = true;
         if (mine(raw.reflectingPool)) out.reflectingPool = true;
         // Call to Adventure: reveals pay shrine stones this turn (bot.js strategyParts)
         if (mine(raw.callToAdventure)) out.callToAdventure = true;
+        // Breath of Power: stone moves this turn (bot-sim reads breathOfPower.playerIndex;
+        // missing before 2026-10-15, so the search never saw stone moves on a fresh board)
+        if (mine(raw.breathOfPower)) out.breathOfPower = { playerIndex: activePlayerIndex };
         return Object.keys(out).length ? out : undefined;
     }
 
@@ -179,15 +183,19 @@
     // Hex grid + Dijkstra cheapest path (stone terrain changes step costs).
     // ----------------------------------------------------------------
     let _grid = null, _gridKey = '';
-    // A step onto a non-void stone is only allowed when the AP left after it
-    // still reaches a hex the turn may end on (owner 2026-10-10: a bot walked
-    // onto an earth stone with its last AP, and the stranded rule then let it
-    // end the turn there; a human's move can never end on such a stone).
+    // A step onto a stone (or another player's tile) is only allowed when the
+    // AP left after it still reaches a hex the turn may end on (owner
+    // 2026-10-10: a bot walked onto an earth stone with its last AP, and the
+    // stranded rule then let it end the turn there; a human's move can never
+    // end on such a stone). Void stones count too (2026-10-19: a bot ended on
+    // a void stone the same way; ending the turn on any stone is banned).
     // Looks up to 3 more steps ahead (wind stones are free to cross).
     // Uses the path finder's cached neighbour lists and step costs, so it is
     // cheap enough to run for every move the bot considers.
     function stepStrands(h, apLeft) {
-        const restStone = (x, y) => placedStones.some(s => s.type !== 'void' && Math.hypot(s.x - x, s.y - y) < HEX_NEAR);
+        const restStone = (x, y) => placedStones.some(s => Math.hypot(s.x - x, s.y - y) < HEX_NEAR) ||
+            placedTiles.some(t => t.isPlayerTile && t.playerIndex !== null && t.playerIndex !== undefined &&
+                t.playerIndex !== activePlayerIndex && Math.hypot(t.x - x, t.y - y) < TILE_SIZE * 4);
         if (!restStone(h.x, h.y)) return false;
         const start = nearestHex(h.x, h.y);
         if (!start) return false;
@@ -641,28 +649,32 @@
             }
         }
 
-        // ── moveStone: Breath of Power (WIND_SCROLL_2): move any stone
-        // adjacent to the pawn onto a DIFFERENT, currently-empty in-range
-        // hex, free, repeatable all turn. hasWindStoneMove() is the exact
-        // same gate game-core.js's stone mousedown handlers check before
-        // allowing a drag; there is no selectionMode/modal here (unlike
-        // Control the Current), so this is a genuine elective action rather
-        // than something driven automatically — see game-core.js's
-        // moveStoneTo() (added alongside this) for the completion. Not
-        // gated by `onStone`: startStoneDrag() itself never checks
-        // isPlayerRestingOnStone, only stone adjacency.
-        if (window.spellSystem?.scrollEffects?.hasWindStoneMove?.(activePlayerIndex)) {
+        // ── moveStone: Breath of Power (WIND_SCROLL_2, owner 2026-10-15):
+        // move any stone within BREATH_RANGE (3) hexes of the pawn onto a
+        // DIFFERENT empty hex within that range, free, repeatable all turn.
+        // hasWindStoneMove() is the same gate game-core.js's stone mousedown
+        // handlers check; window.inBreathRange is the range rule they use.
+        // To keep the list small, only spots next to another stone or next to
+        // the pawn (where a move builds a pattern or clears a step), max
+        // MOVE_STONE_CAP. BotSim.legalActions mirrors this.
+        if (window.spellSystem?.scrollEffects?.hasWindStoneMove?.(activePlayerIndex) &&
+            typeof window.inBreathRange === 'function') {
             const grid = hexGrid();
+            const near = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < HEX_STEP;
+            let n = 0;
             for (const s of placedStones) {
-                const dFromPlayer = Math.hypot(s.x - player.x, s.y - player.y);
-                if (dFromPlayer <= HEX_NEAR || dFromPlayer >= HEX_STEP) continue;
+                if (n >= MOVE_STONE_CAP) break;
+                if (!window.inBreathRange(s.x, s.y)) continue;
                 for (const h of grid) {
+                    if (n >= MOVE_STONE_CAP) break;
                     if (Math.hypot(h.x - s.x, h.y - s.y) < HEX_NEAR) continue; // must actually move
-                    if (typeof isInPlacementRange === 'function' && !isInPlacementRange(h.x, h.y, s.type)) continue;
+                    if (!window.inBreathRange(h.x, h.y)) continue;
+                    if (!near(h, player) && !placedStones.some(o => o !== s && near(o, h))) continue;
                     if (typeof isPositionOnFlippedTile === 'function' && isPositionOnFlippedTile(h.x, h.y, grid)) continue;
                     if (placedStones.some(o => o !== s && Math.hypot(o.x - h.x, o.y - h.y) < HEX_NEAR)) continue;
                     if (playerPositions.some(p => p && Math.hypot(p.x - h.x, p.y - h.y) < HEX_NEAR)) continue;
                     actions.push({ type: 'moveStone', fromX: s.x, fromY: s.y, toX: h.x, toY: h.y, stoneType: s.type });
+                    n++;
                 }
             }
         }
@@ -965,8 +977,9 @@
                 if (!stone) return { ok: false, reason: 'stone not found at source' };
                 const player = playerPositions[activePlayerIndex];
                 if (!player) return { ok: false, reason: 'pawn not found' };
-                const d = Math.hypot(stone.x - player.x, stone.y - player.y);
-                if (d <= HEX_NEAR || d >= HEX_STEP) return { ok: false, reason: 'stone not adjacent to pawn' };
+                if (typeof window.inBreathRange !== 'function' || !window.inBreathRange(stone.x, stone.y)) {
+                    return { ok: false, reason: 'stone not within Breath of Power range' };
+                }
                 if (!window.spellSystem?.scrollEffects?.hasWindStoneMove?.(activePlayerIndex)) {
                     return { ok: false, reason: 'Breath of Power not active' };
                 }
@@ -979,8 +992,8 @@
                 if (playerPositions.some(p => p && Math.hypot(p.x - a.toX, p.y - a.toY) < HEX_NEAR)) {
                     return { ok: false, reason: 'destination occupied by a pawn' };
                 }
-                if (typeof isInPlacementRange === 'function' && !isInPlacementRange(a.toX, a.toY, stone.type)) {
-                    return { ok: false, reason: 'out of placement range' };
+                if (!window.inBreathRange(a.toX, a.toY)) {
+                    return { ok: false, reason: 'out of Breath of Power range' };
                 }
                 if (typeof isPositionOnFlippedTile === 'function' && isPositionOnFlippedTile(a.toX, a.toY, hexGrid())) {
                     return { ok: false, reason: 'cannot move onto a face-down tile' };

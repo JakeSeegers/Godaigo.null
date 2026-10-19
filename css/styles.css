@@ -1181,6 +1181,87 @@ body {
     white-space: nowrap;
 }
 
+/* Opponent Status Hand / Active lists (owner 2026-10-15): the same rows as
+   the player's own collapsed Hand / Active panels (.fsp-compact-row: dot,
+   name, element · level). Another player's hand rows are face down. */
+.opp-row.opp-row-list {
+    grid-template-columns: 1fr;
+    gap: 2px;
+}
+.opp-scroll-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    width: 100%;
+}
+.opp-scroll-list .opp-scroll-row,
+.opp-scroll-list .opponent-scroll-card {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 6px;
+    border: none;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--bg-panel, #1d1831) 45%, transparent);
+    max-width: 100%;
+    min-width: 0;
+}
+.opp-scroll-list .opponent-scroll-card { cursor: help; }
+.opp-scroll-list .opponent-scroll-card:hover { background: rgba(255,255,255,0.08); border: none; }
+.opp-scroll-row .fsp-compact-dot { align-self: center; }
+.opp-scroll-row .opponent-scroll-name {
+    font-size: 14px;
+    color: #eee;
+    flex-shrink: 0;      /* the name keeps its room, the element / level text gives way */
+    max-width: 75%;
+}
+.opp-scroll-hidden .opponent-scroll-name { color: #9a9aa8; font-style: italic; }
+.opp-scroll-meta {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: #999;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+/* the flying scroll chip (js/scroll-move-fx.js) */
+.smf-chip {
+    position: fixed;
+    z-index: 9000;
+    pointer-events: none;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 4px 10px 4px 8px;
+    background: color-mix(in srgb, #15121f 92%, transparent);
+    border: 1px solid var(--smf-color, #888);
+    border-radius: 4px;
+    box-shadow: 0 0 10px 1px color-mix(in srgb, var(--smf-color, #888) 70%, transparent), 0 4px 14px rgba(0,0,0,0.6);
+    white-space: nowrap;
+    will-change: transform, opacity;
+}
+.smf-chip::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 3px;
+    border-radius: 4px 4px 0 0;
+    background: var(--smf-grad, var(--smf-color, #888));
+}
+.smf-trail { filter: blur(1px); box-shadow: none; }
+.smf-dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; flex-shrink: 0; }
+.smf-name { font-family: var(--font-terminal); font-size: 15px; }
+.smf-meta { font-family: var(--font-sans); font-size: 11px; color: #aaa; }
+/* a scroll that just landed here (js/scroll-move-fx.js) */
+.smf-landed { animation: smf-landed 0.6s ease-out; }
+@keyframes smf-landed {
+    0%   { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+    25%  { box-shadow: 0 0 0 2px var(--smf-color, #fff), 0 0 14px 2px var(--smf-color, #fff); filter: brightness(1.5); }
+    100% { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+}
+
 /* PlayerFlash (js/game-ui.js): a short glow in the player's color on their
    pawn, player shrine and Opponent Status card. */
 .player-flash { animation: player-flash 1.3s ease-out; }
@@ -4160,6 +4241,24 @@ label, .hud-ap-label, .hud-ap-value {
     );
 }
 .fsp-resize-handle:hover { opacity: 0.9; }
+/* Opponent Status: a visible expander button in the corner (scroll-panels.js opts.expander) */
+.fsp-resize-handle.fsp-expander {
+    width: 18px;
+    height: 18px;
+    right: 3px;
+    bottom: 3px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 4px;
+    color: rgba(255,255,255,0.75);
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+    opacity: 0.7;
+    user-select: none;
+    z-index: 2;
+}
+.fsp-resize-handle.fsp-expander:hover { opacity: 1; background: rgba(255,255,255,0.18); }
 
 
 /* ---- Scroll card ---- */
@@ -4280,20 +4379,20 @@ label, .hud-ap-label, .hud-ap-value {
     margin-top: 0 !important;
 }
 
-/* Action buttons — stacked vertically, pinned to the bottom of the card */
+/* Action buttons, stacked vertically, right under the header (owner 2026-10-18:
+   top of the card / hover window, not the bottom; a little bigger) */
 .fsp-card-actions {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 0 9px 8px;
-    margin-top: auto;   /* pushes buttons to bottom regardless of content height above */
+    gap: 5px;
+    padding: 4px 9px 6px;
 }
 
 .fsp-card-btn {
     font-family: var(--font-sans);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 500;
-    padding: 4px 9px;
+    padding: 5px 10px;
     border-radius: 4px;
     border: 1px solid rgba(148,88,244,0.35);
     background: rgba(148,88,244,0.15);
@@ -4402,6 +4501,14 @@ label, .hud-ap-label, .hud-ap-value {
 .fsp-card-preview .fsp-card-header {
     padding: 18px 20px 12px;
     gap: 12px;
+}
+.fsp-card-preview .fsp-card-actions {
+    padding: 2px 20px 12px;
+    gap: 6px;
+}
+.fsp-card-preview .fsp-card-btn {
+    font-size: 13px;
+    padding: 8px 12px;
 }
 .fsp-card-preview .fsp-card-icon {
     width: 36px;
@@ -5228,3 +5335,120 @@ html.idle-clean body > *:not(#game-layout):not(#parallax-bg):not(iframe):not(scr
     display: none !important;
 }
 html.idle-clean .game-layout.active { grid-template-rows: 1fr; grid-template-areas: "board"; }
+
+/* A tile being carried (js/piece-3d.js, Telekinesis / your start tile): lifted look */
+#viewport g.ghost-tile.tile-carried {
+    transform-box: fill-box;
+    transform-origin: center;
+    scale: 1.06;
+    filter: drop-shadow(0 14px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* ============================================
+   PLAYER TINT (owner 2026-10-18)
+   js/scroll-panels.js _initPlayerTint sets --pc to the viewer's seat colour and
+   html.pc-on while in a game. Subtle: tints backgrounds, borders and accents
+   only; text keeps its own colours so it stays readable on every seat colour.
+   ============================================ */
+html.pc-on .fsp {
+    border-color: color-mix(in srgb, var(--pc) 30%, rgba(255,255,255,0.10));
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px color-mix(in srgb, var(--pc) 14%, transparent);
+}
+html.pc-on .fsp:hover {
+    box-shadow: 0 12px 40px rgba(0,0,0,0.8), 0 0 0 1px color-mix(in srgb, var(--pc) 32%, transparent);
+}
+html.pc-on .fsp-header {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--pc) 16%, transparent), color-mix(in srgb, var(--pc) 4%, transparent));
+    border-bottom-color: color-mix(in srgb, var(--pc) 35%, transparent);
+}
+html.pc-on .fsp-header:not(.fsp-over-capacity) {
+    box-shadow: inset 0 2px 0 color-mix(in srgb, var(--pc) 55%, transparent);
+}
+/* A slightly fuller, tinted body (was 45% plain panel colour): easier to read over the board */
+html.pc-on .fsp-body,
+html.pc-on .fsp-compact {
+    background: color-mix(in srgb, color-mix(in srgb, var(--bg-panel, #1d1831) 86%, var(--pc)) 58%, transparent);
+}
+html.pc-on .fsp-compact-row:hover { background: color-mix(in srgb, var(--pc) 16%, transparent); }
+html.pc-on .fsp-card-btn:not(.fsp-card-btn-alt):not(.fsp-cast-dim):not(.fsp-cast-ready) {
+    background: color-mix(in srgb, var(--pc) 20%, transparent);
+    border-color: color-mix(in srgb, var(--pc) 50%, transparent);
+    color: #f0eaff;
+}
+html.pc-on .fsp-card-btn:not(.fsp-card-btn-alt):not(.fsp-cast-dim):not(.fsp-cast-ready):hover {
+    background: color-mix(in srgb, var(--pc) 36%, transparent);
+    border-color: color-mix(in srgb, var(--pc) 75%, transparent);
+}
+html.pc-on .fsp-card-preview {
+    border-top: 2px solid color-mix(in srgb, var(--pc) 55%, transparent);
+}
+html.pc-on .hud-bar {
+    background: linear-gradient(180deg, var(--bg-panel), color-mix(in srgb, var(--bg-panel) 90%, var(--pc)));
+    border-bottom-color: color-mix(in srgb, var(--pc) 45%, var(--border-subtle, #333));
+}
+html.pc-on .dock-bar {
+    background: linear-gradient(0deg, var(--bg-panel), color-mix(in srgb, var(--bg-panel) 90%, var(--pc)));
+    border-top-color: color-mix(in srgb, var(--pc) 45%, var(--border-subtle, #333));
+}
+
+/* =========================================================================
+   PLAYER TILE ART (owner 2026-10-19, js/player-tile-art.js)
+   Deep player-colour tile (--pt-bg / --pt-bg2 / --pt-grid set on the tile),
+   dark line art in the player's colour, black rosette on the centre hex,
+   win-progress stones (looks only, glass beads via piece-3d.js), the return
+   beam. Never-ending animations: only the all-five pulse (.pt-complete.pt-anim)
+   and the beam shimmer.
+   ========================================================================= */
+.placed-tile[data-player-tile] .hex-tile:not(.empty-center) {
+    fill: var(--pt-bg, #8b7355);
+    stroke: var(--pt-grid, #1b2a35);
+}
+.placed-tile[data-player-tile] .hex-tile.center-hex { fill: var(--pt-bg2, #8b7355); }
+.placed-tile[data-player-tile] .player-tile-tint { display: none; }
+.player-tile-element-symbols .pt-line {
+    fill: none;
+    stroke: var(--pt-line, #222);
+    stroke-width: 0.8;
+    stroke-opacity: 0.9;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+.player-tile-element-symbols .pt-line.pt-thin { stroke-width: 0.5; stroke-opacity: 0.8; }
+.player-tile-element-symbols .pt-line.pt-dash { stroke-dasharray: 3 2.2; }
+.player-tile-element-symbols .pt-line.pt-dots { stroke-dasharray: 0.1 2.4; stroke-width: 1.1; }
+.player-tile-element-symbols .pt-ink {
+    fill: none;
+    stroke: #050507;
+    stroke-width: 0.55;
+    stroke-opacity: 0.9;
+}
+.player-tile-element-symbols .pt-ink.pt-fine { stroke-width: 0.35; }
+.player-tile-element-symbols .pt-ink.pt-dash { stroke-dasharray: 1.2 1.6; }
+.player-tile-element-symbols .pt-socket {
+    fill: rgba(0, 0, 0, 0.32);
+    stroke-width: 0.8;
+}
+.player-tile-element-symbols .pt-glow,
+.player-tile-element-symbols .pt-flash { opacity: 0; }
+.player-tile-element-symbols .pt-flash { fill: #fff; }
+/* not won yet: a faint, see-through stone */
+.player-tile-element-symbols .pt-stone:not(.on) .pt-bead { opacity: 0.32; }
+/* won: solid, with a soft glow */
+.player-tile-element-symbols .pt-stone.on .pt-glow { opacity: 0.35; }
+.player-tile-element-symbols .pt-stone.on .pt-socket { opacity: 0; }
+/* all five: the line art lights up, every stone pulses brighter */
+.player-tile-element-symbols.pt-complete .pt-line { stroke: var(--pt-lit, #ddd); stroke-opacity: 0.7; }
+.player-tile-element-symbols.pt-complete .pt-stone .pt-glow { opacity: 0.9; }
+.player-tile-element-symbols.pt-complete.pt-anim .pt-stone .pt-glow { animation: pt-pulse 1.6s ease-in-out infinite; }
+.player-tile-element-symbols.pt-complete.pt-anim .pt-stone .pt-flash { animation: pt-shine 1.6s ease-in-out infinite; }
+@keyframes pt-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes pt-shine { 0%, 100% { opacity: 0; } 50% { opacity: 0.3; } }
+/* the return beam: subtle, a slow shimmer */
+.pt-fx-layer .pt-beam { opacity: 0.7; }
+.pt-fx-layer .pt-beam-core { animation: pt-beam-shimmer 2.4s ease-in-out infinite; }
+@keyframes pt-beam-shimmer { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.95; } }
+@media (prefers-reduced-motion: reduce) {
+    .player-tile-element-symbols .pt-glow,
+    .player-tile-element-symbols .pt-flash,
+    .pt-fx-layer .pt-beam-core { animation: none !important; }
+}

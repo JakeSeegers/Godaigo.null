@@ -25,7 +25,13 @@
     'use strict';
 
     const HIDDEN = 8;
-    const CLIP = 2000;          // max correction in eval units
+    // Max correction in eval units (owner 2026-10-14: smaller limit). One move
+    // changes the weighted sum by about 2-15 points, so a limit of 2000 let the
+    // net overrule every move choice. A net carries its own limit (net.clip);
+    // older nets without one use this default.
+    // Tested 2026-10-14 (30 games each vs the champion): 5 -> 13-15-2, 20 -> 13-15-2,
+    // 60 -> 16-13-1, 2000 -> 4-14-2.
+    const CLIP = 60;
     const EV_SCALE = 1000;      // eval / 1000 goes into the baseline
     const EV_CLIP = 20;
     const sigmoid = z => 1 / (1 + Math.exp(-z));
@@ -59,7 +65,8 @@
         const f = window.BotTerms.features(snap, i);
         if (!f || f.length !== net.mean.length) return 0;
         const c = netOut(net, f) * EV_SCALE / net.a;
-        return Number.isFinite(c) ? Math.max(-CLIP, Math.min(CLIP, c)) : 0;
+        const lim = net.clip > 0 ? net.clip : CLIP;
+        return Number.isFinite(c) ? Math.max(-lim, Math.min(lim, c)) : 0;
     }
 
     // ── Training ─────────────────────────────────────────────────
@@ -196,7 +203,7 @@
         }
         const round = x => +x.toPrecision(4);
         const net = {
-            v: window.BotTerms?.FEATURE_VERSION || 1, n, hidden: H, a: round(a), b: round(b),
+            v: window.BotTerms?.FEATURE_VERSION || 1, n, hidden: H, a: round(a), b: round(b), clip: opts.clip || CLIP,
             mean: mean.map(round), std: std.map(round),
             W1: best.snap.W1.map(round), b1: best.snap.b1.map(round), W2: best.snap.W2.map(round), b2: round(best.snap.b2),
             trained: { at: new Date().toISOString(), positions: rows.length, games: games.length, testGames: testGames.size, epoch: best.epoch, lambda },
@@ -251,12 +258,14 @@
                 <button class="bn-train" style="padding:5px 10px;">Load positions and train</button>
                 <button class="bn-test" style="padding:5px 10px;" disabled>Quick test vs champion (20 games)</button>
                 <button class="bn-send" style="padding:5px 10px;" disabled>Send to idle training</button>
+                <button class="bn-fit" style="padding:5px 10px;">Fit formulas...</button>
             </div>
             <div class="bn-status" style="white-space:pre-line;font-family:monospace;font-size:12px;color:#cfc;"></div>`;
         document.body.appendChild(box);
         const $ = s => box.querySelector(s);
         const status = (t) => { $('.bn-status').textContent = t; };
         $('.bn-close').onclick = () => box.remove();
+        $('.bn-fit').onclick = () => { box.remove(); window.FormulaFit?.open(); };
 
         supabase.rpc('hermit_position_summary').then(({ data, error }) => {
             if (error || !data) { $('.bn-summary').textContent = 'No summary (is sql/position-samples.sql applied?)'; return; }

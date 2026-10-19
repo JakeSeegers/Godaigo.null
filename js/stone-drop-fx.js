@@ -10,8 +10,12 @@
 //   fire:  flickers, crackles and gives off a few floating sparks.
 //   wind:  expands slightly and contracts once, with a soft ring.
 //   void:  fades in with a spectral glow, as if summoned.
+//   While Avalanche is up for the placing player, every stone instead falls
+//   from high above and slams down (avalanche() below), then plays its own effect.
 //   Any other stone placed next to a void stone has its ability cancelled,
 //   so it only gets the light drop (no ripple, bob, sparks or swell).
+// window.StoneDropFx.transform(x, y, toType): Control the Current turning a
+// water stone into another element (see transform() below).
 // window.StoneDropFx.play(x, y, type). Triggered by every 'placeStone' record
 // in the ActionLog (own placements, bots on this screen, other players'
 // 'stone-place' messages, replays). Undo restores do not record, so they do
@@ -75,7 +79,8 @@
         return g;
     }
 
-    function animate(node, frames, opts) {
+    function animate(node, frames, opts) { return _animate(node, frames, opts); }
+    function _animate(node, frames, opts) {
         try { return node.animate(frames, opts); } catch (e) { return null; }
     }
     // Scale around the piece's own spot. The CSS scale is applied on top of
@@ -106,35 +111,7 @@
         ], { duration: 200, delay: LAND, easing: 'ease-out', composite: 'add' });
         scaleAnim(stone.element, [{ scale: '1' }, { scale: '0.93', offset: 0.3 }, { scale: '1.02', offset: 0.7 }, { scale: '1' }],
             { duration: 260, delay: LAND - 20, easing: 'ease-out' });
-        // ripple: stones and pawns 1-3 hexes away bounce, less with distance
-        // (the board itself stays still)
-        const things = [];
-        // Earth stones, and water stones using earth's ability, are too heavy
-        // to bounce, unless a void stone next to them cancels them
-        // (stoneAbilityAt already returns 'water' for a void-blocked water).
-        // Other stones and pawns bounce.
-        const heavy = (s) => {
-            if (s.type === 'earth') return !nextToVoid(s);
-            if (s.type === 'water') return window.stoneAbilityAt?.(s.x, s.y) === 'earth';
-            return false;
-        };
-        try { (placedStones || []).forEach(s => { if (s !== stone && s.element && !heavy(s)) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
-        // the pawn of the player who placed it stays still (owner 2026-10-08)
-        let placer = null;
-        try { placer = activePlayerIndex; } catch (e) {}
-        try { (playerPositions || []).forEach((p, i) => { if (p && p.element && i !== placer) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
-        things.forEach(t => {
-            const d = hexDist(stone, t);
-            if (d < 1 || d > 3) return;
-            const h = BOUNCE[d], u = upVec(h);
-            animate(t.node, [
-                { translate: '0px 0px' },
-                { translate: `${u.x.toFixed(2)}px ${u.y.toFixed(2)}px`, offset: 0.3 },
-                { translate: '0px 0px', offset: 0.62 },
-                { translate: `${(u.x * 0.25).toFixed(2)}px ${(u.y * 0.25).toFixed(2)}px`, offset: 0.8 },
-                { translate: '0px 0px' },
-            ], { duration: 460, delay: LAND + d * 70, easing: 'ease-out', composite: 'add' });
-        });
+        ripple(stone, LAND, 1);
         // a puff of dust on landing
         const L = layer(vp, stone.x, stone.y, 1000);
         const ring = el('circle', { r: 12, fill: 'none', stroke: colorOf('earth'), 'stroke-width': 2.5, opacity: 0 }, L);
@@ -206,6 +183,39 @@
             { duration: 1000, easing: 'ease-out', fill: 'both' });
     }
 
+    // `at` = ms until the impact, `k` = how hard (1 = a normal earth drop)
+    function ripple(stone, at, k) {
+    // ripple: stones and pawns 1-3 hexes away bounce, less with distance
+    // (the board itself stays still)
+    const things = [];
+    // Earth stones, and water stones using earth's ability, are too heavy
+    // to bounce, unless a void stone next to them cancels them
+    // (stoneAbilityAt already returns 'water' for a void-blocked water).
+    // Other stones and pawns bounce.
+    const heavy = (s) => {
+        if (s.type === 'earth') return !nextToVoid(s);
+        if (s.type === 'water') return window.stoneAbilityAt?.(s.x, s.y) === 'earth';
+        return false;
+    };
+    try { (placedStones || []).forEach(s => { if (s !== stone && s.element && !heavy(s)) things.push({ x: s.x, y: s.y, node: s.element }); }); } catch (e) {}
+    // the pawn of the player who placed it stays still (owner 2026-10-08)
+    let placer = null;
+    try { placer = activePlayerIndex; } catch (e) {}
+    try { (playerPositions || []).forEach((p, i) => { if (p && p.element && i !== placer) things.push({ x: p.x, y: p.y, node: p.element }); }); } catch (e) {}
+    things.forEach(t => {
+        const d = hexDist(stone, t);
+        if (d < 1 || d > 3) return;
+        const h = BOUNCE[d] * k, u = upVec(h);
+        animate(t.node, [
+            { translate: '0px 0px' },
+            { translate: `${u.x.toFixed(2)}px ${u.y.toFixed(2)}px`, offset: 0.3 },
+            { translate: '0px 0px', offset: 0.62 },
+            { translate: `${(u.x * 0.25).toFixed(2)}px ${(u.y * 0.25).toFixed(2)}px`, offset: 0.8 },
+            { translate: '0px 0px' },
+        ], { duration: 460, delay: at + d * 70, easing: 'ease-out', composite: 'add' });
+    });
+    }
+
     // ── light drop (water, fire, wind) ───────────────────────────
     // A short drop into place, lighter than earth's, before the element's
     // own effect starts.
@@ -250,6 +260,103 @@
         void color;
     }
 
+    // ── Avalanche (owner 2026-10-15) ─────────────────────────────
+    // While Avalanche is up for the player placing (they may place anywhere),
+    // each stone falls from high above like Take Flight's landing, but
+    // heavier: a shadow grows under the spot, two pebbles fall first, the
+    // stone drops fast and big (closer to the eye), slams down (squash,
+    // flash, dust rings, flying grit, cracks), everything 1-3 hexes away
+    // bounces harder than for an earth drop, then the stone's own element
+    // effect plays. On the caster's screen the game's own buff says so; other
+    // screens and replays get it from the 'scroll-used' message (avalancheBy).
+    const FALL = 560, FALL_H = 190;
+    let avalancheMark = null;                  // {player, turn} from another screen's cast
+    function avalancheBy(playerIndex) {
+        try { avalancheMark = { player: playerIndex, turn: currentTurnNumber }; } catch (e) { avalancheMark = { player: playerIndex, turn: null }; }
+    }
+    function avalancheOn() {
+        try {
+            const b = window.spellSystem?.scrollEffects?.activeBuffs?.globalPlacement;
+            if (b && b.playerIndex === activePlayerIndex) return true;
+            return !!avalancheMark && avalancheMark.player === activePlayerIndex &&
+                (avalancheMark.turn == null || avalancheMark.turn === currentTurnNumber);
+        } catch (e) { return false; }
+    }
+    function avalanche(stone, svg, vp, look) {
+        const up = upVec(1);
+        const at = (k) => `${(up.x * k).toFixed(2)}px ${(up.y * k).toFixed(2)}px`;
+        const L = layer(vp, stone.x, stone.y, FALL + 1800);
+        // the shadow: small and faint while the stone is high, dark when it lands
+        const sh = el('ellipse', { rx: 4, ry: 2.4, fill: '#000', opacity: 0 }, L);
+        animate(sh, [{ rx: 3, ry: 1.8, opacity: 0.05 }, { rx: 14, ry: 8, opacity: 0.5, offset: 0.97 }, { rx: 15, ry: 9, opacity: 0 }],
+            { duration: FALL + 260, easing: 'ease-in', fill: 'both' });
+        // two pebbles fall first and bounce off
+        for (let i = 0; i < 2; i++) {
+            const side = (i ? 1 : -1) * (6 + Math.random() * 5);
+            const sx = -up.y * side, sy = up.x * side;
+            const pb = el('circle', { r: 1.6 + Math.random(), fill: '#8a7560', stroke: '#2a2018', 'stroke-width': 0.6, opacity: 0 }, L);
+            const t0 = FALL * (0.45 + i * 0.12);
+            animate(pb, [
+                { transform: `translate(${(sx + up.x * FALL_H * 0.7).toFixed(1)}px, ${(sy + up.y * FALL_H * 0.7).toFixed(1)}px)`, opacity: 0.9 },
+                { transform: `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`, opacity: 1, offset: 0.7 },
+                { transform: `translate(${(sx * 1.8 + up.x * 6).toFixed(1)}px, ${(sy * 1.8 + up.y * 6).toFixed(1)}px)`, opacity: 0 },
+            ], { duration: 420, delay: t0 - 300, easing: 'ease-in', fill: 'both' });
+        }
+        // the fall: from far up, faster and faster, big then normal size
+        animate(stone.element, [
+            { translate: at(FALL_H), opacity: 0 },
+            { translate: at(FALL_H * 0.8), opacity: 1, offset: 0.12 },
+            { translate: '0px 0px', opacity: 1 },
+        ], { duration: FALL, easing: 'cubic-bezier(0.6, 0, 1, 0.5)', composite: 'add', fill: 'backwards' });
+        scaleAnim(stone.element, [{ scale: '1.45' }, { scale: '1', offset: 0.97 }, { scale: '0.8' }],
+            { duration: FALL + 40, easing: 'ease-in' });
+        // the slam: squash, a little hop, settle
+        setTimeout(() => {
+            if (!stone.element.isConnected) return;
+            scaleAnim(stone.element, [{ scale: '0.8' }, { scale: '1.08', offset: 0.35 }, { scale: '0.97', offset: 0.7 }, { scale: '1' }],
+                { duration: 300, easing: 'ease-out' });
+            animate(stone.element, [{ translate: '0px 0px' }, { translate: at(3), offset: 0.35 }, { translate: '0px 0px' }],
+                { duration: 300, easing: 'ease-out', composite: 'add' });
+        }, FALL + 40);
+        // impact flash, two dust rings, grit flying out, cracks in the ground
+        const dust = '#b49b7a';
+        const flash = el('circle', { r: 10, fill: glowFill(svg, '#fff1d6'), opacity: 0 }, L);
+        animate(flash, [{ opacity: 0, r: 6 }, { opacity: 0.9, r: 16, offset: 0.15 }, { opacity: 0, r: 22 }],
+            { duration: 320, delay: FALL, easing: 'ease-out', fill: 'both' });
+        [0, 110].forEach((d, i) => {
+            const ring = el('circle', { r: 12, fill: 'none', stroke: i ? dust : colorOf('earth'), 'stroke-width': i ? 2 : 3.5, opacity: 0 }, L);
+            animate(ring, [{ r: 10, opacity: 0.75 }, { r: i ? 52 : 40, opacity: 0 }],
+                { duration: 650, delay: FALL + d, easing: 'ease-out', fill: 'both' });
+        });
+        for (let i = 0; i < 10; i++) {
+            const a = (i / 10 + Math.random() * 0.06) * Math.PI * 2, rr = 22 + Math.random() * 18;
+            const lift = upVec(6 + Math.random() * 10);
+            const g = el('circle', { r: 1 + Math.random() * 1.6, fill: i % 3 ? dust : '#6b5a48', opacity: 0 }, L);
+            animate(g, [
+                { transform: 'translate(0px, 0px)', opacity: 1 },
+                { transform: `translate(${(Math.cos(a) * rr * 0.6 + lift.x).toFixed(1)}px, ${(Math.sin(a) * rr * 0.6 + lift.y).toFixed(1)}px)`, opacity: 0.9, offset: 0.45 },
+                { transform: `translate(${(Math.cos(a) * rr).toFixed(1)}px, ${(Math.sin(a) * rr).toFixed(1)}px)`, opacity: 0 },
+            ], { duration: 560 + Math.random() * 200, delay: FALL, easing: 'ease-out', fill: 'both' });
+        }
+        for (let i = 0; i < 6; i++) {
+            const a = Math.random() * Math.PI * 2, len = 9 + Math.random() * 8;
+            const pts = [0, 1, 2].map(j => {
+                const rr = 7 + len * j / 2, aa = a + (Math.random() - 0.5) * 0.45;
+                return `${(Math.cos(aa) * rr).toFixed(1)},${(Math.sin(aa) * rr).toFixed(1)}`;
+            }).join(' ');
+            const c = el('polyline', { points: pts, fill: 'none', stroke: '#2a2018', 'stroke-width': 1.1, 'stroke-linecap': 'round', opacity: 0 }, L);
+            animate(c, [{ opacity: 0 }, { opacity: 0.7, offset: 0.1 }, { opacity: 0.7, offset: 0.6 }, { opacity: 0 }],
+                { duration: 1100, delay: FALL, fill: 'both' });
+        }
+        // the ground shakes: everything 1-3 hexes away bounces, harder than earth
+        ripple(stone, FALL, 1.7);
+        setTimeout(() => { try { window.SoundSystem?.play?.('placeearthstone'); } catch (e) {} }, FALL); // the thud on impact
+        // then the stone's own element effect (earth and void: the fall says it all;
+        // next to a void stone the ability is cancelled, so nothing more)
+        const fn = { water, fire, wind }[look];
+        if (fn && !nextToVoid(stone)) setTimeout(() => { if (stone.element.isConnected) fn(stone, svg, vp, colorOf(look)); }, FALL + 260);
+    }
+
     const BY_TYPE = { earth, water, fire, wind, void: voidFx };
 
     function play(x, y, type) {
@@ -261,6 +368,13 @@
             if (!vp || !svg) return;
             // a water stone always plays the drop of the stone it takes its ability from
             let look = type || stone.type;
+            if (avalancheOn()) {
+                if (look === 'water') look = window.stoneAbilityAt?.(stone.x, stone.y) || 'water';
+                running++;
+                setTimeout(() => { running--; }, FALL + 1200);
+                avalanche(stone, svg, vp, look);
+                return;
+            }
             // next to a void stone a stone's ability is cancelled, so it only
             // gets the plain light drop (void itself keeps its summoning)
             if (look !== 'void' && nextToVoid(stone)) {
@@ -361,15 +475,20 @@
     // and shrinks away while flame tongues lick up around it (screen upright),
     // with a crackle and rising embers. About 0.75 s.
     let burning = 0;
-    function burn(x, y) {
+    // opts.delay (ms): the stone shows as it is until its burn starts (Combust's
+    // fire wave reaches the farther stones a little later).
+    function burn(x, y, opts = {}) {
         try {
             if (document.hidden || reduceMotion || !window.fxOn?.()) return false;
             const st = stoneAt(x, y);
             const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
             if (!vp || !svg) return false;
+            const D = Math.max(0, opts.delay || 0);
+            // every part waits D ms (holding its first frame meanwhile)
+            const animate = (node, frames, o) => _animate(node, frames, { ...o, delay: (o.delay || 0) + D, fill: 'both' });
             burning++;
-            setTimeout(() => { burning--; }, 760);
-            const L = layer(vp, x, y, 1100);
+            setTimeout(() => { burning--; }, 760 + D);
+            const L = layer(vp, x, y, 1100 + D);
             const rot = typeof window.getBoardRotation === 'function' ? window.getBoardRotation() : 0;
             // the stone itself chars and shrinks
             if (st && st.element && st.element.isConnected) {
@@ -378,7 +497,7 @@
                 copy.style.pointerEvents = 'none';
                 copy.querySelectorAll('.mimicry-indicator, .chain-indicator, .void-nullification-indicator').forEach(n => n.remove());
                 vp.insertBefore(copy, L);
-                setTimeout(() => copy.remove(), 800);
+                setTimeout(() => copy.remove(), 800 + D);
                 animate(copy, [
                     { filter: 'brightness(1)', opacity: 1 },
                     { filter: 'brightness(1.6) saturate(1.3)', opacity: 1, offset: 0.12 },
@@ -386,7 +505,7 @@
                     { filter: 'brightness(0.15)', opacity: 0 },
                 ], { duration: 720, easing: 'ease-in', fill: 'forwards' });
                 scaleAnim(copy, [{ scale: '1' }, { scale: '1.05', offset: 0.15 }, { scale: '0.7' }],
-                    { duration: 720, easing: 'ease-in', fill: 'forwards' });
+                    { duration: 720, easing: 'ease-in', fill: 'both', delay: D });
             }
             // fiery glow under it all
             const glow = el('circle', { r: 24, fill: glowFill(svg, '#ff7a1a'), opacity: 0 }, L);
@@ -436,7 +555,148 @@
         } catch (e) { return false; }
     }
 
-    window.StoneDropFx = { play, collect, burn, isBurning: () => burning > 0 };
+    // ── Control the Current (owner 2026-10-15) ───────────────────
+    // A water stone turned into another element: the old water stone melts
+    // into a swirl (droplets spiral in, the stone spins down and fades), a
+    // flash in the new element's colour, then the new stone pops up out of it
+    // with a ring and a few motes. Called just BEFORE the game swaps the
+    // stone's look (scroll-effects.js transformWaterStone, game-core.js
+    // transformWaterStoneVisually for other screens and replays), so the copy
+    // still shows the water stone.
+    function transform(x, y, toType) {
+        try {
+            if (document.hidden || reduceMotion || !window.fxOn?.() || running >= 6) return;
+            const st = stoneAt(x, y);
+            const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
+            if (!vp || !svg) return;
+            running++;
+            setTimeout(() => { running--; }, 1000);
+            const T = 950, MID = 0.42;
+            const from = colorOf('water'), to = colorOf(toType);
+            const L = layer(vp, x, y, T + 200);
+            // the old water stone: a copy that spins down and melts away
+            if (st && st.element && st.element.isConnected) {
+                const copy = st.element.cloneNode(true);
+                copy.setAttribute('class', 'stone-transform-copy');
+                copy.removeAttribute('id');
+                copy.style.pointerEvents = 'none';
+                copy.querySelectorAll('.mimicry-indicator, .chain-indicator, .void-nullification-indicator').forEach(n => n.remove());
+                vp.insertBefore(copy, L);
+                setTimeout(() => copy.remove(), T * MID + 100);
+                animate(copy, [
+                    { filter: 'brightness(1)', opacity: 1 },
+                    { filter: 'brightness(1.5)', opacity: 1, offset: 0.6 },
+                    { filter: 'brightness(2.2)', opacity: 0 },
+                ], { duration: T * MID, easing: 'ease-in', fill: 'forwards' });
+                scaleAnim(copy, [{ scale: '1', rotate: '0deg' }, { scale: '1.08', rotate: '-40deg', offset: 0.25 }, { scale: '0.25', rotate: '-320deg' }],
+                    { duration: T * MID, easing: 'ease-in', fill: 'forwards' });
+                // the real stone (it gets its new look now) waits, then pops up
+                scaleAnim(st.element, [
+                    { scale: '0.2', opacity: 0 },
+                    { scale: '0.2', opacity: 0, offset: MID },
+                    { scale: '1.18', opacity: 1, offset: MID + 0.25, easing: 'ease-in-out' },
+                    { scale: '0.95', opacity: 1, offset: MID + 0.4 },
+                    { scale: '1', opacity: 1 },
+                ], { duration: T, easing: 'ease-out' });
+            }
+            // water droplets spiral in
+            for (let i = 0; i < 9; i++) {
+                const a0 = i / 9 * Math.PI * 2, R = 20 + (i % 3) * 3;
+                const frames = [];
+                for (let k = 0; k <= 6; k++) {
+                    const u = k / 6, a = a0 + u * Math.PI * 1.4, r = R * (1 - u * 0.9);
+                    frames.push({ transform: `translate(${(Math.cos(a) * r).toFixed(1)}px, ${(Math.sin(a) * r * 0.8).toFixed(1)}px)`,
+                        opacity: k === 0 ? 0 : (k === 6 ? 0 : 0.9), offset: u });
+                }
+                const d = el('circle', { r: 1.6 + (i % 2) * 0.6, fill: i % 3 ? from : '#e6f4ff', opacity: 0 }, L);
+                animate(d, frames, { duration: T * MID, delay: i * 12, easing: 'ease-in', fill: 'both' });
+            }
+            // a swirl line turning inward
+            const sw = el('circle', { r: 17, fill: 'none', stroke: from, 'stroke-width': 1.6, 'stroke-dasharray': '10 7', opacity: 0 }, L);
+            animate(sw, [
+                { r: 22, opacity: 0, transform: 'rotate(0deg)' },
+                { r: 18, opacity: 0.8, offset: 0.3 },
+                { r: 3, opacity: 0, transform: 'rotate(-300deg)' },
+            ], { duration: T * MID, easing: 'ease-in', fill: 'both' });
+            // the change: a flash in the new colour
+            const glow = el('circle', { r: 26, fill: glowFill(svg, to), opacity: 0 }, L);
+            glow.style.mixBlendMode = 'screen';
+            animate(glow, [{ opacity: 0, offset: 0 }, { opacity: 0, offset: MID - 0.05 }, { opacity: 1, offset: MID + 0.05 }, { opacity: 0 }],
+                { duration: T, easing: 'ease-out', fill: 'both' });
+            const ring = el('circle', { r: 6, fill: 'none', stroke: to, 'stroke-width': 2.5, opacity: 0 }, L);
+            animate(ring, [{ r: 6, opacity: 0, offset: 0 }, { r: 6, opacity: 0, offset: MID }, { r: 8, opacity: 0.95, offset: MID + 0.04 }, { r: 28, opacity: 0, strokeWidth: 0.5 }],
+                { duration: T, easing: 'ease-out', fill: 'both' });
+            // motes of the new element burst out and drift up the screen
+            for (let i = 0; i < 8; i++) {
+                const a = i / 8 * Math.PI * 2 + Math.random() * 0.3, r = 14 + Math.random() * 8;
+                const u = upVec(6 + Math.random() * 6);
+                const m = el('circle', { r: 1 + Math.random() * 0.8, fill: i % 2 ? to : '#ffffff', opacity: 0 }, L);
+                animate(m, [
+                    { transform: 'translate(0px, 0px)', opacity: 0 },
+                    { opacity: 1, offset: 0.2 },
+                    { transform: `translate(${(Math.cos(a) * r + u.x).toFixed(1)}px, ${(Math.sin(a) * r * 0.8 + u.y).toFixed(1)}px)`, opacity: 0 },
+                ], { duration: T * (1 - MID), delay: T * MID, easing: 'ease-out', fill: 'both' });
+            }
+        } catch (e) { /* looks only */ }
+    }
+
+    // ── Combust (owner 2026-10-15) ─────────────────────────────────
+    // Fire IV burns every stone on a tile: a wave of fire sweeps out across
+    // the tile from its middle (heat glow, a flame ring, sparks thrown out),
+    // and each stone burns with the fire-destroy effect (burn) as the wave
+    // reaches it. Call BEFORE the stones are removed (scroll-effects.js
+    // destroyStonesOnTile, lobby.js 'stones-destroyed' on other screens).
+    // stones: [{x, y}]. isBurning() holds bots until it is done.
+    function combust(cx, cy, stones) {
+        try {
+            if (document.hidden || reduceMotion || !window.fxOn?.()) return false;
+            const vp = document.getElementById('viewport'), svg = document.getElementById('boardSvg');
+            if (!vp || !svg) return false;
+            const R = 95, WAVE = 620;                       // tile reach, wave time
+            const T = WAVE + 900;
+            burning++;
+            setTimeout(() => { burning--; }, T);
+            const L = layer(vp, cx, cy, T + 200);
+            // heat across the tile
+            const heat = el('circle', { r: R, fill: glowFill(svg, '#ff5a14'), opacity: 0 }, L);
+            animate(heat, [{ opacity: 0 }, { opacity: 0.75, offset: 0.2 }, { opacity: 0.5, offset: 0.55 }, { opacity: 0 }],
+                { duration: WAVE + 600, easing: 'ease-out', fill: 'both' });
+            // ignition flash in the middle
+            const core = el('circle', { r: 14, fill: glowFill(svg, '#ffd36b'), opacity: 0 }, L);
+            animate(core, [{ r: 6, opacity: 0 }, { r: 26, opacity: 1, offset: 0.25 }, { r: 34, opacity: 0 }],
+                { duration: 420, easing: 'ease-out', fill: 'both' });
+            // the fire wave: two rings rolling out to the tile's edge
+            [['#ff7a1a', 9, 0], ['#ffd36b', 3, 60]].forEach(([c, w, dl]) => {
+                const ring = el('circle', { r: 8, fill: 'none', stroke: c, 'stroke-width': w, opacity: 0 }, L);
+                animate(ring, [
+                    { r: 8, opacity: 0, strokeWidth: w },
+                    { r: 14, opacity: 0.95, offset: 0.08 },
+                    { r: R * 0.85, opacity: 0.85, offset: 0.8, strokeWidth: w * 0.6 },
+                    { r: R, opacity: 0, strokeWidth: 1 },
+                ], { duration: WAVE, delay: dl, easing: 'ease-out', fill: 'both' });
+            });
+            // sparks thrown out with the wave, drifting up the screen
+            for (let i = 0; i < 18; i++) {
+                const a = (i / 18) * Math.PI * 2 + Math.random() * 0.3;
+                const r0 = 6 + Math.random() * 8, r1 = R * (0.7 + Math.random() * 0.45);
+                const u = upVec(10 + Math.random() * 18);
+                const sp = el('circle', { r: 1 + Math.random() * 1.2, fill: i % 3 ? '#ffb347' : '#fff1c4', opacity: 0 }, L);
+                animate(sp, [
+                    { transform: `translate(${(Math.cos(a) * r0).toFixed(1)}px, ${(Math.sin(a) * r0).toFixed(1)}px)`, opacity: 0 },
+                    { opacity: 1, offset: 0.15 },
+                    { transform: `translate(${(Math.cos(a) * r1 + u.x).toFixed(1)}px, ${(Math.sin(a) * r1 + u.y).toFixed(1)}px)`, opacity: 0 },
+                ], { duration: WAVE + 250, delay: Math.random() * 80, easing: 'ease-out', fill: 'both' });
+            }
+            // each stone burns as the wave reaches it
+            stones.forEach(s => {
+                const d = Math.hypot(s.x - cx, s.y - cy);
+                burn(s.x, s.y, { delay: Math.round(60 + (d / R) * WAVE * 0.8) });
+            });
+            return true;
+        } catch (e) { return false; }
+    }
+
+    window.StoneDropFx = { play, collect, burn, combust, transform, avalancheBy, isBurning: () => burning > 0 };
 
     function hook() {
         if (!window.ActionLog?.onRecord) return false;

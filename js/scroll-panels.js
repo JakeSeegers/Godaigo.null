@@ -165,7 +165,7 @@ const ScrollPanelSystem = (() => {
         header.innerHTML = `
             <span class="fsp-title">${title}</span>
             ${opts.noBadge ? '' : `<span class="fsp-badge" id="fsp-badge-${id}">0/0</span>`}
-            ${(opts.noAutofit || opts.lockAutofit) ? '' : `<button class="fsp-btn fsp-autofit-btn" title="Auto-fit height to content">↕</button>`}
+            ${(opts.noAutofit || opts.lockAutofit || opts.expander) ? '' : `<button class="fsp-btn fsp-autofit-btn" title="Auto-fit height to content">↕</button>`}
             ${opts.noCollapse ? '' : `<button class="fsp-btn fsp-collapse-btn" title="Collapse / expand">−</button>`}
             <button class="fsp-btn fsp-close-btn"    title="Close">✕</button>
         `;
@@ -188,15 +188,20 @@ const ScrollPanelSystem = (() => {
         // needed height forever (Math.max(100, ...) in _makeResizable
         // means even a 1px nudge sets a 100px floor) — Elemental Stones'
         // reported "big bottom margin" was exactly that.
+        // opts.expander (owner 2026-10-15, Opponent Status): a visible corner
+        // button instead of the faint grip, shown even while the panel fits its
+        // content. Dragging it sets your own size (auto-fit off); a
+        // double-click fits the content again.
         const handle = opts.noResize ? null : document.createElement('div');
         if (handle) {
-            handle.className = 'fsp-resize-handle';
-            handle.title      = 'Drag to resize';
+            handle.className = 'fsp-resize-handle' + (opts.expander ? ' fsp-expander' : '');
+            handle.title      = opts.expander ? 'Drag to resize (double-click to fit)' : 'Drag to resize';
+            if (opts.expander) handle.textContent = '⤡';
             el.appendChild(handle);
         }
 
         document.body.appendChild(el);
-        panels[id] = { el, state, open: false, bodyId: bodyEl.id, dockBtnId: opts.dockBtnId || ('panel-btn-' + id) };
+        panels[id] = { el, state, open: false, bodyId: bodyEl.id, dockBtnId: opts.dockBtnId || ('panel-btn-' + id), expander: !!opts.expander };
 
         // Apply saved collapsed state
         if (state.collapsed) _applyCollapsed(id, true);
@@ -213,8 +218,11 @@ const ScrollPanelSystem = (() => {
         }
 
         // Hide resize handle immediately if autofit is on and panel isn't collapsed
-        if (handle && state.autofit !== false && !state.collapsed) {
+        if (handle && state.autofit !== false && !state.collapsed && !opts.expander) {
             handle.style.display = 'none';
+        }
+        if (handle && opts.expander) {
+            handle.addEventListener('dblclick', e => { e.stopPropagation(); setAutofit(id, true); });
         }
 
         // Drag & resize
@@ -267,6 +275,8 @@ const ScrollPanelSystem = (() => {
         handle.addEventListener('mousedown', e => {
             e.stopPropagation();
             active = true;
+            // an expander corner takes over from auto-fit: your size stays
+            if (panels[id].expander && panels[id].state.autofit !== false) { panels[id].state.autofit = false; }
             sx = e.clientX; sy = e.clientY;
             sw = panel.offsetWidth; sh = panel.offsetHeight;
             panel.style.transition = 'none';
@@ -320,7 +330,7 @@ const ScrollPanelSystem = (() => {
         } else {
             if (body)    body.style.display    = '';
             if (compact) compact.style.display = 'none';
-            if (handle)  handle.style.display  = (state.autofit !== false) ? 'none' : '';
+            if (handle)  handle.style.display  = (state.autofit !== false && !panels[id].expander) ? 'none' : '';
             if (btn)     btn.textContent        = '−';
             if (state.h) el.style.height = state.h + 'px';
             // Restore the card-grid width (autofit recomputes it fresh below
@@ -551,6 +561,10 @@ const ScrollPanelSystem = (() => {
         }
 
         card.appendChild(hdr);
+        // Action buttons sit right under the header (owner 2026-10-18: top, not bottom);
+        // filled in below, appended here so they come first.
+        const actsSlot = document.createElement('div');
+        card.appendChild(actsSlot);
 
         // ── Description ─────────────────────────────────────────────────
         if (def.description) {
@@ -583,8 +597,7 @@ const ScrollPanelSystem = (() => {
                 toActive.textContent = 'Move to Active Area';
                 toActive.addEventListener('click', e => {
                     e.stopPropagation();
-                    const dest = document.getElementById('fsp-active');
-                    if (dest) animateCardMove(card, dest);
+                    // the move animation: js/scroll-move-fx.js (sees the state change)
                     if (window.isTutorialMode && window.TutorialMode?.onScrollMoved) {
                         window.TutorialMode.onScrollMoved(scrollName, 'hand', 'active');
                     }
@@ -607,8 +620,7 @@ const ScrollPanelSystem = (() => {
                 toCommon.textContent = 'Move to Common Area';
                 toCommon.addEventListener('click', e => {
                     e.stopPropagation();
-                    const dest = document.getElementById('fsp-common');
-                    if (dest) animateCardMove(card, dest);
+                    // the move animation: js/scroll-move-fx.js (sees the state change)
                     if (window.isTutorialMode && window.TutorialMode?.onScrollMoved) {
                         window.TutorialMode.onScrollMoved(scrollName, 'hand', 'common');
                     }
@@ -632,8 +644,7 @@ const ScrollPanelSystem = (() => {
                 toCommon.textContent = 'Move to Common Area';
                 toCommon.addEventListener('click', e => {
                     e.stopPropagation();
-                    const dest = document.getElementById('fsp-common');
-                    if (dest) animateCardMove(card, dest);
+                    // the move animation: js/scroll-move-fx.js (sees the state change)
                     if (window.isTutorialMode && window.TutorialMode?.onScrollMoved) {
                         window.TutorialMode.onScrollMoved(scrollName, 'active', 'common');
                     }
@@ -683,8 +694,9 @@ const ScrollPanelSystem = (() => {
                 acts.appendChild(castBtn);
             }
 
-            if (acts.children.length) card.appendChild(acts);
+            if (acts.children.length) actsSlot.replaceWith(acts);
         }
+        if (actsSlot.parentNode) actsSlot.remove();
 
         // No click-to-popup — hovering the card already shows the enlarged
         // preview (see _initCardHoverPreview).
@@ -987,7 +999,7 @@ const ScrollPanelSystem = (() => {
         const btn    = p.el.querySelector('.fsp-autofit-btn');
         const handle = p.el.querySelector('.fsp-resize-handle');
         if (btn)    btn.classList.toggle('fsp-autofit-active', on);
-        if (handle) handle.style.display = (on || p.state.collapsed) ? 'none' : '';
+        if (handle) handle.style.display = ((on && !p.expander) || p.state.collapsed) ? 'none' : '';
         if (on) fitPanel(id);
         saveState();
     }
@@ -1235,8 +1247,9 @@ const ScrollPanelSystem = (() => {
             // functionality without the button; noResize follows because the
             // handle would be unreachable dead UI once autofit can never be
             // switched off.
-            lockAutofit: true,
-            noResize: true,
+            // Auto-fit by default, no toggle button; the expander corner lets
+            // you set your own size (owner 2026-10-15), double-click fits again.
+            expander: true,
         });
         createPanel('elementalstones', 'Elemental Stones', {
             panelId: 'elemental-stones-panel',
@@ -1266,10 +1279,12 @@ const ScrollPanelSystem = (() => {
 
         // ── Hover preview: enlarged card that floats outside the panel ──────
         _initCardHoverPreview();
+        _initPlayerTint();
 
         // Expose globally
         window.ScrollPanelSystem = {
             toggle, refresh, openPanel, closePanel, animateCardMove, animateCardToDeck,
+            scrollMeta: _scrollMeta, // {name, colors, bg, elLabel, lvLabel, ...} (game-ui.js opponent rows, scroll-move-fx.js)
             isOpen: id => !!panels[id]?.open,
             openAmbientPanels,
             // Re-fits a panel to its current content when autofit is on for it
@@ -1303,6 +1318,38 @@ const ScrollPanelSystem = (() => {
     // scrollName via _buildCard() each time (minus action buttons, since
     // 'preview' isn't a real area) rather than cloning the hovered element,
     // so it works the same regardless of which of the three triggered it.
+    // Player tint (owner 2026-10-18): the panels, HUD and dock pick up a subtle
+    // touch of the viewer's own seat colour through the CSS variable --pc
+    // (css/styles.css). Own seat when there is one; otherwise (replay,
+    // spectator, bot training) the active player's. html.pc-on only in a game.
+    function _initPlayerTint() {
+        const root = document.documentElement;
+        let last = null;
+        const colorOf = i => {
+            const pd = (typeof allPlayersData !== 'undefined' && Array.isArray(allPlayersData) ? allPlayersData : []).find(p => p.player_index === i);
+            return (pd && typeof PLAYER_COLORS !== 'undefined' && PLAYER_COLORS[pd.color]) || (typeof playerPositions !== 'undefined' && playerPositions[i]?.color) || null;
+        };
+        setInterval(() => {
+            if (document.hidden) return;
+            let c = null;
+            try {
+                const inGame = typeof playerPositions !== 'undefined' && playerPositions.length > 0;
+                if (inGame) {
+                    const real = window.BotDriver?.driverRealIndex?.();
+                    const training = !!window.BotArena?.isRunning?.();
+                    let i = real != null && real >= 0 ? real
+                        : (!training && typeof myPlayerIndex !== 'undefined' && myPlayerIndex >= 0) ? myPlayerIndex
+                        : (typeof activePlayerIndex !== 'undefined' ? activePlayerIndex : 0);
+                    c = colorOf(i);
+                }
+            } catch (e) { c = null; }
+            if (c === last) return;
+            last = c;
+            if (c) { root.style.setProperty('--pc', c); root.classList.add('pc-on'); }
+            else { root.style.removeProperty('--pc'); root.classList.remove('pc-on'); }
+        }, 500);
+    }
+
     function _initCardHoverPreview() {
         const preview = document.createElement('div');
         preview.className = 'fsp-card-preview';
@@ -1509,5 +1556,5 @@ const ScrollPanelSystem = (() => {
         if (typeof notYourTurn === 'function') notYourTurn();
     }, true);
 
-    return { init, toggle, refresh, openPanel, closePanel, animateCardMove, animateCardToDeck, resetToDefaults };
+    return { init, toggle, refresh, openPanel, closePanel, animateCardMove, animateCardToDeck, resetToDefaults, scrollMeta: _scrollMeta };
 })();

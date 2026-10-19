@@ -243,7 +243,7 @@
     // Forget old positions then, so coming back does not spawn one big trail.
     setInterval(() => { if (!document.hidden) refresh(); }, 500);
     setInterval(() => {
-        if (document.hidden || !anyTrail) { last.clear(); return; }
+        if (document.hidden || !anyTrail || window.fxOn?.() === false) { last.clear(); return; } // no trails in Extreme training
         watchMoves();
     }, 50);
 

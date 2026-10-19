@@ -107,6 +107,7 @@
     function setEnabled(v) {
         enabled = !!v && isHermitUser(); // never persists ON for a non-hermit account
         try { localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0'); } catch (e) { /* ignore */ }
+        touchLocal();
         console.log(`🧠 [Imitation] ${enabled ? 'ON - watching your play' : 'OFF'}`);
         renderBadge();
     }
@@ -126,7 +127,59 @@
     }
     function saveDeltas(d) {
         try { localStorage.setItem(DELTAS_KEY, JSON.stringify(d)); } catch (e) { /* ignore */ }
+        touchLocal();
     }
+
+    // ── Saved to the account (sql/imitation-sync.sql, owner 2026-10-18) ──
+    // Before this, the learned adjustments and the on/off switch lived only in
+    // this browser, so learning elsewhere (or before a cleared cache) was lost.
+    // At sign-in the newer copy wins (server or this browser); every change is
+    // pushed a few seconds later. Hermit only, like the feature.
+    const AT_KEY = 'godaigo_bot_weight_deltas_at';
+    let pushTimer = null, synced = false, syncUser = null;
+    function localAt() { try { return Number(localStorage.getItem(AT_KEY)) || 0; } catch (e) { return 0; } }
+    function touchLocal() {
+        try { localStorage.setItem(AT_KEY, String(Date.now())); } catch (e) { /* ignore */ }
+        if (!synced) return;               // never push before the first pull (would overwrite the account copy)
+        clearTimeout(pushTimer);
+        pushTimer = setTimeout(pushNow, 3000);
+    }
+    async function pushNow() {
+        pushTimer = null;
+        if (!isHermitUser() || typeof supabase === 'undefined' || !supabase?.rpc) return;
+        try {
+            const { error } = await supabase.rpc('save_imitation_state', { p_deltas: loadDeltas(), p_enabled: enabled });
+            if (error) console.warn('🧠 [Imitation] not saved to the account:', error.message);
+        } catch (e) { /* offline: the next change tries again */ }
+    }
+    async function syncFromAccount() {
+        if (!isHermitUser() || typeof supabase === 'undefined' || !supabase?.rpc) return;
+        try {
+            const { data, error } = await supabase.rpc('my_imitation_state');
+            if (error) { console.warn('🧠 [Imitation] could not load from the account:', error.message); return; }
+            const local = loadDeltas();
+            const serverAt = data?.updated_at ? Date.parse(data.updated_at) : 0;
+            const localEmpty = !Object.keys(local).length;
+            if (data && (localEmpty || serverAt > localAt())) {
+                try {
+                    localStorage.setItem(DELTAS_KEY, JSON.stringify(data.deltas || {}));
+                    localStorage.setItem(ENABLED_KEY, data.enabled ? '1' : '0');
+                    localStorage.setItem(AT_KEY, String(serverAt || Date.now()));
+                } catch (e) { /* ignore */ }
+                enabled = !!data.enabled;
+                console.log(`🧠 [Imitation] loaded from the account: ${Object.keys(data.deltas || {}).length} adjustments, ${enabled ? 'ON' : 'OFF'}`);
+                renderBadge();
+            }
+            synced = true;
+            if (!data || (!localEmpty && localAt() > serverAt)) pushNow();   // this browser has the newer copy
+        } catch (e) { /* offline: try again on the next check */ }
+    }
+    // Sign-in can come after this script loads: check every 3 s, sync once per account.
+    if (!IN_REPLAY_FRAME) setInterval(() => {
+        const who = window.currentUsername || null;
+        if (who !== syncUser) { syncUser = who; synced = false; }
+        if (!synced && who && isHermitUser()) syncFromAccount();
+    }, 3000);
     // Only accumulate a delta for a key that's actually a real, numeric
     // weight — defends against a future trace shape carrying an unexpected
     // key and quietly polluting the delta table with garbage.
@@ -200,7 +253,9 @@
     let stateVersion = 0, pendingVersion = -1, nextRankAt = 0;
     try { window.ActionLog?.onRecord?.(() => { stateVersion++; }); } catch (e) { /* no log: rank per poll as before */ }
     let lastSeenGameId = undefined;
-    function refreshPending() {
+    let ranking = false; // a sliced ranking is running (refreshPending is async)
+    async function refreshPending() {
+        if (ranking) return;
         // A fresh game means a fresh set of decisions to reason about — a
         // stale `pending`/tally from the previous game's final position must
         // never bleed into this game's first comparison. No dedicated
@@ -220,13 +275,23 @@
         // ranking it waits 4x that long before the next one.
         if (pending && pendingVersion === stateVersion) return;
         if (Date.now() < nextRankAt) return;
-        const t0 = performance.now();
+        // Runs in small time slices (bot.js rankSliced / searchPickSliced,
+        // like a bot turn) so the screen keeps drawing: under Seed the Skies
+        // the look-ahead has far more stone spots and the hermit's own turn
+        // stuttered after every placement and step (owner 2026-10-15). If the
+        // board changes before it is done, the result is dropped.
+        const startVersion = stateVersion;
+        const from = (() => { try { const p = playerPositions[activePlayerIndex]; return p ? { x: p.x, y: p.y } : null; } catch (e) { return null; } })();
+        let busy = 0;
+        pending = null;                  // never compare a new action with an older board
+        const sliced = typeof bs.rankSliced === 'function' && typeof bs.searchPickSliced === 'function';
+        ranking = true;
         try {
-            const ranked = bs.rank(null, { withTrace: true });
-            const took = performance.now() - t0;
-            window.LagRecorder?.learnThink?.(took);
-            pendingVersion = stateVersion;
-            nextRankAt = took > 150 ? Date.now() + took * 4 : 0;
+            let ranked;
+            if (sliced) { const r = await bs.rankSliced(null, { withTrace: true }); ranked = r.value; busy += r.busy; }
+            else { const t0 = performance.now(); ranked = bs.rank(null, { withTrace: true }); busy += performance.now() - t0; }
+            if (stateVersion !== startVersion || !eligibleNow()) { pending = null; return; }
+            pendingVersion = startVersion;
             if (!ranked || !ranked.length) {
                 console.log('🧠 [Imitation] eligible but rank() returned no candidates this tick');
                 pending = null; return;
@@ -250,12 +315,19 @@
             let bestType = ranked[0].action.type;
             if (typeof bs.searchPick === 'function') {
                 try {
-                    const searched = bs.searchPick();
+                    let searched;
+                    if (sliced) { const r = await bs.searchPickSliced(); searched = r.value; busy += r.busy; }
+                    else { const t0 = performance.now(); searched = bs.searchPick(); busy += performance.now() - t0; }
+                    if (stateVersion !== startVersion || !eligibleNow()) { pending = null; return; }
                     if (searched && searched.action) bestType = searched.action.type;
                 } catch (e) {
                     console.warn('⚠️ [Imitation] searchPick() failed, falling back to greedy top pick:', e);
                 }
             }
+            // time spent ranking + searching (main thread, both parts)
+            window.LagRecorder?.learnThink?.(busy);
+            pendingVersion = startVersion;
+            nextRankAt = busy > 150 ? Date.now() + busy * 4 : 0;
 
             // Casts: best-scored candidate per scroll (a scroll with choices
             // has several). Moves: every adjacent step with its trace.
@@ -278,11 +350,13 @@
                 castTraceByScroll,
                 moveEntries, // ranked best first
                 placeEntries, breakEntries,
-                from: (() => { try { const p = playerPositions[activePlayerIndex]; return p ? { x: p.x, y: p.y } : null; } catch (e) { return null; } })(),
+                from,
             };
         } catch (e) {
             console.warn('⚠️ [Imitation] refreshPending failed (non-fatal):', e);
             pending = null;
+        } finally {
+            ranking = false;
         }
     }
     let pollTimer = null;
@@ -427,6 +501,7 @@
         resetStats,
         getStats: () => ({ ...stats }),
         getDeltas: loadDeltas,
+        syncFromAccount, saveToAccount: pushNow,
         applyDeltas, // (base) => base + learned delta — lobby.js calls this per bot seat
         resetDeltas: () => { saveDeltas({}); console.log('🧠 [Imitation] deltas cleared'); },
         _refreshPending: refreshPending, // exposed for console/testing only

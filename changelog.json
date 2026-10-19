@@ -4,10 +4,57 @@
     {
       "id": "2026-10-19",
       "date": "2026-10-19",
-      "title": "Cleaner idle training",
+      "title": "Stone rules and smarter bots",
       "changes": [
-        "Idle training now shows only the board and the bots playing on it. No bars, panels or windows.",
-        "Secret: type the word idle in the lobby to start idle training right away."
+        "You can no longer end a move on a void stone. Like every other stone, you can only pass over it.",
+        "Smarter bots: they follow the same stone rule, and they break the stone shapes opponents use for attack scrolls.",
+        "At the start of a game, every player's tile now drops onto the board, bots included.",
+        "New player tiles in your colour: element stones beam down as you win them, and a beam of light lifts you home to victory.",
+        "Idle training now shows only the board and the bots playing on it. Secret: type the word idle in the lobby to start it right away."
+      ]
+    },
+    {
+      "id": "2026-10-18",
+      "date": "2026-10-18",
+      "title": "Smarter bots and a splash of color",
+      "changes": [
+        "Smarter bots: they head for the elements they still need, guess what face-down tiles are, use Wandering River to make a missing shrine, and set up response scrolls like Unbidden Lamplight.",
+        "Bots stop wasting moves: no stones placed where fire burns them, no scrolls cast that do nothing, and no more chasing scroll \"combos\" that made them play worse.",
+        "Train Bot's final test is now a straight match: the new bot must win 58% of 40 games against the champion to replace it.",
+        "Simplify now stacks like Burning Motivation: each cast adds 2 AP to every regain.",
+        "Your panels and bars now take a light tint of your color, and the scroll card buttons sit at the top."
+      ]
+    },
+    {
+      "id": "2026-10-16",
+      "date": "2026-10-16",
+      "title": "Full stone supply",
+      "changes": [
+        "Each element's supply now starts with 25 stones, as intended. It started with only 20, so 5 of each were missing.",
+        "Control the Current can no longer turn water into an element whose supply is empty."
+      ]
+    },
+    {
+      "id": "2026-10-15",
+      "date": "2026-10-15",
+      "title": "Moving tiles and scrolls",
+      "changes": [
+        "Tiles now lift off, float through the air and land when they move (Shifting Sands, Telekinesis, starting tiles). A pawn on a moving tile rides along, and bots can now use Telekinesis to carry a player away.",
+        "Flipped tiles land with a puff of dust, Control the Current swirls a water stone into its new element, Combust sends a wave of fire across the tile, and Avalanche stones crash down from the sky.",
+        "Rule changes: with Take Flight, the caster now chooses where the target lands. Breath of Power now moves stones up to 3 hexes from your pawn.",
+        "Scrolls now float to their new place when anyone moves them. Opponent Status lists only the other players, shows their scrolls like your own panels, and has a corner button to resize it. Bots now keep useful scrolls instead of handing them to other players, and no longer waste turns on casts that draw nothing.",
+        "Small fixes: End Turn no longer misses a click, a water stone no longer copies a stone that a void cancels, Excavate no longer gets your turn stuck, tiles moved by Shifting Sands flip when revealed, and each element's shrine has its own pitch (earth lowest). Bot training: Extreme stays Extreme (fast, no board effects), no win screen stops a run, and its window can be made small."
+      ]
+    },
+    {
+      "id": "2026-10-14",
+      "date": "2026-10-14",
+      "title": "Scroll rule updates",
+      "changes": [
+        "When a scroll counts toward your win, its win stone now comes from the source before the scroll draws any stones. Seed the Skies, Mason's Savvy, Create, Respirate and Quick Reflexes can take the last stones and still count.",
+        "Simplify now lasts until your next turn, as its card says, and until then you regain 2 AP every time any scroll goes to the common area. Bots know how to use it.",
+        "Bots now keep a response scroll ready more often, and bot training includes 4-player games.",
+        "The Change Log is now in Spanish too."
       ]
     },
     {

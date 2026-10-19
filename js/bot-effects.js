@@ -212,7 +212,11 @@
             !(me.activated || []).includes(el) && ((s.sourcePool || {})[el] || 0) > 0) : [];
         const useful = tiles.filter(t => !t.flipped && need.includes(t.shrineType));
         const nearest = list => list.reduce((a, b) => (!a || dist(me, b) < dist(me, a)) ? b : a, null);
-        const pick = hidden.length ? nearest(hidden)
+        // A face-down tile draws a scroll of its element: one the bot still
+        // needs (or does not know yet) first (2026-10-19)
+        const known = t => (s.tiles || []).find(x => Number(x.id) === Number(t.id))?.known;
+        const hiddenUseful = hidden.filter(t => { const k = known(t); return !k || k === 'catacomb' || need.includes(k); });
+        const pick = hiddenUseful.length ? nearest(hiddenUseful) : hidden.length ? nearest(hidden)
             : useful.length ? nearest(useful)
             : tiles[0]; // nothing useful - arbitrary pick among a bad option set
         sm.handleTileClick(pick);
@@ -306,18 +310,29 @@
     function driveWaterTransform(se, sm) {
         const pos = (typeof playerPositions !== 'undefined') ? playerPositions[sm.casterIndex] : null;
         if (!pos) return false;
-        const stones = se.getAdjacentWaterStones(pos, sm.casterIndex);
+        let stones = se.getAdjacentWaterStones(pos, sm.casterIndex);
         if (!stones.length) return false;
+        // A current plan (bot.js ctcTargets, 2026-10-19): turn only its placeholders,
+        // each into the element its cell needs; leave every other water stone.
+        let want = null;
+        const planned = window.BotSystem?.ctcTargets?.(sm.casterIndex);
+        if (planned) {
+            const pick = stones.map(st => ({ st, t: planned.find(t => Math.hypot(t.x - st.x, t.y - st.y) < 5) })).find(o => o.t);
+            if (!pick) return false;
+            stones = [pick.st];
+            want = pick.t.type;
+        }
         // Every target element's source pool empty: nothing can be made, so
         // do not open the picker at all (owner report 2026-09-28: the bot
         // clicked a disabled button forever and the turn never ended).
         const pools = (typeof stonePools !== 'undefined') ? stonePools : {};
         const targets = ['earth', 'fire', 'wind', 'void'].filter(el => (pools[el] || 0) > 0);
         if (!targets.length) return false;
+        if (want && !targets.includes(want)) return false; // that element's supply is empty
         sm.handleStoneClick(stones[0]); // opens water-transform-modal synchronously
         const modal = document.getElementById('water-transform-modal');
         if (modal) {
-            const order = [...rankedElements().filter(el => targets.includes(el)), ...targets];
+            const order = want && targets.includes(want) ? [want] : [...rankedElements().filter(el => targets.includes(el)), ...targets];
             if (!clickBestElement(modal, order)) {
                 // Nothing clickable after all: close it instead of looping.
                 [...modal.querySelectorAll('button')].find(b => srcText(b) === 'Cancel')?.click();
@@ -954,6 +969,16 @@
             : candidates[0];
     }
 
+    // Where a caster sends opponent `mover`: with all 5 elements the landing
+    // farthest from its home, else the one farthest from where it stands.
+    // Mirrors bot-sim.js takeFlightSendFor.
+    function _worstTakeFlightDestination(candidates, mover) {
+        const home = ELEMENTS.every(el => mover.activated.includes(el))
+            ? snap().tiles.find(t => t.isPlayerTile && t.playerIndex === mover.index) : null;
+        const from = home || mover;
+        return candidates.reduce((a, b) => (!a || dist(from, b) > dist(from, a)) ? b : a, null);
+    }
+
     function driveTakeFlightDrag() {
         const tf = window.takeFlightState;
         if (!tf || !tf.active) return false;
@@ -982,7 +1007,11 @@
         const c = takeChoice('WIND_SCROLL_4');
         const chosen = (c && c.x != null && tf.targetPlayerIndex === activePlayerIndex)
             ? candidates.find(h => Math.hypot(h.x - c.x, h.y - c.y) < 5) : null;
-        const dest = chosen || _bestTakeFlightDestination(candidates, target);
+        // The caster picks the landing (owner 2026-10-15): itself = best for
+        // itself, an opponent = worst for them (BotSim.takeFlightSendFor).
+        const dest = chosen || (tf.targetPlayerIndex === activePlayerIndex
+            ? _bestTakeFlightDestination(candidates, target)
+            : _worstTakeFlightDestination(candidates, target));
 
         if (tf.targetPlayerIndex === activePlayerIndex) {
             placePlayer(dest.x, dest.y);
@@ -1026,8 +1055,10 @@
     function driveTelekinesis(se, sm) {
         if (!window.telekinesisState?.active) return false;
 
+        // A tile with ONE pawn on it may move (the pawn rides along, as for a
+        // player); 2+ pawns block it. Same rule as BotSim telekinesisEligible.
         const eligible = (se.getEligibleTilesForSwap() || []).filter(t =>
-            !tileHasStones(t.id) && !tileHasPlayersById(t.id) && !tileIsBridge(t.id));
+            !tileHasStones(t.id) && playerCountOnTileById(t.id) <= 1 && !tileIsBridge(t.id));
         if (!eligible.length) { window.finishTelekinesis?.(); return true; }
 
         const largeHexSize = TILE_SIZE * 4;
@@ -1066,6 +1097,11 @@
         isDraggingTile = false;
         draggedTileId = null;
         draggedTileOriginalPos = null;
+        // A lone pawn on the tile goes with it to the tile's center.
+        let movedPlayers = [];
+        if (originalPos && typeof window.carryPlayersOnTelekinesisMove === 'function') {
+            try { movedPlayers = window.carryPlayersOnTelekinesisMove(originalPos, destination) || []; } catch (e) {}
+        }
 
         if (window.telekinesisState) {
             window.telekinesisState.movesLeft--;
@@ -1077,7 +1113,7 @@
             }
             if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
                 broadcastGameAction('telekinesis-move', {
-                    tileId: tile.id, newPos: destination, oldPos: originalPos, movedPlayers: []
+                    tileId: tile.id, newPos: destination, oldPos: originalPos, movedPlayers
                 });
             }
             if (window.telekinesisState.movesLeft <= 0) window.finishTelekinesis?.();
@@ -1096,9 +1132,26 @@
     // separately (driveTransmute/decideResponse) since they're detected and
     // called from different points in waitForQuiescence().
     // ----------------------------------------------------------------
+    // Online, this browser drives bot seats only: a choice that belongs to a
+    // human seat (the player at this screen, or one whose turn just started)
+    // is never touched (owner 2026-10-15: a bot turn still finishing up
+    // clicked "Teleport" on the host's own Excavate pop-up, leaving a hidden
+    // pick-a-hex mode that blocked the whole turn). Test games drive their
+    // own seat on purpose (js/test-game.js), so they are left alone.
+    function humanSeatActive() {
+        try {
+            if (typeof isMultiplayer === 'undefined' || !isMultiplayer) return false;
+            if (window.TestGame?.isActive?.()) return false;
+            const bd = window.BotDriver;
+            if (!bd || typeof bd.isBot !== 'function') return false;
+            return !bd.isBot(activePlayerIndex);
+        } catch (e) { return false; }
+    }
+
     function driveSelection() {
         const se = window.spellSystem?.scrollEffects;
         if (!se) return false;
+        if (humanSeatActive()) return false;
 
         const sm = se.selectionMode;
         let acted = false, kind = null;
@@ -1158,6 +1211,6 @@
         return acted;
     }
 
-    window.BotEffects = { driveSelection, rankedElements, driveTransmute, decideResponse, setPendingChoice };
+    window.BotEffects = { driveSelection, humanSeatActive, rankedElements, driveTransmute, decideResponse, setPendingChoice };
     log('Loaded - window.BotEffects ready (tile-flip, scorched-earth, tile-swap, Create, Scholar\'s Insight, Quick Reflexes, Sacrificial Pyre, Inspiring Draught, Wandering River, Arson, Plunder, Control the Current, Excavate, Take Flight, Telekinesis, Transmute, response scrolls)');
 })();

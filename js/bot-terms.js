@@ -21,6 +21,13 @@
 (function () {
     'use strict';
 
+    // Random formula invention switch (owner 2026-10-18): the "formula"
+    // challengers never carried a formula that could matter (3 of 5 had none,
+    // 2 had random ones worth a few points), so training no longer invents,
+    // drops or changes formulas. Existing formulas keep their weight nudges;
+    // Formula Lab, Fit Formulas and the Training Lab test still add them on
+    // purpose. true = back on.
+    window.FORMULA_INVENTION = false;
     const MAX_TERMS = 8;
     const MAX_NODES = 25;
     const MAX_TEXT = 200;
@@ -97,6 +104,14 @@
                 const common = (s.commonArea || []).filter(isResp);
                 return s.players.filter((p, j) => j !== i && p && [...common, ...(p.active || []).filter(isResp)]
                     .some(n => { try { return !!window.BotSim?.checkPattern?.(s, n, j); } catch (e) { return false; } })).length; } },
+        // Simplify (2026-10-14): its caster regains 2 AP for every scroll that
+        // goes to the common area, so dead scrolls become AP while it is up.
+        simplifyUp:      { label: '1 if my Simplify is up this turn (its 1 AP casts and +2 AP per scroll to the common area)',
+            fn: (s, i) => (s.turn.activePlayerIndex === i && !(s.sim?.turnsEnded > 0) && s.turn.buffs?.simplify) ? 1 : 0 },
+        spareScrolls:    { label: 'scrolls I hold that no longer help me win (element already won, or its supply is empty)',
+            fn: (s, i) => { const p = s.players[i];
+                return [...(p.hand || []), ...(p.active || [])].filter(n => { const el = window.SCROLL_DEFINITIONS?.[n]?.element;
+                    return el && ELEMENTS.includes(el) && (p.activated.includes(el) || (s.sourcePool?.[el] || 0) <= 0); }).length; } },
     };
     const INPUT_NAMES = Object.keys(INPUTS);
 
@@ -279,7 +294,7 @@
     // (toText) stays the source of truth; this is only for reading.
     const WORDS = {
         myActivated: 'my elements', leaderActivated: "the leader's elements", allActivated: 'I have all 5',
-        myStones: 'my stones', neededStones: 'stones I need', voidHeld: 'my void stones', myAP: 'my AP',
+        myStones: 'my stones', neededStones: 'stones I need', voidHeld: 'my void stones', myAP: 'my AP', simplifyUp: 'my Simplify is up', spareScrolls: 'my dead scrolls',
         handCount: 'scrolls in my hand', activeCount: 'my active scrolls', commonCount: 'common scrolls',
         hiddenTiles: 'hidden tiles', distHome: 'steps home', distHidden: 'steps to a hidden tile',
         oppDistHome: "a rival's steps home", boardStones: 'stones on the board', sourceLeft: 'stones left in supply',
@@ -497,7 +512,7 @@
         for (const t of out) {
             if (typeof t.w === 'number') t.w = +(t.w + gauss(rng) * sigma * Math.max(1, Math.abs(t.w))).toFixed(3);
         }
-        if (opts.structural) {
+        if (opts.structural && window.FORMULA_INVENTION !== false) {
             const r = rng();
             // A brain with no formulas yet invents one more often, so a short
             // run with inventing on actually tries some.
@@ -542,12 +557,16 @@
     // network runs at every search leaf) and myAP (changes within a turn, so it
     // pushed moves the wrong way). toCurrent() converts version 1 rows.
     const FEATURE_VERSION = 2;
-    const NET_SKIP = ['homeCost', 'myAP'];
+    // simplifyUp / spareScrolls (2026-10-14) are formula inputs only for now:
+    // adding them to the network needs FEATURE_VERSION 3, which turns off every
+    // version 2 network and needs the saved rows converted.
+    const NET_SKIP = ['homeCost', 'myAP', 'simplifyUp', 'spareScrolls'];
     const NET_INPUTS = INPUT_NAMES.filter(k => !NET_SKIP.includes(k));
     const PER_ELEMENT = ['myPool', 'oppNeeds', 'stonesOf', 'commonFor'];
     const tail = [...PER_ELEMENT.flatMap(n => ELEMENTS.map(el => `${n}(${el})`)), ...ELEMENTS.map(el => `iHave(${el})`)];
     const FEATURE_NAMES = [...NET_INPUTS, ...tail];
-    const V1_NAMES = [...INPUT_NAMES, ...tail];
+    // Version 1 layout: the inputs that existed then (not the later Simplify ones).
+    const V1_NAMES = [...INPUT_NAMES.filter(k => k !== 'simplifyUp' && k !== 'spareScrolls'), ...tail];
     function features(snap, i) {
         const p = snap?.players?.[i];
         if (!p) return null;
@@ -568,9 +587,28 @@
         return null;
     }
 
+    // Formula fitting (js/formula-fit.js): read a formula's inputs from a saved
+    // feature row instead of a live board. fittable(text) = every input it
+    // reads is in FEATURE_NAMES (homeCost, myAP, adjacent(a, b) are not saved).
+    const FEATURE_INDEX = new Map(FEATURE_NAMES.map((n, k) => [n, k]));
+    function leaves(n, out = []) {
+        if (n[0] === 'in') out.push(n[1]);
+        else if (n[0] === 'pin') out.push(`${n[1]}(${n.slice(2).join(',')})`);
+        else if (n[0] !== 'n') n.slice(1).forEach(c => leaves(c, out));
+        return out;
+    }
+    function missingInputs(text) {
+        const c = compile(text);
+        if (!c.tree) return null;
+        return [...new Set(leaves(c.tree).filter(k => !FEATURE_INDEX.has(k)))];
+    }
+    function rowContext(f) {
+        return { get: k => f[FEATURE_INDEX.get(k)], getP: k => f[FEATURE_INDEX.get(k)] };
+    }
+
     window.BotTerms = {
-        INPUTS, MAX_TERMS, MAX_NODES,
-        FEATURE_VERSION, FEATURE_NAMES, features, toCurrent,
+        INPUTS, MAX_TERMS, MAX_NODES, CLAMP,
+        FEATURE_VERSION, FEATURE_NAMES, features, toCurrent, missingInputs, rowContext,
         inputList: () => [...INPUT_NAMES.map(k => ({ name: k, label: INPUTS[k].label })),
             ...PARAM_NAMES.map(k => ({ name: PARAM_INPUTS[k].sig, label: PARAM_INPUTS[k].label }))],
         parse, toText, describe, compile, score, explain,

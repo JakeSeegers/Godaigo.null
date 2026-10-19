@@ -95,7 +95,8 @@
 //   actually advance activePlayerIndex before trusting it — see the comment
 //   in playMatch().
 //
-// SUPPRESSED DURING A MUTED (non-visual) RUN: win-screen modal
+// SUPPRESSED DURING EVERY TRAINING RUN (run / evolve / hillClimb / confirm,
+// also Watchable ones since 2026-10-15; muted runs also lose sound): win-screen modal
 // (spellSystem.showLevelComplete), end-turn AP prompt, SoundSystem,
 // gamification (window.gami — otherwise arena games would farm real XP onto
 // the logged-in profile). spectate() (one continuous game) keeps sounds,
@@ -181,7 +182,10 @@
     // Environment guard: everything a MUTED (non-visual) run mutes, saved
     // and restored even if a game throws.
     // ----------------------------------------------------------------
-    function muteEnvironment() {
+    // keepSound (Watchable training runs, 2026-10-15): keep sound and pacing,
+    // but still no win screen, end-turn prompt or real XP. A Watchable run
+    // showed the win screen mid-run, and closing it ended the run (owner).
+    function muteEnvironment({ keepSound = false } = {}) {
         const rw = window.spellSystem?.responseWindow;
         const saved = {
             random: Math.random,
@@ -192,7 +196,7 @@
             speedScale: window.BotSystem.speedScale,
             isBotPlayer: rw?.isBotPlayer,
         };
-        window.SoundSystem = null;
+        if (!keepSound) window.SoundSystem = null;
         // Joytone is handled separately (see suppressJoytone() / run() /
         // evolve()) — nulling window.JoytoneBridge here only stopped OTHER
         // code from calling into it, it never actually silenced audio
@@ -249,9 +253,26 @@
     // pause stays for the game's own delayed effects.
     const MUTED_SPEED = 0.02;
     let _liveVisual = null;
-    function setLiveSpeed(watchable) {
+    // The player's last switch, kept for the whole Train Bot job (game-ui.js
+    // runHillClimbTraining clears it before and after): each part of the job
+    // (combo screening, climb, final test) starts a new run that resets the
+    // speed, and a switch to Extreme went back to Watchable (owner 2026-10-15).
+    let _jobSpeed = null;
+    function applyLive(watchable) {
         _liveVisual = !!watchable;
-        window.BotSystem.speedScale = watchable ? 1 : 0.1;
+        // Extreme = the same short pause a run started at Extreme uses (it was
+        // 0.1, 5x the muted pause, so a switched run stayed slow; 2026-10-15)
+        window.BotSystem.speedScale = watchable ? 1 : MUTED_SPEED;
+    }
+    function setLiveSpeed(watchable) {
+        _jobSpeed = !!watchable;
+        applyLive(watchable);
+    }
+    function clearJobSpeed() { _jobSpeed = null; }
+    // run start: the run's own speed, unless the player switched during this job
+    function startSpeed() {
+        _liveVisual = null;
+        if (_jobSpeed !== null) applyLive(_jobSpeed);
     }
 
     function setWeights(table) {
@@ -617,10 +638,171 @@
         const rep = await supabase.rpc('report_combo_screen', {
             p_signature: due.signature, p_champion: due.champion_id, p_wins: r.aWins, p_losses: r.bWins, p_draws: r.draws,
         });
-        const out = { signature: due.signature, wins: r.aWins, losses: r.bWins, draws: r.draws, passed: r.aWins >= r.bWins,
+        const out = { signature: due.signature, wins: r.aWins, losses: r.bWins, draws: r.draws, passed: BotExam.judgeGames(r, { kind: 'even' }).pass,
             saved: !rep.error && !!rep.data?.ok };
         opts.onDone?.(out);
         return out;
+    }
+
+    // ── Scroll report (2026-10-14, owner) ─────────────────────────────
+    // "Win rate when held", like 17Lands' card stats for Magic: for every
+    // scroll, how often a seat that held it at some point won, against how
+    // often seats that never held it won. Each game result is scored against
+    // the fair share (1 / players), so 2- and 4-player games mix. A scroll
+    // whose holders win LESS than average is one the bots probably use badly.
+    // Also counts how often a held scroll was actually cast. Read-only: it
+    // only reads hands and the action log (seeded games stay identical).
+    // Only games with a winner count; drill games (opts.startScrolls) do not.
+    // Stored in this browser only (localStorage godaigo_scroll_report).
+    const SR_KEY = 'godaigo_scroll_report';
+    let _sr = null;          // current game: { held: [Set], cast: [Map] }
+    let _srListen = false;
+    function srLoad() {
+        try { const d = JSON.parse(localStorage.getItem(SR_KEY) || 'null'); if (d && d.v === 1) return d; } catch (e) {}
+        return { v: 1, games: 0, scrolls: {} };
+    }
+    function srSeen(idx) {
+        if (!_sr) return;
+        const ps = window.spellSystem?.playerScrolls?.[idx];
+        if (!ps) return;
+        for (const n of ps.hand || []) _sr.held[idx]?.add(n);
+        for (const n of ps.active || []) _sr.held[idx]?.add(n);
+    }
+    function srStart(n, opts) {
+        _sr = (opts.scrollReport === false || opts.startScrolls || opts.stack) ? null
+            : { held: Array.from({ length: n }, () => new Set()), cast: Array.from({ length: n }, () => new Map()) };
+        if (_sr && !_srListen && window.ActionLog?.onRecord) {
+            _srListen = true;
+            window.ActionLog.onRecord(e => {
+                if (!_sr || !e.scrollName) return;
+                // Responses and counters are logged apart, with the responder in casterIndex.
+                const seat = e.type === 'cast_execute' ? e.player
+                    : (e.type === 'response_resolved' || e.type === 'response_counter') ? e.casterIndex : null;
+                if (!(seat >= 0)) return;
+                const m = _sr.cast[seat];
+                if (m) m.set(e.scrollName, (m.get(e.scrollName) || 0) + 1);
+            });
+        }
+    }
+    function srFinish(result, n) {
+        const g = _sr; _sr = null;
+        if (!g || result.endReason !== 'win' || result.winner == null) return;
+        const d = srLoad();
+        d.games++;
+        const share = 1 / n;
+        for (const name of Object.keys(window.SCROLL_DEFINITIONS || {})) {
+            const r = d.scrolls[name] || (d.scrolls[name] = { held: 0, heldWins: 0, heldExp: 0, notHeld: 0, notHeldWins: 0, notHeldExp: 0, castGames: 0, casts: 0 });
+            for (let i = 0; i < n; i++) {
+                const won = result.winner === i ? 1 : 0;
+                const cast = g.cast[i].get(name) || 0;
+                if (g.held[i].has(name) || cast) {
+                    r.held++; r.heldWins += won; r.heldExp += share;
+                    if (cast) { r.castGames++; r.casts += cast; }
+                } else {
+                    r.notHeld++; r.notHeldWins += won; r.notHeldExp += share;
+                }
+            }
+        }
+        try { localStorage.setItem(SR_KEY, JSON.stringify(d)); } catch (e) {}
+    }
+    // Rows for the report, weakest first. score = wins / fair share (1 = average).
+    // lift = held score - not-held score; vsAvg = lift minus the average lift
+    // (holders win more in general, since scrolls come from exploring).
+    function scrollReport() {
+        const d = srLoad();
+        const rows = Object.entries(d.scrolls).map(([id, r]) => {
+            const heldScore = r.heldExp ? r.heldWins / r.heldExp : null;
+            const notScore = r.notHeldExp ? r.notHeldWins / r.notHeldExp : null;
+            return { id, name: window.SCROLL_DEFINITIONS?.[id]?.name || id, held: r.held, heldScore, notScore,
+                lift: heldScore != null && notScore != null ? heldScore - notScore : null,
+                castRate: r.held ? r.castGames / r.held : 0, casts: r.casts };
+        });
+        const withLift = rows.filter(x => x.lift != null && x.held >= 10);
+        const avg = withLift.length ? withLift.reduce((a, x) => a + x.lift, 0) / withLift.length : 0;
+        for (const x of rows) x.vsAvg = x.lift != null ? x.lift - avg : null;
+        rows.sort((a, b) => (a.held >= 10) !== (b.held >= 10) ? (a.held >= 10 ? -1 : 1) : (a.vsAvg ?? 0) - (b.vsAvg ?? 0));
+        return { games: d.games, avgLift: avg, rows };
+    }
+    function resetScrollReport() { try { localStorage.removeItem(SR_KEY); } catch (e) {} }
+
+    async function openScrollReport() {
+        document.getElementById('scroll-report-panel')?.remove();
+        const box = document.createElement('div');
+        box.id = 'scroll-report-panel';
+        box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10060;width:min(680px,95vw);max-height:88vh;overflow:auto;' +
+            'background:#16161f;border:1px solid #555;border-radius:10px;padding:14px 16px;color:#ddd;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.7);';
+        box.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <b style="font-size:15px;">Scroll report</b>
+                <button class="sr-close" style="padding:2px 9px;">✕</button>
+            </div>
+            <div style="color:#aaa;font-size:12px;margin-bottom:10px;">From every bot game in this browser (Train Bot, idle training, tests). "When held" = how often a bot that held the scroll won, 1.00 = its fair share. "Vs others" = that number compared with the same for other scrolls: low means bots win less with this scroll than with others, so they may use it badly. "Cast" = how often a held scroll was cast. Scrolls held in fewer than 10 games are listed last.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+                <button class="sr-play" style="padding:5px 10px;">Play 10 bot games now</button>
+                <button class="sr-reset" style="padding:5px 10px;">Reset</button>
+                <span class="sr-status" style="color:#cfc;align-self:center;"></span>
+            </div>
+            <div class="sr-table"></div>`;
+        document.body.appendChild(box);
+        const $ = q => box.querySelector(q);
+        const f2 = v => v == null ? '-' : v.toFixed(2);
+        const draw = () => {
+            const rep = scrollReport();
+            const rows = rep.rows.map(x => {
+                const low = x.held < 10;
+                const col = low ? '#888' : x.vsAvg < -0.25 ? '#f88' : x.vsAvg > 0.25 ? '#8f8' : '#ddd';
+                return `<tr style="color:${col}"><td>${x.name}</td><td style="text-align:right">${x.held}</td><td style="text-align:right">${f2(x.heldScore)}</td><td style="text-align:right">${f2(x.notScore)}</td><td style="text-align:right">${x.vsAvg == null ? '-' : (x.vsAvg >= 0 ? '+' : '') + x.vsAvg.toFixed(2)}</td><td style="text-align:right">${Math.round(x.castRate * 100)}%</td></tr>`;
+            }).join('');
+            $('.sr-table').innerHTML = `<div style="margin-bottom:6px;">${rep.games} finished games counted.</div>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="color:#aaa;text-align:right"><th style="text-align:left">Scroll</th><th>Games held</th><th>When held</th><th>Not held</th><th>Vs others</th><th>Cast</th></tr>${rows}</table>`;
+        };
+        draw();
+        $('.sr-close').onclick = () => box.remove();
+        $('.sr-reset').onclick = () => { if (confirm('Clear the scroll report in this browser?')) { resetScrollReport(); draw(); } };
+        $('.sr-play').onclick = async () => {
+            $('.sr-play').disabled = true;
+            const champ = window.BotSystem?.WEIGHTS ? { ...window.BotSystem.WEIGHTS } : {};
+            try {
+                await run(champ, champ, 10, Math.floor(Math.random() * 1e9), {
+                    onGame: (i, t) => { $('.sr-status').textContent = `Game ${i} of ${t}...`; draw(); },
+                });
+                $('.sr-status').textContent = 'Done.';
+            } catch (e) { $('.sr-status').textContent = 'Stopped: ' + (e?.message || e); }
+            $('.sr-play').disabled = false;
+            draw();
+        };
+    }
+
+    // Like the tutorial (tutorial-mode.js onTilePreReveal + primeEarthDeck): the
+    // combo scrolls are held back from every deck, hand and common slot, and
+    // each time the drilled seat reveals a tile (game-core.js revealTile calls
+    // window.__arenaStack first) that tile becomes the next scroll's element
+    // and the scroll goes on top of that deck, so the reveal draws it. Other
+    // seats reveal normally and can never draw a held-back scroll.
+    function stackDeal(stack, nPlayers) {
+        const ss = window.spellSystem;
+        const seat = stack.seat | 0;
+        if (!(seat >= 0 && seat < nPlayers) || !Array.isArray(stack.scrolls)) return;
+        const pending = [];
+        for (const name of stack.scrolls) {
+            let deckKey = null;
+            for (const el of Object.keys(ss.scrollDecks || {})) {
+                const i = ss.scrollDecks[el].indexOf(name);
+                if (i !== -1) { ss.scrollDecks[el].splice(i, 1); deckKey = el; }
+            }
+            for (const el of Object.keys(ss.commonArea || {})) if (ss.commonArea[el] === name) { ss.commonArea[el] = null; deckKey = deckKey || el; }
+            for (const ps of Object.values(ss.playerScrolls || {})) { ps?.hand?.delete?.(name); ps?.active?.delete?.(name); }
+            deckKey = deckKey || window.SCROLL_DEFINITIONS?.[name]?.element;
+            if (deckKey && ss.scrollDecks[deckKey]) pending.push({ name, deckKey });
+        }
+        window.__arenaStack = (tile) => {
+            if (activePlayerIndex !== seat || !pending.length || !tile || tile.isPlayerTile) return;
+            const next = pending.shift();
+            tile.shrineType = next.deckKey;
+            ss.scrollDecks[next.deckKey].unshift(next.name);
+        };
+        try { ss.updateScrollCount?.(); } catch (e) {}
+        log(`stacked deal for seat ${seat}: its next reveals give ${pending.map(p => `${p.name} (${p.deckKey})`).join(', ')}`);
     }
 
     async function _playMatchOnce(weightsPerPlayer, opts = {}) {
@@ -630,6 +812,9 @@
         // Pacing follows the live speed switch (setLiveSpeed) when used.
         const vis = () => _liveVisual ?? visual0;
         const seed = opts.seed ?? Math.floor(Math.random() * 1e9);
+        // For the hermit's "Bad move" report (js/bad-move.js): which game this is.
+        window.__arenaMatch = { seed, nPlayers, startedAt: new Date().toISOString(), stack: opts.stack || null,
+            weights: weightsPerPlayer.map(w => (w ? Object.fromEntries(Object.entries(w).filter(([k]) => k !== 'net')) : null)) };
         const stuckTurns = {};
         for (let i = 0; i < nPlayers; i++) stuckTurns[i] = 0;
         // Per-player camping streak for the trap-loop detector: which
@@ -673,6 +858,40 @@
         placePlayerTilesSpread(nPlayers);
         await sleep(vis() ? 300 : 30);
         activePlayerIndex = 0;
+        // Test option (2026-10-14): opts.startScrolls = { seat: [scrollName, ...] }
+        // puts those scrolls in that seat's hand at the start (taken out of the
+        // decks and the common area), so a test can make sure a rare scroll is
+        // in play every game. run() swaps the two sides every other game, so
+        // seat 0 = side A in half the games and side B in the other half.
+        // Not set = no change (seeded games stay identical).
+        if (opts.startScrolls && window.spellSystem) {
+            const ss = window.spellSystem;
+            for (const [seat, names] of Object.entries(opts.startScrolls)) {
+                const idx = Number(seat);
+                if (!(idx >= 0 && idx < nPlayers)) continue;
+                ss.ensurePlayerScrollsStructure(idx);
+                for (const name of names || []) {
+                    for (const el of Object.keys(ss.scrollDecks || {})) {
+                        const i = ss.scrollDecks[el].indexOf(name);
+                        if (i !== -1) ss.scrollDecks[el].splice(i, 1);
+                    }
+                    for (const el of Object.keys(ss.commonArea || {})) if (ss.commonArea[el] === name) ss.commonArea[el] = null;
+                    for (const ps of Object.values(ss.playerScrolls || {})) { ps?.hand?.delete?.(name); ps?.active?.delete?.(name); }
+                    ss.playerScrolls[idx].hand.add(name);
+                }
+            }
+            try { ss.updateScrollCount?.(); } catch (e) {}
+        }
+        // Stacked deal (Training Lab combo drill, owner 2026-10-18):
+        // opts.stack = { seat, scrolls: [name, ...] }. Each scroll goes to the top
+        // of its element's deck, and the face-down tiles nearest that seat's
+        // home get those elements (types swapped with other face-down tiles, so
+        // the board keeps the same tiles). The seat finds the combo by playing
+        // normally: walk onto the nearby tiles, reveal them, draw the scrolls.
+        // Both sides of a drill play the same stacked deal with seats swapped.
+        // Not set = no change (seeded games stay identical).
+        window.__arenaStack = null;
+        if (opts.stack && window.spellSystem) stackDeal(opts.stack, nPlayers);
         // Game boundaries in the action log, so a downloaded log shows who won.
         try { window.ActionLog?.record?.('gameStart', { nPlayers, seed }, null); } catch (e) {}
         if (visual0) { try { currentTurnNumber = 1; } catch (e) {} } // local games never advance it (the log needs it)
@@ -690,7 +909,8 @@
         window.showEndTurnPrompt = () => {};
 
         const result = { winner: null, turns: 0, activated: new Array(nPlayers).fill(0), stuckTurns, stalled: false, stallers: [] };
-        const cw = (opts.comboWatch !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
+        srStart(nPlayers, opts);
+        const cw = (opts.comboWatch !== false && window.COMBO_MINING !== false && window.Replay?.findCombos && window.BotSystem?.evaluateSnapshot) ? { segs: [] } : null;
         const pl = (opts.positionLog !== false && window.BotTerms?.features && window.BotSystem?.evaluateSnapshot) ? { rows: [], own: {} } : null;
         // one id per game: seed + seats + weights (the same game played
         // again gets the same id, so repeats do not count as new games)
@@ -721,7 +941,9 @@
                 refillAP();
                 if (cw) cwStart(turn + 1, idx, nPlayers);
                 if (pl) posSample(pl, turn + 1, idx);
+                srSeen(idx);
                 await window.BotSystem.turn();
+                srSeen(idx);
                 result.turns = turn + 1;
 
                 const snap = window.BotState.snapshot();
@@ -815,6 +1037,7 @@
         }
         if (cw) cwFinish(cw, result, nPlayers, opts);
         if (pl) posFinish(pl, result, nPlayers, opts, gameKey);
+        srFinish(result, nPlayers);
         // Round over: bot talk, emotes and the Bot Mind view go at once.
         try {
             const w = result.winner;
@@ -934,22 +1157,38 @@
         for (let i = 0; i < nGames && !_stopRequested && !_endEarlyRequested && !_saveRequested; i++) {
             const gi = offset + i;
             const aIsPlayer0 = gi % 2 === 0;
+            // opts.fourPlayerEvery k (owner 2026-10-14, docs/bot-systems.md): every k-th
+            // pair of games is a 4-player TEAM game, A and B on alternate seats (A on
+            // 0 and 2 when aIsPlayer0, else on 1 and 3). Pacts, guard mode and
+            // responses only happen with 3+ players; a result is still one side's
+            // win, so win rates and the idle verdict keep their 50% baseline.
+            const fourK = opts.fourPlayerEvery | 0;
+            const four = fourK > 0 && ((gi >> 1) % fourK) === fourK - 1;
             if (opts.markChallenger) setMarkedSeat(aIsPlayer0 ? 0 : 1);
-            const g = await playGame(
-                aIsPlayer0 ? weightsA : weightsB,
-                aIsPlayer0 ? weightsB : weightsA,
-                seed * 1000 + (gi >> 1),
-                opts
-            );
+            const g = four
+                ? await playMatch(aIsPlayer0 ? [weightsA, weightsB, weightsA, weightsB] : [weightsB, weightsA, weightsB, weightsA],
+                    { ...opts, seed: seed * 1000 + (gi >> 1) })
+                : await playGame(
+                    aIsPlayer0 ? weightsA : weightsB,
+                    aIsPlayer0 ? weightsB : weightsA,
+                    seed * 1000 + (gi >> 1),
+                    opts
+                );
             if (opts.markChallenger) setMarkedSeat(null);
             if (_saveRequested) break; // cut short by Save & Quit: not a result
-            const aWon = g.winner !== null && ((g.winner === 0) === aIsPlayer0);
+            const aSeat = s => (s % 2 === 0) === aIsPlayer0;
+            const aWon = g.winner !== null && aSeat(g.winner);
             if (g.winner === null) result.draws++;
             else if (aWon) result.aWins++;
             else result.bWins++;
-            result.aFitness += sideFitness(g, aIsPlayer0, opts);
-            result.bFitness += sideFitness(g, !aIsPlayer0, opts);
-            result.games.push({ winner: g.winner, turns: g.turns, aIsPlayer0 });
+            if (four) {
+                result.aFitness += (seatFitness(g, aIsPlayer0 ? 0 : 1, opts) + seatFitness(g, aIsPlayer0 ? 2 : 3, opts)) / 2;
+                result.bFitness += (seatFitness(g, aIsPlayer0 ? 1 : 0, opts) + seatFitness(g, aIsPlayer0 ? 3 : 2, opts)) / 2;
+            } else {
+                result.aFitness += sideFitness(g, aIsPlayer0, opts);
+                result.bFitness += sideFitness(g, !aIsPlayer0, opts);
+            }
+            result.games.push({ winner: g.winner, turns: g.turns, aIsPlayer0, players: four ? 4 : 2 });
             result.avgTurns += g.turns / nGames;
             log(`game ${i + 1}/${nGames}: ${g.winner === null ? 'draw' : (aWon ? 'A' : 'B') + ' wins'} in ${g.turns} turns  (A=${result.aWins} B=${result.bWins} D=${result.draws})`);
             if (typeof opts.onGame === 'function') {
@@ -975,10 +1214,10 @@
         _running = true;
         _stopRequested = false;
         const visual = !!opts.visual;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
         try {
             const result = await _playSeries(weightsA, weightsB, nGames, seed, { ...opts, visual });
             log('run complete:', JSON.stringify({
@@ -988,6 +1227,7 @@
             }));
             return result;
         } finally {
+            window.__arenaStack = null; // a combo drill's stacking never outlives its run
             if (restore) restore();
             unsuppressJoytone();
             _running = false;
@@ -1097,10 +1337,10 @@
         _stopRequested = false; // same stop() flag spectate() uses — shared "cancel a local bot job" signal
         _endEarlyRequested = false; // soft-stop for THIS run only — see its own comment above
         _saveRequested = false;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
 
         // Every population member is tracked as {id, w, parentIds} so a UI
         // can show a stable roster across generations, not just a bare
@@ -1308,6 +1548,78 @@
     // aborts; endEarly() finishes the current round then returns the champion
     // reached so far (always usable — it only advances on a real promotion).
     // ----------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // BotExam (docs/bot-systems.md 3.2, phase 2, 2026-10-14): the one place
+    // that says whether a challenger beats the champion. Every path uses it:
+    // Train Bot's climb (hillClimb), combo screening (screenDueCombo), and
+    // later drills. The idle-training verdict runs on the server
+    // (idle_training_report) with the same section A rule.
+    //   Section A  games vs the champion: decides (judgeGames)
+    //   Section B  scroll drills        (phase 3, not built yet)
+    //   Section C  response drills      (phase 3, not built yet)
+    //   Section D  combo practice duels: guard rail (guardRails, checks.practice)
+    //   Section E  puzzles from real games: guard rail (guardRails, checks.puzzle)
+    // A guard rail never adds to A's win rate; it can only block a promotion.
+    // ----------------------------------------------------------------
+    const BotExam = {
+        // Section A. r: {aWins, bWins, draws} or {decided, winRate}.
+        // rule.kind 'margin' (default): decided >= minDecided and win rate >=
+        // promoteWinRate (Train Bot). rule.kind 'even': wins >= losses (screening).
+        judgeGames(r, rule = {}) {
+            const decided = r.decided ?? ((r.aWins || 0) + (r.bWins || 0));
+            const winRate = r.winRate ?? (decided > 0 ? (r.aWins || 0) / decided : 0);
+            if (rule.kind === 'even') return { pass: (r.aWins || 0) >= (r.bWins || 0), decided, winRate };
+            const minDecided = rule.minDecided ?? 2;
+            const promoteWinRate = rule.promoteWinRate ?? 0.58;
+            return { pass: decided >= minDecided && winRate >= promoteWinRate, decided, winRate };
+        },
+        // Sections D and E, run only for a challenger that passed A.
+        // checks.puzzle: async (weights) => score | null; checks.practice:
+        // async (challenger, champion) => {played, wins, losses, draws}.
+        // state.championPuzzle caches the champion's puzzle score across
+        // calls (undefined = not measured yet). A failing check is ignored
+        // (logged), as before. Returns { pass, blocked: null | 'puzzle' |
+        // 'practice', note } where note matches hillClimb's old round info.
+        async guardRails(challenger, champion, checks = {}, state = {}, opts = {}) {
+            let note = null, blocked = null, newChampionPuzzle = null;
+            if (typeof checks.puzzle === 'function') {
+                try {
+                    if (state.championPuzzle === undefined) state.championPuzzle = await checks.puzzle(champion);
+                    const challengerPuzzle = await checks.puzzle(challenger);
+                    if (state.championPuzzle != null && challengerPuzzle != null) {
+                        note = { champion: state.championPuzzle, challenger: challengerPuzzle };
+                        if (challengerPuzzle < state.championPuzzle - (opts.puzzleTolerance ?? 0.05)) {
+                            blocked = 'puzzle';
+                            note.blocked = true;
+                        } else {
+                            newChampionPuzzle = challengerPuzzle; // kept only if no later rail blocks
+                        }
+                    }
+                } catch (e) {
+                    log('puzzle check failed (ignored):', e?.message || e);
+                }
+            }
+            if (!blocked && typeof checks.practice === 'function') {
+                try {
+                    const pr = await checks.practice(challenger, champion);
+                    if (pr && pr.played) {
+                        note = { ...(note || {}), practice: pr };
+                        if (pr.losses > pr.wins) {
+                            blocked = 'practice';
+                            note.blocked = true;
+                        }
+                    }
+                } catch (e) {
+                    log('practice check failed (ignored):', e?.message || e);
+                }
+            }
+            // The champion's puzzle score changes only when the challenger really
+            // passes every rail (before 2026-10-14 a practice block still swapped it).
+            if (!blocked && newChampionPuzzle != null) state.championPuzzle = newChampionPuzzle;
+            return { pass: !blocked, blocked, note };
+        },
+    };
+
     let _climbing = false;
     function isClimbing() { return _climbing; }
 
@@ -1336,13 +1648,13 @@
         _stopRequested = false;
         _endEarlyRequested = false;
         _saveRequested = false;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
 
         let champion = opts.champion ? { ...opts.champion } : { ...window.BotSystem.WEIGHTS };
-        let championPuzzle; // puzzle score of the current champion (opts.puzzleCheck), computed on first use
+        const examState = {}; // BotExam.guardRails: the champion's puzzle score, measured on first use
         let sigma = resume?.sigma ?? sigma0;
         let promotions = resume?.promotions || 0, gamesPlayed = resume?.gamesPlayed || 0;
         const roundLog = Array.isArray(resume?.roundLog) ? resume.roundLog.slice() : [];
@@ -1437,7 +1749,8 @@
                         // stageDone: games of this stage already played before
                         // a Save & Quit (a continued run plays only the rest).
                         const r = await _playSeries(cand.w, champion, st.games - (cand.stageDone || 0), trialSeed,
-                            { ...opts, visual, gameIndexOffset: cand.played, markChallenger: true });
+                            { ...opts, visual, gameIndexOffset: cand.played, markChallenger: true,
+                              fourPlayerEvery: opts.fourPlayerEvery ?? 3 });
                         if (_stopRequested) break; // a stopped series is not a result
                         const n = r.aWins + r.bWins + r.draws;
                         cand.played += n;
@@ -1479,45 +1792,23 @@
                     aWins: finalist.aWins, bWins: finalist.bWins, draws: finalist.draws,
                 } : null;
 
-                // Promote ONLY on a real margin over enough decisive games.
-                let promoted = !!best && best.decided >= minDecided && best.winRate >= promoteWinRate;
+                // Promote ONLY on a real margin over enough decisive games
+                // (BotExam section A), then the guard rails (sections D, E).
+                let promoted = !!best && BotExam.judgeGames(best, { promoteWinRate, minDecided }).pass;
                 let puzzleNote = null;
-                if (promoted && typeof opts.puzzleCheck === 'function') {
-                    try {
-                        if (championPuzzle === undefined) championPuzzle = await opts.puzzleCheck(champion);
-                        const challengerPuzzle = await opts.puzzleCheck(best.w);
-                        if (championPuzzle != null && challengerPuzzle != null) {
-                            puzzleNote = { champion: championPuzzle, challenger: challengerPuzzle };
-                            if (challengerPuzzle < championPuzzle - (opts.puzzleTolerance ?? 0.05)) {
-                                promoted = false;
-                                puzzleNote.blocked = true;
-                                log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but failed the puzzle check ` +
-                                    `(${challengerPuzzle} vs champion ${championPuzzle}) - champion holds`);
-                            } else if (promoted) {
-                                championPuzzle = challengerPuzzle; // the new champion's score
-                            }
-                        }
-                    } catch (e) {
-                        log('puzzle check failed (ignored):', e?.message || e);
-                    }
-                }
-                // opts.practiceCheck (2026-10-11): combo practice duels on spots
-                // where players pulled off taught combos; a would-be champion that
-                // loses more of them than it wins stays a challenger.
-                if (promoted && typeof opts.practiceCheck === 'function') {
-                    try {
-                        const pr = await opts.practiceCheck(best.w, champion);
-                        if (pr && pr.played) {
-                            puzzleNote = { ...(puzzleNote || {}), practice: pr };
-                            if (pr.losses > pr.wins) {
-                                promoted = false;
-                                puzzleNote.blocked = true;
-                                log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but lost the combo practice ` +
-                                    `(${pr.wins}-${pr.losses}) - champion holds`);
-                            }
-                        }
-                    } catch (e) {
-                        log('practice check failed (ignored):', e?.message || e);
+                if (promoted) {
+                    const rail = await BotExam.guardRails(best.w, champion,
+                        { puzzle: opts.puzzleCheck, practice: opts.practiceCheck }, examState,
+                        { puzzleTolerance: opts.puzzleTolerance });
+                    puzzleNote = rail.note;
+                    if (rail.blocked === 'puzzle') {
+                        promoted = false;
+                        log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but failed the puzzle check ` +
+                            `(${rail.note.challenger} vs champion ${rail.note.champion}) - champion holds`);
+                    } else if (rail.blocked === 'practice') {
+                        promoted = false;
+                        log(`round ${round + 1}: challenger won ${best.aWins}-${best.bWins} but lost the combo practice ` +
+                            `(${rail.note.practice.wins}-${rail.note.practice.losses}) - champion holds`);
                     }
                 }
                 if (promoted) {
@@ -1665,10 +1956,10 @@
 
         _running = true;
         _stopRequested = false;
-        const restore = visual ? null : muteEnvironment();
+        const restore = muteEnvironment({ keepSound: visual }); // no win screen in training, even Watchable
         const unsuppressJoytone = suppressJoytone();
         window.BotSystem.speedScale = opts.speed ?? (visual ? 1 : MUTED_SPEED);
-        _liveVisual = null; // live speed switch starts from the run's own speed
+        startSpeed(); // the run's own speed, or the player's switch during this Train Bot job
 
         const perSize = [];
         let champFitness = 0, baseFitness = 0, champWins = 0, baseWins = 0, draws = 0, gameNo = 0;
@@ -1745,6 +2036,7 @@
         run, evolve, playMatch, spectate, stop,
         hillClimb, // champion-anchored monotonic climber (the reliable trainer)
         confirmAcrossSizes, // N-player champion-vs-field confirmation gate
+        exam: BotExam, // one exam: judgeGames (section A) + guardRails (D practice, E puzzles)
         saveAndStop, // hillClimb: stop after this challenger, keep a checkpoint
         endEarly, // soft-stop: cuts evolve()'s / hillClimb()'s loop short but keeps its result usable
         makeChallenger, // idle training: explore / formula challenger
@@ -1755,7 +2047,8 @@
         isSpectating, isEvolving, isClimbing, isRunning, markedSeat,
         stopRequested: () => _stopRequested, // was stop() called for the run in progress (or the one that just ended)?
         endEarlyRequested,
-        setLiveSpeed,
+        setLiveSpeed, clearJobSpeed,
+        scrollReport, resetScrollReport, openScrollReport, // scroll report (hermit menu)
         applyWeights: setWeights, // apply an {…} weight table to the LIVE WEIGHTS object in place
     };
     log('Loaded - window.BotArena ready (run / evolve / spectate)');

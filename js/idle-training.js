@@ -140,12 +140,12 @@
             // one open per champion and never retests the same adjustments.
             const d = window.BotImitation?.getDeltas?.() || {};
             const hasDeltas = Object.values(d).some(v => typeof v === 'number' && Math.abs(v) > 1e-6);
-            let kind = Math.random() < 0.5 ? 'formula' : 'explore';
+            let kind = (window.FORMULA_INVENTION !== false && Math.random() < 0.5) ? 'formula' : 'explore';
             if (hasDeltas && Math.random() < 0.34) kind = 'imitation';
             // 'combo' (2026-10-11, sql/combo-trials.sql): the champion plus one
             // combo bots found in training (idle_trial_combo), 1 in 4 times.
             let trial = null;
-            if (kind !== 'imitation' && Math.random() < 0.25) {
+            if (kind !== 'imitation' && window.COMBO_MINING !== false && Math.random() < 0.25) {
                 try { const t = await sb().rpc('idle_trial_combo'); if (!t.error && typeof t.data === 'string' && t.data) trial = t.data; } catch (e) {}
                 if (trial) kind = 'combo';
             }
@@ -192,7 +192,7 @@
             slot++;
             // Combo screening (2026-10-11, sql/combo-screening.sql): every 4th slot
             // after the first three games, 8 fast games for a combo bots keep finding.
-            if (played >= 3 && slot % 4 === 0 && window.BotArena.screenDueCombo) {
+            if (played >= 3 && slot % 4 === 0 && window.COMBO_MINING !== false && window.BotArena.screenDueCombo) {
                 let scr = null;
                 try {
                     scr = await window.BotArena.screenDueCombo(run.job.champion, {
@@ -204,7 +204,7 @@
                 if (scr && !scr.stopped) { run.lastScreen = scr; renderBar(); continue; }
                 renderBar();
             }
-            if (played >= 3 && slot % 3 === 0 && window.Replay?.practiceDuel) {
+            if (played >= 3 && slot % 3 === 0 && window.COMBO_MINING !== false && window.Replay?.practiceDuel) {
                 run.practice = true; renderBar();
                 let duel = null;
                 try { duel = await window.Replay.practiceDuel(run.cand.weights, { ...window.BotSystem.DEFAULT_WEIGHTS, ...run.job.champion }); }
@@ -233,6 +233,7 @@
             try {
                 await window.BotArena.run(run.cand.weights, run.job.champion, 1, seed, {
                     visual: true, speed: fast ? FAST_SPEED : 1, markChallenger: true, gameIndexOffset: played,
+                    fourPlayerEvery: 3, // every 3rd pair of games: 4-player team game (docs/bot-systems.md)
                     onGame: (n, total, g, side) => report(g, side),
                 });
             } finally { window.__arenaFx = false; }
@@ -252,7 +253,7 @@
     // combos count once a second account found the same. Nothing left = wait.
     let mineIdleUntil = 0;
     async function mineOne() {
-        if (!window.Replay || Date.now() < mineIdleUntil) return;
+        if (!window.Replay || Date.now() < mineIdleUntil || window.COMBO_MINING === false) return;
         const hermit = !!window.isHermit?.();
         if (hermit ? !window.Replay.mineMatches : !window.Replay.minePooled) return;
         run.mining = true; renderBar();

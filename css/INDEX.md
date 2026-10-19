@@ -30,6 +30,8 @@
 --bg-elevated: #2a2a2a
 --accent-gold: #e6c79c        ← primary accent; used for borders, highlights
 --accent-orange: #c05500
+--pc: the viewer's seat colour, set on <html> in a game by js/scroll-panels.js _initPlayerTint (with html.pc-on);
+      used only by the PLAYER TINT block at the end of styles.css (panels, card buttons, HUD / dock bars)
 --text-muted: (implicit ~#666)
 --border-subtle: (implicit)
 

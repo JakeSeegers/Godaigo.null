@@ -62,13 +62,28 @@
         return window.gameSoundEnabled !== false;
     }
 
-    function play(name, volume = 1.0) {
+    // opts.rate: play faster / slower, which also moves the pitch (1 = as recorded)
+    function play(name, volume = 1.0, opts = {}) {
         if (!_isEnabled(name)) return;
         const src = SOUNDS[name];
         if (!src) { console.warn(`SoundSystem: unknown sound "${name}"`); return; }
         const audio = new Audio(src);
         audio.volume = volume;
+        if (opts.rate && opts.rate !== 1) {
+            audio.preservesPitch = false; audio.mozPreservesPitch = false; audio.webkitPreservesPitch = false;
+            audio.playbackRate = opts.rate;
+        }
         audio.play().catch(() => {}); // silently ignore autoplay policy blocks
+    }
+
+    // Shrine collection (owner 2026-10-15: "a bit samey"): one pitch per
+    // element, earth deepest, then water, fire, wind, void, two semitones
+    // apart, plus a small random wobble (about 1/4 semitone) so repeats differ.
+    const COLLECT_STEPS = { earth: -4, water: -2, fire: 0, wind: 2, void: 4 };
+    const COLLECT_VOLUME = 0.55; // softer than other sounds (owner 2026-10-15: a little too loud)
+    function playCollect(element) {
+        const semis = (COLLECT_STEPS[element] ?? 0) + (Math.random() - 0.5) * 0.5;
+        play('collectstones', COLLECT_VOLUME, { rate: Math.pow(2, semis / 12) });
     }
 
     function playFootstep() {
@@ -95,7 +110,7 @@
     // first play of each sound otherwise waits on its download).
     const urls = Object.values(SOUNDS).concat(FOOTSTEP_FILES.map(f => FOOTSTEP_DIR + f));
 
-    window.SoundSystem = { play, playFootstep, onWinCondition, urls };
+    window.SoundSystem = { play, playCollect, playFootstep, onWinCondition, urls };
 
     // ── Login screen music ────────────────────────────────────────────────────
     // Strategy: start the audio MUTED immediately (browsers allow muted autoplay

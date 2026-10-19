@@ -872,8 +872,9 @@
             // spectator or the seatless host of a spectate test.
             const dri = window.BotDriver?.driverRealIndex?.();
             const meIdx = dri != null ? dri : myPlayerIndex;
+            // Other players only (owner 2026-10-15: your own card is already in
+            // your Hand / Active / Elemental Stones panels). A spectator sees all.
             const playerOrder = [];
-            if (meIdx != null && meIdx >= 0) playerOrder.push(meIdx);
             for (let i = 0; i < totalPlayers; i++) {
                 if (i !== meIdx) playerOrder.push(i);
             }
@@ -917,23 +918,38 @@
                     `<span class="opponent-stone" style="color:${STONE_TYPES[el].color}" title="${pool[el]} ${el} stone${pool[el] !== 1 ? 's' : ''}"><img src="${STONE_TYPES[el].img}" class="element-icon-sm" alt="${el}">${pool[el]}</span>`).join('');
                 html += row('Stones', stones || '<span class="opp-none">none</span>');
 
-                // Hand: count + each scroll's ELEMENT only (name/pattern stay
-                // private, like a face-down card showing its suit). A catacomb
-                // scroll in hand is a plain light-tan symbol: its two element
-                // colors would tell others which catacomb scroll it is.
+                // Hand and Active as the same rows as the player's own collapsed
+                // Hand / Active panels (owner 2026-10-15: dot, name, element ·
+                // level). Another player's hand stays face down: only each
+                // scroll's ELEMENT shows (a catacomb scroll is plain light tan,
+                // its two colors would tell which one it is). js/scroll-move-fx.js
+                // flies scrolls between these rows ([data-area] on the list).
+                const meta = n => window.ScrollPanelSystem?.scrollMeta?.(n) || null;
+                const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+                const shownRow = n => {
+                    const m = meta(n);
+                    const name = m ? m.name : n;
+                    const sub = m ? [m.elLabel, m.lvLabel].filter(Boolean).join(' · ') : '';
+                    return `<div class="opponent-scroll-card opp-scroll-row" data-scroll-name="${esc(n)}" title="${esc(name)}: hover to preview">`
+                        + `<span class="fsp-compact-dot" style="background:${m ? m.bg : '#888'}"></span>`
+                        + `<span class="opponent-scroll-name">${esc(name)}</span><span class="opp-scroll-meta">${esc(sub)}</span></div>`;
+                };
+                const hiddenRow = n => {
+                    const el = spellSystem.getScrollElement(n);
+                    const shown = el === 'catacomb' ? 'catacomb' : n;
+                    const bg = look ? look.gradient(look.colors(shown)) : '#888';
+                    const lbl = look ? look.label(shown) : el;
+                    return `<div class="opp-scroll-row opp-scroll-hidden"><span class="fsp-compact-dot" style="background:${bg}"></span>`
+                        + `<span class="opponent-scroll-name">Hidden scroll</span><span class="opp-scroll-meta">${esc(lbl)}</span></div>`;
+                };
+                const list = (area, names, rowFn, empty) => `<div class="opp-scroll-list" data-area="${area}">`
+                    + (names.length ? names.map(rowFn).join('') : `<span class="opp-none">${empty}</span>`) + '</div>';
                 const handNames = scrollData.hand ? [...scrollData.hand] : [];
-                html += row(`Hand ${handNames.length}`, handNames.length
-                    ? handNames.map(n => look ? look.iconHtml(spellSystem.getScrollElement(n) === 'catacomb' ? 'catacomb' : n, 'element-icon-sm opp-hand-icon') : '').join('')
-                    : '<span class="opp-none">empty</span>');
-
-                // Active scrolls (public): icon + name, hover = preview
+                // label above the list (rows need the card's full width)
+                const listRow = (label, inner) => `<div class="opp-row opp-row-list"><span class="opp-label">${label}</span>${inner}</div>`;
+                html += listRow(`Hand ${handNames.length}`, list('hand', handNames, isSelf ? shownRow : hiddenRow, 'empty'));
                 const activeNames = scrollData.active ? [...scrollData.active] : [];
-                if (activeNames.length) {
-                    html += row('Active', activeNames.map(n => {
-                        const pattern = spellSystem.patterns[n];
-                        return `<span class="opponent-scroll-card" data-scroll-name="${n}" title="${look ? look.label(n) : ''}: hover to preview">${look ? look.iconHtml(n) : ''}<span class="opponent-scroll-name" style="${look ? look.textStyle(n) : ''}">${pattern ? pattern.name : n}</span></span>`;
-                    }).join(''));
-                }
+                html += listRow(`Active ${activeNames.length}`, list('active', activeNames, shownRow, 'none'));
                 card.innerHTML = html;
 
                 if (cardsContainer) cardsContainer.appendChild(card);
@@ -1268,6 +1284,7 @@
             }
             return moved;
         }
+        window.carryPlayersOnTelekinesisMove = carryPlayersOnTelekinesisMove; // bot-effects.js driveTelekinesis
 
         document.addEventListener('mouseup', (e) => {
             if (e.button === 0) leftButtonDown = false;
@@ -1391,7 +1408,7 @@
                 draggedStoneOriginalPos = null;
 
                 if (!tryReturnStoneToElementalPanel(e.clientX, e.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
-                    const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
+                    const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType, capturedStoneId !== null);
                     if (stonePos.valid) {
                         if (capturedStoneId === null) {
                             window._pendingFireDestroys = [];
@@ -1516,9 +1533,9 @@
                         return dist < 5;
                     });
 
-                    // Can't end turn on: earth, wind, water, fire
-                    // CAN end turn on: void (or empty hex)
-                    const cannotEndTurnHere = stoneAtFinal && stoneAtFinal.type !== 'void';
+                    // A move can never end on a stone, void included (owner 2026-10-19:
+                    // ending on void let a 0 AP pawn end its turn there via the stranded rule)
+                    const cannotEndTurnHere = !!stoneAtFinal;
 
                     // Tutorial gate: only allow movement to the designated hex(es)
                     const tutorialBlocked = window.isTutorialMode && window.tutorialAllowedHexes &&
@@ -1864,7 +1881,7 @@
                             const dist = Math.sqrt(Math.pow(s.x - targetHex.x, 2) + Math.pow(s.y - targetHex.y, 2));
                             return dist < 5;
                         });
-                        const cannotEndTurnHere = stoneAtTarget && stoneAtTarget.type !== 'void';
+                        const cannotEndTurnHere = !!stoneAtTarget;
 
                         // Compute the actual path early (used both for the reveal
                         // walk below and the tutorial flip-block check) — the
@@ -2046,7 +2063,7 @@
                     draggedStoneOriginalPos = null;
 
                     if (!tryReturnStoneToElementalPanel(coords.clientX, coords.clientY, capturedStoneId, capturedStoneType, capturedOriginalPos)) {
-                        const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType);
+                        const stonePos = findValidStonePosition(world.x, world.y, capturedStoneType, capturedStoneId !== null);
                         if (stonePos.valid && capturedStoneId === null) {
                             placeStone(stonePos.x, stonePos.y, capturedStoneType);
                             window.SoundSystem?.play(capturedStoneType === 'earth' ? 'placeearthstone' : 'placestone');
@@ -2136,12 +2153,12 @@
                         const finalPos = playerPath[playerPath.length - 1];
                         const moveCheck = canPlayerMoveToHex(finalPos.x, finalPos.y, true);
 
-                        // Check if there's a stone at the final position that you CAN'T end turn on
+                        // A move can never end on a stone (void included)
                         const stoneAtFinal = placedStones.find(s => {
                             const dist = Math.sqrt(Math.pow(s.x - finalPos.x, 2) + Math.pow(s.y - finalPos.y, 2));
                             return dist < 5;
                         });
-                        const cannotEndTurnHere = stoneAtFinal && stoneAtFinal.type !== 'void';
+                        const cannotEndTurnHere = !!stoneAtFinal;
 
                         // Tutorial gate: reject the whole move if it would step onto
                         // a still-hidden tile before the current step expects a flip
@@ -2504,11 +2521,11 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                     const moveCheck = canPlayerMoveToHex(h.x, h.y, false);
                     if (!moveCheck.canMove) return false;
                     if (moveCheck.cost > getTotalAP()) return false;
-                    // Can't end turn on a non-void stone
+                    // Can't end a move on any stone (void included)
                     const stone = placedStones.find(s =>
                         Math.sqrt(Math.pow(s.x - h.x, 2) + Math.pow(s.y - h.y, 2)) < 5
                     );
-                    if (stone && stone.type !== 'void') return false;
+                    if (stone) return false;
                     return true;
                 })
                 .sort((a, b) => {
@@ -3188,6 +3205,39 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
 
         let isEndingTurn = false; // Double-click guard for end-turn button
 
+        // A press on a bar button keeps the release (pointer capture), so the
+        // click counts even if the button moved under the mouse while held:
+        // the pressed look shifts it 3 px (a press near its top or left edge
+        // ended outside it) and Smart UI fit could re-fit the bar mid-press.
+        // The browser then dropped the click and End Turn needed a second one
+        // (owner 2026-10-15). Released 40 px+ away from the button (where it was
+        // when pressed and where it is now) = cancelled, as before.
+        (function keepButtonPress() {
+            const SEL = '#end-turn, .hud-bar button, .dock-bar button';
+            let held = null, heldRect = null;
+            document.addEventListener('pointerdown', (e) => {
+                const btn = e.button === 0 && e.target?.closest?.(SEL);
+                held = null;
+                if (!btn || btn.disabled || btn.draggable) return; // draggable: TheHermit layout editor
+                try { btn.setPointerCapture(e.pointerId); held = btn; heldRect = btn.getBoundingClientRect(); } catch (err) {}
+            }, true);
+            document.addEventListener('pointerup', (e) => {
+                if (!held) return;
+                const M = 40;
+                const away = (r) => e.clientX < r.left - M || e.clientX > r.right + M || e.clientY < r.top - M || e.clientY > r.bottom + M;
+                // far from where the button was when pressed AND from where it is now
+                const far = away(heldRect) && away(held.getBoundingClientRect());
+                if (far) {
+                    // a drag away from the button: no click (the usual way to change your mind)
+                    const b = held;
+                    const stop = (ev) => { if (ev.target === b || b.contains(ev.target)) { ev.stopImmediatePropagation(); ev.preventDefault(); } };
+                    window.addEventListener('click', stop, true);
+                    setTimeout(() => window.removeEventListener('click', stop, true), 0);
+                }
+                held = null;
+            }, true);
+        })();
+
         document.getElementById('end-turn').onclick = function() {
             resetEndTurnPrompt();
             // Prevent double-click from advancing turn twice
@@ -3728,7 +3778,8 @@ document.getElementById('undo-move').onclick = function() {
                 sourcePool[shrineType] -= actualReplenished;
                 playerPool[shrineType] += actualReplenished;
                 updateStoneCount(shrineType);
-                window.SoundSystem?.play('collectstones');
+                if (window.SoundSystem?.playCollect) window.SoundSystem.playCollect(shrineType);
+                else window.SoundSystem?.play('collectstones');
                 // the collection effect here, and on other screens via the next
                 // turn-change message (payload.collected)
                 const at = (typeof playerPosition !== 'undefined' && playerPosition) ? { x: playerPosition.x, y: playerPosition.y } : null;
@@ -4339,7 +4390,40 @@ document.getElementById('undo-move').onclick = function() {
         window._trainSaveWanted = false;
         let trainPhase = null; // 'exploring' | 'training' | 'confirming' (Save & quit only before confirming)
 
+        // The Speed button's choice holds for the whole Train Bot run (owner
+        // 2026-10-15: a switch to Extreme went back to Watchable when the run
+        // moved on to its next part). Cleared before and after, so the next run
+        // and idle training start from their own speed.
+        // Final test of a Train Bot run: new bot vs the current champion in
+        // pairs of games (same deal, seats swapped), every 3rd pair 4 players,
+        // until 40 decided games (max 60 played). Pass = 58%+ of decided games,
+        // the server's idle-training rule. Stops early once the answer is
+        // certain (24 wins = pass, 17 losses = fail).
+        const FINAL_DECIDED = 40, FINAL_MAX = 60, FINAL_RATE = 0.58;
+        async function finalTestHeadToHead(champ, base, { visual, onGame } = {}) {
+            const passWins = Math.ceil(FINAL_DECIDED * FINAL_RATE + 0.0001);              // 24
+            const failLosses = FINAL_DECIDED - passWins + 1;                               // 17
+            let w = 0, l = 0, d = 0, played = 0, pair = 0;
+            const seed = Date.now() % 100000;
+            while (w + l < FINAL_DECIDED && played < FINAL_MAX && w < passWins && l < failLosses && !window.BotArena.stopRequested()) {
+                const r = await window.BotArena.run(champ, base, 2, seed, {
+                    visual, comboWatch: false, fourPlayerEvery: 3, gameIndexOffset: pair * 2,
+                    onGame: (i, n, g) => onGame?.(played + i, FINAL_DECIDED, g),
+                });
+                w += r.aWins; l += r.bWins; d += r.draws; played += r.aWins + r.bWins + r.draws; pair++;
+            }
+            const dec = w + l;
+            const improved = w >= passWins || (dec >= FINAL_DECIDED && w / dec >= FINAL_RATE);
+            return { improved, record: `${w}-${l}-${d}`, champWins: w, baseWins: l, aWins: w, bWins: l, draws: d,
+                     winRate: dec ? w / dec : 0 };
+        }
+
         async function runHillClimbTraining(preset, onProgress, opts = {}) {
+            window.BotArena?.clearJobSpeed?.();
+            try { return await runHillClimbTrainingInner(preset, onProgress, opts); }
+            finally { window.BotArena?.clearJobSpeed?.(); }
+        }
+        async function runHillClimbTrainingInner(preset, onProgress, opts = {}) {
             const resume = opts.resume || null;
             if (resume) { preset = resume.preset; opts = { ...opts, ...resume.runOpts }; }
             else clearTrainSave(); // a new run replaces any older saved one
@@ -4383,7 +4467,7 @@ document.getElementById('undo-move').onclick = function() {
             try { baselineStored = localStorage.getItem('godaigo_bot_weights'); } catch (e) {}
             await leaveOnlineGameIfAny();
 
-            let totalGames = rounds * lambda * gamesPerChallenge + confirmSizes.length * gamesPerSize;
+            let totalGames = rounds * lambda * gamesPerChallenge + FINAL_DECIDED;
             const startedAt = Date.now() - (resume?.elapsedMs || 0);
             let gamesDone = resume?.gamesDone || 0, lastRound = 0, lastInfo = null, lastGen = 0, lastFitness = null;
             let lastChallenger = 0, totalChallengers = lambda;
@@ -4396,7 +4480,7 @@ document.getElementById('undo-move').onclick = function() {
             // One save object for the whole run; each checkpoint updates it.
             const hcSeed = resume?.hcSeed || (1 + Math.floor(Math.random() * 1e6));
             const save = resume ? { ...resume } : {
-                v: 1, preset, runOpts: { visual: !!opts.visual, noisyAnchor: !!opts.noisyAnchor, explore: !!opts.explore, formulas: !!opts.formulas, public: !!opts.public },
+                v: 1, preset, runOpts: { visual: !!opts.visual, noisyAnchor: !!opts.noisyAnchor, explore: !!opts.explore, formulas: !!opts.formulas, public: !!opts.public, pure: !!opts.pure },
                 climbAnchor, hcSeed, phase: opts.explore ? 'explore' : 'climb', explore: null, climb: null,
             };
             const persist = (patch) => {
@@ -4413,7 +4497,7 @@ document.getElementById('undo-move').onclick = function() {
             };
             let lastExploredChallenger = false; // current challenger = the explored bot
             let lastChallengerTerms = [];       // [{text, w, isNew}] of the current challenger (formulas box)
-            let termMutations = !!opts.formulas; // challengers may invent formulas (panel option or Formula Lab)
+            let termMutations = !!opts.formulas && window.FORMULA_INVENTION !== false; // challengers may invent formulas (panel option or Formula Lab); off with window.FORMULA_INVENTION
             const needPct = Math.round((window.BotArena.HILLCLIMB_PROMOTE_RATE ?? 0.58) * 100);
             // Local-game color assignment (game-core.js's colorRankOrder):
             // player index 0 = Purple, 1 = Yellow (only the first two matter —
@@ -4503,23 +4587,36 @@ document.getElementById('undo-move').onclick = function() {
             // "Formulas: Invent" option (opts.formulas) turns inventing on for
             // anyone.
             if (termMutations) stats.event('New senses: challengers may invent formulas this run');
-            if (resume?.termMutations) termMutations = true;
-            const lab = (!resume && window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
+            if (resume?.termMutations && window.FORMULA_INVENTION !== false) termMutations = true;
+            const lab = (!resume && !opts.pure && window.isHermit?.() && window.FormulaLab) ? window.FormulaLab.takeQueued(climbAnchor) : null;
             if (lab) {
                 if (lab.count) {
                     seedChallengers = [...(seedChallengers || []), ...lab.challengers].slice(0, lambda);
                     stats.event(`Formula Lab: ${Math.min(lab.count, lambda - (explored ? 1 : 0))} idea(s) join round 1`);
                 }
-                if (lab.invent && !termMutations) {
+                if (lab.invent && !termMutations && window.FORMULA_INVENTION !== false) {
                     termMutations = true;
                     stats.event('Formula Lab: training may invent new formulas this run');
                 }
             }
 
+            // Fit Formulas (js/formula-fit.js, hermit, 2026-10-18): fits formulas on
+            // the saved positions (or takes a set queued in the panel); a set that
+            // holds up joins round 1 as champion + those formulas, once.
+            // No automatic fit any more (owner 2026-10-18): only a set queued by hand
+            // in Fit Formulas joins, and never in an "Explore only" run.
+            if (!resume && !opts.pure && window.isHermit?.() && window.FormulaFit?.takeQueued) {
+                try {
+                    const fitted = window.FormulaFit.takeQueued(climbAnchor);
+                    if (fitted) stats.event(`Fitted formulas (queued by you): ${fitted.count} join round 1 as one challenger`);
+                    if (fitted) seedChallengers = [...(seedChallengers || []).slice(0, lambda - 1), fitted.challenger];
+                } catch (e) { stats.event('Fitted formulas skipped: ' + (e.message || e)); }
+            }
+
             // Learn from my play (js/bot-imitation.js, owner 2026-10-10): the
             // champion plus this browser's learned adjustments joins round 1,
             // once per set of adjustments and champion (it must still win).
-            if (!resume && window.BotImitation?.getDeltas) {
+            if (!resume && !opts.pure && window.BotImitation?.getDeltas) {
                 try {
                     const d = window.BotImitation.getDeltas() || {};
                     if (Object.values(d).some(v => typeof v === 'number' && Math.abs(v) > 1e-6)) {
@@ -4537,7 +4634,7 @@ document.getElementById('undo-move').onclick = function() {
             // Combo screening (2026-10-11, sql/combo-screening.sql): one combo bots
             // found in 5+ different games gets 8 fast games against the champion;
             // passing makes it a trial combo (just below and in idle training).
-            if (!resume && window.BotArena.screenDueCombo) {
+            if (!resume && window.COMBO_MINING !== false && window.BotArena.screenDueCombo) {
                 try {
                     await window.BotArena.screenDueCombo(climbAnchor, {
                         onStart: (sig) => { stats.event('Screening a combo bots found (8 fast games): ' + sig); report('screening'); },
@@ -4548,7 +4645,7 @@ document.getElementById('undo-move').onclick = function() {
 
             // Trial combo (2026-10-11, sql/combo-trials.sql): the champion plus one
             // combo bots found in training joins round 1, once per combo and champion.
-            if (!resume && typeof supabase !== 'undefined' && supabase?.rpc) {
+            if (!resume && window.COMBO_MINING !== false && typeof supabase !== 'undefined' && supabase?.rpc) {
                 try {
                     const t = await supabase.rpc('idle_trial_combo');
                     const sig = !t.error && typeof t.data === 'string' ? t.data : null;
@@ -4574,7 +4671,7 @@ document.getElementById('undo-move').onclick = function() {
             // challenger series this browser checks one past game for combos, the
             // same way idle training does (hermit: trusted path; others: anonymous).
             const mineHermit = !!window.isHermit?.();
-            const canMine = opts.mine !== false && !!(window.Replay && (mineHermit ? window.Replay.mineMatches : window.Replay.minePooled));
+            const canMine = opts.mine !== false && window.COMBO_MINING !== false && !!(window.Replay && (mineHermit ? window.Replay.mineMatches : window.Replay.minePooled));
             const mineTally = window.__trainMine = { n: 0, found: 0, idle: false, k: 0 };
             const result = await window.BotArena.hillClimb({
                 betweenSeries: canMine ? (async () => {
@@ -4605,15 +4702,12 @@ document.getElementById('undo-move').onclick = function() {
                 // (combos from players' games, Replays > Puzzles).
                 // The puzzles play in a hidden page, so the board here stands still
                 // meanwhile: say so (owner 2026-10-10, looked like a freeze).
-                puzzleCheck: (window.isHermit?.() && window.Replay?.puzzleScore) ? (async w => {
-                    stats.event('Puzzle check: the would-be champion plays saved puzzles in the background (the board waits)');
-                    report('puzzles');
-                    try { return await window.Replay.puzzleScore(w); }
-                    finally { stats.event('Puzzle check done'); report('training'); }
-                }) : undefined,
+                // Puzzle check removed (owner 2026-10-18): the puzzles came from mined
+                // combo moments, which the combo drill showed were unreliable; it
+                // slowed every run and could block a good champion.
                 // Combo practice (2026-10-11, Replay.practiceDuel): up to 3 duels on
                 // spots where players pulled off taught combos. Nothing taught = skipped.
-                practiceCheck: window.Replay?.practiceDuel ? (async (challenger, champion) => {
+                practiceCheck: (window.COMBO_MINING !== false && window.Replay?.practiceDuel) ? (async (challenger, champion) => {
                     const out = { played: 0, wins: 0, losses: 0, draws: 0 };
                     stats.event('Combo practice: the would-be champion plays combo spots in the background (the board waits)');
                     report('puzzles');
@@ -4688,7 +4782,7 @@ document.getElementById('undo-move').onclick = function() {
                 return { improved: false, record: 'stopped', promotions: result.promotions };
             }
 
-            lastGameNum = 0; lastGameTotal = confirmSizes.length * gamesPerSize;
+            lastGameNum = 0; lastGameTotal = FINAL_DECIDED;
             if (termMutations && result.promotions > 0) {
                 const had = new Set((climbAnchor.terms || []).map(t => t.text));
                 const fresh = (result.champion.terms || []).filter(t => !had.has(t.text));
@@ -4707,11 +4801,15 @@ document.getElementById('undo-move').onclick = function() {
             // so skip the (long, 2-5 player) final test. This is also what
             // made "End Early -> Test Now" look dead (owner, 2026-09-27): it
             // still played every final-test game with nothing to test.
+            // One rule for every promotion (owner 2026-10-18): the same as idle
+            // training on the server, 58%+ of 40 decided games against the
+            // current champion (every 3rd pair a 4-player game, 50% baseline).
+            // Before, this compared a "fitness" score across 2-5 player tables,
+            // which let champions 15 and 16 in with losing records.
             const confirm = result.promotions > 0
-                ? await window.BotArena.confirmAcrossSizes(
-                    result.champion, baseline,
-                    { sizes: confirmSizes, gamesPerSize, visual, seed: Date.now() % 100000,
-                      onGame: (gameNum, gameTotal, g) => { gamesDone++; lastGameNum = gameNum; lastGameTotal = gameTotal; stats.addGame(g); report('confirming'); } })
+                ? await finalTestHeadToHead(result.champion, baseline, {
+                    visual,
+                    onGame: (gameNum, gameTotal, g) => { gamesDone++; lastGameNum = gameNum; lastGameTotal = gameTotal; stats.addGame(g); report('confirming'); } })
                 : { improved: false, record: 'no new champion to test', champWins: 0, baseWins: 0 };
             if (!result.promotions) stats.event('No new champion this run, so the final test was skipped');
             // Stop pressed DURING the confirmation: incomplete check, so no
@@ -4731,17 +4829,15 @@ document.getElementById('undo-move').onclick = function() {
             const improved = !!confirm.improved && result.promotions > 0;
             const record = confirm.record || `${confirm.champWins}-${confirm.baseWins}`;
 
-            // DEGREE OF SUCCESS (reward tier): the champion's win share across
-            // the whole 2–5-player confirm field. A brain equal to the current
-            // champion wins ~0.32 of decided games here (the average fair seat
-            // share across sizes 2–5, since it's outnumbered by baselines at
-            // the big tables), so the tier bars sit well above that.
+            // DEGREE OF SUCCESS (reward tier): the new bot's share of decided
+            // final-test games against the champion (head to head, 50% = equal;
+            // passing needs 58%).
             const cw = confirm.champWins || 0, bw = confirm.baseWins || 0;
             const champShare = (cw + bw) ? cw / (cw + bw) : 0;
             let tier = null, tierGold = 0;
             if (improved) {
-                if (champShare >= 0.55)      { tier = 'dominant'; tierGold = 60; }
-                else if (champShare >= 0.42) { tier = 'solid';    tierGold = 40; }
+                if (champShare >= 0.70)      { tier = 'dominant'; tierGold = 60; }
+                else if (champShare >= 0.63) { tier = 'solid';    tierGold = 40; }
                 else                         { tier = 'marginal'; tierGold = 25; }
             }
 
@@ -4934,18 +5030,20 @@ document.getElementById('undo-move').onclick = function() {
             el.innerHTML = `
                 <div class="panel-header" style="border-radius:7px 7px 0 0;">
                     <span class="panel-title">Bot Training</span>
+                    <span id="bt-popup-mini" style="margin-left:auto;margin-right:6px;font-size:12px;color:#d9b08c;"></span>
+                    <button id="bt-popup-min" class="hud-toggle-btn" title="Make this window small">–</button>
                     <button id="bt-popup-expand" class="hud-toggle-btn" title="Open full panel">⤢</button>
                 </div>
-                <div style="padding:12px 14px;">
+                <div id="bt-popup-body" style="padding:12px 14px;">
                     <div id="bt-popup-scenario" style="font-size:14px;font-weight:600;color:#fff;margin-bottom:2px;"></div>
                     <div id="bt-popup-phase" style="font-size:12px;color:#bbb;margin-bottom:10px;"></div>
 
                     <div id="bt-popup-matchup" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:#eee;margin-bottom:8px;min-height:16px;"></div>
 
-                    <div style="background:#0d0d18;border:1px solid #333;border-radius:5px;height:10px;overflow:hidden;margin-bottom:4px;">
+                    <div class="bt-keep" style="background:#0d0d18;border:1px solid #333;border-radius:5px;height:10px;overflow:hidden;margin-bottom:4px;">
                         <div id="bt-popup-bar" style="height:100%;background:linear-gradient(90deg,#8a6a3f,#d9b08c);width:0%;transition:width .25s ease-out;"></div>
                     </div>
-                    <div id="bt-popup-progress-text" style="font-size:12px;color:#aaa;margin-bottom:10px;"></div>
+                    <div id="bt-popup-progress-text" class="bt-keep" style="font-size:12px;color:#aaa;margin-bottom:10px;"></div>
 
                     <div id="bt-popup-stats" style="display:none;font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:6px 8px;background:#12121f;border:1px solid #2a2a40;border-radius:5px;">
                         <div id="bt-popup-current"></div>
@@ -4958,7 +5056,7 @@ document.getElementById('undo-move').onclick = function() {
                         <div style="color:#b8c6d2;margin-bottom:6px;">Bots can invent new things to notice about the board. One is kept only if its bot beats the champion. <span style="color:#8a9aa8;">[ ] = only when true.</span></div>
                         <div id="bt-popup-formulas-list"></div>
                     </div>
-                    <div id="bt-popup-combos" style="font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:8px 10px;background:#1a1410;border:1px solid #4a3a28;border-radius:5px;">
+                    <div id="bt-popup-combos" style="display:${window.COMBO_MINING === false ? 'none' : 'block'};font-size:12px;color:#ddd;line-height:1.5;margin-bottom:10px;padding:8px 10px;background:#1a1410;border:1px solid #4a3a28;border-radius:5px;">
                         <div style="color:#e8c48c;font-weight:600;font-size:13px;">Combos found</div>
                         <div style="color:#c8b8a0;margin-bottom:6px;">2 or more casts in 1 to 3 turns that clearly pay off. One found in 5 different games gets tested against the champion.</div>
                         <div id="bt-popup-combos-list"></div>
@@ -4973,7 +5071,7 @@ document.getElementById('undo-move').onclick = function() {
 
                     <div id="bt-popup-summary" style="font-size:12px;color:#ccc;margin-bottom:10px;"></div>
 
-                    <div style="display:flex;gap:6px;">
+                    <div class="bt-keep" style="display:flex;gap:6px;">
                         <button id="bt-popup-end-early" title="Skip to the final test with the best bot so far. Ending early earns no gold for the games run; a real win against the champion still earns the win gold." style="flex:1;padding:4px 6px;background:#2d3a4a;color:#eee;border:1px solid #578;border-radius:4px;cursor:pointer;font-size:12px;">End Early → Test Now</button>
                         <button id="bt-popup-speed" title="Switch this run between Watchable (normal pace) and Extreme (fast). Sound stays as the run started." style="padding:4px 8px;background:#2d2d44;color:#eee;border:1px solid #666;border-radius:4px;cursor:pointer;font-size:12px;">Speed</button>
                         <button id="bt-popup-save" title="Stop now and keep this run. Continue it later from Train Bot (the game in progress is played again)." style="padding:4px 8px;background:#2d4a3a;color:#eee;border:1px solid #5a7;border-radius:4px;cursor:pointer;font-size:12px;">Save &amp; Quit</button>
@@ -4982,6 +5080,28 @@ document.getElementById('undo-move').onclick = function() {
                 </div>
             `;
             document.body.appendChild(el);
+            // Minimize (owner 2026-10-15: the window is big): only the progress
+            // bar, its line and the buttons stay; the header shows the percent.
+            // Remembered in localStorage godaigo_train_popup_min.
+            if (!document.getElementById('bt-popup-min-style')) {
+                const st = document.createElement('style');
+                st.id = 'bt-popup-min-style';
+                st.textContent = '#bot-training-status-popup.bt-min #bt-popup-body > :not(.bt-keep){display:none !important}'
+                    + '#bot-training-status-popup:not(.bt-min) #bt-popup-mini{display:none}'
+                    + '#bot-training-status-popup.bt-min #bt-popup-body{padding:8px 10px !important}';
+                document.head.appendChild(st);
+            }
+            const minBtn = el.querySelector('#bt-popup-min');
+            const setMin = (m) => {
+                el.classList.toggle('bt-min', m);
+                minBtn.textContent = m ? '+' : '–';
+                minBtn.title = m ? 'Show everything' : 'Make this window small';
+                try { localStorage.setItem('godaigo_train_popup_min', m ? '1' : '0'); } catch (e) {}
+            };
+            let startMin = false;
+            try { startMin = localStorage.getItem('godaigo_train_popup_min') === '1'; } catch (e) {}
+            setMin(startMin);
+            minBtn.onclick = () => setMin(!el.classList.contains('bt-min'));
             el.querySelector('#bt-popup-expand').onclick = () => {
                 if (typeof window._openBotTrainingPanel === 'function') window._openBotTrainingPanel();
             };
@@ -5059,6 +5179,8 @@ document.getElementById('undo-move').onclick = function() {
             const el = ensureTrainingPopup();
             el.style.display = 'block';
             const pct = p.totalGames ? Math.min(100, (p.gamesDone / p.totalGames) * 100) : 0;
+            const miniEl = el.querySelector('#bt-popup-mini');
+            if (miniEl) miniEl.textContent = `${Math.round(pct)}%`;
             const elapsedS = (Date.now() - p.startedAt) / 1000;
             let scenarioLine, phaseLine, summaryLine, matchupHtml = '';
             // Formulas box: what the current challenger is trying (new ones
@@ -5085,7 +5207,7 @@ document.getElementById('undo-move').onclick = function() {
             if (p.mode === 'hillclimb') {
                 scenarioLine = 'Hill Climb' + (p.explore ? ' with Explore' : '') + (p.formulas ? ' + Formulas' : '') + ' - champion-anchored';
                 phaseLine = p.phase === 'confirming'
-                    ? 'Confirming across 2–5 player tables'
+                    ? 'Final test: new bot vs champion (needs 58% of 40 decided games)'
                     : p.phase === 'starting' ? 'Starting…'
                     : p.phase === 'puzzles' ? `Round ${p.round}/${p.rounds}: puzzle check in the background (the board waits)`
                     : p.phase === 'screening' ? 'Screening a combo bots found (8 fast games)'
@@ -6032,7 +6154,7 @@ document.getElementById('undo-move').onclick = function() {
 
                 if (state._public) {
                     const publicBanner = document.createElement('div');
-                    publicBanner.textContent = 'Training the community bot - the shared brain behind the five elemental bots. Every finished run pays gold scaled to how many games it ran (roughly 8–40). If the result beats the current champion across 2–5 player tables it\'s submitted for everyone and pays 25 / 40 / 60 more by how decisively it won. Nothing changes if it doesn\'t beat the champion. Pick a length and a speed; the game chooses how to train each run.';
+                    publicBanner.textContent = 'Training the community bot - the shared brain behind the five elemental bots. Every finished run pays gold scaled to how many games it ran (roughly 8–40). If the result wins 58% of 40 games against the current champion it\'s submitted for everyone and pays 25 / 40 / 60 more by how decisively it won. Nothing changes if it doesn\'t beat the champion. Pick a length and a speed; the game chooses how to train each run.';
                     publicBanner.style.cssText = 'font-size:11px;color:#c9a6ff;background:#221a33;border:1px solid #5a3f8a;border-radius:5px;padding:6px 10px;';
                     body.appendChild(publicBanner);
                 }
@@ -6087,12 +6209,18 @@ document.getElementById('undo-move').onclick = function() {
                 const startBtnRef = { disabled: false };
 
                 // Focus (owner 2026-10-12): train, mine past games for combos, or both.
+                // Focus (2026-10-18): with combo mining off, the mining choices are
+                // hidden; "Explore only" = an Explore search + climb with no extras.
+                const miningOn = window.COMBO_MINING !== false;
+                if (!miningOn && (state.focus === 'both' || state.focus === 'mine')) state.focus = 'train';
                 if (!state._public) makeChoiceRow('Focus:', [
-                    { value: 'both', text: 'Training + mining', title: 'Train as usual, and check one past game for combos before every other challenger (the board waits meanwhile).' },
-                    { value: 'train', text: 'Training only', title: 'Train without stopping to check past games. Faster.' },
-                    { value: 'mine', text: 'Combo mining', title: 'No training: check past games for combos, one after another, and watch each one being replayed. Combos that show up in 2 different games are taught to the bots.' },
+                    ...(miningOn ? [{ value: 'both', text: 'Training + mining', title: 'Train as usual, and check one past game for combos before every other challenger (the board waits meanwhile).' }] : []),
+                    { value: 'train', text: miningOn ? 'Training only' : 'Training', title: 'Train as usual: your Formula Lab queue, a queued fitted set and learned adjustments join round 1.' },
+                    { value: 'explore', text: 'Explore only', title: 'An Explore search, then the climb from the champion. No extras: no Formula Lab queue, no fitted set, no learned adjustments.' },
+                    ...(miningOn ? [{ value: 'mine', text: 'Combo mining', title: 'No training: check past games for combos, one after another, and watch each one being replayed. Combos that show up in 2 different games are taught to the bots.' }] : []),
                 ], () => state.focus, (v) => { state.focus = v; try { localStorage.setItem('godaigo_train_focus', v); } catch (e) {} },
-                    'Combo mining replays past games at full speed to find the scroll combos players used. The other settings below only matter for training.');
+                    miningOn ? 'Combo mining replays past games at full speed to find the scroll combos players used. The other settings below only matter for training.'
+                        : '"Explore only" is pure training: just setting changes that must beat the champion. Combo mining is switched off.');
 
                 makeChoiceRow('Speed:', [
                     { value: true, text: 'Watchable', title: 'Normal pacing - watch the board play out' },
@@ -6109,7 +6237,7 @@ document.getElementById('undo-move').onclick = function() {
                         { value: 5, text: 'Standard', title: 'A medium climb - roughly 30–60 minutes. Better odds of a real improvement.' },
                         { value: 20, text: 'Deep', title: 'A long climb - a couple of hours. Best odds; leave the tab open and watch the corner popup.' },
                     ], () => state.generations, (v) => { state.generations = v; },
-                        'How hard to search for a better bot. It plays training games in your browser tab against the current champion, then a final test across 2–5 player tables. Deeper = better odds of beating it, but longer. You can Stop any time from the corner popup; a partial run never makes the bot worse.');
+                        'How hard to search for a better bot. It plays training games in your browser tab against the current champion, then a final test: the new bot must win 58% of 40 games against the champion. Deeper = better odds of beating it, but longer. You can Stop any time from the corner popup; a partial run never makes the bot worse.');
                 } else {
                     makeChoiceRow('Repeat:',
                         [1, 5, 10, 20, 50].map(n => ({ value: n, text: String(n) })),
@@ -6142,7 +6270,7 @@ document.getElementById('undo-move').onclick = function() {
                 // Formulas (Hill Climb only): challengers may also invent new
                 // "senses", small formulas over board facts (js/bot-terms.js),
                 // not just nudge the brain's numbers (hillClimb opts.termMutations).
-                if (!state._public) makeChoiceRow('Formulas:', [
+                if (!state._public && window.FORMULA_INVENTION !== false) makeChoiceRow('Formulas:', [
                     { value: false, text: 'Off', title: 'Challengers only change the brain\'s numbers (how much it cares about each thing it already notices).' },
                     { value: true, text: `Invent (+${FORMULA_BONUS_GOLD} gold)`, title: `Challengers may also invent new senses: small formulas built from board facts, like "the cost of my road home" or "water touching wind". Most will not help; the few that do win their way in. +${FORMULA_BONUS_GOLD} gold when the whole run finishes, and +${FORMULA_DISCOVERY_GOLD} more if the new champion keeps a formula it invented.` },
                 ], () => state.formulas, (v) => { state.formulas = v; },
@@ -6274,8 +6402,9 @@ document.getElementById('undo-move').onclick = function() {
                                 : { rounds: state.generations, lambda: 6, gamesPerChallenge: 30, gamesPerSize: 5 };
                             const preset = { ...p, confirmSizes: [2, 3, 4, 5] };
                             const { improved, record, tier, tierGold, promotions, rewarded, submitFailed, attemptGold, formulaGold, formulaKept, totalGold, endedEarly, saveInfo } = await runHillClimbTraining(preset, renderProgress, {
-                                visual: state.watchable, noisyAnchor: run.noisyAnchor, explore: run.explore, formulas: run.formulas,
-                                public: !!state._public, resume: resumeSave, mine: run.focus !== 'train',
+                                visual: state.watchable, noisyAnchor: run.noisyAnchor, explore: run.explore || run.focus === 'explore', formulas: run.formulas,
+                                public: !!state._public, resume: resumeSave, mine: run.focus !== 'train' && run.focus !== 'explore',
+                                pure: !state._public && run.focus === 'explore',
                             });
                             progressText.style.display = 'none';
                             const formulaTail = formulaGold
@@ -7555,11 +7684,21 @@ document.getElementById('undo-move').onclick = function() {
                     mindItem.textContent = mindLabel();
                 });
                 menu.appendChild(mindItem);
+                menu.appendChild(makeItem('Training Lab (challengers, champions, saved games)', () => {
+                    if (window.TrainingLab) window.TrainingLab.open();
+                }));
                 menu.appendChild(makeItem('Formula Lab (new bot senses)', () => {
                     if (window.FormulaLab) window.FormulaLab.open();
                 }));
                 menu.appendChild(makeItem('Bot Network (train, test, send)', () => {
                     if (window.BotNet) window.BotNet.open();
+                }));
+                menu.appendChild(makeItem('Fit Formulas (test formulas on saved positions)', () => {
+                    if (window.FormulaFit) window.FormulaFit.open();
+                }));
+                menu.appendChild(makeItem('Scroll report (which scrolls bots use badly)', async () => {
+                    try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
+                    window.BotArena?.openScrollReport?.();
                 }));
                 menu.appendChild(makeItem('Rewards: sign-up events, game rewards', () => {
                     window.HermitRewards?.open();
@@ -7645,7 +7784,13 @@ document.getElementById('undo-move').onclick = function() {
             // the menu) for everyone else. Called from onAuthSuccess/authSignOut.
             window.updateHermitUI = function () {
                 const isDev = (typeof window.isHermit === 'function') && window.isHermit();
-                if (isDev) buildMenu();
+                if (isDev) {
+                    // One broken menu item must never hide the whole launcher
+                    // (buildMenu appends the button only at its very end).
+                    try { buildMenu(); } catch (e) { console.error('[Hermit menu] a menu item failed to build:', e); }
+                    if (btn && !btn.isConnected) document.body.appendChild(btn);
+                    if (menu && !menu.isConnected) document.body.appendChild(menu);
+                }
                 if (btn) btn.style.display = isDev ? 'block' : 'none';
                 if (menu && !isDev) menu.style.display = 'none';
             };
