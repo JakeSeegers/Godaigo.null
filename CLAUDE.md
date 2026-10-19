@@ -517,6 +517,10 @@ Order matters — later scripts depend on earlier ones.
                              riverHarm (owner 2026-10-18): harmChoices River = the shrine the leader stands on (it collects there) or a needed
                              one within 2 steps, then its scarce keyShrines, into riverDudElement (won, never void, or pool full; none = no
                              attack); riverCollectStep fires it right after a river trip cast while still in the shape (rc.harmTried).
+                             breakAttackShape (owner 2026-10-19): an ActionLog hook remembers where each seat cast an attack scroll
+                             (Take Flight, Shifting Sands, Telekinesis, Arson, Plunder; last 4 spots); while that scroll is still in its
+                             active area or the common area, the stones of that shape (whole or one short) join harmContext's stones, any
+                             element (before, only fresh stones of elements the leader still needs). Test hook _attackShapeStones.
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
                              covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
                              castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).

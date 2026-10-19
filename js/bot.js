@@ -410,6 +410,7 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
+        breakAttackShape:  0,     // > 0.5: harm also breaks the shapes the leader cast attack scrolls from (attackShapeStones, 2026-10-19; off until its A/B passes); 0 = off
         riverHarm:         1,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; A/B with River forced into seat 0: 20-20-0, 73 River casts, 32 trips); 0 = old rule
         stoneShuffleGuard: 1,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18, A/B 19-18-3); 0 = off
         respPost:          1,     // > 0.5: build and wait on a level 1 response of a needed element (makePlan respExtra, 2026-10-18; A/B 20-17-3, 47 responses in 40 games); 0 = off
@@ -4036,7 +4037,52 @@
     //  - camps: revealed shrines of an element it still needs, with the
     //    supply nearly gone (3 or less) and it short of that stone -> stand on
     //    it so the leader cannot collect there.
+    // Where each player cast an attack scroll, so its shape can be broken while that
+    // scroll is still public (its active area or the common area). Reset each game.
+    const ATTACK_SPOT_SCROLLS = new Set(['WIND_SCROLL_4', 'EARTH_SCROLL_2', 'VOID_SCROLL_2', 'FIRE_SCROLL_5', 'CATACOMB_SCROLL_8']);
+    const _attackSpots = {}; // seat -> [{ scroll, x, y }], newest last, max 4
+    let _attackHook = false;
+    function hookAttackSpots() {
+        if (_attackHook || !window.ActionLog?.onRecord) return;
+        _attackHook = true;
+        window.ActionLog.onRecord(e => {
+            if (e.type === 'gameStart') { for (const k of Object.keys(_attackSpots)) delete _attackSpots[k]; return; }
+            if (e.type !== 'cast_execute' || !ATTACK_SPOT_SCROLLS.has(e.scrollName)) return;
+            const pos = typeof playerPositions !== 'undefined' ? playerPositions[e.playerIndex] : null;
+            if (!pos) return;
+            const list = (_attackSpots[e.playerIndex] ||= []);
+            const i = list.findIndex(q => q.scroll === e.scrollName && Math.hypot(q.x - pos.x, q.y - pos.y) < 5);
+            if (i >= 0) list.splice(i, 1);
+            list.push({ scroll: e.scrollName, x: pos.x, y: pos.y });
+            if (list.length > 4) list.shift();
+        });
+    }
+    window.addEventListener('load', hookAttackSpots); // action-log.js loads after this file
+    // Stones of a remembered attack shape of seat L that is still whole or one stone short.
+    function attackShapeStones(snap, L) {
+        hookAttackSpots();
+        const out = new Set();
+        const lp = snap.players[L];
+        const spots = _attackSpots[L];
+        if (!lp || !spots || !spots.length) return out;
+        const reach = new Set([...(lp.active || []), ...(snap.commonArea || [])]);
+        for (const sp of spots) {
+            if (!reach.has(sp.scroll)) continue;
+            const a = pixelToHex(sp.x, sp.y, TILE_SIZE);
+            for (const variant of window.SCROLL_DEFINITIONS?.[sp.scroll]?.patterns || []) {
+                const have = [];
+                for (const c of variant) {
+                    const px = hexToPixel(a.q + c.q, a.r + c.r, TILE_SIZE);
+                    const st = snap.stones.find(q => q.type === c.type && Math.hypot(q.x - px.x, q.y - px.y) < 5);
+                    if (st) have.push(st);
+                }
+                if (have.length && have.length >= variant.length - 1) have.forEach(st => out.add(hexKey(st.x, st.y)));
+            }
+        }
+        return out;
+    }
     function harmContext(snap, self) {
+        hookAttackSpots();
         const D = window.BotDiplomacy;
         if (!D?.enabled?.() || !D.coalitionTarget || !D.recentStones) return null;
         const ai = snap.turn.activePlayerIndex;
@@ -4068,6 +4114,9 @@
             const st = snap.stones.find(q => q.type === r.type && Math.hypot(q.x - r.x, q.y - r.y) < 5);
             if (st) stones.add(hexKey(st.x, st.y));
         }
+        // The shapes it attacks me from, whatever their element (owner bad-move report
+        // 2026-10-19: yellow threw purple with Take Flight 17 times from a few reused shapes).
+        if (WEIGHTS.breakAttackShape > 0.5) for (const k of attackShapeStones(snap, L)) { stones.add(k); _review.attackShape = (_review.attackShape || 0) + 1; }
         const camps = [];
         let campHere = null;
         // Camping costs the camper whole turns: only when the leader is one
@@ -6181,6 +6230,7 @@
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)
         _castDoesNothing: castDoesNothing, // test hook (snap, self, scroll)
         _memOf: idx => mem(idx),           // test hook: one seat's bot memory (plan, ...)
+        _attackShapeStones: (snap, L) => [...attackShapeStones(snap, L)], // test hook
         score: scoreAction,   // (action, snapshot, ctx) → utility
         searchPick,           // Stage 2 lookahead pick — used when WEIGHTS.searchDepth > 0
         // the same two, in time slices (await -> {value, busy}); js/bot-imitation.js
