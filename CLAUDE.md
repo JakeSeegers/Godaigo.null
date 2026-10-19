@@ -307,7 +307,8 @@ Order matters — later scripts depend on earlier ones.
                              (paused while BotArena runs and window.fxOn() is false; a 400 ms watcher flips it on a live speed switch).
                              Tile moves (2026-10-14, window.TileMoveFx.fly): a tile that changes place lifts, floats over a curved path
                              and lands with a dust ring (Shifting Sands, Telekinesis, own drops, player tiles at the start drop in from
-                             above); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
+                             above; game-core.js placeTile marks every start tile data-player-tile, since bots' tiles placed on the host had no
+                             .player-tile class and did not drop, 2026-10-19); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
                              Your own carried tile (ghost) looks lifted (.tile-carried) and comes down clearly where you drop it; a Telekinesis
                              drop (ghost data-from-x/y, set in game-core.js startTileDrag) plays the full flight from the tile's old spot.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)

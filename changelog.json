@@ -8,7 +8,8 @@
       "changes": [
         "You can no longer end a move on a void stone. Like every other stone, you can only pass over it.",
         "Bots follow the same rule and never get stuck standing on a stone.",
-        "Smarter bots: they break the stone shapes opponents use for attack scrolls."
+        "Smarter bots: they break the stone shapes opponents use for attack scrolls.",
+        "At the start of a game, every player's tile now drops onto the board, bots included."
       ]
     },
     {

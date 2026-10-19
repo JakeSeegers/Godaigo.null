@@ -869,7 +869,7 @@
                             const from = posOf(ghost);
                             if (from) flyTile(n, from, to, { hand: true });
                         }
-                    } else if (n.matches('.player-tile') && added.length <= 2) {
+                    } else if (n.matches('.player-tile, [data-player-tile]') && added.length <= 2) {
                         flyTile(n, to, to, { drop: 200 });       // a player tile placed by someone else
                     }
                 } catch (e) {}

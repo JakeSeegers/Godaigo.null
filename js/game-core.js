@@ -4830,6 +4830,10 @@
             let tilePlayerColorName = null;
             if (shrineType === 'player') {
                 isPlayerTile = true;
+                // piece-3d.js drops start tiles in from above; the class above is only
+                // set when the caller passed isPlayerTile (other screens), so bots'
+                // tiles placed on the host were missed
+                tileGroup.setAttribute('data-player-tile', '1');
 
                 const playerIndex = playerPositions.length;
                 let assignedColor;
