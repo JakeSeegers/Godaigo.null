@@ -411,6 +411,8 @@
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
         currentPlan:       0,     // > 0.5: Control the Current plans: water placeholders turned into scarce stones (makePlan currentVariants, 2026-10-19; off until its A/B passes); 0 = off
+        stompGuard:        0,     // > 0.5: Heavy Stomp whose flip can only draw an unneeded scroll, or hides a tile for nothing, counts as castDoesNothing (stompPointless, 2026-10-19; off until its A/B passes); 0 = off
+        trapEscape:        0,     // > 0.5: walled in (no move, no teleport) with a break affordable: break out first (trapEscape, 2026-10-19; off until its A/B passes); 0 = off
         breakAttackShape:  1,     // > 0.5: harm also breaks whole shapes the leader cast attack scrolls from, never walked to (attackShapeStones, 2026-10-19; A/B 21-18-1); 0 = off
         riverHarm:         1,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; A/B with River forced into seat 0: 20-20-0, 73 River casts, 32 trips); 0 = old rule
         stoneShuffleGuard: 1,     // > 0.5: Breath of Power moves that do nothing / undo a move are charged, moves that break an opponent's cast rewarded (stoneShuffle, moveStoneBlocks, 2026-10-18, A/B 19-18-3); 0 = off
@@ -613,6 +615,29 @@
             shrineValue(snap, t.shrineType) > 0 &&
             !snap.stones.some(s => Math.hypot(s.x - t.x, s.y - t.y) < 5) &&
             !snap.players.some((q, j) => q && j !== ai && Math.hypot(q.x - t.x, q.y - t.y) < 5));
+    }
+
+    // Walled in (owner bad-move report 2026-10-19: an opponent's Avalanche put
+    // earth on all six hexes around a bot, which then spent 2 AP on Mason's
+    // Savvy and could no longer pay the 5 AP break, and walled its own way out
+    // further): no move and no teleport is legal, but a break is. Break the
+    // adjacent stone that helps the goals most (unblockBonus), first thing.
+    // Not while standing on a shrine it still collects from (the wall then
+    // only keeps others off it).
+    function trapEscape(snap) {
+        const legal = window.BotState.legalActions();
+        if (legal.some(a => a.type === 'move' || a.type === 'teleport')) return null;
+        const breaks = legal.filter(a => a.type === 'breakStone');
+        if (!breaks.length || shrineUnderfoot(snap)) return null;
+        const u = makeUnblockCtx(snap);
+        let best = null, bestV = -Infinity;
+        for (const a of breaks) {
+            let v = 0;
+            try { v = unblockBonus(a, snap, u); } catch (e) { v = 0; }
+            v -= (a.cost || 0) * 0.01;                       // equal help: the cheaper stone
+            if (v > bestV) { bestV = v; best = a; }
+        }
+        return best;
     }
 
     function shrineUnderfoot(snap) {
@@ -1697,6 +1722,7 @@
             for (const name of sources) {
                 if (!(DRAW_SCROLLS.has(name) || (name === 'EARTH_SCROLL_4' && stompDraws(snap))) ||
                     noCreditScrolls.has(name) || out.some(o => o.name === name)) continue;
+                if (name === 'EARTH_SCROLL_4' && WEIGHTS.stompGuard > 0.5 && stompPointless(snap, snap.players[snap.turn.activePlayerIndex])) continue;
                 if (drawOnCooldown(snap.turn.activePlayerIndex, name)) continue;
                 const def = window.SCROLL_DEFINITIONS?.[name];
                 if (def && Array.isArray(def.patterns)) out.push({ name, def, credit: 1, tool: true });
@@ -4898,13 +4924,16 @@
     // Cooldown: the same scroll-drawing spell at most once per 3 own turns
     // (one bot cast Scholar's Insight 696 times when the draws never helped).
     const DRAW_COOLDOWN = 3;
+    // Heavy Stomp as a draw tool counts too while stompGuard is on (2026-10-19:
+    // a bot cast it three times a turn, plan after plan).
+    const isDrawTool = (scroll) => DRAW_SCROLLS.has(scroll) || (scroll === 'EARTH_SCROLL_4' && WEIGHTS.stompGuard > 0.5);
     function noteDrawCast(idx, scroll) {
-        if (!DRAW_SCROLLS.has(scroll)) return;
+        if (!isDrawTool(scroll)) return;
         const m = mem(idx);
         (m.drawCasts || (m.drawCasts = {}))[scroll] = m.ownTurns || 0;
     }
     function drawOnCooldown(idx, scroll) {
-        if (!DRAW_SCROLLS.has(scroll)) return false;
+        if (!isDrawTool(scroll)) return false;
         const m = mem(idx);
         const t = m.drawCasts?.[scroll];
         return t != null && (m.ownTurns || 0) - t < DRAW_COOLDOWN;
@@ -4919,8 +4948,28 @@
             !snap.stones.some(q => Math.hypot(q.x - t.x, q.y - t.y) < 80) &&
             !snap.players.some(q => q && Math.hypot(q.x - t.x, q.y - t.y) < 80)); // bot-sim.js TILE_RADIUS
     }
+    // Heavy Stomp whose flip does nothing for this bot (owner bad-move report
+    // 2026-10-19: a bot hid a revealed earth tile and revealed it again, three
+    // casts a turn, drawing earth scrolls with earth already won). Mirrors
+    // bot-effects.js driveTileFlip: a face-down tile is revealed (a scroll of
+    // its element is drawn), else a revealed shrine of a needed element is
+    // hidden to draw from it later, else any tile is hidden (pointless).
+    function stompPointless(snap, self) {
+        const T = flipTargets(snap);
+        if (!T.length) return true;
+        if (snap.turn.buffs?.callToAdventure) return false;   // reveals pay stones this turn
+        const need = el => el === 'catacomb' || (!self.activated.includes(el) && (snap.sourcePool[el] || 0) > 0);
+        const hidden = T.filter(t => !t.revealed);
+        if (hidden.length) return !hidden.some(t => !t.known || need(t.known));
+        // hiding: the driver only picks a shrine of a needed element (never catacomb)
+        return !T.some(t => t.shrineType !== 'catacomb' && need(t.shrineType));
+    }
     function castDoesNothing(snap, self, scroll) {
         if (!self) return false;
+        if (scroll === 'EARTH_SCROLL_4' && WEIGHTS.stompGuard > 0.5) {
+            if (!stompPointless(snap, self)) return false;
+            try { return !hasWinCredit(snap, scroll); } catch (e) { return false; }
+        }
         // Heavy Stomp with no tile it may flip (2026-10-18 bad-move report: both bots cast it
         // from the common area twice a turn for 10+ turns, every tile had stones on it).
         // Call to Adventure still pays on a step onto a face-down tile, so only when none is left.
@@ -5652,6 +5701,16 @@
             log('Chat vote pick is no longer legal - deciding normally');
         }
 
+        // Walled in: break out before spending AP on anything else.
+        if (WEIGHTS.trapEscape > 0.5) {
+            const esc = trapEscape(snap);
+            if (esc) {
+                log(`Walled in - breaking the ${esc.stoneType} stone at (${esc.x.toFixed(1)}, ${esc.y.toFixed(1)}) first`);
+                _review.trapEscape = (_review.trapEscape || 0) + 1;
+                return applyChosen(snap, idx, { action: esc, score: 0 });
+            }
+        }
+
         // The pattern plan takes priority: it's the only way multi-hex
         // patterns ever complete under the adjacent-only placement rule
         try {
@@ -5664,6 +5723,12 @@
             if (m.plan) log(`New plan: build ${m.plan.scroll} anchored at hex (${m.plan.anchor.q},${m.plan.anchor.r})`);
         }
         let planAction = riverCollectStep(snap, m) || (m.plan ? planNextAction(snap) : null);
+        // A plan cast that does nothing (castDoesNothing) is dropped with its plan
+        if (WEIGHTS.stompGuard > 0.5 && planAction?.type === 'cast' && castDoesNothing(snap, me(snap), planAction.scroll)) {
+            log(`Plan cast ${planAction.scroll} would do nothing - dropping the plan`);
+            _review.stompDrop = (_review.stompDrop || 0) + 1;
+            m.plan = null; planAction = null;
+        }
         // A plan step that ends on a stone with no AP left strands the pawn
         // there (moveStrandOnStone): let normal scoring pick instead.
         if (planAction && planAction.type === 'move' && snap.turn.ap - (planAction.cost || 0) < 1 &&
@@ -6307,6 +6372,7 @@
         _castDoesNothing: castDoesNothing, // test hook (snap, self, scroll)
         _memOf: idx => mem(idx),           // test hook: one seat's bot memory (plan, ...)
         ctcTargets,                         // (idx) current plan placeholders to turn [{x, y, type}] or null
+        _trapEscape: (s) => trapEscape(s || window.BotState.snapshot()), _stompPointless: (s, i) => stompPointless(s, s.players[i]),
         _attackShapeStones: (snap, L) => [...attackShapeStones(snap, L)], // test hook
         score: scoreAction,   // (action, snapshot, ctx) → utility
         searchPick,           // Stage 2 lookahead pick — used when WEIGHTS.searchDepth > 0

@@ -212,7 +212,11 @@
             !(me.activated || []).includes(el) && ((s.sourcePool || {})[el] || 0) > 0) : [];
         const useful = tiles.filter(t => !t.flipped && need.includes(t.shrineType));
         const nearest = list => list.reduce((a, b) => (!a || dist(me, b) < dist(me, a)) ? b : a, null);
-        const pick = hidden.length ? nearest(hidden)
+        // A face-down tile draws a scroll of its element: one the bot still
+        // needs (or does not know yet) first (2026-10-19)
+        const known = t => (s.tiles || []).find(x => Number(x.id) === Number(t.id))?.known;
+        const hiddenUseful = hidden.filter(t => { const k = known(t); return !k || k === 'catacomb' || need.includes(k); });
+        const pick = hiddenUseful.length ? nearest(hiddenUseful) : hidden.length ? nearest(hidden)
             : useful.length ? nearest(useful)
             : tiles[0]; // nothing useful - arbitrary pick among a bad option set
         sm.handleTileClick(pick);

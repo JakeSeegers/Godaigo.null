@@ -533,6 +533,15 @@ Order matters — later scripts depend on earlier ones.
                              active area or the common area, the stones of that shape (whole only) go in harmContext's `shape` set, any element
                              (before, only fresh stones of elements the leader still needs): break bonus like `stones`, but never walked to.
                              A/B with Take Flight in seat 0's hand: first try (one short, walked to) 18-21-1, this one 21-18-1, ON. Test hook _attackShapeStones.
+                             stompGuard (2026-10-19 bad-move report: a bot hid a revealed earth tile and revealed it again, 3 Heavy Stomps a
+                             turn, drawing earth scrolls with earth won; a plan kept making Stomp a draw goal, and plan casts skip scoring):
+                             stompPointless (mirrors bot-effects.js driveTileFlip: a face-down tile of an unknown / needed element to reveal, else
+                             a revealed needed shrine to hide) feeds castDoesNothing, creditableSources skips Stomp as a draw tool when pointless,
+                             Stomp gets the draw cooldown (isDrawTool), a plan cast that does nothing drops the plan (_review.stompDrop);
+                             driveTileFlip reveals a hidden tile of a needed / unknown element first. trapEscape (report: an Avalanche put earth on
+                             all six hexes around a bot, which spent 2 AP on Mason's Savvy and could not pay the 5 AP break, then walled its own
+                             way out): no move and no teleport legal but a break is -> break the stone with the best unblockBonus first (not while
+                             on a shrine it collects from; _review.trapEscape). Test hooks _trapEscape, _stompPointless.
                              currentPlan (owner 2026-10-19, Control the Current as a wildcard): makePlan currentVariants = a scroll shape
                              whose cells next to the centre that the bot is short of hold water placeholders (cell.type 'water', cell.alt =
                              the real element; cellStoneOk accepts either) plus a Control the Current shape at the same centre with no
