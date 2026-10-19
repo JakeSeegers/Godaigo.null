@@ -311,6 +311,12 @@ Order matters — later scripts depend on earlier ones.
                              .player-tile class and did not drop, 2026-10-19); a pawn on it rides along; seen by observers, no game hooks; holds pawns / bots like a flip.
                              Your own carried tile (ghost) looks lifted (.tile-carried) and comes down clearly where you drop it; a Telekinesis
                              drop (ghost data-from-x/y, set in game-core.js startTileDrag) plays the full flight from the tile's old spot.
+20b2b. player-tile-art.js <- window.PlayerTileArt (owner 2026-10-19): player tile look + win progress (looks only, same job as the old ring
+                             row): game-core.js updatePlayerElementSymbols -> render(group, activated, colour). Five stones on the ring
+                             hexes (water top-left, fire top-right, earth left, wind right, void bottom-right), drawn like real stones:
+                             g.pt-bead (circle.stone-piece + image, never class 'stone'), which piece-3d.js PIECES makes a glass bead;
+                             faint (32%) until won, burst when won; line art in the player's colour x 0.5, black rosette on the centre hex;
+                             all five = lit lines + the only never-ending pulse (.pt-anim, fxOn only); turn-start light sweep.
 20b3. cast-fx.js          ← window.CastFX.play(playerIndex, scrollName): cast effect. Crackling lines in the scroll's colour(s)
                              (ScrollLook.colors) join the caster's pawn and the stones of the first fully-formed pattern variant
                              (BotState.snapshot stones), plus stone-to-stone around the caster; stones and pawn flare (screen blend),

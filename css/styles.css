@@ -5379,3 +5379,49 @@ html.pc-on .dock-bar {
     background: linear-gradient(0deg, var(--bg-panel), color-mix(in srgb, var(--bg-panel) 90%, var(--pc)));
     border-top-color: color-mix(in srgb, var(--pc) 45%, var(--border-subtle, #333));
 }
+
+/* =========================================================================
+   PLAYER TILE ART (owner 2026-10-19, js/player-tile-art.js)
+   Win-progress stones (looks only, glass beads via piece-3d.js), line art in a darker shade of the
+   player's colour, black rosette on the centre hex. The only animation that
+   never stops is the all-five pulse (.pt-complete.pt-anim).
+   ========================================================================= */
+.player-tile-element-symbols .pt-line {
+    fill: none;
+    stroke: var(--pt-line, #444);
+    stroke-width: 0.8;
+    stroke-opacity: 0.55;
+    stroke-linejoin: round;
+}
+.player-tile-element-symbols .pt-line.pt-thin { stroke-width: 0.5; stroke-opacity: 0.45; }
+.player-tile-element-symbols .pt-ink {
+    fill: none;
+    stroke: #0b0b0e;
+    stroke-width: 0.55;
+    stroke-opacity: 0.85;
+}
+.player-tile-element-symbols .pt-ink.pt-fine { stroke-width: 0.35; }
+.player-tile-element-symbols .pt-ink.pt-dash { stroke-dasharray: 1.2 1.6; }
+.player-tile-element-symbols .pt-socket {
+    fill: rgba(0, 0, 0, 0.32);
+    stroke-width: 0.8;
+}
+.player-tile-element-symbols .pt-glow,
+.player-tile-element-symbols .pt-flash { opacity: 0; }
+.player-tile-element-symbols .pt-flash { fill: #fff; }
+/* not won yet: a faint, see-through stone */
+.player-tile-element-symbols .pt-stone:not(.on) .pt-bead { opacity: 0.32; }
+/* won: solid, with a soft glow */
+.player-tile-element-symbols .pt-stone.on .pt-glow { opacity: 0.35; }
+.player-tile-element-symbols .pt-stone.on .pt-socket { opacity: 0; }
+/* all five: the line art lights up, every stone pulses brighter */
+.player-tile-element-symbols.pt-complete .pt-line { stroke: var(--pt-lit, #ddd); stroke-opacity: 0.85; }
+.player-tile-element-symbols.pt-complete .pt-stone .pt-glow { opacity: 0.9; }
+.player-tile-element-symbols.pt-complete.pt-anim .pt-stone .pt-glow { animation: pt-pulse 1.6s ease-in-out infinite; }
+.player-tile-element-symbols.pt-complete.pt-anim .pt-stone .pt-flash { animation: pt-shine 1.6s ease-in-out infinite; }
+@keyframes pt-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes pt-shine { 0%, 100% { opacity: 0; } 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) {
+    .player-tile-element-symbols .pt-glow,
+    .player-tile-element-symbols .pt-flash { animation: none !important; }
+}

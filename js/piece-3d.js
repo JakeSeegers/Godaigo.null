@@ -38,7 +38,9 @@
     'use strict';
     const NS = 'http://www.w3.org/2000/svg';
     const KEY = 'godaigo_3d_pieces';
-    const PIECES = 'g.player, g.stone';
+    // g.pt-bead: the win-progress stones on player tiles (js/player-tile-art.js),
+    // drawn as beads too but never class 'stone' (game code finds real stones by it)
+    const PIECES = 'g.player, g.stone, g.pt-bead';
     const DISC = 'circle.player-marker, circle.stone-piece';
     const HEIGHT = 0.6;    // puck height / radius (a hockey puck is about 0.67)
     const BEAD = 0.75;     // bead dome height / radius
@@ -111,7 +113,7 @@
 
     function mainDisc(g) { return g.querySelector(':scope > ' + DISC.split(', ').join(', :scope > ')); }
 
-    const isBead = g => g.classList.contains('stone');
+    const isBead = g => g.classList.contains('stone') || g.classList.contains('pt-bead');
     const isPawn = g => g.classList.contains('player');
 
     // Pawn profile, in pawn radii (r = the marker radius): [height, radius,
@@ -1157,7 +1159,7 @@
         // too (they use masks either way).
         let nudgeTimer = 0;
         const nudge = () => {
-            if (live()) document.querySelectorAll('#viewport g.stone').forEach(g => { if (g.querySelector(':scope > .puck-under')) refresh(g); });
+            if (live()) document.querySelectorAll('#viewport g.stone, #viewport g.pt-bead').forEach(g => { if (g.querySelector(':scope > .puck-under')) refresh(g); });
             document.querySelectorAll('#viewport .shrine-marker mask image').forEach(img => img.replaceWith(img.cloneNode(true)));
         };
         const soon = () => { clearTimeout(nudgeTimer); nudgeTimer = setTimeout(nudge, 200); };

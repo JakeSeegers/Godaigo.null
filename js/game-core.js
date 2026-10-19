@@ -3087,16 +3087,13 @@
             if (viewportRotation !== _leveledRotation) levelPlayerTileSymbols();
         }
 
-        // Keeps the element row on every player tile level on screen (earth on
-        // the left) when the map is turned: turns each row back around the
-        // tile's center by the map's rotation.
+        // Keeps the stone pictures on every player tile upright on screen when
+        // the map is turned (each stone turns back around its own centre; the
+        // stones stay on their hexes). js/player-tile-art.js.
         let _leveledRotation = 0;
         function levelPlayerTileSymbols() {
             _leveledRotation = viewportRotation;
-            document.querySelectorAll('.player-tile-element-symbols').forEach(g => {
-                if (viewportRotation) g.setAttribute('transform', `rotate(${-viewportRotation})`);
-                else g.removeAttribute('transform');
-            });
+            window.PlayerTileArt?.level(viewportRotation);
         }
 
         // Hermit-only board rotation tool (js/game-ui.js's openBoardRotationPanel):
@@ -6923,51 +6920,18 @@ function clearPlayerPath() {
             const symbolsGroup = playerTile.element.querySelector('.player-tile-element-symbols');
             if (!symbolsGroup) return;
 
-            // Clear existing symbols
-            symbolsGroup.innerHTML = '';
-
             // Get activated elements for THIS specific player
             const playerScrollData = spellSystem.playerScrolls[playerIndex];
             if (!playerScrollData) return;
-            
+
             const activated = playerScrollData.activated;
             const activatedElements = Array.from(activated);
 
-            // One row, always earth, water, fire, wind, void from left to right
-            // (owner 2026-10-01; was a pentagon around the pawn). Below the
-            // center hex so the pawn never covers it. Not-yet-won elements are
-            // faint empty rings so the order is always clear. The group is kept
-            // level when the map is turned (updateViewport).
-            const elementOrder = ['earth', 'water', 'fire', 'wind', 'void'];
-            const R = 7.5, GAP = 17, ROW_Y = TILE_SIZE * 1.5;
-            elementOrder.forEach((element, index) => {
-                const x = (index - 2) * GAP;
-                const y = ROW_Y;
-                const won = activated.has(element);
-
-                // Outline ring so the pip is visible against any background
-                const symbolBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                symbolBg.setAttribute('cx', x);
-                symbolBg.setAttribute('cy', y);
-                symbolBg.setAttribute('r', R);
-                symbolBg.setAttribute('fill', won ? '#000' : 'rgba(0,0,0,0.35)');
-                symbolBg.setAttribute('stroke', STONE_TYPES[element].color);
-                symbolBg.setAttribute('stroke-width', won ? '1.5' : '1');
-                if (!won) symbolBg.setAttribute('stroke-opacity', '0.45');
-                symbolsGroup.appendChild(symbolBg);
-                if (!won) return;
-
-                // Element image (screen blend so black bg is transparent)
-                const imgEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-                imgEl.setAttribute('href', STONE_TYPES[element].img);
-                imgEl.setAttribute('x', x - R);
-                imgEl.setAttribute('y', y - R);
-                imgEl.setAttribute('width', R * 2);
-                imgEl.setAttribute('height', R * 2);
-                imgEl.setAttribute('clip-path', `circle(${R}px at center)`);
-                imgEl.style.mixBlendMode = 'screen';
-                symbolsGroup.appendChild(imgEl);
-            });
+            // Five inlaid stones around the centre hex, faint until won, plus the
+            // tile's line art (owner 2026-10-19; was a row of rings, before that a
+            // pentagon). Looks only: js/player-tile-art.js.
+            const color = playerTile.element.querySelector('.player-tile-border')?.getAttribute('stroke') || '#888888';
+            window.PlayerTileArt?.render(symbolsGroup, activated, color);
             levelPlayerTileSymbols();
 
             console.log(`🎨 Updated player ${playerIndex}'s TILE with ${activatedElements.length} element symbol(s): ${activatedElements.join(', ')}`);
