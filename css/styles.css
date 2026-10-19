@@ -5335,6 +5335,8 @@ html.idle-clean body > *:not(#game-layout):not(#parallax-bg):not(iframe):not(scr
     display: none !important;
 }
 html.idle-clean .game-layout.active { grid-template-rows: 1fr; grid-template-areas: "board"; }
+html.idle-clean #board-viewport { transition: opacity 0.4s; }
+html.idle-clean.idle-fitting #board-viewport { opacity: 0; transition: none; }
 
 /* A tile being carried (js/piece-3d.js, Telekinesis / your start tile): lifted look */
 #viewport g.ghost-tile.tile-carried {

@@ -1,7 +1,8 @@
 // Idle training screensaver (owner 2026-10-09; sql/idle-training.sql).
 //
 // When a signed-in player leaves the lobby alone for a few minutes, this browser
-// plays watchable bot games (challenger vs champion, 2 players) for a COMMUNAL
+// plays watchable bot games (challenger vs champion; 4-player team games at
+// the start, then mostly 2 players) for a COMMUNAL
 // training run. Everyone idling works on the same shared list of challengers
 // ("pooled climb"), so nobody has to finish a run alone:
 //   idle_training_job()     -> the champion + an open challenger to test (or none)
@@ -233,7 +234,9 @@
             try {
                 await window.BotArena.run(run.cand.weights, run.job.champion, 1, seed, {
                     visual: true, speed: fast ? FAST_SPEED : 1, markChallenger: true, gameIndexOffset: played,
-                    fourPlayerEvery: 3, // every 3rd pair of games: 4-player team game (docs/bot-systems.md)
+                    // 4-player team games (owner 2026-10-19): the first three, then
+                    // every 3rd pair (docs/bot-systems.md). Same 50% baseline either way.
+                    fourPlayerEvery: played < 3 ? 1 : 3,
                     onGame: (n, total, g, side) => report(g, side),
                 });
             } finally { window.__arenaFx = false; }
@@ -299,20 +302,78 @@
         if (flag(FLAG_RESUME)) flag(FLAG_WAKE, true);
         setTimeout(() => location.reload(), 150);
     }
-    // Clean view: the board is fit before the player tiles are placed, so they
-    // stuck out of the screen (owner 2026-10-19). Refit whenever the tiles change.
-    let fitKey = '';
+    // Clean view camera (owner 2026-10-19). The game fits the board before the
+    // player tiles are placed, then they stuck out of the screen, and the
+    // normal fit leaves the board small. Here: wait until the tiles stop
+    // changing, measure their real box on screen (board tilt included) and
+    // fill about 90% of it. A new game stays hidden until that first fit
+    // (no zoom-in, then jump); later changes glide there.
+    const FILL = 0.9, SETTLE_MS = 500, GLIDE_MS = 900;
+    let camKey = '', camSince = 0, camFitted = '', camTiles = 0, camAnim = 0;
+    function tileBox() {
+        let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+        document.querySelectorAll('#viewport g.placed-tile').forEach(g => {
+            const q = g.getBoundingClientRect();
+            if (q.width < 1) return;
+            l = Math.min(l, q.left); t = Math.min(t, q.top); r = Math.max(r, q.right); b = Math.max(b, q.bottom);
+        });
+        return r > l ? { w: r - l, h: b - t, cx: (l + r) / 2, cy: (t + b) / 2 } : null;
+    }
+    // Moves the camera to the fit (a few rounds: the tilt is not linear) and
+    // returns it. The caller decides whether to keep it or glide there.
+    function measureFit() {
+        const area = document.querySelector('.board-area')?.getBoundingClientRect();
+        if (!area || !area.width) return null;
+        for (let i = 0; i < 4; i++) {
+            const box = tileBox();
+            if (!box) return null;
+            viewportScale = Math.min(3, viewportScale * Math.min(area.width * FILL / box.w, area.height * FILL / box.h));
+            updateViewport();
+            const c = tileBox();
+            const dx = area.left + area.width / 2 - c.cx, dy = area.top + area.height / 2 - c.cy;
+            const rad = -viewportRotation * Math.PI / 180;     // the move is applied inside the turn
+            viewportX += dx * Math.cos(rad) - dy * Math.sin(rad);
+            viewportY += dx * Math.sin(rad) + dy * Math.cos(rad);
+            updateViewport();
+        }
+        return { s: viewportScale, x: viewportX, y: viewportY };
+    }
+    function fitCamera(glide) {
+        const from = { s: viewportScale, x: viewportX, y: viewportY };
+        const to = measureFit();
+        const id = ++camAnim;
+        if (!to || !glide) return;
+        viewportScale = from.s; viewportX = from.x; viewportY = from.y; updateViewport();
+        const t0 = performance.now();
+        const tick = (now) => {
+            if (id !== camAnim || !run) return;
+            const k = Math.min(1, (now - t0) / GLIDE_MS), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+            viewportScale = from.s + (to.s - from.s) * e;
+            viewportX = from.x + (to.x - from.x) * e; viewportY = from.y + (to.y - from.y) * e;
+            updateViewport();
+            if (k < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    }
     setInterval(() => {
-        if (!run || run.stopping || typeof placedTiles === 'undefined' || typeof fitBoardToView !== 'function') return;
-        const key = placedTiles.map(t => Math.round(t.x) + ',' + Math.round(t.y)).join(';');
-        if (!key || key === fitKey) return;
-        fitKey = key;
-        fitBoardToView({ padding: 0.7 });
-    }, 500);
+        if (!run || run.stopping || typeof placedTiles === 'undefined' || typeof updateViewport !== 'function') return;
+        const n = placedTiles.length;
+        // fewer tiles than before = a new game: hide the board until it is fit
+        if (n < camTiles || (n && !camTiles)) { camFitted = ''; document.documentElement.classList.add('idle-fitting'); }
+        camTiles = n;
+        if (!n) return;
+        const key = innerWidth + 'x' + innerHeight + ':' + placedTiles.map(t => Math.round(t.x) + ',' + Math.round(t.y)).join(';');
+        if (key !== camKey) { camKey = key; camSince = Date.now(); return; }
+        if (key === camFitted || Date.now() - camSince < SETTLE_MS) return;
+        const first = !camFitted;
+        camFitted = key;
+        fitCamera(!first);
+        document.documentElement.classList.remove('idle-fitting');
+    }, 100);
     function cleanupFailed() {
         if (!run) return;
         run = null;
-        document.documentElement.classList.remove('idle-clean');
+        document.documentElement.classList.remove('idle-clean', 'idle-fitting');
         document.getElementById('idle-training-bar')?.remove();
         window.Spectate?.hideLocal?.();
     }
