@@ -2,6 +2,16 @@
   "_readme": "Player-facing release notes, newest first, shown by the Change Log button in the lobby. Rules (full text: HOUSE RULES #2 in CLAUDE.md): at most ONE entry per day, id = date. If today's entry exists, rewrite it as one summary of the whole day; do not add a second entry. At most 5 lines per entry. Only list changes players will notice; group small fixes into one 'Small fixes and polish' line. Simple English, no file names, no em dashes.",
   "entries": [
     {
+      "id": "2026-10-19",
+      "date": "2026-10-19",
+      "title": "Stone rules and smarter bots",
+      "changes": [
+        "You can no longer end a move on a void stone. Like every other stone, you can only pass over it.",
+        "Bots follow the same rule and never get stuck standing on a stone.",
+        "Smarter bots: they break the stone shapes opponents use for attack scrolls."
+      ]
+    },
+    {
       "id": "2026-10-18",
       "date": "2026-10-18",
       "title": "Smarter bots and a splash of color",

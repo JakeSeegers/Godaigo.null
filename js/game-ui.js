@@ -1533,9 +1533,9 @@
                         return dist < 5;
                     });
 
-                    // Can't end turn on: earth, wind, water, fire
-                    // CAN end turn on: void (or empty hex)
-                    const cannotEndTurnHere = stoneAtFinal && stoneAtFinal.type !== 'void';
+                    // A move can never end on a stone, void included (owner 2026-10-19:
+                    // ending on void let a 0 AP pawn end its turn there via the stranded rule)
+                    const cannotEndTurnHere = !!stoneAtFinal;
 
                     // Tutorial gate: only allow movement to the designated hex(es)
                     const tutorialBlocked = window.isTutorialMode && window.tutorialAllowedHexes &&
@@ -1881,7 +1881,7 @@
                             const dist = Math.sqrt(Math.pow(s.x - targetHex.x, 2) + Math.pow(s.y - targetHex.y, 2));
                             return dist < 5;
                         });
-                        const cannotEndTurnHere = stoneAtTarget && stoneAtTarget.type !== 'void';
+                        const cannotEndTurnHere = !!stoneAtTarget;
 
                         // Compute the actual path early (used both for the reveal
                         // walk below and the tutorial flip-block check) — the
@@ -2153,12 +2153,12 @@
                         const finalPos = playerPath[playerPath.length - 1];
                         const moveCheck = canPlayerMoveToHex(finalPos.x, finalPos.y, true);
 
-                        // Check if there's a stone at the final position that you CAN'T end turn on
+                        // A move can never end on a stone (void included)
                         const stoneAtFinal = placedStones.find(s => {
                             const dist = Math.sqrt(Math.pow(s.x - finalPos.x, 2) + Math.pow(s.y - finalPos.y, 2));
                             return dist < 5;
                         });
-                        const cannotEndTurnHere = stoneAtFinal && stoneAtFinal.type !== 'void';
+                        const cannotEndTurnHere = !!stoneAtFinal;
 
                         // Tutorial gate: reject the whole move if it would step onto
                         // a still-hidden tile before the current step expects a flip
@@ -2521,11 +2521,11 @@ boardSvg.addEventListener('touchstart', handleBoardTouchStart, { passive: false 
                     const moveCheck = canPlayerMoveToHex(h.x, h.y, false);
                     if (!moveCheck.canMove) return false;
                     if (moveCheck.cost > getTotalAP()) return false;
-                    // Can't end turn on a non-void stone
+                    // Can't end a move on any stone (void included)
                     const stone = placedStones.find(s =>
                         Math.sqrt(Math.pow(s.x - h.x, 2) + Math.pow(s.y - h.y, 2)) < 5
                     );
-                    if (stone && stone.type !== 'void') return false;
+                    if (stone) return false;
                     return true;
                 })
                 .sort((a, b) => {
