@@ -1421,7 +1421,7 @@
             case 'breakStone': {
                 return contrib('breakStoneBase', 1) + contrib('breakStoneApPenalty', a.cost)
                      + unblockBonus(a, snap, ctx.unblock)
-                     + (ctx.harm?.stones.has(hexKey(a.x, a.y)) ? contrib('breakLeaderPattern', ctx.harm.push) : 0);
+                     + ((ctx.harm?.stones.has(hexKey(a.x, a.y)) || ctx.harm?.shape?.has(hexKey(a.x, a.y))) ? contrib('breakLeaderPattern', ctx.harm.push) : 0);
             }
 
             case 'moveStone': {
@@ -3712,7 +3712,7 @@
         const harm = me(snap0) ? harmContext(snap0, me(snap0)) : null;
         const harmRoot = (a) => {
             if (!harm) return 0;
-            if (a.type === 'breakStone' && harm.stones.has(hexKey(a.x, a.y))) return WEIGHTS.breakLeaderPattern * harm.push;
+            if (a.type === 'breakStone' && (harm.stones.has(hexKey(a.x, a.y)) || harm.shape?.has(hexKey(a.x, a.y)))) return WEIGHTS.breakLeaderPattern * harm.push;
             if (harm.campHere && (a.type === 'move' || a.type === 'teleport')) return WEIGHTS.campLeave * harm.push;
             if (harm.campHere && a.type === 'endTurn') return WEIGHTS.endTurnCamp * harm.push;
             if (a.type === 'cast') return harmCastBonus(snap0, me(snap0), a);
@@ -4058,7 +4058,7 @@
         });
     }
     window.addEventListener('load', hookAttackSpots); // action-log.js loads after this file
-    // Stones of a remembered attack shape of seat L that is still whole or one stone short.
+    // Stones of a remembered attack shape of seat L that is still whole.
     function attackShapeStones(snap, L) {
         hookAttackSpots();
         const out = new Set();
@@ -4076,7 +4076,7 @@
                     const st = snap.stones.find(q => q.type === c.type && Math.hypot(q.x - px.x, q.y - px.y) < 5);
                     if (st) have.push(st);
                 }
-                if (have.length && have.length >= variant.length - 1) have.forEach(st => out.add(hexKey(st.x, st.y)));
+                if (have.length && have.length === variant.length) have.forEach(st => out.add(hexKey(st.x, st.y)));
             }
         }
         return out;
@@ -4116,7 +4116,9 @@
         }
         // The shapes it attacks me from, whatever their element (owner bad-move report
         // 2026-10-19: yellow threw purple with Take Flight 17 times from a few reused shapes).
-        if (WEIGHTS.breakAttackShape > 0.5) for (const k of attackShapeStones(snap, L)) { stones.add(k); _review.attackShape = (_review.attackShape || 0) + 1; }
+        // Kept apart from `stones`: broken when the bot can reach them, never walked to.
+        const shape = WEIGHTS.breakAttackShape > 0.5 ? attackShapeStones(snap, L) : new Set();
+        if (shape.size) _review.attackShape = (_review.attackShape || 0) + 1;
         const camps = [];
         let campHere = null;
         // Camping costs the camper whole turns: only when the leader is one
@@ -4148,7 +4150,7 @@
                 }
             } catch (e) {}
         }
-        return { L, push, stones, camps, campHere };
+        return { L, push, stones, shape, camps, campHere };
     }
     const _winSpotCache = { key: null, val: null };
     function winSpots(snap, L) {
