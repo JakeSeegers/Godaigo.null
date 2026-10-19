@@ -410,7 +410,6 @@
                                   // forward model honestly doesn't know (≈ castBase)
         evalHiddenDist:  -0.08,   // × px to nearest hidden tile (exploration shaping)
         evalGoalDist:    -0.1,    // × px (real path, capped 15 steps) to the nearest free shrine
-        noStrand:          0,     // > 0.5: end the turn instead of a last-AP step onto a stone / another player's tile (2026-10-19; off until its A/B passes); 0 = off
         currentPlan:       0,     // > 0.5: Control the Current plans: water placeholders turned into scarce stones (makePlan currentVariants, 2026-10-19; off until its A/B passes); 0 = off
         breakAttackShape:  1,     // > 0.5: harm also breaks whole shapes the leader cast attack scrolls from, never walked to (attackShapeStones, 2026-10-19; A/B 21-18-1); 0 = off
         riverHarm:         1,     // > 0.5: Wandering River at the leader's own / nearby needed shrine, into an element it gains nothing from, also right after a river trip cast (2026-10-18; A/B with River forced into seat 0: 20-20-0, 73 River casts, 32 trips); 0 = old rule
@@ -5871,14 +5870,6 @@
         }
         // sliced thinking: the turn may have moved on while the bot thought
         if (activePlayerIndex !== idx) { log('Turn changed while thinking - not acting'); return null; }
-        // Never strand the pawn on a stone with its last AP when it may end the turn
-        // where it stands (owner bad-move report 2026-10-19: a red bot paced, then ended
-        // its turn on a stone; moveStrandOnStone alone was outweighed by other pulls).
-        if (WEIGHTS.noStrand > 0.5 && choice.action.type === 'move' && snap.turn.ap - (choice.action.cost || 0) < 1 &&
-            (snap.stones.some(q => Math.hypot(q.x - choice.action.x, q.y - choice.action.y) < 5) || onOpponentTile(snap, choice.action.x, choice.action.y))) {
-            const stay = window.BotState.legalActions().find(a => a.type === 'endTurn');
-            if (stay) { log('That step would strand me on a stone - ending the turn here instead'); _review.noStrand = (_review.noStrand || 0) + 1; choice = { action: stay, score: choice.score }; }
-        }
         return applyChosen(snap, idx, choice);
     }
 

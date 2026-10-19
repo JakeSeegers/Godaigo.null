@@ -2353,9 +2353,13 @@
             // the banked state itself at simulation time (same input either way
             // within one ply).
             const svBanked = snap.turn.buffs?.steamVentsBanked;
-            // Mirrors bot-state.js: a step onto a non-void stone only when the
-            // AP left still reaches a hex the turn may end on.
-            const restStone = (x, y) => { const s = stoneAt(snap, x, y); return s && s.type !== 'void'; };
+            // Mirrors bot-state.js: a step onto a stone (void too) or another
+            // player's tile only when the AP left still reaches a hex the turn
+            // may end on.
+            const me = snap.turn.activePlayerIndex;
+            const restStone = (x, y) => !!stoneAt(snap, x, y) || snap.tiles.some(t =>
+                t.isPlayerTile && t.playerIndex !== null && t.playerIndex !== undefined &&
+                t.playerIndex !== me && dist(t.x, t.y, x, y) < TILE * 4);
             const nbrs = gridNeighbors(g);
             const canRestFrom = (from, apLeft, depth) => (nbrs.get(from) || []).some(n => {
                 const mv = canMoveTo(snap, n.x, n.y);

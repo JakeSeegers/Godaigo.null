@@ -183,15 +183,19 @@
     // Hex grid + Dijkstra cheapest path (stone terrain changes step costs).
     // ----------------------------------------------------------------
     let _grid = null, _gridKey = '';
-    // A step onto a non-void stone is only allowed when the AP left after it
-    // still reaches a hex the turn may end on (owner 2026-10-10: a bot walked
-    // onto an earth stone with its last AP, and the stranded rule then let it
-    // end the turn there; a human's move can never end on such a stone).
+    // A step onto a stone (or another player's tile) is only allowed when the
+    // AP left after it still reaches a hex the turn may end on (owner
+    // 2026-10-10: a bot walked onto an earth stone with its last AP, and the
+    // stranded rule then let it end the turn there; a human's move can never
+    // end on such a stone). Void stones count too (2026-10-19: a bot ended on
+    // a void stone the same way; ending the turn on any stone is banned).
     // Looks up to 3 more steps ahead (wind stones are free to cross).
     // Uses the path finder's cached neighbour lists and step costs, so it is
     // cheap enough to run for every move the bot considers.
     function stepStrands(h, apLeft) {
-        const restStone = (x, y) => placedStones.some(s => s.type !== 'void' && Math.hypot(s.x - x, s.y - y) < HEX_NEAR);
+        const restStone = (x, y) => placedStones.some(s => Math.hypot(s.x - x, s.y - y) < HEX_NEAR) ||
+            placedTiles.some(t => t.isPlayerTile && t.playerIndex !== null && t.playerIndex !== undefined &&
+                t.playerIndex !== activePlayerIndex && Math.hypot(t.x - x, t.y - y) < TILE_SIZE * 4);
         if (!restStone(h.x, h.y)) return false;
         const start = nearestHex(h.x, h.y);
         if (!start) return false;
