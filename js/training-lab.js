@@ -515,7 +515,7 @@
 
     // ── Warm-up ──────────────────────────────────────────────────
     const WARM_KEY = 'godaigo_training_lab_warmup';
-    const WARM = { seeds: 3, tries: 20, findTries: 10, sigma: 0.2, nudge: 0.12, skipMax: 3 };
+    const WARM = { seeds: 3, tries: 20, findTries: 60, sigma: 0.2, nudge: 0.12, skipMax: 3 };
     // Where the run is: steps (deal 1..3, exam), one bar for the whole run, the current step in words.
     function warmProgressHtml(W) {
         const st = W.stage; if (!st) return '';
@@ -568,7 +568,7 @@
             <div class="note">The challenger first fixes deals where the champion beat it from both seats. Each deal is played twice with seats swapped; a deal is lost when it wins neither game. It nudges its settings until one version wins at least one of the two (even with the champion on that deal). Each new fix must keep the earlier deals at one win or more. Only then does it take the normal exam on fresh deals, which alone decides if it is better.</div>
             <h3>Exam size</h3>
             <div class="row">${[24, 40].map(n => `<button class="b ${n === games ? 'primary' : ''}" data-wu-exam="${n}">${n} games</button>`).join('')}
-                <span class="small muted">Warm-up: ${WARM.seeds} lost deals, up to ${WARM.tries} versions each, ${WARM.skipMax} skips at most.</span></div>
+                <span class="small muted">Warm-up: ${WARM.seeds} lost deals (it checks up to ${WARM.findTries} deals to find each one), up to ${WARM.tries} versions each, ${WARM.skipMax} skips at most. A lost deal turns up about once in 10, so the warm-up takes roughly 30 to 60 minutes.</span></div>
             <div class="row" style="margin-top:10px;">
                 <button class="b primary" data-act="wu-run" ${W?.running ? 'disabled' : ''}>Start warm-up</button>
                 <button class="b" data-act="wu-stop" ${W?.running ? '' : 'disabled'}>Stop</button></div>
@@ -771,11 +771,11 @@
                     for (let k = 0; k < WARM.findTries && !S.wuStopNow; k++) {
                         const sd = nextSeed(), r = await pair(cur, sd);
                         W.stage.checked = k + 1; warmDraw();
-                        if (isLost(r)) { lost = { sd, r }; break; }
+                        if (isLost(r)) { lost = { sd, r, k: k + 1 }; break; }
                     }
                     if (S.wuStopNow) break;
-                    if (!lost) { say(`It won at least one game on ${WARM.findTries} deals in a row: nothing left to fix, on to the exam.`, 'good'); while (W.dealRes.length < WARM.seeds) W.dealRes.push('none'); break; }
-                    say(`Deal ${n}: it lost deal #${lost.sd} (${lost.r.aWins}-${lost.r.bWins}-${lost.r.draws}). Nudging its settings...`);
+                    if (!lost) { say(`Step ${n}: checked ${WARM.findTries} deals and won at least one game on every one, so no lost deal to fix. On to the exam with ${n - 1} fixed.`, 'good'); while (W.dealRes.length < WARM.seeds) W.dealRes.push('none'); break; }
+                    say(`Deal ${n}: found one after checking ${lost.k} deal${lost.k === 1 ? '' : 's'}: it lost deal #${lost.sd} (${lost.r.aWins}-${lost.r.bWins}-${lost.r.draws}). Nudging its settings...`);
                     // 2. nudge until one version wins every deal so far, both ways
                     const set = [...W.cleared, lost.sd];
                     let fixed = null;

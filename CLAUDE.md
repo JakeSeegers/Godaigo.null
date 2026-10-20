@@ -618,7 +618,7 @@ Order matters — later scripts depend on earlier ones.
                              (hermit_training_lab, hermit_reject_candidate, hermit_restore_champion). '–' minimizes the Lab to a corner box with
                              the running test's progress (localStorage godaigo_training_lab_min).
                              Warm-up tab (owner 2026-10-20): champion nudged (perturbWeights 0.2) = challenger; find a deal it loses
-                             (BotArena.run(a, champ, 2, seed) = one deal, seats swapped; lost = no win in either seat; up to 10 deals), nudge (0.12) up to 20
+                             (BotArena.run(a, champ, 2, seed) = one deal, seats swapped; lost = no win in either seat; up to 60 deals per step, 2026-10-20: 10 ended the warm-up early), nudge (0.12) up to 20
                              times until one version wins at least one game on every deal so far (newest first; 2026-10-20, was both games), keep it; 3 deals (a deal no version fixes is skipped, max 3
                              skips); then the exam on fresh deals (24 / 40 games, fourPlayerEvery 3; pass shown at 58%+). Make it live now / Send
                              to idle training. Last run kept (localStorage godaigo_training_lab_warmup, incl. weights). ~17 s per game.
