@@ -4396,17 +4396,16 @@
                     console.log(`✅ Player tile at (${snapPos.x.toFixed(1)}, ${snapPos.y.toFixed(1)}) touches ${touchingUnrevealedCount} unrevealed tiles`);
                 }
 
-                // TELEKINESIS RULE: Must touch at least 2 other tiles (matches the
-                // "Tiles must touch 2+ others" status text and the drag-fail message
-                // shown to players — this used to say "1+" here, which let a tile land
-                // on a spot touching only a single neighbor). excludeTileId lets a
+                // TELEKINESIS RULE (owner 2026-10-20): the tile must touch at least
+                // 1 other tile and the board must stay in one piece (was 2+ tiles
+                // before the one-piece rule existed). excludeTileId lets a
                 // caller checking a spot adjacent to the tile's OWN original position
                 // (e.g. the bot's dry-run destination search) skip counting that tile
                 // as a neighbor of its own vacated spot.
                 if (window.telekinesisState && window.telekinesisState.active) {
                     const touchingCount = countTouchingTiles(snapPos.x, snapPos.y, excludeTileId);
-                    if (touchingCount < 2) {
-                        console.log(`❌ Telekinesis: tile at (${snapPos.x.toFixed(1)}, ${snapPos.y.toFixed(1)}) touches ${touchingCount} tile(s), need 2+`);
+                    if (touchingCount < 1) {
+                        console.log(`❌ Telekinesis: tile at (${snapPos.x.toFixed(1)}, ${snapPos.y.toFixed(1)}) touches no other tile`);
                         return { x: x, y: y, snapped: false };
                     }
                     if (!boardStaysConnected(snapPos.x, snapPos.y, excludeTileId)) {
@@ -4555,7 +4554,7 @@
                 if (mode === 'player-tile') {
                     legal = countTouchingUnrevealedTiles(pos.x, pos.y) >= 2;
                 } else if (mode === 'telekinesis') {
-                    legal = countTouchingTiles(pos.x, pos.y, excludeTileId) >= 2 &&
+                    legal = countTouchingTiles(pos.x, pos.y, excludeTileId) >= 1 &&
                         boardStaysConnected(pos.x, pos.y, excludeTileId);
                 }
                 if (!legal) return;

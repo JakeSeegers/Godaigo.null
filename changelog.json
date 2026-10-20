@@ -6,7 +6,7 @@
       "date": "2026-10-20",
       "title": "Telekinesis fix",
       "changes": [
-        "Telekinesis: a tile can move to any spot that keeps the board in one piece, and it can never split the board in two."
+        "Telekinesis: the moved tile needs to touch only 1 other tile, but the board must stay in one piece."
       ]
     },
     {

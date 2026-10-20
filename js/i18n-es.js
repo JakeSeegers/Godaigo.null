@@ -846,7 +846,7 @@ window.I18N_ES = {
     "Move 1 of {0} ({1} AP) - ← → to choose, Enter to confirm, Esc to cancel": "Movimiento 1 de {0} ({1} PA) - ← → elegir, Enter confirmar, Esc cancelar",
     "Move Hand card → Active": "Mover carta de la Mano → Activa",
     "Move Scroll to Active Area": "Mueve el pergamino al Área activa",
-    "Move a tile that has no stones on it. If one player is on the tile, they move to its center. Cannot move a tile with multiple players on it. It must be touching 1 other tile. Cannot move a tile if it would strand an adjacent tile.": "Mueve una loseta que no tenga piedras. Si hay un jugador en la loseta, se mueve a su centro. No puede mover una loseta con varios jugadores. Debe tocar al menos 1 otra loseta. No puede mover una loseta si dejaría aislada una loseta adyacente.",
+    "Move a tile that has no stones on it. If one player is on the tile, they move to its center. Cannot move a tile with multiple players on it. The tile must land touching at least 1 other tile, and the board must stay in one piece.": "Mueve una loseta que no tenga piedras. Si hay un jugador en la loseta, se mueve a su centro. No puede mover una loseta con varios jugadores. La loseta debe quedar tocando al menos otra loseta, y el tablero debe quedar en una sola pieza.",
     "Move cancelled.": "Movimiento cancelado.",
     "Move card → Common Area": "Mover carta → Área común",
     "Move next to an Earth stone to break it.": "Acércate a una piedra de Tierra para romperla.",
@@ -2240,6 +2240,7 @@ window.I18N_ES = {
     "Simplify now stacks like Burning Motivation: each cast adds 2 AP to every regain.": "Simplificar ahora se acumula como Motivación Ardiente: cada lanzamiento suma 2 PA a cada recuperación.",
     // Change Log 2026-10-20
     "Telekinesis fix": "Arreglo de Telequinesis",
-    "Telekinesis: a tile can move to any spot that keeps the board in one piece, and it can never split the board in two.": "Telequinesis: una loseta puede ir a cualquier sitio que deje el tablero en una sola pieza, y nunca puede partirlo en dos.",
-    "Invalid placement! The tile must touch at least 2 other tiles and keep the board in one piece. Tile snapped back.": "¡Colocación no válida! La loseta debe tocar al menos otras 2 losetas y dejar el tablero en una sola pieza. La loseta volvió a su sitio.",
+    "Telekinesis: the moved tile needs to touch only 1 other tile, but the board must stay in one piece.": "Telequinesis: la loseta movida solo necesita tocar otra loseta, pero el tablero debe quedar en una sola pieza.",
+    "Invalid placement! The tile must touch at least 1 other tile and keep the board in one piece. Tile snapped back.": "¡Colocación no válida! La loseta debe tocar al menos otra loseta y dejar el tablero en una sola pieza. La loseta volvió a su sitio.",
+    "Telekinesis: drag a highlighted tile to move it. It must touch another tile, and the board must stay in one piece.": "Telequinesis: arrastra una loseta resaltada para moverla. Debe tocar otra loseta, y el tablero debe quedar en una sola pieza.",
 };
