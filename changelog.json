@@ -10,7 +10,7 @@
         "Smarter bots: they follow the same stone rule, and they break the stone shapes opponents use for attack scrolls.",
         "At the start of a game, every player's tile now drops onto the board, bots included.",
         "New player tiles in your colour: element stones beam down as you win them, and a beam of light lifts you home to victory.",
-        "Idle training now shows only the board and the bots playing on it. Secret: type the word idle in the lobby to start it right away."
+        "Idle training now shows only the board, sized to fill the screen, and starts with 4-player games. Secret: type the word idle in the lobby to start it right away."
       ]
     },
     {
