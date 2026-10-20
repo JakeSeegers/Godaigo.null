@@ -2238,4 +2238,7 @@ window.I18N_ES = {
     "Bots stop wasting moves: no stones placed where fire burns them, no scrolls cast that do nothing, and no more chasing scroll \"combos\" that made them play worse.": "Los bots dejan de desperdiciar jugadas: no ponen piedras donde el fuego las quema, no lanzan pergaminos que no hacen nada y ya no persiguen \"combos\" de pergaminos que los hacían jugar peor.",
     "Your panels and bars now take a light tint of your color, and the scroll card buttons sit at the top.": "Tus paneles y barras ahora tienen un ligero tono de tu color, y los botones de las cartas de pergaminos están arriba.",
     "Simplify now stacks like Burning Motivation: each cast adds 2 AP to every regain.": "Simplificar ahora se acumula como Motivación Ardiente: cada lanzamiento suma 2 PA a cada recuperación.",
+    // Change Log 2026-10-20
+    "Telekinesis fix": "Arreglo de Telequinesis",
+    "Telekinesis can no longer split the board into separate pieces.": "Telequinesis ya no puede partir el tablero en piezas separadas.",
 };

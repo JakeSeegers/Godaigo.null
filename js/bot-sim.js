@@ -144,16 +144,8 @@
 //     tile. Rare (needs a still-hidden tile targeted, then revealed before
 //     the buff clears) and — unlike the shrine-collection site — would also
 //     require guessing which drawn card was in the pile's other slots
-//   - Telekinesis' "cannot strand an adjacent tile" rule: the real game
-//     enforces this as a SEPARATE check at drag-START time (bot-effects.js's
-//     driveTelekinesis comment: "Bridge tiles still highlight but error on
-//     pickup"), not inside getEligibleTilesForShiftingSands() or
-//     findNearestSnapPoint() — so a tile this simulator treats as eligible
-//     could still be rejected by a real stranding check. No board-
-//     connectivity graph analysis here; rare in practice (needs a bridge
-//     tile whose removal would disconnect another tile from the rest of
-//     the board) and simEffectTelekinesis just no-ops on that tile exactly
-//     like every other "boxed in" case, rather than inventing a result
+//   - Telekinesis' "cannot split the board" rule (game-core.js tileIsBridge)
+//     is mirrored by tileSplitsBoard in telekinesisEligible (2026-10-20).
 //
 // The only globals read are STATIC data (window.SCROLL_DEFINITIONS) and,
 // inside validate() only, the live BotState/BotSystem.
@@ -1596,8 +1588,27 @@
         }
         return out;
     }
+    // Mirrors game-core.js tileIsBridge: lifting t must not split the other
+    // tiles into two groups.
+    function tileSplitsBoard(snap, t) {
+        const rest = snap.tiles.filter(x => x.id !== t.id);
+        if (rest.length < 2) return false;
+        const seen = new Set([rest[0].id]);
+        const queue = [rest[0]];
+        while (queue.length) {
+            const h = pixelToHex(queue[0].x, queue[0].y, LARGE_HEX);
+            queue.shift();
+            for (const [dq, dr] of TILE_ADJACENT_OFFSETS) {
+                const p = hexToPixel(h.q + dq, h.r + dr, LARGE_HEX);
+                const f = rest.find(x => !seen.has(x.id) && dist(x.x, x.y, p.x, p.y) < TILE);
+                if (f) { seen.add(f.id); queue.push(f); }
+            }
+        }
+        return seen.size < rest.length;
+    }
     const telekinesisEligible = snap => snap.tiles.filter(t =>
-        !t.isPlayerTile && tileStoneCount(snap, t) === 0 && tilePlayerIndices(snap, t).length <= 1);
+        !t.isPlayerTile && tileStoneCount(snap, t) === 0 && tilePlayerIndices(snap, t).length <= 1 &&
+        !tileSplitsBoard(snap, t));
 
     function simEffectTelekinesis(snap, p, choice) {
         const eligible = telekinesisEligible(snap);

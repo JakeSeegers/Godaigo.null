@@ -4624,47 +4624,34 @@
             return n;
         }
 
-        // Bridge check: would removing this tile leave any of its neighbors with 0 neighbors?
-        // Used by Telekinesis to prevent stranding tiles (and players on them).
+        // Bridge check: would lifting this tile split the board? True when the
+        // other tiles are no longer one connected group without it (a lone
+        // tile OR a group of tiles cut off). Used by Telekinesis to prevent
+        // stranding tiles (and players on them). The old check only caught a
+        // single neighbour left with no neighbours, so a pair could be cut off.
         function tileIsBridge(tileId) {
             const tile = placedTiles.find(t => t.id === tileId);
             if (!tile) return false;
             const largeHexSize = TILE_SIZE * 4;
-            const tileHex = pixelToHex(tile.x, tile.y, largeHexSize);
+            const rest = placedTiles.filter(t => t.id !== tileId);
+            if (rest.length < 2) return false;
             const adjacentOffsets = [
                 { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
                 { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 }
             ];
-
-            // Find all neighbors of this tile
-            const neighbors = [];
-            adjacentOffsets.forEach(offset => {
-                const adjPos = hexToPixel(tileHex.q + offset.q, tileHex.r + offset.r, largeHexSize);
-                const found = placedTiles.find(t => {
-                    if (t.id === tileId) return false; // exclude self
-                    const dist = Math.sqrt(Math.pow(t.x - adjPos.x, 2) + Math.pow(t.y - adjPos.y, 2));
-                    return dist < TILE_SIZE;
-                });
-                if (found) neighbors.push(found);
-            });
-
-            // For each neighbor, count how many neighbors IT would have without this tile
-            for (const neighbor of neighbors) {
-                const nHex = pixelToHex(neighbor.x, neighbor.y, largeHexSize);
-                let otherNeighborCount = 0;
+            const seen = new Set([rest[0].id]);
+            const queue = [rest[0]];
+            while (queue.length) {
+                const cur = queue.shift();
+                const h = pixelToHex(cur.x, cur.y, largeHexSize);
                 adjacentOffsets.forEach(offset => {
-                    const adjPos = hexToPixel(nHex.q + offset.q, nHex.r + offset.r, largeHexSize);
-                    const found = placedTiles.find(t => {
-                        if (t.id === tileId) return false; // exclude the tile being removed
-                        if (t.id === neighbor.id) return false; // exclude self
-                        const dist = Math.sqrt(Math.pow(t.x - adjPos.x, 2) + Math.pow(t.y - adjPos.y, 2));
-                        return dist < TILE_SIZE;
-                    });
-                    if (found) otherNeighborCount++;
+                    const adjPos = hexToPixel(h.q + offset.q, h.r + offset.r, largeHexSize);
+                    const found = rest.find(t => !seen.has(t.id) &&
+                        Math.hypot(t.x - adjPos.x, t.y - adjPos.y) < TILE_SIZE);
+                    if (found) { seen.add(found.id); queue.push(found); }
                 });
-                if (otherNeighborCount === 0) return true; // This neighbor would be stranded
             }
-            return false;
+            return seen.size < rest.length;
         }
 
         function updateTileClasses() {
