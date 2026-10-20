@@ -516,6 +516,35 @@
     // ── Warm-up ──────────────────────────────────────────────────
     const WARM_KEY = 'godaigo_training_lab_warmup';
     const WARM = { seeds: 3, tries: 20, findTries: 10, sigma: 0.2, nudge: 0.12, skipMax: 3 };
+    // Where the run is: steps (deal 1..3, exam), one bar for the whole run, the current step in words.
+    function warmProgressHtml(W) {
+        const st = W.stage; if (!st) return '';
+        const N = WARM.seeds, parts = N + 1;
+        let within = 0, now = '';
+        if (st.phase === 'find') now = `Step ${st.deal} of ${parts}: looking for a deal it loses (checked ${st.checked} of ${WARM.findTries} deals).`;
+        else if (st.phase === 'fix') { within = st.tries / WARM.tries; now = `Step ${st.deal} of ${parts}: fixing deal #${st.sd}, version ${st.tries} of ${WARM.tries} at most${st.set > 1 ? ` (each version must also keep the ${st.set - 1} earlier deal${st.set > 2 ? 's' : ''})` : ''}.`; }
+        else if (st.phase === 'exam') { within = W.exam ? W.exam.done / W.exam.games : 0; now = `Step ${parts} of ${parts}: exam, game ${W.exam?.done || 0} of ${W.exam?.games || 0}.`; }
+        else if (st.phase === 'done') now = 'Finished.';
+        const doneParts = st.phase === 'done' ? parts : st.phase === 'exam' ? N : Math.min(N, st.deal - 1);
+        const pct = 100 * (doneParts + within) / parts;
+        const names = [...Array(N)].map((_, i) => `Deal ${i + 1}`).concat('Exam');
+        const steps = names.map((nm, i) => {
+            const res = W.dealRes?.[i];
+            const cls = i < doneParts ? (res === 'skip' ? 'warn' : 'good') : i === doneParts && st.phase !== 'done' ? 'now' : 'muted';
+            const mark = i < doneParts ? (res === 'skip' ? '⤼' : res === 'none' ? '–' : '✓') : i === doneParts && st.phase !== 'done' ? '●' : '○';
+            return `<span class="${cls}" style="margin-right:10px;${cls === 'now' ? 'color:#fff;font-weight:650;' : ''}">${mark} ${nm}</span>`;
+        }).join('');
+        const mins = Math.round((Date.now() - (W.startedMs || Date.now())) / 60000);
+        let eta = '';
+        if (st.phase === 'exam' && W.exam?.done && W.examStartMs) {
+            const per = (Date.now() - W.examStartMs) / W.exam.done, left = Math.ceil(per * (W.exam.games - W.exam.done) / 60000);
+            eta = ` · exam about ${left} min left`;
+        }
+        return `<div class="card" style="margin:6px 0 8px;"><div class="small">${steps}</div>${bar(pct, '#5fae6e')}
+            <div class="small">${esc(now)}</div>
+            <div class="small muted">${Math.round(pct)}% · ${mins} min so far · ${W.games || 0} games played${skipsLeft(W)}${eta}</div></div>`;
+    }
+    const skipsLeft = W => W.stage?.phase === 'exam' || W.stage?.phase === 'done' ? '' : ` · skips left ${WARM.skipMax - (W.skipped || 0)}`;
     function warmResultHtml(W) {
         if (!W) return '';
         const lines = (W.log || []).map(l => `<li class="${l.cls || ''}">${esc(l.text)}</li>`).join('');
@@ -529,16 +558,17 @@
                 <div class="row" style="margin-top:6px;"><button class="b primary" data-act="wu-live">Make it live now</button><button class="b" data-act="wu-idle">Send to idle training</button></div>`}</div>`;
         }
         return `<div class="small muted">${esc(W.at || '')} · games played ${W.games || 0}${W.running ? ' · running' : ''}</div>
+            ${W.running ? warmProgressHtml(W) : ''}
             <ul class="changes" style="margin-top:6px;">${lines}</ul>${exam}`;
     }
     function warmHtml(S) {
         const W = S.warm;
         const games = S.wuExam || 40;
         return `
-            <div class="note">The challenger first fixes games it actually lost. It finds a deal it loses (each deal is played twice with seats swapped), then nudges its settings until one version wins that deal both ways. Then it must win deals 1 and 2, then 1, 2 and 3. Only then does it take the normal exam on fresh deals, which alone decides if it is better.</div>
+            <div class="note">The challenger first fixes deals where the champion beat it from both seats. Each deal is played twice with seats swapped; a deal is lost when it wins neither game. It nudges its settings until one version wins at least one of the two (even with the champion on that deal). Each new fix must keep the earlier deals at one win or more. Only then does it take the normal exam on fresh deals, which alone decides if it is better.</div>
             <h3>Exam size</h3>
             <div class="row">${[24, 40].map(n => `<button class="b ${n === games ? 'primary' : ''}" data-wu-exam="${n}">${n} games</button>`).join('')}
-                <span class="small muted">Warm-up: ${WARM.seeds} lost deals, up to ${WARM.tries} tries each.</span></div>
+                <span class="small muted">Warm-up: ${WARM.seeds} lost deals, up to ${WARM.tries} versions each, ${WARM.skipMax} skips at most.</span></div>
             <div class="row" style="margin-top:10px;">
                 <button class="b primary" data-act="wu-run" ${W?.running ? 'disabled' : ''}>Start warm-up</button>
                 <button class="b" data-act="wu-stop" ${W?.running ? '' : 'disabled'}>Stop</button></div>
@@ -698,18 +728,25 @@
         };
 
         // Warm-up run (see the Warm-up tab note). Deals are seeds; BotArena.run(a, b, 2, seed)
-        // plays one deal twice with seats swapped, so "cleared" = won both games.
+        // plays one deal twice with seats swapped. Lost = no win and at least one loss (the
+        // champion beat it from both seats); fixed / kept = at least one win. Winning both was
+        // the first rule (2026-10-20): one seat often has the better start, so it asked for more
+        // than the champion itself does on that deal.
         const warmDraw = () => {
             const W = S.warm; if (!W) return;
             const o = pane('warm').querySelector('.wu-out'); if (o) { o.style.display = ''; o.innerHTML = warmResultHtml(W); }
             const last = (W.log || [])[W.log.length - 1];
-            mini(W.exam ? `Warm-up exam: ${W.exam.w}-${W.exam.l}-${W.exam.d}${W.exam.running ? ` (game ${W.exam.done} of ${W.exam.games})` : ' (done)'}` : `Warm-up: ${last ? last.text : 'starting'} · games ${W.games}`);
+            const st = W.stage || {}, parts = WARM.seeds + 1;
+            mini(W.exam ? `Warm-up step ${parts} of ${parts}, exam: ${W.exam.w}-${W.exam.l}-${W.exam.d}${W.exam.running ? ` (game ${W.exam.done} of ${W.exam.games})` : ' (done)'}`
+                : st.phase === 'fix' ? `Warm-up step ${st.deal} of ${parts}: fixing a lost deal, version ${st.tries} of ${WARM.tries} · games ${W.games}`
+                : st.phase === 'find' ? `Warm-up step ${st.deal} of ${parts}: looking for a lost deal (${st.checked} of ${WARM.findTries}) · games ${W.games}`
+                : `Warm-up: ${last ? last.text : 'starting'} · games ${W.games}`);
         };
         const runWarm = async () => {
             const champ = S.champs.find(c => c.promoted !== false)?.weights || { ...(window.BotSystem?.WEIGHTS || {}) };
             try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
             const A = window.BotArena;
-            const W = S.warm = { running: true, at: new Date().toLocaleString(), games: 0, log: [], exam: null, cleared: [] };
+            const W = S.warm = { running: true, at: new Date().toLocaleString(), startedMs: Date.now(), games: 0, log: [], exam: null, cleared: [], dealRes: [], skipped: 0, stage: { phase: 'find', deal: 1, checked: 0 } };
             S.wuStopNow = false;
             renderWarm();
             const say = (text, cls) => { W.log.push({ text, cls }); warmDraw(); console.log('🔥 [TrainingLab warm-up] ' + text); };
@@ -717,41 +754,45 @@
             let seed = ((Date.now() % 1000000) >>> 0) * 7 + 11;
             const nextSeed = () => (seed += 101);
             const pair = async (w, sd) => { const r = await A.run(w, champ, 2, sd, opts); W.games += 2; return r; };
-            // every deal in `set` won both ways (newest first: it is the one most likely to fail)
+            const isLost = r => r.aWins === 0 && r.bWins > 0;
+            // every deal in `set` has at least one win (newest first: it is the one most likely to fail)
             const clearsAll = async (w, set) => {
-                for (const sd of [...set].reverse()) { const r = await pair(w, sd); if (r.aWins < 2) return false; if (S.wuStopNow) return false; }
+                for (const sd of [...set].reverse()) { const r = await pair(w, sd); if (r.aWins < 1) return false; if (S.wuStopNow) return false; }
                 return true;
             };
             let cur = A.perturbWeights({ ...window.BotSystem.DEFAULT_WEIGHTS, ...champ }, WARM.sigma);
             let skipped = 0;
             try {
-                while (W.cleared.length < WARM.seeds && !S.wuStopNow) {
-                    // 1. a deal the challenger loses (at least one of the two games)
+                while (W.dealRes.length < WARM.seeds && !S.wuStopNow) {
+                    const n = W.dealRes.length + 1;
+                    // 1. a deal the challenger loses (no win in either seat)
                     let lost = null;
+                    W.stage = { phase: 'find', deal: n, checked: 0 }; warmDraw();
                     for (let k = 0; k < WARM.findTries && !S.wuStopNow; k++) {
                         const sd = nextSeed(), r = await pair(cur, sd);
-                        if (r.aWins < 2) { lost = { sd, r }; break; }
+                        W.stage.checked = k + 1; warmDraw();
+                        if (isLost(r)) { lost = { sd, r }; break; }
                     }
                     if (S.wuStopNow) break;
-                    if (!lost) { say(`It won ${WARM.findTries} deals in a row both ways: nothing left to fix, on to the exam.`, 'good'); break; }
-                    const n = W.cleared.length + 1;
+                    if (!lost) { say(`It won at least one game on ${WARM.findTries} deals in a row: nothing left to fix, on to the exam.`, 'good'); while (W.dealRes.length < WARM.seeds) W.dealRes.push('none'); break; }
                     say(`Deal ${n}: it lost deal #${lost.sd} (${lost.r.aWins}-${lost.r.bWins}-${lost.r.draws}). Nudging its settings...`);
                     // 2. nudge until one version wins every deal so far, both ways
                     const set = [...W.cleared, lost.sd];
                     let fixed = null;
+                    W.stage = { phase: 'fix', deal: n, sd: lost.sd, tries: 0, set: set.length };
                     for (let t = 1; t <= WARM.tries && !S.wuStopNow; t++) {
+                        W.stage.tries = t; warmDraw();
                         const m = A.perturbWeights(cur, WARM.nudge);
                         if (await clearsAll(m, set)) { fixed = { m, t }; break; }
-                        if (t % 5 === 0) { W.log[W.log.length - 1].text = `Deal ${n}: lost deal #${lost.sd}. Tried ${t} versions so far...`; warmDraw(); }
                     }
                     if (S.wuStopNow) break;
                     if (fixed) {
-                        cur = fixed.m; W.cleared = set;
-                        say(`Deal ${n} fixed after ${fixed.t} tr${fixed.t === 1 ? 'y' : 'ies'}: it now wins deal${set.length > 1 ? 's' : ''} ${set.map(x => '#' + x).join(', ')} both ways.`, 'good');
+                        cur = fixed.m; W.cleared = set; W.dealRes.push('fixed');
+                        say(`Deal ${n} fixed after ${fixed.t} version${fixed.t === 1 ? '' : 's'}: it now wins at least one game on deal${set.length > 1 ? 's' : ''} ${set.map(x => '#' + x).join(', ')}.`, 'good');
                     } else {
-                        skipped++;
-                        say(`Deal #${lost.sd}: no version won it in ${WARM.tries} tries (maybe a bad-luck deal). Skipped${skipped >= WARM.skipMax ? ', and that was the last skip allowed' : ', trying another lost deal'}.`, 'warn');
-                        if (skipped >= WARM.skipMax) break;
+                        skipped++; W.skipped = skipped;
+                        say(`Deal #${lost.sd}: no version won a game on it in ${WARM.tries} tries. Skipped${skipped >= WARM.skipMax ? ', and that was the last skip allowed' : ', looking for another lost deal'}.`, 'warn');
+                        if (skipped >= WARM.skipMax) { while (W.dealRes.length < WARM.seeds) W.dealRes.push('skip'); break; }
                     }
                 }
                 if (S.wuStopNow) say('Stopped.', 'warn');
@@ -760,6 +801,7 @@
                     const games = S.wuExam || 40;
                     say(`Warm-up done: ${W.cleared.length} lost deal${W.cleared.length === 1 ? '' : 's'} fixed. Exam: ${games} games on fresh deals...`);
                     W.exam = { running: true, w: 0, l: 0, d: 0, done: 0, games };
+                    W.stage = { phase: 'exam' }; W.examStartMs = Date.now();
                     warmDraw();
                     const r = await A.run(cur, champ, games, nextSeed() + 50000, {
                         ...opts, fourPlayerEvery: 3,
@@ -768,6 +810,7 @@
                     Object.assign(W.exam, { w: r.aWins, l: r.bWins, d: r.draws, running: false });
                     W.games += games;
                     S.wuWeights = W.weights = cur;
+                    W.stage = { phase: 'done' };
                 }
             } catch (e) { say('Warm-up failed: ' + (e.message || e), 'bad'); }
             W.running = false;
