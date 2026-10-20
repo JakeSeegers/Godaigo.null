@@ -13,6 +13,10 @@
 //               "Make live again" (hermit_restore_champion) and a test of the
 //               live champion vs the last 3 (BotArena.run, 10 games each).
 //   Saved games how much position data is saved, against rough marks.
+//   Warm-up     (owner 2026-10-20) a challenger first beats 3 games it lost: find
+//               a deal it loses (played twice, seats swapped), nudge its settings
+//               until one version wins that deal both ways, then deal 1 + 2 both
+//               ways, then 1 + 2 + 3; then the normal exam on fresh deals.
 //
 // The Lab never promotes on its own: games and the server rules decide, and
 // the hermit can undo a promotion here.
@@ -509,6 +513,38 @@
             }).join('')}</div>` : ''}`;
     }
 
+    // ── Warm-up ──────────────────────────────────────────────────
+    const WARM_KEY = 'godaigo_training_lab_warmup';
+    const WARM = { seeds: 3, tries: 20, findTries: 10, sigma: 0.2, nudge: 0.12, skipMax: 3 };
+    function warmResultHtml(W) {
+        if (!W) return '';
+        const lines = (W.log || []).map(l => `<li class="${l.cls || ''}">${esc(l.text)}</li>`).join('');
+        let exam = '';
+        if (W.exam) {
+            const e = W.exam, dec = e.w + e.l, rate = dec ? e.w / dec : 0, p = chanceBetter(e.w, e.l);
+            const pass = !e.running && dec >= DECIDED_FOR_VERDICT * 0.5 && rate >= 0.58;
+            exam = `<div class="card" style="margin-top:8px;"><b>Exam on fresh deals:</b> <span class="rec">${e.w}-${e.l}-${e.d}</span>
+                <span class="small muted">${e.running ? `game ${e.done} of ${e.games}` : `win rate ${Math.round(100 * rate)}% of decided games, ${Math.round(100 * p)}% chance it is better`}</span>
+                ${e.running ? '' : `<div style="margin-top:4px;">${pass ? '<b class="good">Passed</b> (58%+ like the idle rule).' : p >= 0.9 ? '<b class="warn">Better, but under 58%.</b>' : '<b class="bad">Not better.</b>'}</div>
+                <div class="row" style="margin-top:6px;"><button class="b primary" data-act="wu-live">Make it live now</button><button class="b" data-act="wu-idle">Send to idle training</button></div>`}</div>`;
+        }
+        return `<div class="small muted">${esc(W.at || '')} · games played ${W.games || 0}${W.running ? ' · running' : ''}</div>
+            <ul class="changes" style="margin-top:6px;">${lines}</ul>${exam}`;
+    }
+    function warmHtml(S) {
+        const W = S.warm;
+        const games = S.wuExam || 40;
+        return `
+            <div class="note">The challenger first fixes games it actually lost. It finds a deal it loses (each deal is played twice with seats swapped), then nudges its settings until one version wins that deal both ways. Then it must win deals 1 and 2, then 1, 2 and 3. Only then does it take the normal exam on fresh deals, which alone decides if it is better.</div>
+            <h3>Exam size</h3>
+            <div class="row">${[24, 40].map(n => `<button class="b ${n === games ? 'primary' : ''}" data-wu-exam="${n}">${n} games</button>`).join('')}
+                <span class="small muted">Warm-up: ${WARM.seeds} lost deals, up to ${WARM.tries} tries each.</span></div>
+            <div class="row" style="margin-top:10px;">
+                <button class="b primary" data-act="wu-run" ${W?.running ? 'disabled' : ''}>Start warm-up</button>
+                <button class="b" data-act="wu-stop" ${W?.running ? '' : 'disabled'}>Stop</button></div>
+            <div class="card testbox wu-out" style="margin-top:8px;${W ? '' : 'display:none;'}">${warmResultHtml(W)}</div>`;
+    }
+
     // ── Panel ────────────────────────────────────────────────────
     function open() {
         if (!window.isHermit?.()) return;
@@ -521,7 +557,7 @@
         }
         const box = document.createElement('div');
         box.id = 'training-lab';
-        const tabs = [['overview', 'Overview'], ['test', 'Test a change'], ['challengers', 'Challengers'], ['champions', 'Champions'], ['data', 'Saved games']];
+        const tabs = [['overview', 'Overview'], ['test', 'Test a change'], ['warm', 'Warm-up'], ['challengers', 'Challengers'], ['champions', 'Champions'], ['data', 'Saved games']];
         let tab = 'overview';
         try { tab = localStorage.getItem(TAB_KEY) || tab; } catch (e) {}
         if (!tabs.some(t => t[0] === tab)) tab = 'overview';
@@ -556,12 +592,14 @@
 
         const S = { champs: [], candidates: [], data: null, taught: null, error: null, lastTest: null };
         try { const t = JSON.parse(localStorage.getItem(TEST_KEY)); if (t?.rows) S.lastTest = { ...t, running: false }; } catch (e) {}
+        try { const w = JSON.parse(localStorage.getItem(WARM_KEY)); if (w?.log) { S.warm = { ...w, running: false, exam: w.exam ? { ...w.exam, running: false } : null }; S.wuWeights = w.weights || null; } } catch (e) {}
 
         const show = k => {
             tab = k;
             try { localStorage.setItem(TAB_KEY, k); } catch (e) {}
             box.querySelectorAll('.tl-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === k));
             box.querySelectorAll('.tl-pane').forEach(p => p.classList.toggle('on', p.dataset.pane === k));
+            if (k === 'warm' && !pane('warm').querySelector('[data-act="wu-run"]')) renderWarm();   // needs no server data
         };
         const render = () => {
             const live = S.champs[0];
@@ -577,6 +615,7 @@
             pane('challengers').innerHTML = challengersHtml(S);
             pane('champions').innerHTML = championsHtml(S);
             pane('data').innerHTML = dataHtml(S);
+            pane('warm').innerHTML = warmHtml(S);
             show(tab);
         };
 
@@ -638,14 +677,13 @@
             show('test');
             renderTest();
         };
-        const keepChange = async (where) => {
-            const w = S.tcWeights;
-            if (!w || !S.tcRun || S.tcRun.running) return;
+        const keepChange = async (where, w = S.tcWeights, rec = S.tcRun, kind = rec?.preset === 'formula' ? 'formula' : 'explore') => {
+            if (!w || !rec || rec.running) return;
             if (where === 'live') {
                 if (!confirm('Make this the live champion now? Every bot uses it from the next page load. You can undo it in the Champions tab.')) return;
                 const { data: u } = await supabase.auth.getUser();
                 const { error } = await supabase.from('bot_champion_weights').insert({
-                    weights: w, confirm_wins: S.tcRun.w, confirm_losses: S.tcRun.l, confirm_draws: S.tcRun.d, promoted: true, created_by: u?.user?.id,
+                    weights: w, confirm_wins: rec.w, confirm_losses: rec.l, confirm_draws: rec.d, promoted: true, created_by: u?.user?.id,
                 });
                 if (error) { alert('Failed: ' + error.message); return; }
                 alert('Done: it is the live champion. Reload the page to play against it.');
@@ -653,11 +691,93 @@
             }
             const { data: job, error } = await supabase.rpc('idle_training_job');
             if (error || !job?.champion_id) { alert('Failed: ' + (error?.message || 'no champion')); return; }
-            const r = await supabase.rpc('idle_training_new', { p_champion: job.champion_id, p_weights: w, p_kind: S.tcRun.preset === 'formula' ? 'formula' : 'explore' });
+            const r = await supabase.rpc('idle_training_new', { p_champion: job.champion_id, p_weights: w, p_kind: kind });
             if (r.error) { alert('Failed: ' + r.error.message); return; }
             alert(`Sent: challenger #${r.data?.id ?? '?'} in idle training.`);
             refresh();
         };
+
+        // Warm-up run (see the Warm-up tab note). Deals are seeds; BotArena.run(a, b, 2, seed)
+        // plays one deal twice with seats swapped, so "cleared" = won both games.
+        const warmDraw = () => {
+            const W = S.warm; if (!W) return;
+            const o = pane('warm').querySelector('.wu-out'); if (o) { o.style.display = ''; o.innerHTML = warmResultHtml(W); }
+            const last = (W.log || [])[W.log.length - 1];
+            mini(W.exam ? `Warm-up exam: ${W.exam.w}-${W.exam.l}-${W.exam.d}${W.exam.running ? ` (game ${W.exam.done} of ${W.exam.games})` : ' (done)'}` : `Warm-up: ${last ? last.text : 'starting'} · games ${W.games}`);
+        };
+        const runWarm = async () => {
+            const champ = S.champs.find(c => c.promoted !== false)?.weights || { ...(window.BotSystem?.WEIGHTS || {}) };
+            try { await window.LazyScripts?.load?.('bot-arena'); } catch (e) {}
+            const A = window.BotArena;
+            const W = S.warm = { running: true, at: new Date().toLocaleString(), games: 0, log: [], exam: null, cleared: [] };
+            S.wuStopNow = false;
+            renderWarm();
+            const say = (text, cls) => { W.log.push({ text, cls }); warmDraw(); console.log('🔥 [TrainingLab warm-up] ' + text); };
+            const opts = { visual: false, comboWatch: false, positionLog: false };
+            let seed = ((Date.now() % 1000000) >>> 0) * 7 + 11;
+            const nextSeed = () => (seed += 101);
+            const pair = async (w, sd) => { const r = await A.run(w, champ, 2, sd, opts); W.games += 2; return r; };
+            // every deal in `set` won both ways (newest first: it is the one most likely to fail)
+            const clearsAll = async (w, set) => {
+                for (const sd of [...set].reverse()) { const r = await pair(w, sd); if (r.aWins < 2) return false; if (S.wuStopNow) return false; }
+                return true;
+            };
+            let cur = A.perturbWeights({ ...window.BotSystem.DEFAULT_WEIGHTS, ...champ }, WARM.sigma);
+            let skipped = 0;
+            try {
+                while (W.cleared.length < WARM.seeds && !S.wuStopNow) {
+                    // 1. a deal the challenger loses (at least one of the two games)
+                    let lost = null;
+                    for (let k = 0; k < WARM.findTries && !S.wuStopNow; k++) {
+                        const sd = nextSeed(), r = await pair(cur, sd);
+                        if (r.aWins < 2) { lost = { sd, r }; break; }
+                    }
+                    if (S.wuStopNow) break;
+                    if (!lost) { say(`It won ${WARM.findTries} deals in a row both ways: nothing left to fix, on to the exam.`, 'good'); break; }
+                    const n = W.cleared.length + 1;
+                    say(`Deal ${n}: it lost deal #${lost.sd} (${lost.r.aWins}-${lost.r.bWins}-${lost.r.draws}). Nudging its settings...`);
+                    // 2. nudge until one version wins every deal so far, both ways
+                    const set = [...W.cleared, lost.sd];
+                    let fixed = null;
+                    for (let t = 1; t <= WARM.tries && !S.wuStopNow; t++) {
+                        const m = A.perturbWeights(cur, WARM.nudge);
+                        if (await clearsAll(m, set)) { fixed = { m, t }; break; }
+                        if (t % 5 === 0) { W.log[W.log.length - 1].text = `Deal ${n}: lost deal #${lost.sd}. Tried ${t} versions so far...`; warmDraw(); }
+                    }
+                    if (S.wuStopNow) break;
+                    if (fixed) {
+                        cur = fixed.m; W.cleared = set;
+                        say(`Deal ${n} fixed after ${fixed.t} tr${fixed.t === 1 ? 'y' : 'ies'}: it now wins deal${set.length > 1 ? 's' : ''} ${set.map(x => '#' + x).join(', ')} both ways.`, 'good');
+                    } else {
+                        skipped++;
+                        say(`Deal #${lost.sd}: no version won it in ${WARM.tries} tries (maybe a bad-luck deal). Skipped${skipped >= WARM.skipMax ? ', and that was the last skip allowed' : ', trying another lost deal'}.`, 'warn');
+                        if (skipped >= WARM.skipMax) break;
+                    }
+                }
+                if (S.wuStopNow) say('Stopped.', 'warn');
+                else {
+                    // 3. the normal exam on fresh deals decides
+                    const games = S.wuExam || 40;
+                    say(`Warm-up done: ${W.cleared.length} lost deal${W.cleared.length === 1 ? '' : 's'} fixed. Exam: ${games} games on fresh deals...`);
+                    W.exam = { running: true, w: 0, l: 0, d: 0, done: 0, games };
+                    warmDraw();
+                    const r = await A.run(cur, champ, games, nextSeed() + 50000, {
+                        ...opts, fourPlayerEvery: 3,
+                        onGame: (i, nn, g, info) => { W.exam.done = i; if (g?.winner == null) W.exam.d++; else if (info?.aWon) W.exam.w++; else W.exam.l++; warmDraw(); },
+                    });
+                    Object.assign(W.exam, { w: r.aWins, l: r.bWins, d: r.draws, running: false });
+                    W.games += games;
+                    S.wuWeights = W.weights = cur;
+                }
+            } catch (e) { say('Warm-up failed: ' + (e.message || e), 'bad'); }
+            W.running = false;
+            try { localStorage.setItem(WARM_KEY, JSON.stringify({ ...W, running: false })); } catch (e) {}
+            if (!box.isConnected) document.body.appendChild(box);
+            box.style.zIndex = '10090';
+            show('warm');
+            renderWarm();
+        };
+        const renderWarm = () => { pane('warm').innerHTML = warmHtml(S); };
 
         const refresh = async () => {
             S.error = null;
@@ -668,8 +788,8 @@
                 S.error = /function|does not exist|schema cache/i.test(lab.error.message || '') ? 'Run sql/training-lab.sql in the Supabase SQL editor first.' : (lab.error.message || String(lab.error));
                 S.candidates = []; S.data = null;
             } else {
-                S.candidates = lab.data.candidates || [];
-                S.data = lab.data.data || null;
+                S.candidates = lab.data?.candidates || [];
+                S.data = lab.data?.data || null;
                 // Champions the challengers were made from may be older than the list.
                 const need = [...new Set(S.candidates.map(c => c.champion_id))].filter(id => !S.champs.some(c => c.id === id));
                 if (need.length) {
@@ -730,6 +850,7 @@
             if (el.dataset.tab) return show(el.dataset.tab);
             if (el.dataset.tcPreset) { renderTest(); S.tcPreset = el.dataset.tcPreset; return renderTest(); }
             if (el.dataset.tcGames) { renderTest(); S.tcGames = +el.dataset.tcGames; return renderTest(); }
+            if (el.dataset.wuExam) { S.wuExam = +el.dataset.wuExam; return renderWarm(); }
             if (el.dataset.reject) {
                 if (!confirm(`Reject challenger #${el.dataset.reject}? Idle training stops testing it.`)) return;
                 el.disabled = true;
@@ -758,6 +879,10 @@
                 case 'tc-run': runChange(); break;
                 case 'tc-live': keepChange('live'); break;
                 case 'tc-idle': keepChange('idle'); break;
+                case 'wu-run': runWarm(); break;
+                case 'wu-stop': S.wuStopNow = true; el.disabled = true; break;
+                case 'wu-live': keepChange('live', S.wuWeights, S.warm?.exam, 'explore'); break;
+                case 'wu-idle': keepChange('idle', S.wuWeights, S.warm?.exam, 'explore'); break;
                 case 'tab-data': show('data'); break;
                 case 'tab-test': show('test'); break;
                 case 'trainbot': if (typeof window._gami_openTrainBot === 'function') window._gami_openTrainBot(); break;
