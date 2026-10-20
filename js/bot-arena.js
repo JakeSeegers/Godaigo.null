@@ -351,6 +351,26 @@
         for (const p of chosen.slice(0, n)) placeTile(p.x, p.y, 0, false, 'player');
     }
 
+    function botPlaceTiles(n, weightsPerPlayer) {
+        let i = 0;
+        try {
+            for (; i < n; i++) {
+                activePlayerIndex = i;
+                if (weightsPerPlayer[i] !== undefined) setWeights(weightsPerPlayer[i]);
+                const acts = window.BotState.legalActions().filter(a => a.type === 'placeTile');
+                if (!acts.length) throw new Error('no start spot for seat ' + i);
+                const snap = window.BotState.snapshot();
+                let best = null;
+                for (const a of acts) { const sc = window.BotSystem.startTileScore(a, snap); if (!best || sc > best.sc) best = { a, sc }; }
+                placeTile(best.a.x, best.a.y, 0, false, 'player');
+            }
+            return true;
+        } catch (e) {
+            console.warn('[BotArena] botPlace failed' + (i ? ` at seat ${i}` : ', using spread') + ':', e.message || e);
+            return i > 0; // some tiles are down: the spread would place them twice
+        }
+    }
+
     // The local hot-seat path never auto-resets AP when playerPositions
     // has >1 entries (that branch is gated on multiplayer's myPlayerIndex),
     // so the arena refills at the start of every turn. addAP caps regular
@@ -855,7 +875,10 @@
         window.BotSystem.resetMemory();
         startGame(nPlayers);
         await sleep(vis() ? 300 : 30);
-        placePlayerTilesSpread(nPlayers);
+        // opts.botPlace (2026-10-20): each seat picks its own start tile in turn
+        // order with its own weights (BotSystem.startTileScore), like a real game.
+        // Off = the old spread (seeded games unchanged).
+        if (!(opts.botPlace && botPlaceTiles(nPlayers, weightsPerPlayer))) placePlayerTilesSpread(nPlayers);
         await sleep(vis() ? 300 : 30);
         activePlayerIndex = 0;
         // Test option (2026-10-14): opts.startScrolls = { seat: [scrollName, ...] }

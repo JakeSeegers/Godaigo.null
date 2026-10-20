@@ -4,9 +4,10 @@
     {
       "id": "2026-10-20",
       "date": "2026-10-20",
-      "title": "Telekinesis fix",
+      "title": "Telekinesis fix and smarter bots",
       "changes": [
-        "Telekinesis: a tile can move to any spot that touches 2 other tiles and keeps the board in one piece."
+        "Telekinesis: a tile can move to any spot that touches 2 other tiles and keeps the board in one piece.",
+        "Smarter bots: early in the game they take the face-down tiles you need for scrolls, by walking there or with Heavy Stomp."
       ]
     },
     {

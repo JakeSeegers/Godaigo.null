@@ -402,6 +402,8 @@
         stratAdventure:     60,   // reveals (Heavy Stomp, steps onto face-down tiles) while Call to Adventure is up
         stratBurn:           1,   // x AP gained (x STRAT_AP_WORTH): Burning Motivation burn loop
         stratTrap:          40,   // x threat: Mason's Savvy earth closing an opponent's exits
+        cutOff:             25,   // x cutoff value: reveal / walk to / Heavy Stomp the face-down tiles an opponent needs for scrolls, early game (cutoffValues, owner 2026-10-20; A/B 21-17-2, with Heavy Stomp in hand 17-18-5); 0 = off
+        placeStartRoom:     0,    // x face-down tiles near a start spot that no earlier mover reaches first (startRoom, owner 2026-10-20; A/B alone 17-23-0, so OFF); 0 = off
         castChoiceNeed:     20,   // greedy tie-break between a scroll's choices (River / Stomp):
                                   // x scroll need of the element the choice would draw
         evalAp:              2,   // per remaining AP (own turn only)
@@ -1262,7 +1264,7 @@
         switch (a.type) {
 
             case 'placeTile': {
-                return WEIGHTS.placeTileBase + WEIGHTS.placeTileCentroidPenalty * (a.distToCentroid || 0);
+                return startTileScore(a, snap);
             }
 
             case 'cast': {
@@ -4722,7 +4724,7 @@
         return best;
     }
     function strategyParts(a, snap) {
-        const out = { travel: 0, adventure: 0, burn: 0, trap: 0 };
+        const out = { travel: 0, adventure: 0, burn: 0, trap: 0, cutoff: 0 };
         const self = me(snap);
         const sim = window.BotSim;
         if (!self || !sim || !a) return out;
@@ -4736,6 +4738,11 @@
                 // before the flip), so no fixed order with Heavy Stomp (owner):
                 // only a reveal made while it is up gets the bonus.
                 if (a.scroll === 'EARTH_SCROLL_4' && a.choice?.tileId != null && b.callToAdventure) out.adventure += WEIGHTS.stratAdventure;
+            }
+            // Heavy Stomp revealing a face-down tile an opponent needs for a scroll (owner 2026-10-20).
+            if (WEIGHTS.cutOff > 0 && a.scroll === 'EARTH_SCROLL_4' && a.choice?.tileId != null) {
+                const t = snap.tiles.find(x => Number(x.id) === Number(a.choice.tileId));
+                if (t && !t.revealed) out.cutoff += WEIGHTS.cutOff * (cutoffValues(snap)?.get(t.id) || 0);
             }
             if (WEIGHTS.stratBurn) {
                 const type = DRAW_STONE_SCROLLS[a.scroll];
@@ -4787,11 +4794,106 @@
                 out.adventure += WEIGHTS.stratAdventure * 0.5;
             }
         }
+        if (a.type === 'move' && WEIGHTS.cutOff > 0) out.cutoff = WEIGHTS.cutOff * cutoffStep(snap, a);
         return out;
     }
     function strategyBonus(a, snap) {
         const p = strategyParts(a, snap);
-        return p.travel + p.adventure + p.burn + p.trap;
+        return p.travel + p.adventure + p.burn + p.trap + p.cutoff;
+    }
+
+    // ── Cutting players off (owner 2026-10-20) ─────────────────────
+    // Early on, a scroll mostly comes from revealing a face-down tile. Taking
+    // the face-down tiles an opponent could reach next turn, when that
+    // opponent has few others in reach, leaves them with no scroll. Value of
+    // a hidden tile = sum over opponents that reach it of (1 / tiles they
+    // reach) x hand factor (empty hand 1.5, one scroll 1, more 0.6), times
+    // scarcity (1 with an empty common area, 0 from CUT_COMMON scrolls on:
+    // then the common area feeds everyone). Reach = path cost <= 5 AP + void.
+    // Public information only (positions, hand counts, common area).
+    const CUT_COMMON = 4;
+    const _cutCache = new Map();
+    function cutoffValues(snap) {
+        const ai = snap.turn.activePlayerIndex;
+        const scarcity = Math.max(0, 1 - (snap.commonArea?.length || 0) / CUT_COMMON);
+        const hidden = snap.tiles.filter(t => !t.revealed && !t.isPlayerTile);
+        if (scarcity <= 0 || !hidden.length) return null;
+        const sig = ai + '|' + (snap.commonArea?.length || 0) + '|' + hidden.map(t => t.id).join(',') + '|' +
+            snap.players.map(q => q ? `${Math.round(q.x)},${Math.round(q.y)},${q.handCount ?? 0}` : '-').join(';');
+        if (_cutCache.has(sig)) return _cutCache.get(sig);
+        const { grid } = gridInfo(snap);
+        const hexesOf = new Map(hidden.map(t => [t.id, []]));
+        for (const h of grid) for (const id of h.tileIds || []) if (hexesOf.has(id)) hexesOf.get(id).push(h.key);
+        const out = new Map();
+        for (const o of snap.players) {
+            if (!o || o.index === ai) continue;
+            const reach = 5 + Math.min(5, o.pool?.void || 0);
+            const dist = pathField(snap, [gridKey(o.x, o.y)], 0.01);
+            const near = hidden.filter(t => (hexesOf.get(t.id) || []).some(k => (dist.get(k) ?? Infinity) <= reach));
+            if (!near.length) continue;
+            const hc = o.handCount ?? (o.hand ? o.hand.length : 1);
+            const f = hc === 0 ? 1.5 : hc === 1 ? 1 : 0.6;
+            for (const t of near) out.set(t.id, (out.get(t.id) || 0) + scarcity * f / near.length);
+        }
+        if (_cutCache.size > 40) _cutCache.clear();
+        _cutCache.set(sig, out.size ? out : null);
+        return out.size ? out : null;
+    }
+    // A move's cut-off worth: landing on a valued hidden tile counts in full;
+    // a first step toward the best one counts value / (1 + AP still to go).
+    const _cutPathCache = new Map();
+    function cutoffStep(snap, a) {
+        const vals = cutoffValues(snap);
+        if (!vals) return 0;
+        const landed = snap.tiles.find(t => !t.revealed && !t.isPlayerTile && Math.hypot(t.x - a.x, t.y - a.y) < 70);
+        if (landed) { const v = vals.get(landed.id) || 0; if (v) _review.cutoffSeen = (_review.cutoffSeen || 0) + 1; return v; }
+        const self = me(snap);
+        if (!self) return 0;
+        const key = `${snap.turn.activePlayerIndex}|${Math.round(self.x)},${Math.round(self.y)}|${[...vals].map(([k, v]) => k + ':' + v.toFixed(2)).join(',')}`;
+        let best = _cutPathCache.get(key);
+        if (best === undefined) {
+            best = null;
+            const { grid } = gridInfo(snap);
+            const dist = pathField(snap, [gridKey(self.x, self.y)], 0.01);
+            for (const [id, v] of vals) {
+                let bk = null, bc = Infinity;
+                for (const h of grid) if ((h.tileIds || []).includes(id)) { const c = dist.get(h.key); if (c !== undefined && c < bc) { bc = c; bk = h; } }
+                if (!bk) continue;
+                const score = v / (1 + bc);
+                if (!best || score > best.score) best = { score, v, x: bk.x, y: bk.y };
+            }
+            if (best) {
+                const path = window.BotState.findPath(self.x, self.y, best.x, best.y);
+                best = path && path.length ? { ...best, first: path[0], cost: path.reduce((c, q) => c + q.cost, 0) } : null;
+            }
+            if (_cutPathCache.size > 40) _cutPathCache.clear();
+            _cutPathCache.set(key, best);
+        }
+        if (!best || Math.hypot(best.first.x - a.x, best.first.y - a.y) >= 5) return 0;
+        return best.v / (1 + Math.max(0, best.cost - (a.cost || 0)));
+    }
+
+    // ── Start tile (owner 2026-10-20) ──────────────────────────────
+    // Room = face-down tiles within START_REACH px of the spot (about what a
+    // first turn reaches: the next ring of tiles); one that a player placed
+    // earlier (so moving earlier) also reaches counts START_CONTESTED. A late
+    // placer then moves away from a crowded corner. The placement score
+    // keeps base + centroid; placeStartRoom 0 = the old score.
+    const START_REACH = 250, START_CONTESTED = 0.25;
+    function startRoom(snap, x, y) {
+        const ai = snap.turn.activePlayerIndex;
+        const earlier = snap.tiles.filter(t => t.isPlayerTile && t.playerIndex !== ai);
+        let room = 0;
+        for (const t of snap.tiles) {
+            if (t.revealed || t.isPlayerTile || Math.hypot(t.x - x, t.y - y) > START_REACH) continue;
+            room += earlier.some(e => Math.hypot(e.x - t.x, e.y - t.y) <= START_REACH) ? START_CONTESTED : 1;
+        }
+        return room;
+    }
+    function startTileScore(a, snap) {
+        let s = WEIGHTS.placeTileBase + WEIGHTS.placeTileCentroidPenalty * (a.distToCentroid || 0);
+        if (WEIGHTS.placeStartRoom > 0) s += WEIGHTS.placeStartRoom * startRoom(snap, a.x, a.y);
+        return s;
     }
     // A burn the loop wants: the doomed-stone penalty does not apply to it.
     function wantedBurn(a, snap) {
@@ -6408,6 +6510,8 @@
         explain: (a, snap) => explainAction(a, snap || window.BotState.snapshot(), {}), // plain words for an action
         turn:  botTurn,       // play out the whole turn
         rank:  rankActions,   // scored candidate list (top = what greedy step() would do)
+        startTileScore,       // (placeTile action, snap): start tile score (bot-arena.js opts.botPlace)
+        _cutoffValues: s => cutoffValues(s || window.BotState.snapshot()), // test hook: Map(tileId -> value) or null
         _castDoesNothing: castDoesNothing, // test hook (snap, self, scroll)
         _memOf: idx => mem(idx),           // test hook: one seat's bot memory (plan, ...)
         ctcTargets,                         // (idx) current plan placeholders to turn [{x, y, type}] or null

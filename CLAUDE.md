@@ -557,6 +557,13 @@ Order matters — later scripts depend on earlier ones.
                              noteCurrentDrop logs why each such plan dies ("Control the Current plan for X dropped: why") and counts it in _review.currentDrop. Stranding: bot-state.js stepStrands
                              (and bot-sim.js) now also refuse a step onto a VOID stone or another player's tile unless the AP left
                              reaches a hex the turn may end on (2026-10-19: a bot ended on a void stone with 0 AP).
+                             cutOff (owner 2026-10-20, ON 25; A/B 21-17-2, with Heavy Stomp in hand 17-18-5, with placeStartRoom 23-15-2): cutoffValues = per
+                             face-down tile, for each opponent that reaches it next turn (path cost <= 5 + void) 1 / tiles it reaches, x hand
+                             (empty 1.5, one 1, more 0.6), x scarcity 1 - common area / CUT_COMMON 4 (0 = off once the common area feeds
+                             everyone); strategyParts cutoff: a step onto such a tile, a first step toward the best one (value / (1 + AP to go)),
+                             and Heavy Stomp revealing one (BotSim castChoices adds that tile). placeStartRoom (OFF, 0; alone 17-23-0):
+                             startTileScore adds face-down tiles within START_REACH 250 of a start spot, those an earlier placer also reaches x0.25.
+                             Test hooks _cutoffValues, _review.cutoffSeen.
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
                              covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
                              castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).
@@ -724,6 +731,8 @@ Order matters — later scripts depend on earlier ones.
                              A and B on alternate seats (A on 0 and 2 when aIsPlayer0); a win is still one side's, so win rates and the idle
                              verdict keep 50%. hillClimb challenger series default 3; idle training 3. Pacts, guard mode and responses only
                              happen with 3+ players. Test trap: plain playMatch() leaves BotDiplomacy.enabled() false (no run / evolve flag).
+                             opts.botPlace (2026-10-20): each seat picks its own start tile in turn order (BotSystem.startTileScore) instead of
+                             placePlayerTilesSpread; off = the old spread (seeded games unchanged).
                              Stacked deal opts.stack = { seat, scrolls } (2026-10-18, Training Lab combo drill, the tutorial's trick): the scrolls
                              are held back from decks / hands / common; each time that seat reveals a tile, game-core.js revealTile calls
                              window.__arenaStack first, which turns the tile into the next scroll's element and puts the scroll on top of

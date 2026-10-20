@@ -2239,7 +2239,8 @@ window.I18N_ES = {
     "Your panels and bars now take a light tint of your color, and the scroll card buttons sit at the top.": "Tus paneles y barras ahora tienen un ligero tono de tu color, y los botones de las cartas de pergaminos están arriba.",
     "Simplify now stacks like Burning Motivation: each cast adds 2 AP to every regain.": "Simplificar ahora se acumula como Motivación Ardiente: cada lanzamiento suma 2 PA a cada recuperación.",
     // Change Log 2026-10-20
-    "Telekinesis fix": "Arreglo de Telequinesis",
+    "Telekinesis fix and smarter bots": "Arreglo de Telequinesis y bots más listos",
+    "Smarter bots: early in the game they take the face-down tiles you need for scrolls, by walking there or with Heavy Stomp.": "Bots más listos: al principio de la partida toman las losetas boca abajo que necesitas para conseguir pergaminos, caminando hasta ellas o con Pisotón.",
     "Telekinesis: a tile can move to any spot that touches 2 other tiles and keeps the board in one piece.": "Telequinesis: una loseta puede ir a cualquier sitio que toque otras 2 losetas y deje el tablero en una sola pieza.",
     "Invalid placement! The tile must touch at least 2 other tiles and keep the board in one piece. Tile snapped back.": "¡Colocación no válida! La loseta debe tocar al menos otras 2 losetas y dejar el tablero en una sola pieza. La loseta volvió a su sitio.",
     "Telekinesis: drag a highlighted tile to move it. It must touch at least 2 other tiles, and the board must stay in one piece.": "Telequinesis: arrastra una loseta resaltada para moverla. Debe tocar al menos otras 2 losetas, y el tablero debe quedar en una sola pieza.",

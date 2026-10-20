@@ -2065,11 +2065,19 @@
         }
         if (name === 'EARTH_SCROLL_4' || name === 'CATACOMB_SCROLL_3') {
             const river = new Set((snap.crossTurnBuffs?.wanderingRiver || []).map(e => Number(e.tileId)));
-            return snap.tiles
-                .filter(t => !t.isPlayerTile && !t.revealed && tileStoneCount(snap, t) === 0 && !tileHasPawns(snap, t))
+            const ok = snap.tiles
+                .filter(t => !t.isPlayerTile && !t.revealed && tileStoneCount(snap, t) === 0 && !tileHasPawns(snap, t));
+            const out = ok.slice()
                 .sort((a, b) => (river.has(Number(b.id)) - river.has(Number(a.id))) || near(a, b))
-                .slice(0, 3)
-                .map(t => ({ tileId: t.id }));
+                .slice(0, 3);
+            // Cutting players off (bot.js cutoffValues, 2026-10-20): also offer the
+            // face-down tile an opponent most needs for a scroll.
+            const cut = window.BotSystem?.WEIGHTS?.cutOff > 0 ? window.BotSystem._cutoffValues?.(snap) : null;
+            if (cut) {
+                const top = ok.filter(t => cut.get(t.id) > 0).sort((a, b) => cut.get(b.id) - cut.get(a.id))[0];
+                if (top && !out.includes(top)) out.push(top);
+            }
+            return out.map(t => ({ tileId: t.id }));
         }
         return [];
     }
