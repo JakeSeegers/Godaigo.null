@@ -1395,7 +1395,7 @@ const ScrollEffects = {
 
         VOID_SCROLL_2: {
             name: 'Telekinesis',
-            description: 'Move a tile that has no stones on it. If one player is on the tile, they move to its center. Cannot move a tile with multiple players on it. The tile must land touching at least 1 other tile, and the board must stay in one piece.',
+            description: 'Move a tile that has no stones on it. If one player is on the tile, they move to its center. Cannot move a tile with multiple players on it. The tile must land touching at least 2 other tiles, and the board must stay in one piece.',
             isCounter: false,
             priority: 2,
             execute(casterIndex, context, system) {
@@ -1975,7 +1975,7 @@ const ScrollEffects = {
             }
         };
 
-        updateStatus(`Telekinesis: drag a highlighted tile to move it. It must touch another tile, and the board must stay in one piece.`);
+        updateStatus(`Telekinesis: drag a highlighted tile to move it. It must touch at least 2 other tiles, and the board must stay in one piece.`);
     },
 
     // ============================================

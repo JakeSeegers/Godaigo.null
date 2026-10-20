@@ -1374,7 +1374,7 @@
                     const tkActive = window.telekinesisState && window.telekinesisState.active;
                     window.SoundSystem?.play('error');
                     updateStatus(tkActive
-                        ? 'Invalid placement! The tile must touch at least 1 other tile and keep the board in one piece. Tile snapped back.'
+                        ? 'Invalid placement! The tile must touch at least 2 other tiles and keep the board in one piece. Tile snapped back.'
                         : 'Invalid placement! Tile snapped back to original position.');
                     placeTile(draggedTileOriginalPos.x, draggedTileOriginalPos.y, draggedTileRotation, draggedTileFlipped, draggedTileShrineType, false, false, draggedTileId);
                 } else if (isPlayerTile) {
@@ -2033,7 +2033,7 @@
                     } else if (draggedTileOriginalPos && draggedTileId !== null) {
                         const tkActiveTouch = window.telekinesisState && window.telekinesisState.active;
                         updateStatus(tkActiveTouch
-                            ? 'Invalid placement! The tile must touch at least 1 other tile and keep the board in one piece. Tile snapped back.'
+                            ? 'Invalid placement! The tile must touch at least 2 other tiles and keep the board in one piece. Tile snapped back.'
                             : 'Invalid placement! Tile snapped back to original position.');
                         placeTile(draggedTileOriginalPos.x, draggedTileOriginalPos.y, draggedTileRotation, draggedTileFlipped, draggedTileShrineType, false, false, draggedTileId);
                     } else if (draggedTileShrineType === 'player') {

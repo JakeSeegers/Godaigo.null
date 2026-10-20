@@ -1557,7 +1557,7 @@
     // swapping two. For each eligible tile (snap.tiles order, matching
     // the driver's own iteration order), tries each of its 6 large-hex
     // neighbor offsets in the driver's exact fixed order and takes the
-    // FIRST empty one that touches 1+ OTHER tile and keeps one board after the move
+    // FIRST empty one that touches 2+ OTHER tiles and keeps one board after the move
     // (excludeTileId semantics: the moving tile never counts as its own
     // neighbor), stops at the first tile/destination pair that works,
     // same early-exit shape as the driver's nested loop. A lone occupant
@@ -1575,7 +1575,7 @@
     }
     // Where can tile t go by Telekinesis? Empty slots next to where it is
     // now (the driver's default) or next to `near` (a choice list), that
-    // touch at least 1 other tile and keep the board in one piece.
+    // touch at least 2 other tiles and keep the board in one piece.
     function telekinesisSlots(snap, t, near) {
         const out = [];
         const base = pixelToHex((near || t).x, (near || t).y, LARGE_HEX);
@@ -1583,7 +1583,7 @@
             const cand = hexToPixel(base.q + dq, base.r + dr, LARGE_HEX);
             if (snap.tiles.some(tt => tt.id !== t.id && dist(tt.x, tt.y, cand.x, cand.y) < TILE)) continue;
             if (dist(t.x, t.y, cand.x, cand.y) < TILE) continue; // not a move
-            if (countTouchingTilesSim(snap, cand.x, cand.y, t.id) < 1) continue;
+            if (countTouchingTilesSim(snap, cand.x, cand.y, t.id) < 2) continue;
             if (!boardStaysConnected(snap, t, cand.x, cand.y)) continue;
             out.push(cand);
         }
@@ -1616,7 +1616,7 @@
         if (choice && choice.tileId != null) {
             const t = eligible.find(x => Number(x.id) === Number(choice.tileId));
             if (t && !snap.tiles.some(tt => tt.id !== t.id && dist(tt.x, tt.y, choice.x, choice.y) < TILE) &&
-                countTouchingTilesSim(snap, choice.x, choice.y, t.id) >= 1 &&
+                countTouchingTilesSim(snap, choice.x, choice.y, t.id) >= 2 &&
                 boardStaysConnected(snap, t, choice.x, choice.y)) {
                 tile = t; dest = { x: choice.x, y: choice.y };
             }
@@ -1626,7 +1626,7 @@
             for (const [dq, dr] of TILE_ADJACENT_OFFSETS) {
                 const cand = hexToPixel(hex.q + dq, hex.r + dr, LARGE_HEX);
                 if (snap.tiles.some(tt => dist(tt.x, tt.y, cand.x, cand.y) < TILE)) continue; // occupied
-                if (countTouchingTilesSim(snap, cand.x, cand.y, t.id) < 1) continue;
+                if (countTouchingTilesSim(snap, cand.x, cand.y, t.id) < 2) continue;
                 if (!boardStaysConnected(snap, t, cand.x, cand.y)) continue;
                 tile = t; dest = cand; break;
             }

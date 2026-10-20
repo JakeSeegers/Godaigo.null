@@ -1033,7 +1033,7 @@
     // placedTiles + DOM, same as a human's mousedown) then placeTile()
     // with the SAME tile id (drop — re-adds it at the new position via
     // findNearestSnapPoint(), which already enforces Telekinesis's
-    // "touch 1+ other tile, keep one board" rule internally whenever
+    // "touch 2+ other tiles, keep one board" rule internally whenever
     // window.telekinesisState.active is true, see game-core.js), plus
     // the move-counter/broadcast bookkeeping the real mouseup handler
     // does inline since there's no separate function for it.
