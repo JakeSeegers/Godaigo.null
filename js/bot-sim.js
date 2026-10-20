@@ -144,8 +144,8 @@
 //     tile. Rare (needs a still-hidden tile targeted, then revealed before
 //     the buff clears) and — unlike the shrine-collection site — would also
 //     require guessing which drawn card was in the pile's other slots
-//   - Telekinesis' "cannot split the board" rule (game-core.js tileIsBridge)
-//     is mirrored by tileSplitsBoard in telekinesisEligible (2026-10-20).
+//   - Telekinesis' "no two separate boards" drop rule (game-core.js
+//     boardStaysConnected) is mirrored by boardStaysConnected here (2026-10-20).
 //
 // The only globals read are STATIC data (window.SCROLL_DEFINITIONS) and,
 // inside validate() only, the live BotState/BotSystem.
@@ -1584,31 +1584,31 @@
             if (snap.tiles.some(tt => tt.id !== t.id && dist(tt.x, tt.y, cand.x, cand.y) < TILE)) continue;
             if (dist(t.x, t.y, cand.x, cand.y) < TILE) continue; // not a move
             if (countTouchingTilesSim(snap, cand.x, cand.y, t.id) < 2) continue;
+            if (!boardStaysConnected(snap, t, cand.x, cand.y)) continue;
             out.push(cand);
         }
         return out;
     }
-    // Mirrors game-core.js tileIsBridge: lifting t must not split the other
-    // tiles into two groups.
-    function tileSplitsBoard(snap, t) {
-        const rest = snap.tiles.filter(x => x.id !== t.id);
-        if (rest.length < 2) return false;
-        const seen = new Set([rest[0].id]);
-        const queue = [rest[0]];
+    // Mirrors game-core.js boardStaysConnected: with t at (x, y), every tile
+    // must still be one connected board.
+    function boardStaysConnected(snap, t, x, y) {
+        const tiles = snap.tiles.filter(o => o.id !== t.id).map(o => ({ x: o.x, y: o.y }));
+        tiles.push({ x, y });
+        const seen = new Set([0]);
+        const queue = [0];
         while (queue.length) {
-            const h = pixelToHex(queue[0].x, queue[0].y, LARGE_HEX);
-            queue.shift();
+            const cur = tiles[queue.shift()];
+            const h = pixelToHex(cur.x, cur.y, LARGE_HEX);
             for (const [dq, dr] of TILE_ADJACENT_OFFSETS) {
                 const p = hexToPixel(h.q + dq, h.r + dr, LARGE_HEX);
-                const f = rest.find(x => !seen.has(x.id) && dist(x.x, x.y, p.x, p.y) < TILE);
-                if (f) { seen.add(f.id); queue.push(f); }
+                const i = tiles.findIndex((o, k) => !seen.has(k) && dist(o.x, o.y, p.x, p.y) < TILE);
+                if (i >= 0) { seen.add(i); queue.push(i); }
             }
         }
-        return seen.size < rest.length;
+        return seen.size === tiles.length;
     }
     const telekinesisEligible = snap => snap.tiles.filter(t =>
-        !t.isPlayerTile && tileStoneCount(snap, t) === 0 && tilePlayerIndices(snap, t).length <= 1 &&
-        !tileSplitsBoard(snap, t));
+        !t.isPlayerTile && tileStoneCount(snap, t) === 0 && tilePlayerIndices(snap, t).length <= 1);
 
     function simEffectTelekinesis(snap, p, choice) {
         const eligible = telekinesisEligible(snap);
@@ -1616,7 +1616,8 @@
         if (choice && choice.tileId != null) {
             const t = eligible.find(x => Number(x.id) === Number(choice.tileId));
             if (t && !snap.tiles.some(tt => tt.id !== t.id && dist(tt.x, tt.y, choice.x, choice.y) < TILE) &&
-                countTouchingTilesSim(snap, choice.x, choice.y, t.id) >= 2) {
+                countTouchingTilesSim(snap, choice.x, choice.y, t.id) >= 2 &&
+                boardStaysConnected(snap, t, choice.x, choice.y)) {
                 tile = t; dest = { x: choice.x, y: choice.y };
             }
         }
@@ -1626,6 +1627,7 @@
                 const cand = hexToPixel(hex.q + dq, hex.r + dr, LARGE_HEX);
                 if (snap.tiles.some(tt => dist(tt.x, tt.y, cand.x, cand.y) < TILE)) continue; // occupied
                 if (countTouchingTilesSim(snap, cand.x, cand.y, t.id) < 2) continue;
+                if (!boardStaysConnected(snap, t, cand.x, cand.y)) continue;
                 tile = t; dest = cand; break;
             }
             if (dest) break;

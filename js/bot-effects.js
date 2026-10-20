@@ -1058,7 +1058,7 @@
         // A tile with ONE pawn on it may move (the pawn rides along, as for a
         // player); 2+ pawns block it. Same rule as BotSim telekinesisEligible.
         const eligible = (se.getEligibleTilesForSwap() || []).filter(t =>
-            !tileHasStones(t.id) && playerCountOnTileById(t.id) <= 1 && !tileIsBridge(t.id));
+            !tileHasStones(t.id) && playerCountOnTileById(t.id) <= 1);
         if (!eligible.length) { window.finishTelekinesis?.(); return true; }
 
         const largeHexSize = TILE_SIZE * 4;

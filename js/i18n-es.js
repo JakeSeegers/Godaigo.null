@@ -2240,5 +2240,6 @@ window.I18N_ES = {
     "Simplify now stacks like Burning Motivation: each cast adds 2 AP to every regain.": "Simplificar ahora se acumula como Motivación Ardiente: cada lanzamiento suma 2 PA a cada recuperación.",
     // Change Log 2026-10-20
     "Telekinesis fix": "Arreglo de Telequinesis",
-    "Telekinesis can no longer split the board into separate pieces.": "Telequinesis ya no puede partir el tablero en piezas separadas.",
+    "Telekinesis: a tile can move to any spot that keeps the board in one piece, and it can never split the board in two.": "Telequinesis: una loseta puede ir a cualquier sitio que deje el tablero en una sola pieza, y nunca puede partirlo en dos.",
+    "Invalid placement! The tile must touch at least 2 other tiles and keep the board in one piece. Tile snapped back.": "¡Colocación no válida! La loseta debe tocar al menos otras 2 losetas y dejar el tablero en una sola pieza. La loseta volvió a su sitio.",
 };

@@ -6,7 +6,7 @@
       "date": "2026-10-20",
       "title": "Telekinesis fix",
       "changes": [
-        "Telekinesis can no longer split the board into separate pieces."
+        "Telekinesis: a tile can move to any spot that keeps the board in one piece, and it can never split the board in two."
       ]
     },
     {

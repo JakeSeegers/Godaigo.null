@@ -4409,6 +4409,10 @@
                         console.log(`❌ Telekinesis: tile at (${snapPos.x.toFixed(1)}, ${snapPos.y.toFixed(1)}) touches ${touchingCount} tile(s), need 2+`);
                         return { x: x, y: y, snapped: false };
                     }
+                    if (!boardStaysConnected(snapPos.x, snapPos.y, excludeTileId)) {
+                        console.log(`❌ Telekinesis: tile at (${snapPos.x.toFixed(1)}, ${snapPos.y.toFixed(1)}) would leave two separate boards`);
+                        return { x: x, y: y, snapped: false };
+                    }
                     console.log(`✅ Telekinesis: tile at (${snapPos.x.toFixed(1)}, ${snapPos.y.toFixed(1)}) touches ${touchingCount} tiles`);
                 }
 
@@ -4551,7 +4555,8 @@
                 if (mode === 'player-tile') {
                     legal = countTouchingUnrevealedTiles(pos.x, pos.y) >= 2;
                 } else if (mode === 'telekinesis') {
-                    legal = countTouchingTiles(pos.x, pos.y, excludeTileId) >= 2;
+                    legal = countTouchingTiles(pos.x, pos.y, excludeTileId) >= 2 &&
+                        boardStaysConnected(pos.x, pos.y, excludeTileId);
                 }
                 if (!legal) return;
 
@@ -4624,34 +4629,33 @@
             return n;
         }
 
-        // Bridge check: would lifting this tile split the board? True when the
-        // other tiles are no longer one connected group without it (a lone
-        // tile OR a group of tiles cut off). Used by Telekinesis to prevent
-        // stranding tiles (and players on them). The old check only caught a
-        // single neighbour left with no neighbours, so a pair could be cut off.
-        function tileIsBridge(tileId) {
-            const tile = placedTiles.find(t => t.id === tileId);
-            if (!tile) return false;
+        // Telekinesis rule: the move may not leave two separate boards. True when
+        // every tile (movedTileId at its new spot destX, destY) is one connected
+        // group. Any tile may be picked up; only the drop is checked, so a tile
+        // that holds the board together can still move to a spot that joins
+        // both sides again.
+        function boardStaysConnected(destX, destY, movedTileId = null) {
             const largeHexSize = TILE_SIZE * 4;
-            const rest = placedTiles.filter(t => t.id !== tileId);
-            if (rest.length < 2) return false;
+            const tiles = placedTiles.filter(t => t.id !== movedTileId)
+                .map(t => ({ x: t.x, y: t.y }));
+            tiles.push({ x: destX, y: destY });
             const adjacentOffsets = [
                 { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
                 { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 }
             ];
-            const seen = new Set([rest[0].id]);
-            const queue = [rest[0]];
+            const seen = new Set([0]);
+            const queue = [0];
             while (queue.length) {
-                const cur = queue.shift();
+                const cur = tiles[queue.shift()];
                 const h = pixelToHex(cur.x, cur.y, largeHexSize);
                 adjacentOffsets.forEach(offset => {
                     const adjPos = hexToPixel(h.q + offset.q, h.r + offset.r, largeHexSize);
-                    const found = rest.find(t => !seen.has(t.id) &&
+                    const i = tiles.findIndex((t, k) => !seen.has(k) &&
                         Math.hypot(t.x - adjPos.x, t.y - adjPos.y) < TILE_SIZE);
-                    if (found) { seen.add(found.id); queue.push(found); }
+                    if (i >= 0) { seen.add(i); queue.push(i); }
                 });
             }
-            return seen.size < rest.length;
+            return seen.size === tiles.length;
         }
 
         function updateTileClasses() {
@@ -4913,12 +4917,12 @@
                 }
 
                 // During Telekinesis, block tiles with 2+ players (one player
-                // is carried along, Shifting-Sands style) or that would strand a neighbor
+                // is carried along, Shifting-Sands style). The "one board" rule
+                // is checked at the drop (boardStaysConnected).
                 const tkActive = window.telekinesisState && window.telekinesisState.active;
                 const tkBlockPlayer = tkActive && playerCountOnTileById(tileId) >= 2;
-                const tkBlockBridge = tkActive && tileIsBridge(tileId);
 
-                if (e.button === 0 && !tileHasStones(tileId) && !tkBlockPlayer && !tkBlockBridge && !isPanning && !isDraggingStone && !isDraggingPlayer) {
+                if (e.button === 0 && !tileHasStones(tileId) && !tkBlockPlayer && !isPanning && !isDraggingStone && !isDraggingPlayer) {
                     console.log(`   ✓ Starting drag for tile ${tileId} at (${x.toFixed(1)}, ${y.toFixed(1)})`);
                     e.stopPropagation();
                     e.preventDefault();
@@ -4927,9 +4931,6 @@
                     if (tkBlockPlayer) {
                         console.log(`   ✗ Cannot drag: tile has 2+ players on it`);
                         updateStatus('Cannot move a tile with more than one player on it!');
-                    } else if (tkBlockBridge) {
-                        console.log(`   ✗ Cannot drag: removing tile would strand a neighbor`);
-                        updateStatus('Cannot move this tile - it would strand an adjacent tile!');
                     } else {
                         console.log(`   ✗ Cannot drag: hasStones=${tileHasStones(tileId)}, isPanning=${isPanning}, isDraggingStone=${isDraggingStone}`);
                     }
@@ -4945,9 +4946,9 @@
                 // Only allow dragging if tileMoveMode is enabled
                 if (!tileMoveMode) return;
                 if (tileHasStones(tileId) || isPanning || isDraggingStone || isDraggingPlayer) return;
-                // During Telekinesis, block tiles with 2+ players or that would strand a neighbor
+                // During Telekinesis, block tiles with 2+ players (the one-board rule is checked at the drop)
                 if (window.telekinesisState && window.telekinesisState.active) {
-                    if (playerCountOnTileById(tileId) >= 2 || tileIsBridge(tileId)) return;
+                    if (playerCountOnTileById(tileId) >= 2) return;
                 }
 
                 if (e.touches && e.touches.length === 1) {
@@ -5394,7 +5395,7 @@
                 if (!tileMoveMode) return;
                 // During Telekinesis: 2+ players or a strand-causing move blocks the pickup
                 if (window.telekinesisState && window.telekinesisState.active) {
-                    if (playerCountOnTileById(tileId) >= 2 || tileIsBridge(tileId)) return;
+                    if (playerCountOnTileById(tileId) >= 2) return;
                 }
                 if (e.button === 0 && !tileHasStones(tileId) && !isPanning && !isDraggingStone) {
                     e.stopPropagation();
@@ -5640,7 +5641,7 @@
                 if (!tileMoveMode) return;
                 // During Telekinesis: 2+ players or a strand-causing move blocks the pickup
                 if (window.telekinesisState && window.telekinesisState.active) {
-                    if (playerCountOnTileById(tileId) >= 2 || tileIsBridge(tileId)) return;
+                    if (playerCountOnTileById(tileId) >= 2) return;
                 }
                 if (e.button === 0 && !tileHasStones(tileId) && !isPanning && !isDraggingStone) {
                     e.stopPropagation();
