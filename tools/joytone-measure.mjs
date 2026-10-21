@@ -162,6 +162,7 @@ async function recordInPage({ sc, seconds, tone }) {
         recallFxSnapshot(tone.recall ?? 0, 0);
         await new Promise(r => setTimeout(r, 300));
         if (tone.gameTempo) A.setTension(sc.tension); // in a game, tension sets the tempo
+        mute(); style(); // a recall resets mute flags and settings: apply ours on top again
     };
     await recall();
     if (tone?.section != null) { // start playback at this section index

@@ -81,7 +81,10 @@ again, read `report.md`.
 `joytone-mixes/`: FX state variants to try in the Joytone popup (Shift+J+T, FX state
 upload; never loaded by the game). `owner-fx-states.json` = the owner's FX 1.
 `build-dnb.mjs` writes `Five_Elements_Theme-fx-states-dnb.json` = FX 1 + "DnB band"
-(drum and bass with a band's attack; settings and reasons in the script). Measure a
+(drum and bass with a band's attack; settings and reasons in the script).
+`owner-fx-states-3.json` = the owner's bank with FX 3; `build-fx3-mastered.mjs` adds
+"FX 3 mastered" (track levels balanced, measurements in the script) and writes
+`Five_Elements_Theme-fx-states-fx3-mastered.json`. Measure a
 state through Joytone's own recall: `--tone '{"bankFile":"...","recall":1,"gameTempo":true}'`.
 
 `--tone '{...}'` tries settings without editing joytone/index.html: TONE
