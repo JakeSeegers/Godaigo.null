@@ -846,7 +846,7 @@ window.I18N_ES = {
     "Move 1 of {0} ({1} AP) - ← → to choose, Enter to confirm, Esc to cancel": "Movimiento 1 de {0} ({1} PA) - ← → elegir, Enter confirmar, Esc cancelar",
     "Move Hand card → Active": "Mover carta de la Mano → Activa",
     "Move Scroll to Active Area": "Mueve el pergamino al Área activa",
-    "Move a tile that has no stones on it. If one player is on the tile, they move to its center. Cannot move a tile with multiple players on it. The tile must land touching at least 2 other tiles, and the board must stay in one piece.": "Mueve una loseta que no tenga piedras. Si hay un jugador en la loseta, se mueve a su centro. No puede mover una loseta con varios jugadores. La loseta debe quedar tocando al menos otras 2 losetas, y el tablero debe quedar en una sola pieza.",
+    "Move a tile with no stones and at most one player on it (that player moves to its center). After the move, every tile must touch at least 2 others, and the board must stay in one piece.": "Mueve una loseta sin piedras y con un jugador como máximo (ese jugador va a su centro). Tras moverla, cada loseta debe tocar al menos otras 2, y el tablero debe quedar en una sola pieza.",
     "Move cancelled.": "Movimiento cancelado.",
     "Move card → Common Area": "Mover carta → Área común",
     "Move next to an Earth stone to break it.": "Acércate a una piedra de Tierra para romperla.",
@@ -2242,6 +2242,9 @@ window.I18N_ES = {
     "Telekinesis fix and smarter bots": "Arreglo de Telequinesis y bots más listos",
     "Smarter bots: early in the game they take the face-down tiles you need for scrolls, by walking there or with Heavy Stomp.": "Bots más listos: al principio de la partida toman las losetas boca abajo que necesitas para conseguir pergaminos, caminando hasta ellas o con Pisotón.",
     "Telekinesis: a tile can move to any spot that touches 2 other tiles and keeps the board in one piece.": "Telequinesis: una loseta puede ir a cualquier sitio que toque otras 2 losetas y deje el tablero en una sola pieza.",
-    "Invalid placement! The tile must touch at least 2 other tiles and keep the board in one piece. Tile snapped back.": "¡Colocación no válida! La loseta debe tocar al menos otras 2 losetas y dejar el tablero en una sola pieza. La loseta volvió a su sitio.",
-    "Telekinesis: drag a highlighted tile to move it. It must touch at least 2 other tiles, and the board must stay in one piece.": "Telequinesis: arrastra una loseta resaltada para moverla. Debe tocar al menos otras 2 losetas, y el tablero debe quedar en una sola pieza.",
+    "Invalid placement! Every tile must touch at least 2 others, and the board must stay in one piece. Tile snapped back.": "¡Colocación no válida! Cada loseta debe tocar al menos otras 2, y el tablero debe quedar en una sola pieza. La loseta volvió a su sitio.",
+    "Telekinesis: drag a highlighted tile to move it. After the move, every tile must touch at least 2 others, and the board must stay in one piece.": "Telequinesis: arrastra una loseta resaltada para moverla. Tras moverla, cada loseta debe tocar al menos otras 2, y el tablero debe quedar en una sola pieza.",
+    // Change Log 2026-10-21
+    "Telekinesis rule": "Regla de Telequinesis",
+    "Telekinesis: after the move, every tile must touch at least 2 others, and the board must stay in one piece.": "Telequinesis: tras moverla, cada loseta debe tocar al menos otras 2, y el tablero debe quedar en una sola pieza.",
 };

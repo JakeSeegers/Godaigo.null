@@ -4628,11 +4628,12 @@
             return n;
         }
 
-        // Telekinesis rule: the move may not leave two separate boards. True when
-        // every tile (movedTileId at its new spot destX, destY) is one connected
-        // group. Any tile may be picked up; only the drop is checked, so a tile
-        // that holds the board together can still move to a spot that joins
-        // both sides again.
+        // Telekinesis rule (owner 2026-10-21): after the move (movedTileId at its
+        // new spot destX, destY) every tile touches at least 2 others AND all tiles
+        // are one connected group. Any tile may be picked up; only the drop is
+        // checked, so a tile that holds the board together can still move to a
+        // spot that joins both sides again. (2+ each alone is not enough: two
+        // separate rings would pass.)
         function boardStaysConnected(destX, destY, movedTileId = null) {
             const largeHexSize = TILE_SIZE * 4;
             const tiles = placedTiles.filter(t => t.id !== movedTileId)
@@ -4649,12 +4650,13 @@
                 const h = pixelToHex(cur.x, cur.y, largeHexSize);
                 adjacentOffsets.forEach(offset => {
                     const adjPos = hexToPixel(h.q + offset.q, h.r + offset.r, largeHexSize);
-                    const i = tiles.findIndex((t, k) => !seen.has(k) &&
-                        Math.hypot(t.x - adjPos.x, t.y - adjPos.y) < TILE_SIZE);
-                    if (i >= 0) { seen.add(i); queue.push(i); }
+                    const i = tiles.findIndex(t => Math.hypot(t.x - adjPos.x, t.y - adjPos.y) < TILE_SIZE);
+                    if (i < 0) return;
+                    cur.n = (cur.n || 0) + 1;
+                    if (!seen.has(i)) { seen.add(i); queue.push(i); }
                 });
             }
-            return seen.size === tiles.length;
+            return seen.size === tiles.length && tiles.every(t => t.n >= 2);
         }
 
         function updateTileClasses() {

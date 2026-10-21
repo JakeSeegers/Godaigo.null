@@ -1575,7 +1575,7 @@
     }
     // Where can tile t go by Telekinesis? Empty slots next to where it is
     // now (the driver's default) or next to `near` (a choice list), that
-    // touch at least 2 other tiles and keep the board in one piece.
+    // touch at least 2 other tiles, leave every tile touching 2+ and keep one board.
     function telekinesisSlots(snap, t, near) {
         const out = [];
         const base = pixelToHex((near || t).x, (near || t).y, LARGE_HEX);
@@ -1590,7 +1590,7 @@
         return out;
     }
     // Mirrors game-core.js boardStaysConnected: with t at (x, y), every tile
-    // must still be one connected board.
+    // touches at least 2 others and all tiles are one connected board.
     function boardStaysConnected(snap, t, x, y) {
         const tiles = snap.tiles.filter(o => o.id !== t.id).map(o => ({ x: o.x, y: o.y }));
         tiles.push({ x, y });
@@ -1601,11 +1601,13 @@
             const h = pixelToHex(cur.x, cur.y, LARGE_HEX);
             for (const [dq, dr] of TILE_ADJACENT_OFFSETS) {
                 const p = hexToPixel(h.q + dq, h.r + dr, LARGE_HEX);
-                const i = tiles.findIndex((o, k) => !seen.has(k) && dist(o.x, o.y, p.x, p.y) < TILE);
-                if (i >= 0) { seen.add(i); queue.push(i); }
+                const i = tiles.findIndex(o => dist(o.x, o.y, p.x, p.y) < TILE);
+                if (i < 0) continue;
+                cur.n = (cur.n || 0) + 1;
+                if (!seen.has(i)) { seen.add(i); queue.push(i); }
             }
         }
-        return seen.size === tiles.length;
+        return seen.size === tiles.length && tiles.every(o => o.n >= 2);
     }
     const telekinesisEligible = snap => snap.tiles.filter(t =>
         !t.isPlayerTile && tileStoneCount(snap, t) === 0 && tilePlayerIndices(snap, t).length <= 1);
