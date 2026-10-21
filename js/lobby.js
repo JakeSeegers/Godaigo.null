@@ -3817,6 +3817,13 @@
                 }
             });
 
+            // Transmute's opponent option (scroll-effects.js drainPlayerAP).
+            gameChannel.on('broadcast', { event: 'transmute-drain' }, ({ payload }) => {
+                const { targetIndex, amount } = payload || {};
+                if (typeof targetIndex !== 'number' || !(amount > 0)) return;
+                spellSystem?.scrollEffects?.drainPlayerAP?.(targetIndex, Math.min(2, amount));
+            });
+
             gameChannel.on('broadcast', { event: 'opponent-stone-destroyed' }, ({ payload }) => {
                 console.log('📄 Received opponent-stone-destroyed:', payload);
                 const { opponentIndex, stoneType } = payload;

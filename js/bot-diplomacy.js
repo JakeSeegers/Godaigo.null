@@ -95,7 +95,7 @@
     const SCALE = 500;                               // progress points per 1.0 favor
     const MIN_DELTA = 8;                             // ignore smaller wobbles
     const MAX_EVENTS = 8;                            // remembered notable events per observer
-    const HOSTILE = new Set(['EARTH_SCROLL_2', 'FIRE_SCROLL_5', 'VOID_SCROLL_2', 'WIND_SCROLL_5', 'CATACOMB_SCROLL_8', 'CATACOMB_SCROLL_10']);
+    const HOSTILE = new Set(['EARTH_SCROLL_2', 'FIRE_SCROLL_4', 'VOID_SCROLL_2', 'WIND_SCROLL_5', 'CATACOMB_SCROLL_8', 'CATACOMB_SCROLL_10']);
     const ELEMENTS4 = ['earth', 'water', 'fire', 'wind'];
     const STEP_PX = 35;
 
@@ -248,7 +248,7 @@
     const sumParts = o => Object.values(o).reduce((a, b) => a + b, 0);
     // Which of my parts each hostile scroll can plausibly have hit.
     const HOSTILE_HITS = {
-        FIRE_SCROLL_5: ['stones'],                              // Arson
+        FIRE_SCROLL_4: ['stones'],                              // Arson
         CATACOMB_SCROLL_8: ['ready'],                           // Plunder
         EARTH_SCROLL_2: ['ready', 'road', 'shrines', 'plan', 'path'],     // Shifting Sands
         VOID_SCROLL_2: ['ready', 'road', 'shrines', 'plan', 'path'],      // Telekinesis

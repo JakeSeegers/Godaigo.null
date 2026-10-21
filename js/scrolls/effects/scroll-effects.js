@@ -910,10 +910,10 @@ const ScrollEffects = {
         },
 
         /**
-         * Fire Scroll II - Burning Motivation
+         * Fire Scroll V - Burning Motivation
          * Until end of turn, gain 2 AP for each stone you place. Stacks if activated multiple times.
          */
-        FIRE_SCROLL_2: {
+        FIRE_SCROLL_5: {
             name: 'Burning Motivation',
             description: 'Until end of turn, gain 2 AP for each stone you place. Stacks if activated multiple times.',
             isCounter: false,
@@ -943,10 +943,10 @@ const ScrollEffects = {
         },
 
         /**
-         * Fire Scroll III - Sacrificial Pyre
+         * Fire Scroll II - Sacrificial Pyre
          * Activate any scroll in hand ignoring pattern.
          */
-        FIRE_SCROLL_3: {
+        FIRE_SCROLL_2: {
             name: 'Sacrificial Pyre',
             description: 'Activate any scroll in your hand or active area (ignoring pattern). The scroll goes to the common area. Level I scrolls only as a response, never on your own turn.',
             isCounter: false,
@@ -984,12 +984,12 @@ const ScrollEffects = {
         },
 
         /**
-         * Fire Scroll IV - Transmute
+         * Fire Scroll III - Transmute
          * Discard stones or scrolls to regain AP.
          */
-        FIRE_SCROLL_4: {
+        FIRE_SCROLL_3: {
             name: 'Transmute',
-            description: 'Discard any number of stones or scrolls to regain 2 AP each.',
+            description: 'Discard any number of stones or scrolls to regain 2 AP each, or pick an opponent to lose 2 AP each instead.',
             isCounter: false,
             priority: 4,
 
@@ -1039,10 +1039,10 @@ const ScrollEffects = {
         },
 
         /**
-         * Fire Scroll V - Arson
+         * Fire Scroll IV - Arson
          * Destroy a stone from opponent's pool.
          */
-        FIRE_SCROLL_5: {
+        FIRE_SCROLL_4: {
             name: 'Arson',
             description: "Destroy one elemental stone from an opponent's pool. Move Arson to the common area.",
             isCounter: false,
@@ -1059,7 +1059,7 @@ const ScrollEffects = {
 
                 // Enter opponent pool selection mode with completion payload
                 system.enterArsonMode(casterIndex, {
-                    scrollName: context?.scrollName || 'FIRE_SCROLL_5',
+                    scrollName: context?.scrollName || 'FIRE_SCROLL_4',
                     effectName: 'Arson',
                     spell: context?.spell
                 });
@@ -4279,7 +4279,7 @@ const ScrollEffects = {
     // FIRE SCROLL MODES
     // ============================================
 
-    // Fire III - Sacrificial Pyre: Activate scroll from hand ignoring pattern.
+    // Fire II - Sacrificial Pyre: Activate scroll from hand ignoring pattern.
     // onComplete: optional — mirrors enterTileFlipMode's pattern so a
     // Reflect/Psychic-chained cast still signals completion (and lets the
     // next queued reflect/psychic run) even on an early "nothing to
@@ -4289,7 +4289,7 @@ const ScrollEffects = {
     // response on another player's turn), never Pyre itself.
     sacrificeCandidates(playerScrolls) {
         return [...(playerScrolls?.hand || []), ...(playerScrolls?.active || [])]
-            .filter(s => s !== 'FIRE_SCROLL_3' && (this.spellSystem?.patterns?.[s]?.level ?? 2) !== 1);
+            .filter(s => s !== 'FIRE_SCROLL_2' && (this.spellSystem?.patterns?.[s]?.level ?? 2) !== 1);
     },
 
     enterScrollSacrificeMode(casterIndex, onComplete) {
@@ -4360,7 +4360,7 @@ const ScrollEffects = {
 
             // NOTE: Only FIRE is marked as activated (from casting Sacrificial Pyre itself)
             // The sacrificed scroll's elements do NOT count toward win condition
-            // Fire activation is already handled by the normal executeSpell flow for FIRE_SCROLL_3
+            // Fire activation is already handled by the normal executeSpell flow for FIRE_SCROLL_2
 
             // If the scroll has a special effect, execute it too
             const effect = self.getEffect(selectedScroll);
@@ -4390,7 +4390,7 @@ const ScrollEffects = {
         });
     },
 
-        // Fire IV - Combust: Destroy stones on a tile
+        // Combust (Catacomb X): Destroy stones on a tile
     enterScorchedEarthMode(casterIndex) {
         const self = this;
 
@@ -4442,7 +4442,10 @@ const ScrollEffects = {
         updateStatus('Select a tile to destroy all stones on it.');
     },
 
-    // Fire IV - Transmute: discard stones/scrolls for AP.
+    // Fire III - Transmute: discard stones/scrolls for AP.
+    // Owner 2026-10-21: or pick an opponent (not Excavate-immune) before the
+    // first discard; then each discard takes 2 AP from them instead (the AP
+    // they kept from their own turn, see drainPlayerAP) and gives none.
     // context: optional — carries onComplete, called once the modal actually
     // closes (Done, Cancel, or a forced cancelSelectionMode() sweep) via the
     // existing close-observer below, so a Reflect/Psychic-chained cast can
@@ -4503,6 +4506,41 @@ const ScrollEffects = {
         };
         const atMaxAP = () => getCurrentTotalAP() >= getMaxTotalAP();
 
+        // null = gain AP yourself; else the opponent who loses AP.
+        let drainTarget = null;
+        let discards = 0;
+        const nameOf = (i) => (typeof getPlayerColorName === 'function') ? getPlayerColorName(i) : `Player ${i + 1}`;
+        const targetAP = (i) => {
+            const rw = self.spellSystem?.responseWindow;
+            if (rw?.getPlayerAP) return rw.getPlayerAP(i);
+            const ap = typeof playerAPs !== 'undefined' ? playerAPs[i] : null;
+            return (ap?.currentAP || 0) + (ap?.voidAP || 0);
+        };
+        // True when a discard would do nothing (and says why).
+        const blocked = () => {
+            if (drainTarget == null) {
+                if (atMaxAP()) { updateStatus('Transmute: AP is already at max.'); return true; }
+                return false;
+            }
+            if (targetAP(drainTarget) <= 0) {
+                updateStatus(`Transmute: ${nameOf(drainTarget)} has no AP left.`);
+                return true;
+            }
+            return false;
+        };
+        // Reward for one discard: AP for you, or AP lost by the target.
+        const discardReward = () => {
+            discards++;
+            lockTargets();
+            if (drainTarget == null) return gainAPCapped(2);
+            const amount = Math.min(2, targetAP(drainTarget));
+            self.drainPlayerAP(drainTarget, amount);
+            if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
+                broadcastGameAction('transmute-drain', { casterIndex, targetIndex: drainTarget, amount });
+            }
+            return amount;
+        };
+
         const overlay = document.createElement('div');
         overlay.id = overlayId;
         styleDecisionOverlay(overlay);
@@ -4539,7 +4577,7 @@ const ScrollEffects = {
         makeDecisionModalMovable(modal, titleEl, overlay);
 
         const subtitle = document.createElement('div');
-        subtitle.textContent = 'Discard stones or scrolls to gain 2 AP each.';
+        subtitle.textContent = 'Discard stones or scrolls: you gain 2 AP each, or an opponent loses 2 AP each.';
         subtitle.style.color = '#bdc3c7';
         subtitle.style.fontSize = '13px';
         subtitle.style.marginBottom = '4px';
@@ -4561,8 +4599,49 @@ const ScrollEffects = {
         };
 
         const updateGained = () => {
-            gainedEl.textContent = `AP gained: ${totalGained}`;
+            gainedEl.textContent = drainTarget == null
+                ? `AP gained: ${totalGained}`
+                : `${nameOf(drainTarget)} lost ${totalGained} AP`;
         };
+
+        // Target: you (gain AP) or an opponent (loses AP). Fixed after the first discard.
+        const targetRow = document.createElement('div');
+        Object.assign(targetRow.style, { display: 'flex', flexWrap: 'wrap', gap: '5px', justifyContent: 'center', marginBottom: '6px' });
+        const targetBtns = [];
+        const markTargets = () => targetBtns.forEach(({ btn, idx }) => {
+            const on = idx === drainTarget;
+            btn.style.backgroundColor = on ? '#ed1b43' : '#2d2d44';
+            btn.style.borderColor = on ? '#ed1b43' : '#444';
+        });
+        const lockTargets = () => targetBtns.forEach(({ btn, idx }) => {
+            btn.disabled = true;
+            btn.style.cursor = 'default';
+            if (idx !== drainTarget) btn.style.opacity = '0.4';
+        });
+        const addTargetBtn = (idx, label) => {
+            const btn = document.createElement('button');
+            btn.textContent = label;
+            if (idx != null) btn.dataset.playerIndex = String(idx);
+            Object.assign(btn.style, compactBtn, { width: 'auto', cursor: 'pointer', textAlign: 'center' });
+            btn.onclick = () => {
+                if (discards > 0) return;
+                drainTarget = idx;
+                markTargets();
+                updateGained();
+            };
+            targetBtns.push({ btn, idx });
+            targetRow.appendChild(btn);
+        };
+        const numPlayers = typeof playerPositions !== 'undefined' ? playerPositions.length : 0;
+        addTargetBtn(null, 'You: +2 AP each');
+        for (let i = 0; i < numPlayers; i++) {
+            if (i === casterIndex || self.hasExcavateImmunity(i)) continue;
+            addTargetBtn(i, `${nameOf(i)}: -2 AP each (has ${targetAP(i)})`);
+        }
+        if (targetBtns.length > 1) {
+            modal.insertBefore(targetRow, gainedEl);
+            markTargets();
+        }
 
         const sectionHeader = (text) => {
             const h = document.createElement('div');
@@ -4589,18 +4668,15 @@ const ScrollEffects = {
             });
             btn.onclick = () => {
                 const available = pools?.[casterIndex]?.[type] || 0;
-                if (atMaxAP()) {
-                    updateStatus('Transmute: AP is already at max.');
-                    return;
-                }
                 if (available <= 0) return;
+                if (blocked()) return;
                 pools[casterIndex][type] = available - 1;
                 if (source && sourceCap && typeof source[type] === 'number') {
                     source[type] = Math.min(sourceCap[type], source[type] + 1);
                 }
                 if (typeof updateStoneCount === 'function') updateStoneCount(type);
                 if (type === 'void') clampVoidAPToPool();
-                const gained = gainAPCapped(2);
+                const gained = discardReward();
                 totalGained += gained;
                 btn.textContent = `Discard 1 ${type} (${pools[casterIndex][type]})`;
                 updateGained();
@@ -4629,10 +4705,7 @@ const ScrollEffects = {
                 btn.textContent = `Discard ${def?.name || scrollName} (${label})`;
                 Object.assign(btn.style, compactBtn, { cursor: 'pointer' });
                 btn.onclick = () => {
-                    if (atMaxAP()) {
-                        updateStatus('Transmute: AP is already at max.');
-                        return;
-                    }
+                    if (blocked()) return;
                     if (label === 'hand') playerScrolls.hand.delete(scrollName);
                     if (label === 'active') playerScrolls.active.delete(scrollName);
                     if (self.spellSystem?.discardToCommonArea) {
@@ -4640,7 +4713,7 @@ const ScrollEffects = {
                     }
                     if (self.spellSystem?.updateScrollCount) self.spellSystem.updateScrollCount();
                     if (typeof updateCommonAreaUI === 'function') updateCommonAreaUI();
-                    const gained = gainAPCapped(2);
+                    const gained = discardReward();
                     totalGained += gained;
                     btn.disabled = true;
                     btn.style.opacity = '0.5';
@@ -4725,6 +4798,36 @@ const ScrollEffects = {
             }
         });
         observer.observe(document.body, { childList: true, subtree: true });
+    },
+
+    // Transmute's opponent option: the target loses AP now, from the AP kept
+    // from their own turn (AP is back to 5 at the start of every turn). Every
+    // browser runs this (caster locally, others via 'transmute-drain') on its
+    // own copy: the target's own browser on its live AP, a host driving a bot
+    // on its kept AP, everyone else on the playerAPs snapshot.
+    drainPlayerAP(targetIndex, amount) {
+        if (!(amount > 0)) return;
+        const driverIdx = window.BotDriver?.driverRealIndex?.() ?? null;
+        if (driverIdx != null && targetIndex === driverIdx && typeof window.BotDriver.spendDriverAP === 'function') {
+            window.BotDriver.spendDriverAP(amount);
+            return;
+        }
+        const mp = typeof isMultiplayer !== 'undefined' && isMultiplayer;
+        const isBot = window.BotDriver?.isBot?.(targetIndex);
+        if (mp && !isBot && typeof myPlayerIndex !== 'undefined' && targetIndex === myPlayerIndex
+                && typeof spendAP === 'function') {
+            spendAP(amount);
+            const casterName = typeof getPlayerColorName === 'function' ? getPlayerColorName(activePlayerIndex) : 'An opponent';
+            updateStatus(`🔥 ${casterName} used Transmute: you lost ${amount} AP!`);
+            return;
+        }
+        if (typeof playerAPs === 'undefined') return;
+        if (!playerAPs[targetIndex]) playerAPs[targetIndex] = { currentAP: 5, voidAP: 0 };
+        const p = playerAPs[targetIndex];
+        const fromVoid = Math.min(p.voidAP || 0, amount);
+        p.voidAP = (p.voidAP || 0) - fromVoid;
+        p.currentAP = Math.max(0, (p.currentAP || 0) - (amount - fromVoid));
+        if (typeof updateOpponentPanel === 'function') updateOpponentPanel();
     },
 
     // Wind V - Take Flight: Teleport any player to an unoccupied hex of your choice
@@ -5084,7 +5187,7 @@ const ScrollEffects = {
         });
     },
 
-    // Fire V - Arson: Destroy stone from opponent pool
+    // Fire IV - Arson: Destroy stone from opponent pool
     enterArsonMode(casterIndex, completionPayload = null) {
         const self = this;
 
@@ -5613,7 +5716,7 @@ const ScrollEffects = {
 
             // Send Arson to common area after use
             if (completionPayload && this.spellSystem) {
-                const scrollName = completionPayload.scrollName || 'FIRE_SCROLL_5';
+                const scrollName = completionPayload.scrollName || 'FIRE_SCROLL_4';
                 this.spellSystem.handleScrollDisposition(scrollName, false, true);
             }
 

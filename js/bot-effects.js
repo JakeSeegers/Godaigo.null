@@ -387,7 +387,7 @@
     }
 
     // ----------------------------------------------------------------
-    // Arson (FIRE_SCROLL_5) — two steps:
+    // Arson (FIRE_SCROLL_4) - two steps:
     //   1. opponent-select-modal: pick a target opponent. Heuristic: the
     //      biggest threat (rankedOpponents() — most activated elements,
     //      tie-broken by total pool size).
@@ -400,7 +400,7 @@
         const modal = document.getElementById('opponent-select-modal');
         if (!modal) return false;
         const buttons = [...modal.querySelectorAll('button')];
-        const c = takeChoice('FIRE_SCROLL_5');
+        const c = takeChoice('FIRE_SCROLL_4');
         if (c) {
             const btn = buttons.find(b => srcText(b) === seatLabel(c.target));
             if (btn) { pendingStep2 = { kind: 'arson', element: c.element }; btn.click(); return true; }
@@ -599,7 +599,7 @@
     }
 
     // ----------------------------------------------------------------
-    // Sacrificial Pyre (FIRE_SCROLL_3) — modal, single click.
+    // Sacrificial Pyre (FIRE_SCROLL_2) - modal, single click.
     // Choice: one scroll from the caster's OWN hand to sacrifice (sent to
     // the common area, and runs its own effect; no Level I on your own turn).
     // Modal id (scroll-select-modal) is shared with Inspiring Draught's
