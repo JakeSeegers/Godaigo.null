@@ -78,6 +78,12 @@ warnings, change since the last run), `report.json`, one `.wav` and one `.png`
 them on the same scales. Before / after a Joytone change: run, change, run
 again, read `report.md`.
 
+`joytone-mixes/`: FX state variants to try in the Joytone popup (Shift+J+T, FX state
+upload; never loaded by the game). `owner-fx-states.json` = the owner's FX 1.
+`build-dnb.mjs` writes `Five_Elements_Theme-fx-states-dnb.json` = FX 1 + "DnB band"
+(drum and bass with a band's attack; settings and reasons in the script). Measure a
+state through Joytone's own recall: `--tone '{"bankFile":"...","recall":1,"gameTempo":true}'`.
+
 `--tone '{...}'` tries settings without editing joytone/index.html: TONE
 stage values (`presenceDb`, `airDb`, ...), `bassGain` (master bass shelf),
 `mute` (track labels to

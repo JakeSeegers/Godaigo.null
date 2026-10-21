@@ -37,6 +37,9 @@
 //                                                      that section index (5 = Union, every track);
 //                                                      "roles" = per-track settings by label, "master" =
 //                                                      master settings. --tone @file.json reads a file.
+//                                                      "bankFile" + "recall": load an FX state bank and
+//                                                      recall that state ("gameTempo": true = then let
+//                                                      the game's tension set the tempo again)
 //
 // Output (git-ignored), default tools/.cache/joytone-measure/:
 //   report.md        tables + warnings, with changes since the last run
@@ -68,6 +71,9 @@ const SR = 44100;
 const toneArg = opt('tone', null);
 const TONE_OVERRIDE = !toneArg ? null
     : JSON.parse(String(toneArg).startsWith('@') ? fs.readFileSync(String(toneArg).slice(1), 'utf8') : toneArg);
+// --tone '{"bankFile":"x.json","recall":1}': load an FX state bank and recall state 1
+// through Joytone's own code (the same path as the popup's upload + click).
+if (TONE_OVERRIDE?.bankFile) TONE_OVERRIDE.bank = JSON.parse(fs.readFileSync(TONE_OVERRIDE.bankFile, 'utf8'));
 
 // Each scenario: a fresh page, then setup in the page, then SECONDS of recording.
 // tension: 0..1 (game-core.js updateMusicTension). tile: an element riff
@@ -150,6 +156,14 @@ async function recordInPage({ sc, seconds, tone }) {
         if (tone?.master) { Object.assign(project.masterFx, tone.master); applyMasterFxToAudio(0.01); }
     };
     style();
+    const recall = async () => {
+        if (!tone?.bank) return;
+        fxSnapshots = tone.bank.snapshots.map((x, i) => normalizeFxSnapshot(x, i));
+        recallFxSnapshot(tone.recall ?? 0, 0);
+        await new Promise(r => setTimeout(r, 300));
+        if (tone.gameTempo) A.setTension(sc.tension); // in a game, tension sets the tempo
+    };
+    await recall();
     if (tone?.section != null) { // start playback at this section index
         stopPlayback(); activeSectionId = project.sectionOrder[tone.section]; startPlayback(0);
     }
@@ -166,7 +180,7 @@ async function recordInPage({ sc, seconds, tone }) {
         startPlayback(0);
         if (sc.salsa) A.setSalsa(true);
         A.setTension(sc.tension);
-        mute(); style();
+        mute(); style(); await recall();
     }
 
     // AudioWorklet taps: 'out' records the final output, 'pre' only keeps
