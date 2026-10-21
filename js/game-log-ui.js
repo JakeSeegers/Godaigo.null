@@ -123,7 +123,7 @@
     // suppressVoidAPSync, or arrays like wanderingRiver/reflectPending that
     // don't fit this "one row per player+buff" shape) are listed here.
     const BUFF_META = {
-        burningMotivation:        { scroll: 'FIRE_SCROLL_2', extra: b => (b.stacks > 1 ? ` ×${b.stacks}` : '') },
+        burningMotivation:        { scroll: 'FIRE_SCROLL_5', extra: b => (b.stacks > 1 ? ` ×${b.stacks}` : '') },
         controlTheCurrent:        { scroll: 'WATER_SCROLL_5' },
         breathOfPower:             { scroll: 'WIND_SCROLL_2' },
         respirateWind:             { scroll: 'WIND_SCROLL_3' },
@@ -371,6 +371,9 @@
                 if (entry.kind === 'arson') return {
                     html: L('{0} used {1} on {2}: 1 {3} stone burned from their pool', a, sc(byName('Arson'), 'Arson'), t,
                         `<span style="color:${elColor(entry.stone)}">${esc(entry.stone)}</span>`),
+                    className: 'gl-counter' };
+                if (entry.kind === 'drain') return {
+                    html: L('{0} used {1} on {2}: they lost {3} AP', a, sc(byName('Transmute'), 'Transmute'), t, esc(String(entry.amount || 0))),
                     className: 'gl-counter' };
                 if (entry.kind === 'flight') return {
                     html: L('{0} used {1} on {2}: their pawn was moved', a, sc(byName('Take Flight'), 'Take Flight'), t),

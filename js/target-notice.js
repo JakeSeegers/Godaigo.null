@@ -55,6 +55,9 @@
             case 'scroll-plundered':
                 return { target: p.targetIndex, actor: p.casterIndex, icon: '🏴‍☠️',
                          text: `${nameOf(p.casterIndex)} used Plunder: your ${scrollName(p.scrollName)} went to the Common Area.` };
+            case 'transmute-drain':
+                return { target: p.targetIndex, actor: p.casterIndex, icon: '🔥',
+                         text: `${nameOf(p.casterIndex)} used Transmute: you lost ${p.amount} AP.` };
             case 'opponent-stone-destroyed':
                 return { target: p.opponentIndex, actor: now, icon: '🔥',
                          text: `${nameOf(now)} used Arson: 1 ${p.stoneType} stone burned from your pool.` };
@@ -92,6 +95,8 @@
         switch (event) {
             case 'scroll-plundered':
                 return [{ kind: 'plunder', actor: p.casterIndex, target: p.targetIndex, scroll: p.scrollName }];
+            case 'transmute-drain':
+                return [{ kind: 'drain', actor: p.casterIndex, target: p.targetIndex, amount: p.amount }];
             case 'opponent-stone-destroyed':
                 return [{ kind: 'arson', actor: now, target: p.opponentIndex, stone: p.stoneType }];
             case 'take-flight':

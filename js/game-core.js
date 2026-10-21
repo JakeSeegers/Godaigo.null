@@ -1607,11 +1607,11 @@
                 // AP was charged and the cast fizzled). Level I scrolls never count
                 // here: Pyre can activate them only as a response on another player's
                 // turn (owner rule, 2026-10-01).
-                if (name === 'FIRE_SCROLL_3') {
+                if (name === 'FIRE_SCROLL_2') {
                     // Hand or active area (owner, 2026-10-01), never Pyre itself.
                     const ps = this.getPlayerScrolls(false);
                     const usable = [...(ps?.hand || []), ...(ps?.active || [])]
-                        .filter(s => s !== 'FIRE_SCROLL_3' && (this.patterns?.[s]?.level ?? 2) !== 1);
+                        .filter(s => s !== 'FIRE_SCROLL_2' && (this.patterns?.[s]?.level ?? 2) !== 1);
                     if (usable.length === 0) {
                         updateStatus('Sacrificial Pyre needs a scroll above Level I in your hand or active area. Level I scrolls can only be activated with it as a response on another player\'s turn. No AP spent.');
                         window.SoundSystem?.play('error');
@@ -4044,7 +4044,7 @@
                 id: 'TRANS-WIN-CON',
                 status: 'open',
                 title: 'Transmute win-condition marker',
-                description: 'Casting Transmute (Fire IV) does not always display the fire ♦ symbol on the player shrine tile. Belt-and-suspenders tracking added inside execute(); still investigating root cause.'
+                description: 'Casting Transmute (Fire III) does not always display the fire ♦ symbol on the player shrine tile. Belt-and-suspenders tracking added inside execute(); still investigating root cause.'
             },
             {
                 id: 'TRANS-DOUBLE-DISP',

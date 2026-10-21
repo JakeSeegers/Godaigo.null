@@ -226,7 +226,7 @@ class ResponseWindowSystem {
             }
         }
 
-        // Sacrificial Pyre (FIRE_SCROLL_3): "Activate any scroll in your hand
+        // Sacrificial Pyre (FIRE_SCROLL_2): "Activate any scroll in your hand
         // or active area (ignoring pattern)." If the player can cast Pyre itself (own pattern
         // formed, sitting in active/common, affordable) and has a Level I
         // response/counter scroll sitting in hand, offer Pyre as a special
@@ -234,7 +234,7 @@ class ResponseWindowSystem {
         // their real response, ignoring ITS pattern requirement. The chosen
         // scroll is free (Pyre's own cost covers it), matching the main-phase
         // sacrifice flow (enterScrollSacrificeMode in scroll-effects.js).
-        const SACRIFICIAL_PYRE = 'FIRE_SCROLL_3';
+        const SACRIFICIAL_PYRE = 'FIRE_SCROLL_2';
         if (allCastableScrolls.includes(SACRIFICIAL_PYRE) && this.checkPatternForPlayer(SACRIFICIAL_PYRE, playerIndex)) {
             const pyreDef = this.spellSystem.patterns[SACRIFICIAL_PYRE];
             const pyreCost = this.spellSystem?.getSpellCost ? this.spellSystem.getSpellCost(pyreDef, playerIndex) : 2;
@@ -1069,7 +1069,7 @@ class ResponseWindowSystem {
 
         // Using Sacrificial Pyre itself activates fire for the responder — this
         // flow bypasses the normal executeSpell/applyScrollEffects pipeline for
-        // FIRE_SCROLL_3 (there's no live cast of Pyre to run it through), which
+        // FIRE_SCROLL_2 (there's no live cast of Pyre to run it through), which
         // is what handles fire crediting for the main-phase sacrifice. The
         // sacrificed scroll's own element is credited separately once it
         // resolves off the response stack below (existing resolveResponseStack
@@ -1080,7 +1080,7 @@ class ResponseWindowSystem {
         if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
             broadcastGameAction('scroll-effect', {
                 playerIndex: myIndex,
-                scrollName: 'FIRE_SCROLL_3',
+                scrollName: 'FIRE_SCROLL_2',
                 effectName: 'Sacrificial Pyre',
                 element: 'fire',
                 activatedElements: ['fire']

@@ -3206,6 +3206,24 @@
                 if (typeof updateScrollDeckUI === 'function') updateScrollDeckUI();
             });
 
+            // Inspiring Draught: the caster put a scroll of that element from their
+            // hand or active area back on top of the deck (scroll-effects.js).
+            gameChannel.on('broadcast', { event: 'inspiring-draught-return' }, ({ payload }) => {
+                const { playerIndex, scrollName, element } = payload || {};
+                const deck = spellSystem.scrollDecks?.[element];
+                if (!deck || !scrollName) return;
+                spellSystem.ensurePlayerScrollsStructure(playerIndex);
+                spellSystem.playerScrolls[playerIndex].hand.delete(scrollName);
+                spellSystem.playerScrolls[playerIndex].active.delete(scrollName);
+                const idx = deck.indexOf(scrollName);
+                if (idx > -1) deck.splice(idx, 1);
+                deck.push(scrollName);
+                spellSystem.validateScrollState();
+                spellSystem.updateScrollCount();
+                updateOpponentPanel();
+                if (typeof updateScrollDeckUI === 'function') updateScrollDeckUI();
+            });
+
             // Listen for Scholar's Insight (Void IV) — remote player searched a deck
             gameChannel.on('broadcast', { event: 'scholars-insight' }, ({ payload }) => {
                 console.log("📄 Received Scholar's Insight:", payload);
@@ -3815,6 +3833,13 @@
                         playerIndex: playerIndex
                     };
                 }
+            });
+
+            // Transmute's opponent option (scroll-effects.js drainPlayerAP).
+            gameChannel.on('broadcast', { event: 'transmute-drain' }, ({ payload }) => {
+                const { targetIndex, amount } = payload || {};
+                if (typeof targetIndex !== 'number' || !(amount > 0)) return;
+                spellSystem?.scrollEffects?.drainPlayerAP?.(targetIndex, Math.min(2, amount));
             });
 
             gameChannel.on('broadcast', { event: 'opponent-stone-destroyed' }, ({ payload }) => {

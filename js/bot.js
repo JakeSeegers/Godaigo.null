@@ -285,7 +285,7 @@
         moveBlockedShrine:  1,   // × the shrine walk value, toward a needed shrine whose
                                  // centre holds a stone (walk up, break it, collect)
 
-        // Stage 2.5: Transmute (Fire IV) target — discard stones for AP
+        // Stage 2.5: Transmute (Fire III) target - discard stones for AP
         // until currentTotalAP reaches this (capped at the real max, 5 +
         // void pool), preferring the stone type held in greatest excess.
         transmuteTargetAP:   7,
@@ -688,7 +688,7 @@
     // makePlan) so undetected this looks identical to "still worth casting"
     // and the bot recasts the same no-op forever. Observed in a BotArena
     // game: a player stuck at 0/5 elements for 200 turns, endlessly
-    // recasting FIRE_SCROLL_3 (Sacrificial Pyre) with an empty hand.
+    // recasting FIRE_SCROLL_2 (Sacrificial Pyre) with an empty hand.
     // preSnap must be taken BEFORE the cast so "expected" reflects what the
     // scroll could still credit; called right after a successful cast apply.
     // A cast that opens a response window only resolves (and grants its
@@ -1060,7 +1060,7 @@
     // them properly through the simulator).
     function castChoiceBonus(a, snap) {
         // Arson / Plunder: hit whoever is closest to winning (activated elements).
-        if ((a.scroll === 'FIRE_SCROLL_5' || a.scroll === 'CATACOMB_SCROLL_8') && a.choice) {
+        if ((a.scroll === 'FIRE_SCROLL_4' || a.scroll === 'CATACOMB_SCROLL_8') && a.choice) {
             const op = snap.players[a.choice.target];
             return op ? op.activated.length : 0;
         }
@@ -1695,7 +1695,7 @@
             // hand / active to sacrifice; without one it gives no fire (2026-10-06
             // stall: a bot holding only Pyre sat at 4/5 for 40 turns, its draw
             // tools never woke up because Pyre "covered" fire).
-            if (name === 'FIRE_SCROLL_3' && !pyreHasTarget(self)) continue;
+            if (name === 'FIRE_SCROLL_2' && !pyreHasTarget(self)) continue;
             const el = def.element;
             let credit = 0;
             if (el === 'catacomb') {
@@ -1792,7 +1792,7 @@
             const els = d.element === 'catacomb' ? (d.patterns?.[0] || []).map(c => c.type) : [d.element];
             return els.some(needs);
         })) out.add('CATACOMB_SCROLL_8');                                    // Plunder
-        if (ELEMENTS.some(el => needs(el) && (lp.pool[el] || 0) >= 2)) out.add('FIRE_SCROLL_5'); // Arson
+        if (ELEMENTS.some(el => needs(el) && (lp.pool[el] || 0) >= 2)) out.add('FIRE_SCROLL_4'); // Arson
         if (h.stones.size >= 2) out.add('CATACOMB_SCROLL_10');               // Combust
         try { if (takeFlightHarm(snap, h.L) >= 0.3) out.add('WIND_SCROLL_5'); } catch (e) {} // Take Flight
         // The pact's scholar builds the pact's attack scroll early (Take
@@ -4178,7 +4178,7 @@
     //    it so the leader cannot collect there.
     // Where each player cast an attack scroll, so its shape can be broken while that
     // scroll is still public (its active area or the common area). Reset each game.
-    const ATTACK_SPOT_SCROLLS = new Set(['WIND_SCROLL_5', 'EARTH_SCROLL_2', 'VOID_SCROLL_2', 'FIRE_SCROLL_5', 'CATACOMB_SCROLL_8']);
+    const ATTACK_SPOT_SCROLLS = new Set(['WIND_SCROLL_5', 'EARTH_SCROLL_2', 'VOID_SCROLL_2', 'FIRE_SCROLL_4', 'CATACOMB_SCROLL_8']);
     const _attackSpots = {}; // seat -> [{ scroll, x, y }], newest last, max 4
     let _attackHook = false;
     function hookAttackSpots() {
@@ -4751,7 +4751,7 @@
                     const gain = Math.min(drawn * 2 * stacks, 5 + (self.pool.void || 0)) - 2;
                     if (gain > 0) out.burn += WEIGHTS.stratBurn * STRAT_AP_WORTH * gain;
                 }
-                if (a.scroll === 'FIRE_SCROLL_2' && stacks === 0 && Object.keys(DRAW_STONE_SCROLLS).some(s => held.has(s))) {
+                if (a.scroll === 'FIRE_SCROLL_5' && stacks === 0 && Object.keys(DRAW_STONE_SCROLLS).some(s => held.has(s))) {
                     out.burn += WEIGHTS.stratBurn * STRAT_AP_WORTH * 3;
                 }
             }
@@ -4943,7 +4943,7 @@
     // Sacrificial Pyre needs another scroll above level I in hand or active.
     function pyreHasTarget(self) {
         return [...(self.hand || []), ...(self.active || [])].some(n =>
-            n !== 'FIRE_SCROLL_3' && (window.SCROLL_DEFINITIONS?.[n]?.level || 0) > 1);
+            n !== 'FIRE_SCROLL_2' && (window.SCROLL_DEFINITIONS?.[n]?.level || 0) > 1);
     }
     // Guard mode (owner, 2026-09-28): an opponent is one cast from winning
     // (BotDiplomacy.alertOn, public info only). Keep a counter (Iron Stance,
@@ -5508,7 +5508,7 @@
                 const n = scrollName(a.scroll);
                 const c = a.choice;
                 const who = i => (typeof getPlayerColorName === 'function') ? getPlayerColorName(i) : `player ${i + 1}`;
-                if (c && a.scroll === 'FIRE_SCROLL_5') return `Cast ${n}: burn one of ${who(c.target)}'s ${c.element} stones`;
+                if (c && a.scroll === 'FIRE_SCROLL_4') return `Cast ${n}: burn one of ${who(c.target)}'s ${c.element} stones`;
                 if (c && a.scroll === 'CATACOMB_SCROLL_8') return `Cast ${n}: send ${who(c.target)}'s ${scrollName(c.scroll)} to the common area`;
                 if (c && a.scroll === 'VOID_SCROLL_5') return `Cast ${n}: draw ${c.element} stones`;
                 if (c && a.scroll === 'WIND_SCROLL_5') return c.target != null ? `Cast ${n}: send ${who(c.target)} to another player's tile` : `Cast ${n}: fly to another player's tile`;

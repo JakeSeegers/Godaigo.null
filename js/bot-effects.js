@@ -387,7 +387,7 @@
     }
 
     // ----------------------------------------------------------------
-    // Arson (FIRE_SCROLL_5) — two steps:
+    // Arson (FIRE_SCROLL_4) - two steps:
     //   1. opponent-select-modal: pick a target opponent. Heuristic: the
     //      biggest threat (rankedOpponents() — most activated elements,
     //      tie-broken by total pool size).
@@ -400,7 +400,7 @@
         const modal = document.getElementById('opponent-select-modal');
         if (!modal) return false;
         const buttons = [...modal.querySelectorAll('button')];
-        const c = takeChoice('FIRE_SCROLL_5');
+        const c = takeChoice('FIRE_SCROLL_4');
         if (c) {
             const btn = buttons.find(b => srcText(b) === seatLabel(c.target));
             if (btn) { pendingStep2 = { kind: 'arson', element: c.element }; btn.click(); return true; }
@@ -599,7 +599,7 @@
     }
 
     // ----------------------------------------------------------------
-    // Sacrificial Pyre (FIRE_SCROLL_3) — modal, single click.
+    // Sacrificial Pyre (FIRE_SCROLL_2) - modal, single click.
     // Choice: one scroll from the caster's OWN hand to sacrifice (sent to
     // the common area, and runs its own effect; no Level I on your own turn).
     // Modal id (scroll-select-modal) is shared with Inspiring Draught's
@@ -616,11 +616,9 @@
     // ----------------------------------------------------------------
     // Inspiring Draught (WATER_SCROLL_3) — two steps:
     //   1. deck-select-modal: toggle ONE element button, then Confirm.
-    //   2. (only if that deck had >=2 scrolls left) scroll-select-modal:
-    //      pick which of the 2 drawn scrolls to put back — the other is
-    //      kept. If only 1 scroll was available it's auto-kept and this
-    //      step never opens; driveSelection()'s polling just sees no more
-    //      modal and moves on, same as any other multi-step flow here.
+    //   2. scroll-select-modal (only with 2+ scrolls of that element in hand
+    //      + active): pick which one goes back on top of the deck. With one
+    //      choice it is returned at once and this step never opens.
     // ----------------------------------------------------------------
     function driveInspiringDraughtDeck(modal) {
         const want = window.SCROLL_DEFINITIONS?.[window.BotSystem?.scholarWanted?.()];

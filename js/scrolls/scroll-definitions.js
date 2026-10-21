@@ -70,7 +70,7 @@ const EARTH_SCROLL_EFFECTS = {
 const WATER_SCROLL_EFFECTS = {
     1: { name: 'Reflect', description: 'Duplicate the effect of the scroll that was last activated this turn.', isResponse: true, oncePerTurn: true },
     2: { name: 'Refreshing Thought', description: 'Draw a Catacomb scroll.' },
-    3: { name: 'Inspiring Draught', description: 'Draw 2 scrolls from any decks, then put 1 back and shuffle that deck.' },
+    3: { name: 'Inspiring Draught', description: 'Draw 2 scrolls from one deck, then return a scroll of that element from your hand or active area to the top of that deck.' },
     4: { name: 'Wandering River', description: 'Select a tile. Until your next turn, that tile counts as any element type you choose.' },
     5: { name: 'Control the Current', description: 'Until end of turn, click adjacent water stones to transform them into any other element (free, no AP cost).' }
 };
@@ -78,10 +78,10 @@ const WATER_SCROLL_EFFECTS = {
 // Fire scroll effect definitions
 const FIRE_SCROLL_EFFECTS = {
     1: { name: 'Unbidden Lamplight', description: 'Response: Send the triggering scroll to your hand after it resolves (scroll still resolves).', isResponse: true, oncePerTurn: true },
-    2: { name: 'Burning Motivation', description: 'Until end of turn, gain 2 AP for each stone you place. Stacks if activated multiple times.' },
-    3: { name: 'Sacrificial Pyre', description: 'Activate any scroll in your hand or active area (ignoring pattern). The scroll goes to the common area. Level I scrolls only as a response, never on your own turn.' },
-    4: { name: 'Transmute', description: 'Discard any number of stones or scrolls to regain 2 AP each.' },
-    5: { name: 'Arson', description: 'Destroy one elemental stone from an opponent\'s pool. Move Arson to the common area.' }
+    2: { name: 'Sacrificial Pyre', description: 'Activate any scroll in your hand or active area (ignoring pattern). The scroll goes to the common area. Level I scrolls only as a response, never on your own turn.' },
+    3: { name: 'Transmute', description: 'Discard any number of stones or scrolls to regain 2 AP each, or pick an opponent to lose 2 AP each instead.' },
+    4: { name: 'Arson', description: 'Destroy one elemental stone from an opponent\'s pool. Move Arson to the common area.' },
+    5: { name: 'Burning Motivation', description: 'Until end of turn, gain 2 AP for each stone you place. Stacks if activated multiple times.' }
 };
 
 // Void scroll effect definitions

@@ -68,7 +68,7 @@
 //               `expiresThisTurn` buff on ANY end turn, not just the
 //               caster's own next one (true even for the couple of these
 //               whose flavor text says "until your next turn"):
-//                 burningMotivationStacks  Burning Motivation (FIRE_2) — +2 AP
+//                 burningMotivationStacks  Burning Motivation (FIRE_5) - +2 AP
 //                   per stack per stone placed (simPlaceStone)
 //                 globalPlacement          Avalanche (EARTH_5) — any stone
 //                   type placeable anywhere this turn (legalActions)
@@ -206,7 +206,7 @@
     // branch), and that element is hidden information — an honest
     // simulation cannot predict the pool change.
     const SIMULATED_SCROLLS = new Set([
-        'VOID_SCROLL_5', 'FIRE_SCROLL_4', 'FIRE_SCROLL_5', 'FIRE_SCROLL_2',
+        'VOID_SCROLL_5', 'FIRE_SCROLL_3', 'FIRE_SCROLL_4', 'FIRE_SCROLL_5',
         'WATER_SCROLL_2', 'EARTH_SCROLL_3', 'EARTH_SCROLL_4', 'CATACOMB_SCROLL_10',
         // Tranche 3/4 (turn buffs — see "Turn buffs" in the file header):
         // Avalanche, Seed the Skies, Respirate, Simplify, Mine, Steam Vents,
@@ -234,7 +234,7 @@
         // Tranche 8 (recursive effect dispatch — simCastEffect() factored
         // out of simCast() so the sacrificed scroll's own effect can be
         // simulated): Sacrificial Pyre.
-        'FIRE_SCROLL_3',
+        'FIRE_SCROLL_2',
         // Tranche 9 (the last two DELIBERATELY NOT WHITELISTED entries):
         // Excavate — a deferred-to-next-turn effect, using the same
         // crossTurnBuffs infrastructure Tranche 7 built, but one that DOES
@@ -793,7 +793,7 @@
         p.pool[a.stoneType]--;
         const placed = { x: +a.x.toFixed(1), y: +a.y.toFixed(1), type: a.stoneType };
         snap.stones.push(placed);
-        // Burning Motivation (FIRE_SCROLL_2): +2 AP per stack, granted the
+        // Burning Motivation (FIRE_SCROLL_5): +2 AP per stack, granted the
         // instant the stone is placed — BEFORE the fire-interaction check, so
         // a stone that gets destroyed the same instant still paid out (mirrors
         // game-core.js's placeStone handler, which calls addAP() ahead of
@@ -879,7 +879,7 @@
         }
     }
 
-    // Transmute (FIRE_SCROLL_4): the driver discards the most-plentiful
+    // Transmute (FIRE_SCROLL_3): the driver discards the most-plentiful
     // NON-void stone (returned to the source pool, capped) for +2 AP each
     // (capped at 5 + void stones held), until total AP reaches
     // min(cap, WEIGHTS.transmuteTargetAP) or stones run out. Never scrolls,
@@ -903,7 +903,7 @@
         }
     }
 
-    // Arson (FIRE_SCROLL_5): the driver targets the biggest threat
+    // Arson (FIRE_SCROLL_4): the driver targets the biggest threat
     // (rankedOpponents: most activated ×1000 + total pool, stable
     // tie-break = lowest index), then destroys 1 stone of that opponent's
     // most-plentiful type — returned to the source pool, same as any other
@@ -1177,8 +1177,8 @@
     const choiceElement = c => (c && ELEMENTS.includes(c.element)) ? c.element : null;
 
     // Inspiring Draught (WATER_SCROLL_3): draws 2 from the most-needed
-    // element's deck, puts 1 back — net effect is always "keep exactly 1"
-    // (even when only 1 was drawable, it's auto-kept), so this is a plain
+    // element's deck, returns 1 of that element (hand or active) to the top:
+    // net effect is about "one more scroll" (none when only 1 was drawable), so a plain
     // +1 UNKNOWN_SCROLL from that deck, same shape as Scholar's Insight.
     // The put-back choice (response-only first, else lowest-level) only
     // affects the DECK, which isn't in the snapshot, so it has no visible
@@ -1272,7 +1272,7 @@
     }
 
     // ── Tranche 3 (turn buffs) ──────────────────────────────────────
-    // Burning Motivation (FIRE_SCROLL_2): no target choice — mirrors
+    // Burning Motivation (FIRE_SCROLL_5): no target choice - mirrors
     // scroll-effects.js's execute() exactly: re-casting by the SAME player
     // (the only caster a single-active-player simulation ever has) increments
     // stacks rather than resetting it. The AP payout itself lives in
@@ -1646,7 +1646,7 @@
 
     // ── Tranche 8 (recursive effect dispatch) ──────────────────────────
 
-    // Sacrificial Pyre (FIRE_SCROLL_3): mirrors enterScrollSacrificeMode()
+    // Sacrificial Pyre (FIRE_SCROLL_2): mirrors enterScrollSacrificeMode()
     // + driveSacrificialPyre() exactly.
     //   1. Choose the WEAKEST eligible hand scroll (real eligibility:
     //      excludes response/counter-only scrolls — they have nothing to
@@ -1666,7 +1666,7 @@
     //      (real code's own comment: "the sacrificed scroll's elements do
     //      NOT count toward win condition" — only FIRE, from casting
     //      Sacrificial Pyre ITSELF, activates, via simCast's normal
-    //      post-effect block using a.scroll = 'FIRE_SCROLL_3', unaffected
+    //      post-effect block using a.scroll = 'FIRE_SCROLL_2', unaffected
     //      by this function). No extra AP cost, no unsimulatedCasts entry
     //      for the chained scroll either — grantedNew would always be
     //      false for it (nothing here ever touches p.activated), so
@@ -1677,7 +1677,7 @@
         // (owner rules, mirrors ScrollEffects.sacrificeCandidates)
         const eligible = [...hand, ...(p.active || [])].filter(name => {
             const d = window.SCROLL_DEFINITIONS?.[name];
-            return d && d.level !== 1 && name !== 'FIRE_SCROLL_3';
+            return d && d.level !== 1 && name !== 'FIRE_SCROLL_2';
         });
         if (!eligible.length) return; // real flow bails: nothing sacrificeable
 
@@ -1712,7 +1712,7 @@
     // them too — see enterScrollSacrificeMode's own "does NOT count toward
     // win condition" comment).
     function simCastEffect(snap, p, scrollName, choice) {
-        if (scrollName === 'FIRE_SCROLL_4') {
+        if (scrollName === 'FIRE_SCROLL_3') {
             // Transmute's execute() activates fire with NO source-pool gate
             // (deliberate belt-and-suspenders in scroll-effects.js) — the
             // real cast activates fire even when the fire source is empty.
@@ -1720,7 +1720,7 @@
             simEffectTransmute(snap, p);
         } else if (scrollName === 'VOID_SCROLL_5') {
             simEffectCreate(snap, p, choice);
-        } else if (scrollName === 'FIRE_SCROLL_5') {
+        } else if (scrollName === 'FIRE_SCROLL_4') {
             simEffectArson(snap, p, scrollName, choice);
         } else if (scrollName === 'WATER_SCROLL_2') {
             simEffectRefreshingThought(snap);
@@ -1730,7 +1730,7 @@
             simEffectHeavyStomp(snap, p, choice);
         } else if (scrollName === 'CATACOMB_SCROLL_10') {
             simEffectCombust(snap);
-        } else if (scrollName === 'FIRE_SCROLL_2') {
+        } else if (scrollName === 'FIRE_SCROLL_5') {
             simEffectBurningMotivation(snap);
         } else if (scrollName === 'EARTH_SCROLL_5') {
             simEffectAvalanche(snap);
@@ -1770,7 +1770,7 @@
             simEffectFreedom(snap, p);
         } else if (scrollName === 'WATER_SCROLL_4') {
             simEffectWanderingRiver(snap, p, choice);
-        } else if (scrollName === 'FIRE_SCROLL_3') {
+        } else if (scrollName === 'FIRE_SCROLL_2') {
             simEffectSacrificialPyre(snap, p);
         } else if (scrollName === 'CATACOMB_SCROLL_4') {
             simEffectExcavate(snap, p);
@@ -1905,7 +1905,7 @@
     //   CATACOMB_SCROLL_9 Quick Reflexes: {element}, whose level-1 scroll
     //     (and 2 stones) to take (top 3 by stone need, still in the deck).
     //   VOID_SCROLL_5 Create: {element} (top 3 by stone need, room in pool).
-    //   FIRE_SCROLL_5 Arson: {target, element} (3 biggest threats x their
+    //   FIRE_SCROLL_4 Arson: {target, element} (3 biggest threats x their
     //     2 largest piles). CATACOMB_SCROLL_8 Plunder: {target, scroll}.
     //   WIND_SCROLL_5 Take Flight: {x, y} landing hex (shrine centres of
     //     occupied tiles, nearest to a face-down tile / home).
@@ -1973,7 +1973,7 @@
             return effectRankedElements(snap, p).filter(e => (p.pool[e] || 0) < POOL_CAP && (snap.sourcePool[e] || 0) > 0)
                 .slice(0, 3).map(element => ({ element }));
         }
-        if (name === 'FIRE_SCROLL_5') {
+        if (name === 'FIRE_SCROLL_4') {
             // Arson: whose stone, and which type (their largest piles).
             const out = [];
             for (const op of opponents.slice(0, 3)) {
@@ -2285,7 +2285,7 @@
             }
         }
 
-        // Burning Motivation (FIRE_SCROLL_2): every placed stone pays +2 AP
+        // Burning Motivation (FIRE_SCROLL_5): every placed stone pays +2 AP
         // per stack, so a spare stone is worth placing just for the AP.
         // One adjacent hex per held type (where it survives) keeps the tree
         // small; the evaluator weighs the stone against the AP.
