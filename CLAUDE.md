@@ -89,6 +89,7 @@ CLAUDE.md  (you are here)
 │   └── js/scrolls/INDEX.md  ← Scroll system: definitions, effects, response window
 ├── css/INDEX.md             ← Stylesheet responsibilities and token locations
 ├── joytone/                 ← Embedded Joytone music app (iframe; driven by js/joytone-bridge.js)
+│                              tools/joytone-measure.mjs renders + measures it (loudness, clipping, clicks, spectrograms; tools/README.md)
 ├── docs/INDEX.md            ← Game design doc pointer, design decisions
 └── planning/current.md      ← Live task state (branch, files, next steps)
 ```
@@ -137,6 +138,12 @@ Order matters — later scripts depend on earlier ones.
 8. joytone-bridge.js       ← window.JoytoneBridge: adaptive music via hidden joytone/ iframe (Shift+J+T popup).
                              Salsa mode: in Spanish (I18n.lang 'es', also on a mid-game switch) calls JoytoneAPI.setSalsa(true):
                              tempo x1.12 and a synthesized clave 3-2 / cowbell / conga layer (joytone/index.html scheduleSalsa).
+                             Mix (2026-10-21, measured with tools/joytone-measure.mjs): in the game the music is trimmed 6 dB
+                             (embed adapter GAME_TRIM 0.5, about -23 LUFS at volume 1) so effects read over it; master TONE stage
+                             (buildToneStage, live + bounce, after the bass shelf): sub cut 32 Hz, "laptop bass" (bass overtones
+                             200 Hz-1.2 kHz from a saturated copy, harmGain 2), presence +3 dB at 1.4 kHz, air +2 dB. Sound effect
+                             files were raised to fixed targets (as played: big moments ~-14 LUFS, actions ~-17, clicks ~-20/-24,
+                             footsteps ~-26); a new effect should match (the measure report lists every effect vs the music).
 9. game-core.js            ← SpellSystem, placeTile, revealTile, addAP, movement. Also the REAL home of TILE_SIZE/STONE_TYPES/PLAYER_COLORS/etc. (config.js is dead — see above)
 9b. bot-elements.js        ← window.BotElements — the five fixed elemental bots: colour→element map, names, per-element weight "lean" overlays, runtime id resolution. No BotSystem dep at load. Must precede gamification-ui.js + lobby.js.
 10. effects-system.js      ← window.effectsSystem — sprite/particle visual effect definitions (fire, etc.), no game logic
