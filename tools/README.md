@@ -78,6 +78,13 @@ warnings, change since the last run), `report.json`, one `.wav` and one `.png`
 them on the same scales. Before / after a Joytone change: run, change, run
 again, read `report.md`.
 
+`--tone '{"harmGain":3,"bassGain":5}'` tries other values of the TONE stage
+(joytone/index.html) or the master bass shelf without editing the file. The
+"On laptop" column is the music through a 200 Hz high-pass, like small
+speakers. Sound effect targets (as played): big moments about -14 LUFS max
+momentary, actions about -17, clicks -20 to -24, footsteps about -26, with the
+in-game music at about -23.
+
 Limits: a fresh browser has no saved Joytone FX states, like most players. The
 first 16 s of each scenario is mostly the theme's opening section, so use
 `--seconds 60` or more to hear later sections. ffmpeg 6.1 draws spectrograms

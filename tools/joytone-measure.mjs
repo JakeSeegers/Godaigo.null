@@ -28,6 +28,10 @@
 //   node tools/joytone-measure.mjs --list              list the scenarios
 //   node tools/joytone-measure.mjs --no-sfx            skip the sound effects
 //   node tools/joytone-measure.mjs --headful           show the browser
+//   node tools/joytone-measure.mjs --tone '{"harmGain":0.8}'
+//                                                      try other TONE settings (joytone/index.html)
+//                                                      without editing the file; "bassGain" = master
+//                                                      bass shelf in dB (THEME_MASTER_FX)
 //
 // Output (git-ignored), default tools/.cache/joytone-measure/:
 //   report.md        tables + warnings, with changes since the last run
@@ -56,6 +60,7 @@ const OUT = path.resolve(ROOT, String(opt('out', 'tools/.cache/joytone-measure')
 const HEADFUL = !!opt('headful', false);
 const DO_SFX = !args.includes('--no-sfx');
 const SR = 44100;
+const TONE_OVERRIDE = opt('tone', null) ? JSON.parse(opt('tone')) : null;
 
 // Each scenario: a fresh page, then setup in the page, then SECONDS of recording.
 // tension: 0..1 (game-core.js updateMusicTension). tile: an element riff
@@ -104,9 +109,16 @@ function serve() {
 // ── In-page recorder ─────────────────────────────────────────────────
 // Runs inside joytone/index.html. audioCtx / softClip / masterOut are its
 // script-level lets, so page.evaluate can reach them by name.
-async function recordInPage({ sc, seconds }) {
+async function recordInPage({ sc, seconds, tone }) {
     const A = window.JoytoneAPI;
+    if (tone) Object.assign(TONE, tone); // before boot builds the audio graph
+    const shelf = () => { // tone.bassGain: try another master bass shelf (dB) too
+        if (tone?.bassGain == null) return;
+        project.masterFx.bassGain = tone.bassGain;
+        bassBoost.gain.value = tone.bassGain;
+    };
     await A.boot();
+    shelf();
     if (sc.salsa) A.setSalsa(true);
     A.setTension(sc.tension);
     if (sc.tile) {
@@ -192,9 +204,12 @@ function writeWav(file, inter, sr) {
 }
 
 // ── ffmpeg: loudness ─────────────────────────────────────────────────
-function ebur128(file, volume = 1) {
+// Laptop speakers: almost nothing below about 200 Hz. Two 2nd-order high-pass
+// filters (24 dB per octave) at 200 Hz stand in for one.
+const LAPTOP = 'highpass=f=200:p=2,highpass=f=200:p=2';
+function ebur128(file, volume = 1, pre = '') {
     // apad: sounds shorter than 400 ms still get a momentary (M) reading.
-    const af = (volume !== 1 ? `volume=${volume},` : '') + 'apad=pad_dur=0.5,ebur128=peak=true';
+    const af = (pre ? pre + ',' : '') + (volume !== 1 ? `volume=${volume},` : '') + 'apad=pad_dur=0.5,ebur128=peak=true';
     const txt = execFileSyncSafe('ffmpeg', ['-hide_banner', '-nostats', '-i', file, '-af', af, '-f', 'null', '-']);
     const summary = txt.slice(txt.lastIndexOf('Summary:'));
     const g = (re) => { const m = summary.match(re); return m ? (m[1] === '-inf' ? -Infinity : Number(m[1])) : NaN; };
@@ -396,18 +411,19 @@ async function main() {
         try {
             await page.goto(base);
             await page.waitForFunction(() => window.JoytoneAPI, null, { timeout: 20000 });
-            const got = await page.evaluate(recordInPage, { sc, seconds: SECONDS });
+            const got = await page.evaluate(recordInPage, { sc, seconds: SECONDS, tone: TONE_OVERRIDE });
             const raw = Buffer.from(got.b64, 'base64');
             const inter = new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4);
             const wav = path.join(OUT, sc.name + '.wav');
             writeWav(wav, inter, got.sampleRate);
             const loud = ebur128(wav);
+            const laptop = ebur128(wav, 1, LAPTOP);
             const S = loud.S.filter(x => x.t >= 3 && Number.isFinite(x.v) && x.v > -70).map(x => x.v);
             const samples = analyze(inter, got.sampleRate);
             const pre = { peakDb: r1(db(got.preStats.peak)), overPct: got.preStats.n ? Math.round(1000 * got.preStats.over / got.preStats.n) / 10 : 0 };
             const r = {
                 name: sc.name, about: sc.about, tempo: got.state.tempo, salsa: got.state.salsa, riffs: got.state.used,
-                loud: { I: r1(loud.I), LRA: r1(loud.LRA), TP: r1(loud.TP), Smin: r1(Math.min(...S)), Smax: r1(Math.max(...S)) },
+                loud: { I: r1(loud.I), LRA: r1(loud.LRA), TP: r1(loud.TP), laptop: r1(laptop.I), Smin: r1(Math.min(...S)), Smax: r1(Math.max(...S)) },
                 pre, samples, events: got.events, errors: errors.slice(0, 5),
             };
             if (sc.sweep) {
@@ -451,7 +467,7 @@ async function main() {
 
     const ok = results.filter(r => !r.failed);
     const musicRef = ok.find(r => r.name === 'calm') || ok[0];
-    const report = { when: new Date().toISOString(), seconds: SECONDS, scenarios: results, sfx };
+    const report = { when: new Date().toISOString(), seconds: SECONDS, tone: TONE_OVERRIDE, scenarios: results, sfx };
     fs.writeFileSync(prevFile, JSON.stringify(report, null, 1));
     fs.writeFileSync(path.join(OUT, 'report.md'), toMarkdown(report, prev, musicRef));
     say(`Done. Read ${path.relative(ROOT, path.join(OUT, 'report.md'))} and grid.png`);
@@ -462,15 +478,18 @@ function toMarkdown(rep, prev, musicRef) {
     const delta = (a, b) => (Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) >= 0.1) ? ` (${a - b > 0 ? '+' : ''}${r1(a - b)})` : '';
     const L = [];
     L.push(`# Joytone measure report`, ``, `${rep.when}, ${rep.seconds} s per scenario, output at volume 1.`);
+    if (rep.tone) L.push(``, `TONE override for this run: \`${JSON.stringify(rep.tone)}\``);
     if (prev) L.push(`Numbers in brackets = change since the run of ${prev.when}.`);
     L.push(``, `Targets for game background music: about -20 to -16 LUFS integrated, true peak under -1 dBTP,`,
-        `scenarios within about 3 LU of each other so a mood change does not jump in volume.`, ``);
-    L.push(`| Scenario | BPM | Integrated LUFS | Short-term min / max | LRA | True peak dBTP | Into clipper | Centroid Hz | Low / mid / high dB | Corr | Warnings |`);
-    L.push(`|---|---|---|---|---|---|---|---|---|---|---|`);
+        `scenarios within about 3 LU of each other so a mood change does not jump in volume.`,
+        `"On laptop" = the same music through a 200 Hz high-pass like small laptop speakers (in brackets: how much`,
+        `quieter it gets). A big drop means most of the music is bass the speakers cannot play.`, ``);
+    L.push(`| Scenario | BPM | Integrated LUFS | On laptop LUFS | Short-term min / max | LRA | True peak dBTP | Into clipper | Centroid Hz | Low / mid / high dB | Corr | Warnings |`);
+    L.push(`|---|---|---|---|---|---|---|---|---|---|---|---|`);
     for (const r of rep.scenarios) {
-        if (r.failed) { L.push(`| ${r.name} | | FAILED: ${r.failed} | | | | | | | | |`); continue; }
+        if (r.failed) { L.push(`| ${r.name} | | FAILED: ${r.failed} | | | | | | | | | |`); continue; }
         const p = P.get(r.name);
-        L.push(`| ${r.name} | ${r.tempo} | ${fmt(r.loud.I)}${delta(r.loud.I, p?.loud?.I)} | ${fmt(r.loud.Smin)} / ${fmt(r.loud.Smax)} | ${fmt(r.loud.LRA)} | ${fmt(r.loud.TP)}${delta(r.loud.TP, p?.loud?.TP)} | ${r.pre.overPct}% (peak ${fmt(r.pre.peakDb)}) | ${r.samples.centroidHz} | ${fmt(r.samples.bands.low)} / ${fmt(r.samples.bands.mid)} / ${fmt(r.samples.bands.high)} | ${r.samples.correlation} | ${r.warnings.length} |`);
+        L.push(`| ${r.name} | ${r.tempo} | ${fmt(r.loud.I)}${delta(r.loud.I, p?.loud?.I)} | ${fmt(r.loud.laptop)}${delta(r.loud.laptop, p?.loud?.laptop)} (${fmt(r.loud.laptop - r.loud.I)}) | ${fmt(r.loud.Smin)} / ${fmt(r.loud.Smax)} | ${fmt(r.loud.LRA)} | ${fmt(r.loud.TP)}${delta(r.loud.TP, p?.loud?.TP)} | ${r.pre.overPct}% (peak ${fmt(r.pre.peakDb)}) | ${r.samples.centroidHz} | ${fmt(r.samples.bands.low)} / ${fmt(r.samples.bands.mid)} / ${fmt(r.samples.bands.high)} | ${r.samples.correlation} | ${r.warnings.length} |`);
     }
     const Is = rep.scenarios.filter(r => !r.failed).map(r => r.loud.I).filter(Number.isFinite);
     if (Is.length > 1) L.push(``, `Spread of integrated loudness across scenarios: ${r1(Math.max(...Is) - Math.min(...Is))} LU.`);

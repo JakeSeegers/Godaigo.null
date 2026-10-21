@@ -2247,6 +2247,9 @@ window.I18N_ES = {
     // Change Log 2026-10-21
     "Telekinesis rule": "Regla de Telequinesis",
     "Telekinesis rule and wind scrolls": "Regla de Telequinesis y pergaminos de viento",
+    "Telekinesis rule, wind scrolls and sound": "Regla de Telequinesis, pergaminos de viento y sonido",
+    "Sound mix: the music is a little quieter and many sound effects that were hard to hear are now clear.": "Mezcla de sonido: la música suena un poco más baja y muchos efectos de sonido que casi no se oían ahora se oyen claros.",
+    "The music's bass now comes through on laptop and phone speakers, and the melody stands out more.": "Los graves de la música ahora se oyen en los altavoces de portátiles y móviles, y la melodía destaca más.",
     "Freedom is now a level 4 wind scroll and Take Flight is now level 5. Their stone shapes swap too.": "Libertad ahora es un pergamino de viento de nivel 4 y Alzar el Vuelo ahora es de nivel 5. Sus formas de piedras también se intercambian.",
     "Telekinesis: after the move, every tile must touch at least 2 others, and the board must stay in one piece.": "Telequinesis: tras moverla, cada loseta debe tocar al menos otras 2, y el tablero debe quedar en una sola pieza.",
 };

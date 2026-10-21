@@ -45,7 +45,9 @@
             try {
                 if (window.gameSoundEnabled === false) return;
                 const a = new Audio('sounds/windactivates.mp3');
-                a.volume = 0.55;
+                // windactivates.mp3 was raised ~39 dB (2026-10-21, it was near silent);
+                // 0.25 keeps the three whooshes a soft accent under the music.
+                a.volume = 0.25;
                 a.playbackRate = 1.15;
                 a.play().catch(() => {});
             } catch (e) {}

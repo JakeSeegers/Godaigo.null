@@ -4,10 +4,12 @@
     {
       "id": "2026-10-21",
       "date": "2026-10-21",
-      "title": "Telekinesis rule and wind scrolls",
+      "title": "Telekinesis rule, wind scrolls and sound",
       "changes": [
         "Telekinesis: after the move, every tile must touch at least 2 others, and the board must stay in one piece.",
-        "Freedom is now a level 4 wind scroll and Take Flight is now level 5. Their stone shapes swap too."
+        "Freedom is now a level 4 wind scroll and Take Flight is now level 5. Their stone shapes swap too.",
+        "Sound mix: the music is a little quieter and many sound effects that were hard to hear are now clear.",
+        "The music's bass now comes through on laptop and phone speakers, and the melody stands out more."
       ]
     },
     {

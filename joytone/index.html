@@ -905,6 +905,63 @@ function loadSaved() {
   } catch(e) { return false; }
 }
 
+// ── TONE STAGE (laptop translation) ───────────────────────────────
+// Sits between the bass shelf and the compressor, live and in the bounce.
+// Measured with tools/joytone-measure.mjs (2026-10-21): almost all the
+// music's energy was below 250 Hz, so through laptop speakers (nothing
+// under ~200 Hz) it lost 10-15 dB and the bass vanished. Three parts:
+//   sub cut:    high-pass under the audible bass; frees headroom the
+//               compressor was spending on rumble.
+//   laptop bass: a parallel copy of the bass, driven through a lopsided
+//               saturator, keeps only its overtones (200 Hz to ~1.2 kHz).
+//               Small speakers can play those, and the ear hears the low
+//               note from them ("missing fundamental"). On headphones it
+//               reads as a little extra warmth.
+//   presence:   a broad lift where the melody instruments live.
+const TONE = {
+  subCutHz: 32,
+  harmLowpassHz: 150,   // what counts as bass for the overtone copy
+  harmDrive: 5,         // saturator drive (higher = more overtones)
+  harmBias: 0.3,        // lopsided curve -> even overtones (octaves) too
+  harmHighpassHz: 200,  // keep only what laptop speakers can play
+  harmTopHz: 1200,
+  harmGain: 2,         // laptop: calm theme lost 15 dB -> 9, fire riff 10 -> 5
+  presenceHz: 1400, presenceQ: 0.6, presenceDb: 3,
+  airHz: 6000, airDb: 2,
+};
+function buildHarmCurve(drive, bias) {
+  const n = 1024, c = new Float32Array(n), off = Math.tanh(drive * bias);
+  for (let i = 0; i < n; i++) {
+    const x = i * 2 / (n - 1) - 1;
+    c[i] = (Math.tanh(drive * (x + bias)) - off) / 2;
+  }
+  return c;
+}
+function buildToneStage(ctx) {
+  const T = TONE;
+  const input = ctx.createGain(), output = ctx.createGain();
+  const filt = (type, f, q, g) => {
+    const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f;
+    if (q != null) b.Q.value = q; if (g != null) b.gain.value = g; return b;
+  };
+  const sub = filt('highpass', T.subCutHz, 0.7);
+  input.connect(sub);
+  // dry path
+  const presence = filt('peaking', T.presenceHz, T.presenceQ, T.presenceDb);
+  const air = filt('highshelf', T.airHz, null, T.airDb);
+  sub.connect(presence); presence.connect(air); air.connect(output);
+  // overtone path
+  const lp1 = filt('lowpass', T.harmLowpassHz, 0.7), lp2 = filt('lowpass', T.harmLowpassHz, 0.7);
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = buildHarmCurve(T.harmDrive, T.harmBias); shaper.oversample = '2x';
+  const hp1 = filt('highpass', T.harmHighpassHz, 0.7), hp2 = filt('highpass', T.harmHighpassHz, 0.7);
+  const top = filt('lowpass', T.harmTopHz, 0.7);
+  const harmGain = ctx.createGain(); harmGain.gain.value = T.harmGain;
+  sub.connect(lp1); lp1.connect(lp2); lp2.connect(shaper); shaper.connect(hp1);
+  hp1.connect(hp2); hp2.connect(top); top.connect(harmGain); harmGain.connect(output);
+  return { input, output, harmGain };
+}
+
 // ── AUDIO INIT ─────────────────────────────────────────────────────
 async function ensureAudio() {
   if (!powerOn) return;   // master power off: never create or resume the audio engine
@@ -975,7 +1032,9 @@ async function ensureAudio() {
   rrLp.connect(bassBoost);
   delayReturn.connect(bassBoost);
   masterBus.connect(bassBoost);
-  bassBoost.connect(compressor);
+  const tone = buildToneStage(audioCtx);
+  bassBoost.connect(tone.input);
+  tone.output.connect(compressor);
   compressor.connect(outputLimiter);
 
   // ── DeRez — synchronous dry/wet split after limiter ────────────
@@ -4987,7 +5046,9 @@ async function bounceWav() {
   oLim.threshold.value=project.masterFx.limiterCeiling ?? -1; oLim.ratio.value=20; oLim.knee.value=0; oLim.attack.value=0.001; oLim.release.value=0.05;
   const oBus    = oCtx.createGain(); oBus.gain.value = 1.0;                              // unity into the dynamics
   const oOut    = oCtx.createGain(); oOut.gain.value = project.masterFx.masterVolume;    // VOL: post-dynamics output trim
-  oRvRet.connect(oComp); oRrRet.connect(oRrLp); oRrLp.connect(oComp); oDlRet.connect(oComp); oBus.connect(oComp);
+  const oTone   = buildToneStage(oCtx);   // same laptop translation as live
+  oTone.output.connect(oComp);
+  oRvRet.connect(oTone.input); oRrRet.connect(oRrLp); oRrLp.connect(oTone.input); oDlRet.connect(oTone.input); oBus.connect(oTone.input);
   oComp.connect(oLim); oLim.connect(oOut); oOut.connect(oCtx.destination);
 
   // Schedule all sections
@@ -5952,6 +6013,10 @@ init();
   const usedGenerations = new Set(); // generation keys already in the playlist
   let bridgeGain = null;             // parent-controlled trim after masterOut
   let _volume = 1, _muted = false;
+  // In the game the music sits ~6 dB lower than the app's own level so sound
+  // effects read over it: about -23 LUFS at volume 1 (was about -17, louder
+  // than every effect; tools/joytone-measure.mjs, 2026-10-21).
+  const GAME_TRIM = 0.5;
   let booted = false;
   let _queue = Promise.resolve();    // serializes grows so RNG swaps can't interleave
 
@@ -5977,14 +6042,14 @@ init();
   function installBridgeGain() {
     if (!audioCtx || !masterOut || bridgeGain) return;
     bridgeGain = audioCtx.createGain();
-    bridgeGain.gain.value = _muted ? 0 : _volume;
+    bridgeGain.gain.value = _muted ? 0 : _volume * GAME_TRIM;
     masterOut.disconnect();
     masterOut.connect(bridgeGain);
     if (softClip) bridgeGain.connect(softClip);
     else bridgeGain.connect(audioCtx.destination);
   }
   function applyBridgeGain() {
-    if (bridgeGain && audioCtx) bridgeGain.gain.setTargetAtTime(_muted ? 0 : _volume, audioCtx.currentTime, 0.03);
+    if (bridgeGain && audioCtx) bridgeGain.gain.setTargetAtTime(_muted ? 0 : _volume * GAME_TRIM, audioCtx.currentTime, 0.03);
   }
 
   let pendingPlay = false; // autoplay was blocked at boot — start on next gesture
