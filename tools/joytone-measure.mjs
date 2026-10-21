@@ -119,7 +119,8 @@ function serve() {
 async function recordInPage({ sc, seconds, tone }) {
     const A = window.JoytoneAPI;
     if (tone) Object.assign(TONE, tone); // before boot builds the audio graph
-    if (tone?.partials) BASS_PARTIALS.splice(0, BASS_PARTIALS.length, ...tone.partials);
+    // tone.partials: only for a playBass with BASS_PARTIALS (tried 2026-10-21, not in the game now)
+    if (tone?.partials && typeof BASS_PARTIALS !== 'undefined') BASS_PARTIALS.splice(0, BASS_PARTIALS.length, ...tone.partials);
     const shelf = () => { // tone.bassGain: try another master bass shelf (dB) too
         if (tone?.bassGain == null) return;
         project.masterFx.bassGain = tone.bassGain;

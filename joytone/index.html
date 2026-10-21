@@ -905,23 +905,38 @@ function loadSaved() {
   } catch(e) { return false; }
 }
 
-// ── TONE STAGE ─────────────────────────────────────────────────────
+// ── TONE STAGE (laptop translation) ───────────────────────────────
 // Sits between the bass shelf and the compressor, live and in the bounce.
 // Measured with tools/joytone-measure.mjs (2026-10-21): almost all the
-// music's energy was below 250 Hz.
-//   sub cut:  high-pass under the audible bass; frees headroom the
-//             compressor was spending on rumble.
-//   presence: a broad lift where the melody instruments live.
-//   air:      a small top lift.
-// (A first try also had a "laptop bass" layer: the whole bass bus driven
-// through a saturator. It sounded like a buzzing frog, because the kick and
-// every bass note distorted together. Laptop bass now comes from clean
-// overtones built into the bass voice: BASS_PARTIALS in playBass.)
+// music's energy was below 250 Hz, so through laptop speakers (nothing
+// under ~200 Hz) it lost 10-15 dB and the bass vanished. Three parts:
+//   sub cut:    high-pass under the audible bass; frees headroom the
+//               compressor was spending on rumble.
+//   laptop bass: a parallel copy of the bass, driven through a lopsided
+//               saturator, keeps only its overtones (200 Hz to ~1.2 kHz).
+//               Small speakers can play those, and the ear hears the low
+//               note from them ("missing fundamental"). On headphones it
+//               reads as a little extra warmth.
+//   presence:   a broad lift where the melody instruments live.
 const TONE = {
   subCutHz: 32,
+  harmLowpassHz: 150,   // what counts as bass for the overtone copy
+  harmDrive: 5,         // saturator drive (higher = more overtones)
+  harmBias: 0.3,        // lopsided curve -> even overtones (octaves) too
+  harmHighpassHz: 200,  // keep only what laptop speakers can play
+  harmTopHz: 1200,
+  harmGain: 2,         // laptop: calm theme lost 15 dB -> 9, fire riff 10 -> 5
   presenceHz: 1400, presenceQ: 0.6, presenceDb: 3,
   airHz: 6000, airDb: 2,
 };
+function buildHarmCurve(drive, bias) {
+  const n = 1024, c = new Float32Array(n), off = Math.tanh(drive * bias);
+  for (let i = 0; i < n; i++) {
+    const x = i * 2 / (n - 1) - 1;
+    c[i] = (Math.tanh(drive * (x + bias)) - off) / 2;
+  }
+  return c;
+}
 function buildToneStage(ctx) {
   const T = TONE;
   const input = ctx.createGain(), output = ctx.createGain();
@@ -930,10 +945,21 @@ function buildToneStage(ctx) {
     if (q != null) b.Q.value = q; if (g != null) b.gain.value = g; return b;
   };
   const sub = filt('highpass', T.subCutHz, 0.7);
+  input.connect(sub);
+  // dry path
   const presence = filt('peaking', T.presenceHz, T.presenceQ, T.presenceDb);
   const air = filt('highshelf', T.airHz, null, T.airDb);
-  input.connect(sub); sub.connect(presence); presence.connect(air); air.connect(output);
-  return { input, output };
+  sub.connect(presence); presence.connect(air); air.connect(output);
+  // overtone path
+  const lp1 = filt('lowpass', T.harmLowpassHz, 0.7), lp2 = filt('lowpass', T.harmLowpassHz, 0.7);
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = buildHarmCurve(T.harmDrive, T.harmBias); shaper.oversample = '2x';
+  const hp1 = filt('highpass', T.harmHighpassHz, 0.7), hp2 = filt('highpass', T.harmHighpassHz, 0.7);
+  const top = filt('lowpass', T.harmTopHz, 0.7);
+  const harmGain = ctx.createGain(); harmGain.gain.value = T.harmGain;
+  sub.connect(lp1); lp1.connect(lp2); lp2.connect(shaper); shaper.connect(hp1);
+  hp1.connect(hp2); hp2.connect(top); top.connect(harmGain); harmGain.connect(output);
+  return { input, output, harmGain };
 }
 
 // ── AUDIO INIT ─────────────────────────────────────────────────────
@@ -1723,34 +1749,19 @@ function playPluck(freq,dur,t,dest) {
   src.start(t); src.stop(t + period*2 + 0.01);
 }
 
-// Quiet clean overtones on top of the bass sine: [harmonic, level vs the
-// fundamental]. A pure sine under ~150 Hz is silent on laptop and phone
-// speakers (nothing below ~200 Hz); these partials sit at 2-5x the note, so
-// small speakers play them and the ear hears the low note from them. On
-// headphones they read as a rounder, warmer bass. Partials above 900 Hz are
-// skipped (high notes need no help). Vibrato is in cents (detune) so every
-// partial stays in tune with the fundamental.
-const BASS_PARTIALS = [[2, 0.30], [3, 0.16], [4, 0.09], [5, 0.05]];
 function playBass(freq,dur,t,dest) {
   const ctx=audioCtx;
-  const vib=ctx.createOscillator(), vibG=ctx.createGain();
+  const osc=ctx.createOscillator(), vib=ctx.createOscillator(), vibG=ctx.createGain();
   const f=ctx.createBiquadFilter(), g=ctx.createGain();
-  vib.type='sine'; vib.frequency.value=3.2; vibG.gain.value=13.8; // cents (was 0.8% of freq)
-  f.type='lowpass'; f.frequency.value=Math.min(freq*10, 2400); f.Q.value=0.7;
+  osc.type='sine'; osc.frequency.value=freq;
+  vib.type='sine'; vib.frequency.value=3.2; vibG.gain.value=freq*0.008;
+  f.type='lowpass'; f.frequency.value=freq*4; f.Q.value=0.7;
   const atk=0.06, rel=Math.min(0.4,dur*0.25);
   g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.22,t+atk);
   g.gain.setValueAtTime(0.22,t+dur-rel); g.gain.exponentialRampToValueAtTime(0.0001,t+dur+0.15);
-  vib.connect(vibG);
-  for (const [h, lv] of [[1, 1], ...BASS_PARTIALS]) {
-    if (h > 1 && freq*h > 900) continue;
-    const osc=ctx.createOscillator(), pg=ctx.createGain();
-    osc.type='sine'; osc.frequency.value=freq*h; pg.gain.value=lv;
-    vibG.connect(osc.detune);
-    osc.connect(pg); pg.connect(f);
-    osc.start(t); osc.stop(t+dur+0.2);
-  }
-  f.connect(g); g.connect(dest);
-  vib.start(t); vib.stop(t+dur+0.2);
+  vib.connect(vibG); vibG.connect(osc.frequency);
+  osc.connect(f); f.connect(g); g.connect(dest);
+  vib.start(t); vib.stop(t+dur+0.2); osc.start(t); osc.stop(t+dur+0.2);
 }
 
 function playOrgan(freq,dur,t,dest) {
@@ -4061,9 +4072,10 @@ const THEME_FX = {
     "effects": { "reverbMix":0.2, "reverbDecay":2, "delayMix":0.22, "delayTime":0.61, "delayFeedback":0.35, "delaySync":"1/1", "pan":0, "eqHPF":100, "eqLowGain":-3, "eqMidFreq":1500, "eqMidGain":-5, "eqMidQ":0.8, "eqHighGain":3.5, "filterType":"lowpass", "filterCutoff":600, "filterRes":2.3, "lfoDepth":0.04, "lfoRate":12.9, "wowDepth":0.003, "distDrive":0.39, "distMix":0.08, "revrevSend":0.15 }
   }
 };
-// Owner's FX 1 master (2026-10-21, tuned by ear on laptop + headphones after
-// the first laptop-bass pass): bass shelf cut, harder compression, low
-// limiter. In a game, setTension() takes over the three derez values.
+// Owner's FX 1 master (2026-10-21, tuned by ear on laptop + headphones on top
+// of the laptop-bass TONE stage): bass shelf cut (it also keeps the overtone
+// copy from buzzing), harder compression, low limiter. In a game, setTension()
+// takes over the three derez values.
 const THEME_MASTER_FX = {"compThreshold":-37,"compRatio":6,"compMakeup":0,"bassGain":-6.5,"bassFreq":120,"masterVolume":0.58,"limiterCeiling":-20.5,"hissLevel":0.002,"derezBits":12,"derezRate":0.07,"derezMix":0.91};
 
 // Build the theme as a native project, optionally transposed / re-orchestrated
