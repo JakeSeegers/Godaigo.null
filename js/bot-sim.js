@@ -1064,7 +1064,7 @@
         if (bOccupant !== undefined) { snap.players[bOccupant].x = b.x; snap.players[bOccupant].y = b.y; }
     }
 
-    // Take Flight (WIND_SCROLL_5): self-target only — mirrors the real
+    // Take Flight (WIND_SCROLL_5): self-target only - mirrors the real
     // driver's own v1 scope exactly (bot-effects.js's
     // driveTakeFlightPlayerModal always picks self; opponent-targeting is
     // deliberately out of scope there too). Candidate hexes are every walkable

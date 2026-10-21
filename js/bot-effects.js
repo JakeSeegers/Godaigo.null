@@ -905,7 +905,7 @@
     }
 
     // ----------------------------------------------------------------
-    // Take Flight (WIND_SCROLL_5) — two steps:
+    // Take Flight (WIND_SCROLL_5) - two steps:
     //   1. take-flight-player-modal: pick a target. An opponent when the
     //      cast's choice says so (bot.js harmChoices / takeFlightHarm,
     //      2026-09-29: move the leader off a shrine, a ready pattern or its
