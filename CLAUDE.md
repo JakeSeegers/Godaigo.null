@@ -573,6 +573,8 @@ Order matters — later scripts depend on earlier ones.
                              and Heavy Stomp revealing one (BotSim castChoices adds that tile). placeStartRoom (OFF, 0; alone 17-23-0):
                              startTileScore adds face-down tiles within START_REACH 250 of a start spot, those an earlier placer also reaches x0.25.
                              Test hooks _cutoffValues, _review.cutoffSeen.
+                             transmuteDrain (owner 2026-10-21, 60): Transmute on an opponent with a response ready (BotSim.transmuteDrainPlan;
+                             snapshot players carry public ap / respCost / immune) when another level 2+ cast is ready; driveTransmute drains it.
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
                              covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
                              castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).
@@ -787,6 +789,9 @@ Order matters — later scripts depend on earlier ones.
                              Phase 2: pressures(o) (elements weighted by difficulty, void most; clear leader 1.5 / 3 el or 2+ ahead 2 / 5 el or 3+ ahead 2.5 / can win 4, x favor) weight
                              opponentProgress in evaluateSnapshot, tacticalContext blocking, Arson/Plunder targets;
                              bot.js kingmakerFilter never lets an opponent with 5 elements get within 5 AP of home.
+                             Transmute drains (2026-10-21): scroll-effects.js drainPlayerAP logs ActionLog 'transmuteDrain' {caster, target, amount,
+                             blockedReply} on every browser; favor -0.05 per AP, -0.25 more when it took a reply the bot could pay for
+                             (BotSim.readyReplies); one note per attacker per turn, grudge at -0.25, counts as aimed harm for pacts.
                              Phase 3: emote sentences (say(): Game Log 'botTalk' line at once, emotes queued; online
                              the emoji broadcast carries `talk`), one-round pacts against the leader or (grudge pacts) against whoever hurt a bot, trust from
                              kept / withdrawn / broken pacts, thanks and grudges. Silent in muted training.

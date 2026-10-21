@@ -4530,7 +4530,7 @@ const ScrollEffects = {
             lockTargets();
             if (drainTarget == null) return gainAPCapped(2);
             const amount = Math.min(2, targetAP(drainTarget));
-            self.drainPlayerAP(drainTarget, amount);
+            self.drainPlayerAP(drainTarget, amount, casterIndex);
             if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
                 broadcastGameAction('transmute-drain', { casterIndex, targetIndex: drainTarget, amount });
             }
@@ -4801,8 +4801,21 @@ const ScrollEffects = {
     // browser runs this (caster locally, others via 'transmute-drain') on its
     // own copy: the target's own browser on its live AP, a host driving a bot
     // on its kept AP, everyone else on the playerAPs snapshot.
-    drainPlayerAP(targetIndex, amount) {
+    drainPlayerAP(targetIndex, amount, casterIndex) {
         if (!(amount > 0)) return;
+        // Every browser logs it (bot-diplomacy.js reads it on the host and in training):
+        // blocked = the target could pay for a ready reply before and cannot now.
+        try {
+            const rw = this.spellSystem?.responseWindow;
+            const before = rw?.getPlayerAP ? rw.getPlayerAP(targetIndex) : null;
+            const cost = this.spellSystem?.getSpellCost ? this.spellSystem.getSpellCost({ level: 1 }, targetIndex) : 2;
+            let ready = false;
+            if (before != null && before >= cost && before - amount < cost && window.BotSim?.readyReplies && window.BotState?.snapshot) {
+                ready = window.BotSim.readyReplies(window.BotState.snapshot(), targetIndex).length > 0;
+            }
+            const caster = casterIndex ?? (typeof activePlayerIndex !== 'undefined' ? activePlayerIndex : null);
+            window.ActionLog?.record?.('transmuteDrain', { caster, target: targetIndex, amount, blockedReply: ready }, caster);
+        } catch (e) {}
         const driverIdx = window.BotDriver?.driverRealIndex?.() ?? null;
         if (driverIdx != null && targetIndex === driverIdx && typeof window.BotDriver.spendDriverAP === 'function') {
             window.BotDriver.spendDriverAP(amount);

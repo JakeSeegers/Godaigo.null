@@ -3837,9 +3837,9 @@
 
             // Transmute's opponent option (scroll-effects.js drainPlayerAP).
             gameChannel.on('broadcast', { event: 'transmute-drain' }, ({ payload }) => {
-                const { targetIndex, amount } = payload || {};
+                const { targetIndex, amount, casterIndex } = payload || {};
                 if (typeof targetIndex !== 'number' || !(amount > 0)) return;
-                spellSystem?.scrollEffects?.drainPlayerAP?.(targetIndex, Math.min(2, amount));
+                spellSystem?.scrollEffects?.drainPlayerAP?.(targetIndex, Math.min(2, amount), casterIndex);
             });
 
             gameChannel.on('broadcast', { event: 'opponent-stone-destroyed' }, ({ payload }) => {
