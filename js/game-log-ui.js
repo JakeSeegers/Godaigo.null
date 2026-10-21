@@ -383,6 +383,15 @@
                     className: 'gl-effect' };
                 return null;
             }
+            // Transmute on an opponent: online games show the 'targeted' line instead.
+            case 'transmuteDrain': {
+                if (typeof isMultiplayer !== 'undefined' && isMultiplayer) return null;
+                const byName = Object.keys(window.SCROLL_DEFINITIONS || {}).find(k => window.SCROLL_DEFINITIONS[k]?.name === 'Transmute') || 'FIRE_SCROLL_3';
+                return {
+                    html: L('{0} used {1} on {2}: they lost {3} AP', playerSpan(entry.caster), `<span style="${scrollStyle(byName)}">${esc('Transmute')}</span>`,
+                        playerSpan(entry.target), esc(String(entry.amount || 0))),
+                    className: 'gl-counter' };
+            }
             case 'simplifyAP': {
                 return {
                     html: `<span style="${scrollStyle('VOID_SCROLL_3')}">${esc(`Simplify: +${entry.amount || 2} AP (a scroll went to the common area)`)}</span>`,

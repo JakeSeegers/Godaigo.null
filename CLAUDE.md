@@ -789,6 +789,9 @@ Order matters — later scripts depend on earlier ones.
                              Phase 2: pressures(o) (elements weighted by difficulty, void most; clear leader 1.5 / 3 el or 2+ ahead 2 / 5 el or 3+ ahead 2.5 / can win 4, x favor) weight
                              opponentProgress in evaluateSnapshot, tacticalContext blocking, Arson/Plunder targets;
                              bot.js kingmakerFilter never lets an opponent with 5 elements get within 5 AP of home.
+                             Transmute drains (2026-10-21): scroll-effects.js drainPlayerAP logs ActionLog 'transmuteDrain' {caster, target, amount,
+                             blockedReply} on every browser; favor -0.05 per AP, -0.25 more when it took a reply the bot could pay for
+                             (BotSim.readyReplies); one note per attacker per turn, grudge at -0.25, counts as aimed harm for pacts.
                              Phase 3: emote sentences (say(): Game Log 'botTalk' line at once, emotes queued; online
                              the emoji broadcast carries `talk`), one-round pacts against the leader or (grudge pacts) against whoever hurt a bot, trust from
                              kept / withdrawn / broken pacts, thanks and grudges. Silent in muted training.

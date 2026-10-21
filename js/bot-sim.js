@@ -892,21 +892,28 @@
     // with the most elements (ties: fewer discards) whom the caster's non-void
     // stones can bring below that cost; null = none (gain AP as before).
     // Shared by bot-effects.js driveTransmute and the mirror below. Public info only.
+    // Response / level 1 scrolls in player j's active area or the common area
+    // whose shape j has made (public info). AP is not checked here.
+    function readyReplies(snap, j) {
+        const o = snap.players[j];
+        if (!o) return [];
+        const isResp = n => { const d = window.SCROLL_DEFINITIONS?.[n]; return !!d && (d.isResponse || d.isCounter || d.level === 1); };
+        return [...(snap.commonArea || []), ...(o.active || [])].filter(isResp).filter(n => {
+            try { return !!checkPattern(snap, n, j); } catch (e) { return false; }
+        });
+    }
+
     function transmuteDrainPlan(snap, idx = snap.turn.activePlayerIndex) {
         const me = snap.players[idx];
         if (!me) return null;
         const spare = ELEMENTS.reduce((n, el) => n + (el === 'void' ? 0 : (me.pool[el] || 0)), 0);
         if (spare <= 0) return null;
-        const isResp = n => { const d = window.SCROLL_DEFINITIONS?.[n]; return !!d && (d.isResponse || d.isCounter || d.level === 1); };
-        const common = (snap.commonArea || []).filter(isResp);
         let best = null;
         snap.players.forEach((o, j) => {
             if (!o || j === idx || o.immune || o.ap == null) return;
             const cost = o.respCost ?? 2;
             if (cost <= 0 || o.ap < cost) return;
-            const ready = [...common, ...(o.active || []).filter(isResp)].filter(n => {
-                try { return !!checkPattern(snap, n, j); } catch (e) { return false; }
-            });
+            const ready = readyReplies(snap, j);
             if (!ready.length) return;
             const discards = Math.ceil((o.ap - cost + 1) / 2);
             if (discards > spare) return;
@@ -2652,7 +2659,7 @@
         simulate, legalActions, isTerminal, winner,
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
         stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
-        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, transmuteDrainPlan, takeFlightLandingFor, takeFlightSendFor, isUnknownScroll, unknownScrollElement,
+        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, transmuteDrainPlan, readyReplies, takeFlightLandingFor, takeFlightSendFor, isUnknownScroll, unknownScrollElement,
         travelTilesAt, travelGoalPoint, telekinesisSlots,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');

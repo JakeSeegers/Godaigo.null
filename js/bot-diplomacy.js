@@ -97,6 +97,7 @@
     const MAX_EVENTS = 8;                            // remembered notable events per observer
     const HOSTILE = new Set(['EARTH_SCROLL_2', 'FIRE_SCROLL_4', 'VOID_SCROLL_2', 'WIND_SCROLL_5', 'CATACOMB_SCROLL_8', 'CATACOMB_SCROLL_10']);
     const ELEMENTS4 = ['earth', 'water', 'fire', 'wind'];
+    const DRAIN = { perAp: 0.05, blocked: 0.25 };   // favor lost per AP drained, + when it blocked a reply
     const STEP_PX = 35;
 
     let S = fresh();
@@ -394,6 +395,28 @@
         if (e.type === 'cast_execute') {
             const who = e.playerIndex ?? e.player;
             if (who != null && S.firstCast[who] == null) S.firstCast[who] = Math.max(1, S.ownTurns[who] || 1);
+        }
+        // Transmute on an opponent (2026-10-21): AP is not one of the parts the
+        // board watch measures, so a drain is judged here. Aimed at that player,
+        // so it counts like a hostile scroll hit (and can break a pact); worse
+        // when it took away a reply the bot could pay for.
+        if (e.type === 'transmuteDrain' && e.caster != null && e.target != null && e.caster !== e.target && isBotSeat(e.target)) {
+            const o = e.target, actor = e.caster;
+            const df = -(DRAIN.perAp * (e.amount || 0) + (e.blockedReply ? DRAIN.blocked : 0));
+            const r = relOf(o, actor);
+            r.favor = Math.max(-3, Math.min(3, r.favor + df));
+            S.drainTurn ||= {};
+            const key = `${o}>${actor}`;
+            const prev = S.drainTurn[key]?.turn === S.turns ? S.drainTurn[key] : null;
+            const sum = (prev ? prev.df : 0) + df;
+            const blocked = !!(prev?.blocked || e.blockedReply);
+            S.drainTurn[key] = { turn: S.turns, df: sum, blocked };
+            // One note per attacker per turn (one Transmute = several discards).
+            if (prev && S.events[o]?.[0]?.drainKey === key) S.events[o].shift();
+            note(o, `${nameOf(actor)} drained my AP${blocked ? ', so I could not reply' : ''} (Transmute)`, sum);
+            S.events[o][0].drainKey = key;
+            if (sum <= -0.25 && df < 0) feel(o, actor, sum);
+            try { pactObserve(actor, {}, [[o, sum, true]]); } catch (err) {}
         }
         if (e.type === 'cast_execute' && HOSTILE.has(e.scrollName)) {
             const def = window.SCROLL_DEFINITIONS?.[e.scrollName];
