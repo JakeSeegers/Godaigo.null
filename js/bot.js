@@ -402,6 +402,7 @@
         stratAdventure:     60,   // reveals (Heavy Stomp, steps onto face-down tiles) while Call to Adventure is up
         stratBurn:           1,   // x AP gained (x STRAT_AP_WORTH): Burning Motivation burn loop
         stratTrap:          40,   // x threat: Mason's Savvy earth closing an opponent's exits
+        transmuteDrain:     60,   // Transmute on an opponent with a response ready, when another cast is ready this turn (x1.5 a counter; BotSim.transmuteDrainPlan, owner 2026-10-21); 0 = off
         cutOff:             25,   // x cutoff value: reveal / walk to / Heavy Stomp the face-down tiles an opponent needs for scrolls, early game (cutoffValues, owner 2026-10-20; A/B 21-17-2, with Heavy Stomp in hand 17-18-5); 0 = off
         placeStartRoom:     0,    // x face-down tiles near a start spot that no earlier mover reaches first (startRoom, owner 2026-10-20; A/B alone 17-23-0, so OFF); 0 = off
         castChoiceNeed:     20,   // greedy tie-break between a scroll's choices (River / Stomp):
@@ -4662,7 +4663,7 @@
     const DRAW_STONE_SCROLLS = { EARTH_SCROLL_3: 'earth', CATACOMB_SCROLL_6: 'water', WIND_SCROLL_3: 'wind' };
     const STRAT_AP_WORTH = 6;   // greedy / root value of one AP gained
     const BURN_LOOPS = 6;
-    const _stratCount = { travel: 0, adventure: 0, burn: 0, trap: 0 };
+    const _stratCount = { travel: 0, adventure: 0, burn: 0, trap: 0, drain: 0 };
     function apRoom(snap, self) { return Math.max(0, 5 + (self.pool.void || 0) - (snap.turn.ap || 0)); }
     // Free hexes next to the pawn that are next to an unvoided fire stone.
     function burnSpots(snap, self) {
@@ -4724,7 +4725,7 @@
         return best;
     }
     function strategyParts(a, snap) {
-        const out = { travel: 0, adventure: 0, burn: 0, trap: 0, cutoff: 0 };
+        const out = { travel: 0, adventure: 0, burn: 0, trap: 0, cutoff: 0, drain: 0 };
         const self = me(snap);
         const sim = window.BotSim;
         if (!self || !sim || !a) return out;
@@ -4753,6 +4754,18 @@
                 }
                 if (a.scroll === 'FIRE_SCROLL_5' && stacks === 0 && Object.keys(DRAW_STONE_SCROLLS).some(s => held.has(s))) {
                     out.burn += WEIGHTS.stratBurn * STRAT_AP_WORTH * 3;
+                }
+            }
+            // Transmute on an opponent with a response ready, so the cast after it
+            // cannot be answered (owner 2026-10-21). Only when another scroll is
+            // castable now and the AP after Transmute still pays for it.
+            if (WEIGHTS.transmuteDrain > 0 && a.scroll === 'FIRE_SCROLL_3' && sim.transmuteDrainPlan) {
+                const plan = sim.transmuteDrainPlan(snap, idx);
+                const cost = 2;
+                if (plan && snap.turn.ap - cost >= cost) {
+                    const next = [...(self.active || []), ...(snap.commonArea || [])]
+                        .some(n => n !== 'FIRE_SCROLL_3' && (window.SCROLL_DEFINITIONS?.[n]?.level || 0) > 1 && sim.checkPattern(snap, n, idx));
+                    if (next) out.drain += WEIGHTS.transmuteDrain * (plan.counter ? 1.5 : 1);
                 }
             }
             if (WEIGHTS.stratTravel && a.scroll === 'EARTH_SCROLL_2' && a.choice?.travel) {
@@ -4799,7 +4812,7 @@
     }
     function strategyBonus(a, snap) {
         const p = strategyParts(a, snap);
-        return p.travel + p.adventure + p.burn + p.trap + p.cutoff;
+        return p.travel + p.adventure + p.burn + p.trap + p.cutoff + p.drain;
     }
 
     // ── Cutting players off (owner 2026-10-20) ─────────────────────

@@ -571,6 +571,8 @@ Order matters — later scripts depend on earlier ones.
                              and Heavy Stomp revealing one (BotSim castChoices adds that tile). placeStartRoom (OFF, 0; alone 17-23-0):
                              startTileScore adds face-down tiles within START_REACH 250 of a start spot, those an earlier placer also reaches x0.25.
                              Test hooks _cutoffValues, _review.cutoffSeen.
+                             transmuteDrain (owner 2026-10-21, 60): Transmute on an opponent with a response ready (BotSim.transmuteDrainPlan;
+                             snapshot players carry public ap / respCost / immune) when another level 2+ cast is ready; driveTransmute drains it.
                              No setting: Mason's Savvy trap bonus not when its range is up and it can draw nothing; castDoesNothing also
                              covers Heavy Stomp / Call to Adventure with no tile to flip (flipTargets), and the search root now adds
                              castNoEffect; stuckToolHelps Heavy Stomp needs a flip target (a two-bot stall cast it twice a turn).

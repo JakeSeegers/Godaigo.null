@@ -124,6 +124,15 @@
         return tiles;
     }
 
+    function publicAP(i) {
+        try {
+            const rw = window.spellSystem?.responseWindow;
+            if (rw?.getPlayerAP) return rw.getPlayerAP(i);
+        } catch (e) {}
+        const ap = typeof playerAPs !== 'undefined' ? playerAPs[i] : null;
+        return ap ? (ap.currentAP || 0) + (ap.voidAP || 0) : null;
+    }
+
     function snapshot() {
         const my = (typeof isMultiplayer !== 'undefined' && isMultiplayer &&
                     typeof myPlayerIndex !== 'undefined' && myPlayerIndex !== null)
@@ -146,6 +155,12 @@
                 active:     scrolls ? [...scrolls.active] : [],             // active area is public
                 activeCount: scrolls ? scrolls.active.size : 0,
                 activated:  scrolls ? [...scrolls.activated] : [],
+                // Public (Opponent Status / spectator scoreboard): AP kept for responses,
+                // what a level 1 response costs them now, Excavate immunity. Read by
+                // BotSim.transmuteDrainPlan (Transmute on an opponent, 2026-10-21).
+                ap: isSelf ? getTotalAP() : publicAP(i),
+                respCost: window.spellSystem?.getSpellCost ? window.spellSystem.getSpellCost({ level: 1 }, i) : 2,
+                immune: !!window.spellSystem?.scrollEffects?.hasExcavateImmunity?.(i),
             };
         });
 

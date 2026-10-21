@@ -8,7 +8,7 @@
       "changes": [
         "Telekinesis: after the move, every tile must touch at least 2 others, and the board must stay in one piece.",
         "New scroll levels. Wind: Freedom 4, Take Flight 5. Fire: Sacrificial Pyre 2, Transmute 3, Arson 4, Burning Motivation 5. Stone shapes follow the new levels.",
-        "Transmute can now target an opponent instead: each discard makes them lose 2 AP. Inspiring Draught: draw 2 from one deck, then put a scroll of that element from your hand or active area on top of that deck.",
+        "Transmute can now target an opponent instead: each discard makes them lose 2 AP (bots use it on players ready to respond). Inspiring Draught: draw 2 from one deck, then put a scroll of that element from your hand or active area on top of that deck.",
         "Sound mix: the music is a little quieter and many sound effects that were hard to hear are now clear.",
         "The music's bass now comes through on laptop and phone speakers, and the melody stands out more."
       ]

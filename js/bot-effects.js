@@ -712,6 +712,41 @@
         const buttons = [...modal.querySelectorAll('button')];
         const doneBtn = buttons.find(b => srcText(b) === 'Done');
 
+        // Opponent with a response ready (BotSim.transmuteDrainPlan, owner 2026-10-21):
+        // pick them first, then discard until they are below the response cost.
+        if (!modal.dataset.botPlan) {
+            let plan = null;
+            try { plan = window.BotSim?.transmuteDrainPlan?.(window.BotState.snapshot(), casterIndex) || null; } catch (e) { plan = null; }
+            const tBtn = plan && buttons.find(b => b.dataset.playerIndex === String(plan.target) && !b.disabled);
+            if (tBtn) {
+                tBtn.click();
+                modal.dataset.botPlan = JSON.stringify({ left: plan.discards });
+                log(`Transmute: draining player ${plan.target} (${plan.discards} discard(s)) - response ready`);
+                return true;
+            }
+            modal.dataset.botPlan = JSON.stringify({ left: null });
+        }
+        const plan = JSON.parse(modal.dataset.botPlan);
+        const discardMost = () => {
+            let best = null, bestCount = 0;
+            buttons.filter(b => /^Discard 1 /.test(srcText(b)) && !/^Discard 1 void/.test(srcText(b)) && !b.disabled)
+                .forEach(b => {
+                    const m = srcText(b).match(/\((\d+)\)$/);
+                    const count = m ? parseInt(m[1], 10) : 0;
+                    if (count > bestCount) { bestCount = count; best = b; }
+                });
+            if (best) best.click();
+            return !!best;
+        };
+        if (plan.left != null) {
+            if (plan.left > 0 && discardMost()) {
+                modal.dataset.botPlan = JSON.stringify({ left: plan.left - 1 });
+                return true;
+            }
+            doneBtn?.click();
+            return true;
+        }
+
         if (currentTotalAP >= target) {
             doneBtn?.click();
             return true;

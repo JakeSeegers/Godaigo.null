@@ -886,7 +886,54 @@
     // never void — driveTransmute skips both (see its comment; skipping
     // void is also what makes this mirror exact, since a void discard
     // clamps voidAP through a current/void split the snapshot can't see).
+    // Transmute on an opponent (owner 2026-10-21): an opponent with a response
+    // scroll ready (level 1 / response in their active area or the common area,
+    // shape made, AP >= its cost) loses 2 AP per discard. Plan = the opponent
+    // with the most elements (ties: fewer discards) whom the caster's non-void
+    // stones can bring below that cost; null = none (gain AP as before).
+    // Shared by bot-effects.js driveTransmute and the mirror below. Public info only.
+    function transmuteDrainPlan(snap, idx = snap.turn.activePlayerIndex) {
+        const me = snap.players[idx];
+        if (!me) return null;
+        const spare = ELEMENTS.reduce((n, el) => n + (el === 'void' ? 0 : (me.pool[el] || 0)), 0);
+        if (spare <= 0) return null;
+        const isResp = n => { const d = window.SCROLL_DEFINITIONS?.[n]; return !!d && (d.isResponse || d.isCounter || d.level === 1); };
+        const common = (snap.commonArea || []).filter(isResp);
+        let best = null;
+        snap.players.forEach((o, j) => {
+            if (!o || j === idx || o.immune || o.ap == null) return;
+            const cost = o.respCost ?? 2;
+            if (cost <= 0 || o.ap < cost) return;
+            const ready = [...common, ...(o.active || []).filter(isResp)].filter(n => {
+                try { return !!checkPattern(snap, n, j); } catch (e) { return false; }
+            });
+            if (!ready.length) return;
+            const discards = Math.ceil((o.ap - cost + 1) / 2);
+            if (discards > spare) return;
+            const counter = ready.some(n => window.SCROLL_DEFINITIONS?.[n]?.isCounter);
+            const cand = { target: j, discards, counter, elements: (o.activated || []).length };
+            if (!best || cand.elements > best.elements || (cand.elements === best.elements && cand.discards < best.discards)) best = cand;
+        });
+        return best;
+    }
+
     function simEffectTransmute(snap, p) {
+        const drain = transmuteDrainPlan(snap, snap.turn.activePlayerIndex);
+        if (drain) {
+            for (let k = 0; k < drain.discards; k++) {
+                let best = null, bestCount = 0;
+                for (const el of ELEMENTS) {
+                    if (el === 'void') continue;
+                    if ((p.pool[el] || 0) > bestCount) { bestCount = p.pool[el]; best = el; }
+                }
+                if (!best) break;
+                p.pool[best]--;
+                if ((snap.sourcePool[best] || 0) < SOURCE_CAP) snap.sourcePool[best]++;
+                const o = snap.players[drain.target];
+                o.ap = Math.max(0, (o.ap || 0) - 2);
+            }
+            return;
+        }
         const maxTotal = BASE_AP + (p.pool.void || 0);
         const target = Math.min(maxTotal,
             window.BotSystem?.WEIGHTS?.transmuteTargetAP ?? 7);
@@ -2605,7 +2652,7 @@
         simulate, legalActions, isTerminal, winner,
         checkPattern, canMoveTo, grid, diffSnapshots, validate,
         stoneWouldSurvive, chainedAbility, waterChainResult, waterChainsToWind, isFreeStone,
-        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, takeFlightLandingFor, takeFlightSendFor, isUnknownScroll, unknownScrollElement,
+        SIMULATED_SCROLLS, UNKNOWN_SCROLL, castChoices, transmuteDrainPlan, takeFlightLandingFor, takeFlightSendFor, isUnknownScroll, unknownScrollElement,
         travelTilesAt, travelGoalPoint, telekinesisSlots,
     };
     log('Loaded - window.BotSim ready (simulate / legalActions / isTerminal / validate)');
