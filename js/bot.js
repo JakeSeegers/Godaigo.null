@@ -402,7 +402,7 @@
         stratAdventure:     60,   // reveals (Heavy Stomp, steps onto face-down tiles) while Call to Adventure is up
         stratBurn:           1,   // x AP gained (x STRAT_AP_WORTH): Burning Motivation burn loop
         stratTrap:          40,   // x threat: Mason's Savvy earth closing an opponent's exits
-        transmuteDrain:     60,   // Transmute on an opponent with a response ready, when another cast is ready this turn (x1.5 a counter; BotSim.transmuteDrainPlan, owner 2026-10-21); 0 = off
+        transmuteDrain:     60,   // Transmute on an opponent with a response ready, when another cast is ready this turn (x1.5 a counter; BotSim.transmuteDrainPlan, owner 2026-10-21); 0 = never drain (Transmute only gains AP)
         cutOff:             25,   // x cutoff value: reveal / walk to / Heavy Stomp the face-down tiles an opponent needs for scrolls, early game (cutoffValues, owner 2026-10-20; A/B 21-17-2, with Heavy Stomp in hand 17-18-5); 0 = off
         placeStartRoom:     0,    // x face-down tiles near a start spot that no earlier mover reaches first (startRoom, owner 2026-10-20; A/B alone 17-23-0, so OFF); 0 = off
         castChoiceNeed:     20,   // greedy tie-break between a scroll's choices (River / Stomp):

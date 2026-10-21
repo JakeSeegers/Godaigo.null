@@ -904,6 +904,7 @@
     }
 
     function transmuteDrainPlan(snap, idx = snap.turn.activePlayerIndex) {
+        if ((window.BotSystem?.WEIGHTS?.transmuteDrain ?? 60) <= 0) return null; // 0 = never drain
         const me = snap.players[idx];
         if (!me) return null;
         const spare = ELEMENTS.reduce((n, el) => n + (el === 'void' ? 0 : (me.pool[el] || 0)), 0);
