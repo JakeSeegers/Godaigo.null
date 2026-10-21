@@ -2246,5 +2246,7 @@ window.I18N_ES = {
     "Telekinesis: drag a highlighted tile to move it. After the move, every tile must touch at least 2 others, and the board must stay in one piece.": "Telequinesis: arrastra una loseta resaltada para moverla. Tras moverla, cada loseta debe tocar al menos otras 2, y el tablero debe quedar en una sola pieza.",
     // Change Log 2026-10-21
     "Telekinesis rule": "Regla de Telequinesis",
+    "Telekinesis rule and wind scrolls": "Regla de Telequinesis y pergaminos de viento",
+    "Freedom is now a level 4 wind scroll and Take Flight is now level 5. Their stone shapes swap too.": "Libertad ahora es un pergamino de viento de nivel 4 y Alzar el Vuelo ahora es de nivel 5. Sus formas de piedras también se intercambian.",
     "Telekinesis: after the move, every tile must touch at least 2 others, and the board must stay in one piece.": "Telequinesis: tras moverla, cada loseta debe tocar al menos otras 2, y el tablero debe quedar en una sola pieza.",
 };

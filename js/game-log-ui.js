@@ -135,7 +135,7 @@
         globalPlacement:           { scroll: 'EARTH_SCROLL_5' },
         waterWindGlobalPlacement:  { scroll: 'CATACOMB_SCROLL_6' },
         earthExtendedPlacement:    { scroll: 'EARTH_SCROLL_3' },
-        freedom:                   { scroll: 'WIND_SCROLL_5' },
+        freedom:                   { scroll: 'WIND_SCROLL_4' },
         quickReflexes:             { scroll: 'CATACOMB_SCROLL_9' },
         excavate:                  { scroll: 'CATACOMB_SCROLL_4' },
         unbiddenLamplight:         { scroll: 'FIRE_SCROLL_1' },
