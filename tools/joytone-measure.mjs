@@ -31,7 +31,10 @@
 //   node tools/joytone-measure.mjs --tone '{"harmGain":0.8}'
 //                                                      try other TONE settings (joytone/index.html)
 //                                                      without editing the file; "bassGain" = master
-//                                                      bass shelf in dB (THEME_MASTER_FX)
+//                                                      bass shelf in dB (THEME_MASTER_FX); "partials" =
+//                                                      BASS_PARTIALS, e.g. [[2,0.3],[3,0.15]]; "mute" =
+//                                                      track labels to silence; "section" = start at
+//                                                      that section index (5 = Union, every track)
 //
 // Output (git-ignored), default tools/.cache/joytone-measure/:
 //   report.md        tables + warnings, with changes since the last run
@@ -112,6 +115,7 @@ function serve() {
 async function recordInPage({ sc, seconds, tone }) {
     const A = window.JoytoneAPI;
     if (tone) Object.assign(TONE, tone); // before boot builds the audio graph
+    if (tone?.partials) BASS_PARTIALS.splice(0, BASS_PARTIALS.length, ...tone.partials);
     const shelf = () => { // tone.bassGain: try another master bass shelf (dB) too
         if (tone?.bassGain == null) return;
         project.masterFx.bassGain = tone.bassGain;
@@ -119,6 +123,17 @@ async function recordInPage({ sc, seconds, tone }) {
     };
     await A.boot();
     shelf();
+    const mute = () => { // tone.mute: track labels to silence (find who makes what)
+        if (!tone?.mute) return;
+        for (const sec of Object.values(project.sections))
+            for (const t of Object.values(sec.tracks))
+                if (tone.mute.some(m => t.label.includes(m))) { t.muted = true; trackEngines[t.id]?.apply?.(t); }
+        rebuildEngines();
+    };
+    mute();
+    if (tone?.section != null) { // start playback at this section index
+        stopPlayback(); activeSectionId = project.sectionOrder[tone.section]; startPlayback(0);
+    }
     if (sc.salsa) A.setSalsa(true);
     A.setTension(sc.tension);
     if (sc.tile) {

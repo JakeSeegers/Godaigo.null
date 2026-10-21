@@ -78,8 +78,11 @@ warnings, change since the last run), `report.json`, one `.wav` and one `.png`
 them on the same scales. Before / after a Joytone change: run, change, run
 again, read `report.md`.
 
-`--tone '{"harmGain":3,"bassGain":5}'` tries other values of the TONE stage
-(joytone/index.html) or the master bass shelf without editing the file. The
+`--tone '{...}'` tries settings without editing joytone/index.html: TONE
+stage values (`presenceDb`, `airDb`, ...), `bassGain` (master bass shelf),
+`partials` (bass overtones, `[[2,0.3],[3,0.16]]`), `mute` (track labels to
+silence, to hear what one track adds) and `section` (start at that section;
+5 = Union, where every track plays). The
 "On laptop" column is the music through a 200 Hz high-pass, like small
 speakers. Sound effect targets (as played): big moments about -14 LUFS max
 momentary, actions about -17, clicks -20 to -24, footsteps about -26, with the
