@@ -616,11 +616,9 @@
     // ----------------------------------------------------------------
     // Inspiring Draught (WATER_SCROLL_3) — two steps:
     //   1. deck-select-modal: toggle ONE element button, then Confirm.
-    //   2. (only if that deck had >=2 scrolls left) scroll-select-modal:
-    //      pick which of the 2 drawn scrolls to put back — the other is
-    //      kept. If only 1 scroll was available it's auto-kept and this
-    //      step never opens; driveSelection()'s polling just sees no more
-    //      modal and moves on, same as any other multi-step flow here.
+    //   2. scroll-select-modal (only with 2+ scrolls of that element in hand
+    //      + active): pick which one goes back on top of the deck. With one
+    //      choice it is returned at once and this step never opens.
     // ----------------------------------------------------------------
     function driveInspiringDraughtDeck(modal) {
         const want = window.SCROLL_DEFINITIONS?.[window.BotSystem?.scholarWanted?.()];

@@ -1177,8 +1177,8 @@
     const choiceElement = c => (c && ELEMENTS.includes(c.element)) ? c.element : null;
 
     // Inspiring Draught (WATER_SCROLL_3): draws 2 from the most-needed
-    // element's deck, puts 1 back — net effect is always "keep exactly 1"
-    // (even when only 1 was drawable, it's auto-kept), so this is a plain
+    // element's deck, returns 1 of that element (hand or active) to the top:
+    // net effect is about "one more scroll" (none when only 1 was drawable), so a plain
     // +1 UNKNOWN_SCROLL from that deck, same shape as Scholar's Insight.
     // The put-back choice (response-only first, else lowest-level) only
     // affects the DECK, which isn't in the snapshot, so it has no visible

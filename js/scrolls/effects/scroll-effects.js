@@ -735,11 +735,12 @@ const ScrollEffects = {
 
         /**
          * Water Scroll III - Inspiring Draught
-         * Draw 2 scrolls from any decks, put 1 back and shuffle.
+         * Draw 2 scrolls from one deck, then return a scroll of that element
+         * from your hand or active area to the top of that deck.
          */
         WATER_SCROLL_3: {
             name: 'Inspiring Draught',
-            description: 'Draw 2 scrolls from any decks, then put 1 back and shuffle that deck.',
+            description: 'Draw 2 scrolls from one deck, then return a scroll of that element from your hand or active area to the top of that deck.',
             isCounter: false,
             priority: 3,
 
@@ -765,7 +766,7 @@ const ScrollEffects = {
                 return {
                     success: true,
                     requiresSelection: true,
-                    message: 'Select a deck, then choose one scroll to put back.'
+                    message: 'Select a deck, then choose a scroll to return to its top.'
                 };
             }
         },
@@ -3968,7 +3969,11 @@ const ScrollEffects = {
         stone.element.style.pointerEvents = '';
     },
 
-    // Water III - Inspiring Draught: Select 1 deck, draw 2, keep 1, put 1 back and shuffle.
+    // Water III - Inspiring Draught (owner rule 2026-10-21): select 1 deck, draw 2
+    // into your hand, then return one scroll of that element from your hand or
+    // active area (the drawn ones count) to the TOP of that deck, no shuffle.
+    // Everyone sees the return ('inspiring-draught-return', lobby.js), so every
+    // browser's deck has the same top scroll.
     enterInspiringDraughtMode(casterIndex, context) {
         const spellSystem = this.spellSystem;
         if (!spellSystem) return;
@@ -3983,11 +3988,12 @@ const ScrollEffects = {
             }
         };
 
-        // Helper: broadcast a kept scroll to other clients so the host's state stays in sync.
+        const isMp = () => typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function';
+        // Helper: broadcast a drawn scroll to other clients so the host's state stays in sync.
         // Without this, the 3-second scroll-state-sync would overwrite the non-host player's
         // hand with the host's stale snapshot (which doesn't include the newly drawn scroll).
         const broadcastKept = (scrollName, deckType) => {
-            if (typeof isMultiplayer !== 'undefined' && isMultiplayer && typeof broadcastGameAction === 'function') {
+            if (isMp()) {
                 broadcastGameAction('scroll-collected', {
                     playerIndex: casterIndex,
                     scrollName,
@@ -4010,53 +4016,43 @@ const ScrollEffects = {
                 return;
             }
 
-            // Draw up to 2 — don't add to hand yet
+            // Draw up to 2 into the hand
+            this.ensurePlayerScrollsStructure(casterIndex);
+            const playerScrolls = spellSystem.playerScrolls[casterIndex];
             const drawnScrolls = [];
             for (let i = 0; i < 2 && deck.length > 0; i++) {
-                drawnScrolls.push(deck.pop());
+                const sc = deck.pop();
+                drawnScrolls.push(sc);
+                playerScrolls.hand.add(sc);
+                broadcastKept(sc, deckType);
             }
-
-            if (drawnScrolls.length === 0) {
-                updateStatus('No scrolls available to draw!');
-                notifyComplete();
-                return;
-            }
+            if (spellSystem.updateScrollCount) spellSystem.updateScrollCount();
 
             const elementName = deckType.charAt(0).toUpperCase() + deckType.slice(1);
+            const ofElement = (sc) => (spellSystem.patterns?.[sc]?.element || window.SCROLL_DEFINITIONS?.[sc]?.element) === deckType;
+            const choices = [...playerScrolls.hand, ...playerScrolls.active].filter(ofElement);
 
-            // Only drew 1 — keep it automatically
-            if (drawnScrolls.length === 1) {
-                this.ensurePlayerScrollsStructure(casterIndex);
-                spellSystem.playerScrolls[casterIndex].hand.add(drawnScrolls[0]);
-                updateStatus(`Drew 1 ${elementName} scroll (kept it).`);
+            const returnScroll = (sc) => {
+                if (!sc) { notifyComplete(); return; }
+                playerScrolls.hand.delete(sc);
+                playerScrolls.active.delete(sc);
+                spellSystem.scrollDecks[deckType].push(sc); // pop() draws from the end: this is the top
+                updateStatus(`Drew ${drawnScrolls.length} ${elementName} scroll${drawnScrolls.length === 1 ? '' : 's'}, returned 1 to the top of the deck.`);
                 if (spellSystem.updateScrollCount) spellSystem.updateScrollCount();
-                broadcastKept(drawnScrolls[0], deckType);
-                notifyComplete();
-                return;
-            }
-
-            // Drew 2 — show modal to choose which to put back
-            this.showScrollSelectionModal(
-                drawnScrolls,
-                `Choose one ${elementName} scroll to put back (the other goes to your hand):`,
-                (selectedToReturn) => {
-                    this.ensurePlayerScrollsStructure(casterIndex);
-                    const playerScrolls = spellSystem.playerScrolls[casterIndex];
-                    let keptScroll = null;
-                    drawnScrolls.forEach(scroll => {
-                        if (scroll === selectedToReturn) {
-                            spellSystem.scrollDecks[deckType].push(scroll);
-                            this.shuffleDeck(spellSystem.scrollDecks[deckType]);
-                        } else {
-                            playerScrolls.hand.add(scroll);
-                            keptScroll = scroll;
-                        }
-                    });
-                    updateStatus(`Drew 2 ${elementName} scrolls, put 1 back and shuffled.`);
-                    if (spellSystem.updateScrollCount) spellSystem.updateScrollCount();
-                    if (keptScroll) broadcastKept(keptScroll, deckType);
-                    notifyComplete();
+                if (typeof updateScrollDeckUI === 'function') updateScrollDeckUI();
+                if (isMp()) {
+                    broadcastGameAction('inspiring-draught-return', { playerIndex: casterIndex, scrollName: sc, element: deckType });
                 }
+                notifyComplete();
+            };
+
+            if (choices.length <= 1) { returnScroll(choices[0]); return; }
+            // The rule always returns one: Cancel returns the last drawn scroll.
+            this.showScrollSelectionModal(
+                choices,
+                `Choose one ${elementName} scroll to put back on top of the deck (from your hand or active area):`,
+                (selected) => returnScroll(selected),
+                () => returnScroll(drawnScrolls[drawnScrolls.length - 1])
             );
         });
     },
