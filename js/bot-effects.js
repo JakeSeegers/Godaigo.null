@@ -905,7 +905,7 @@
     }
 
     // ----------------------------------------------------------------
-    // Take Flight (WIND_SCROLL_4) — two steps:
+    // Take Flight (WIND_SCROLL_5) - two steps:
     //   1. take-flight-player-modal: pick a target. An opponent when the
     //      cast's choice says so (bot.js harmChoices / takeFlightHarm,
     //      2026-09-29: move the leader off a shrine, a ready pattern or its
@@ -941,7 +941,7 @@
             : null;
         // A cast aimed at an opponent (bot.js harmChoices, choice.target):
         // move them. Peek only, driveTakeFlightDrag takes the choice.
-        const pc = pendingChoice && pendingChoice.scrollId === 'WIND_SCROLL_4' ? pendingChoice.choice : null;
+        const pc = pendingChoice && pendingChoice.scrollId === 'WIND_SCROLL_5' ? pendingChoice.choice : null;
         const aimed = pc && pc.target != null
             ? buttons.find(b => b.dataset.playerIndex != null && Number(b.dataset.playerIndex) === pc.target)
             : null;
@@ -1004,7 +1004,7 @@
         // destination — no snapshot-only simulation could ever honestly
         // claim to match a nondeterministic pick, so this was also blocking
         // bot-sim.js from simulating the cast at all.
-        const c = takeChoice('WIND_SCROLL_4');
+        const c = takeChoice('WIND_SCROLL_5');
         const chosen = (c && c.x != null && tf.targetPlayerIndex === activePlayerIndex)
             ? candidates.find(h => Math.hypot(h.x - c.x, h.y - c.y) < 5) : null;
         // The caster picks the landing (owner 2026-10-15): itself = best for

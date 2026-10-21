@@ -631,7 +631,7 @@
     // the next action if AP is left), and not while a scroll that can get out
     // some other way can be cast now (Breath of Power, Take Flight, Freedom,
     // Mudslide, Excavate, Combust): normal scoring decides then.
-    const ESCAPE_SCROLLS = new Set(['WIND_SCROLL_2', 'WIND_SCROLL_4', 'WIND_SCROLL_5', 'CATACOMB_SCROLL_1', 'CATACOMB_SCROLL_4', 'CATACOMB_SCROLL_10']);
+    const ESCAPE_SCROLLS = new Set(['WIND_SCROLL_2', 'WIND_SCROLL_5', 'WIND_SCROLL_4', 'CATACOMB_SCROLL_1', 'CATACOMB_SCROLL_4', 'CATACOMB_SCROLL_10']);
     function trapEscape(snap) {
         const legal = window.BotState.legalActions();
         if (legal.some(a => a.type === 'move' || a.type === 'teleport')) return null;
@@ -663,7 +663,7 @@
     // placement (outside the anchored _plan system, which already skips
     // these via its own credit check) has no way to notice a pattern is
     // pointless and loops forever feeding it stones. Observed in a BotArena
-    // game: 178 placeStone actions toward an already-won WIND_SCROLL_5 in a
+    // game: 178 placeStone actions toward an already-won WIND_SCROLL_4 in a
     // single game, the exact same class of bug castAlreadyWon fixes for the
     // cast action — that fix just never covered placeStone.
     function hasWinCredit(snap, scrollName) {
@@ -1794,7 +1794,7 @@
         })) out.add('CATACOMB_SCROLL_8');                                    // Plunder
         if (ELEMENTS.some(el => needs(el) && (lp.pool[el] || 0) >= 2)) out.add('FIRE_SCROLL_5'); // Arson
         if (h.stones.size >= 2) out.add('CATACOMB_SCROLL_10');               // Combust
-        try { if (takeFlightHarm(snap, h.L) >= 0.3) out.add('WIND_SCROLL_4'); } catch (e) {} // Take Flight
+        try { if (takeFlightHarm(snap, h.L) >= 0.3) out.add('WIND_SCROLL_5'); } catch (e) {} // Take Flight
         // The pact's scholar builds the pact's attack scroll early (Take
         // Flight: the blockers shape where the target lands, blockSpot).
         const D = window.BotDiplomacy;
@@ -2097,7 +2097,7 @@
     // (2 AP, landing on a tile another pawn stands on) and walk the rest,
     // if that beats walking by TRAVEL_SAVE AP. The old plan resumes after
     // the flight; a travel plan older than TRAVEL_TURNS own turns is given up.
-    const TF = 'WIND_SCROLL_4', TRAVEL_MIN = 6, TRAVEL_SAVE = 4, TRAVEL_TURNS = 4;
+    const TF = 'WIND_SCROLL_5', TRAVEL_MIN = 6, TRAVEL_SAVE = 4, TRAVEL_TURNS = 4;
     const CTC = 'WATER_SCROLL_5'; // Control the Current (current plans, makePlan)
     function travelGoal(snap, self, m) {
         if (m.plan && !m.plan.travel) {
@@ -2719,11 +2719,11 @@
         // (3) Take Flight on myself, castable right here.
         if (snap.turn.ap >= 2 && window.BotSim) {
             const reach = [...(self.hand || []), ...(self.active || []), ...(snap.commonArea || [])];
-            if (reach.includes('WIND_SCROLL_4') && window.BotSim.checkPattern(snap, 'WIND_SCROLL_4', snap.turn.activePlayerIndex) &&
-                legal.some(a => a.type === 'cast' && a.scroll === 'WIND_SCROLL_4')) {
-                for (const c of window.BotSim.castChoices?.(snap, 'WIND_SCROLL_4') || []) {
+            if (reach.includes('WIND_SCROLL_5') && window.BotSim.checkPattern(snap, 'WIND_SCROLL_5', snap.turn.activePlayerIndex) &&
+                legal.some(a => a.type === 'cast' && a.scroll === 'WIND_SCROLL_5')) {
+                for (const c of window.BotSim.castChoices?.(snap, 'WIND_SCROLL_5') || []) {
                     if (c.x == null) continue;
-                    offer(2 + costTo(c.x, c.y), { type: 'cast', scroll: 'WIND_SCROLL_4', choice: c }, 'flight');
+                    offer(2 + costTo(c.x, c.y), { type: 'cast', scroll: 'WIND_SCROLL_5', choice: c }, 'flight');
                 }
             }
         }
@@ -4178,7 +4178,7 @@
     //    it so the leader cannot collect there.
     // Where each player cast an attack scroll, so its shape can be broken while that
     // scroll is still public (its active area or the common area). Reset each game.
-    const ATTACK_SPOT_SCROLLS = new Set(['WIND_SCROLL_4', 'EARTH_SCROLL_2', 'VOID_SCROLL_2', 'FIRE_SCROLL_5', 'CATACOMB_SCROLL_8']);
+    const ATTACK_SPOT_SCROLLS = new Set(['WIND_SCROLL_5', 'EARTH_SCROLL_2', 'VOID_SCROLL_2', 'FIRE_SCROLL_5', 'CATACOMB_SCROLL_8']);
     const _attackSpots = {}; // seat -> [{ scroll, x, y }], newest last, max 4
     let _attackHook = false;
     function hookAttackSpots() {
@@ -4459,13 +4459,13 @@
         return n;
     }
     function harmChoices(snap, name) {
-        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_4', 'EARTH_SCROLL_2', 'VOID_SCROLL_2'].includes(name)) return [];
+        if (!['EARTH_SCROLL_4', 'WATER_SCROLL_4', 'WIND_SCROLL_5', 'EARTH_SCROLL_2', 'VOID_SCROLL_2'].includes(name)) return [];
         const self = snap.players[snap.turn.activePlayerIndex];
         const h = self ? harmContext(snap, self) : null;
         if (!h) return [];
         const lp = snap.players[h.L];
         const out = [];
-        if (name === 'WIND_SCROLL_4') {
+        if (name === 'WIND_SCROLL_5') {
             const f = takeFlightHarm(snap, h.L);
             if (f >= 0.3) out.push({ target: h.L, harm: f });
             return out;
@@ -4562,7 +4562,7 @@
     const BLOCK_PULL = 45, BLOCK_STAY = 25;
     function blockSpot(snap, self) {
         const D = window.BotDiplomacy, ai = snap.turn.activePlayerIndex;
-        if (D?.roleOf?.(ai) !== 'blocker' || D.pact?.()?.goal !== 'WIND_SCROLL_4') return null;
+        if (D?.roleOf?.(ai) !== 'blocker' || D.pact?.()?.goal !== 'WIND_SCROLL_5') return null;
         const m = mem(ai);
         if (m.block && m.block.turn === m.ownTurns) return m.block.spot;
         m.block = { turn: m.ownTurns, spot: null };
@@ -4908,7 +4908,7 @@
     //  - blockedTiles: tile ids whose shrine it needs has a stone on the
     //    centre and no free shrine of that element -> Combust (CATACOMB_10)
     //  - occupiers: opponents standing on a shrine it needs, no free one of
-    //    that element -> Take Flight (WIND_SCROLL_4) on them
+    //    that element -> Take Flight (WIND_SCROLL_5) on them
     // Fire next to a blocked centre and breaking it are handled by the
     // blocked-shrine walk + unblockBonus.
     function stuckTools(snap, self) {
@@ -5141,7 +5141,7 @@
         if (scroll === 'VOID_SCROLL_4' || scroll === 'WATER_SCROLL_3' || scroll === 'WATER_SCROLL_2') return st.needScroll;
         if (scroll === 'EARTH_SCROLL_4') return st.needScroll && stompDraws(snap) && flipTargets(snap).length > 0;
         if (scroll === 'CATACOMB_SCROLL_10') return st.blockedTiles.size > 0;
-        if (scroll === 'WIND_SCROLL_4') return st.occupiers.length > 0;
+        if (scroll === 'WIND_SCROLL_5') return st.occupiers.length > 0;
         return false;
     }
 
@@ -5511,7 +5511,7 @@
                 if (c && a.scroll === 'FIRE_SCROLL_5') return `Cast ${n}: burn one of ${who(c.target)}'s ${c.element} stones`;
                 if (c && a.scroll === 'CATACOMB_SCROLL_8') return `Cast ${n}: send ${who(c.target)}'s ${scrollName(c.scroll)} to the common area`;
                 if (c && a.scroll === 'VOID_SCROLL_5') return `Cast ${n}: draw ${c.element} stones`;
-                if (c && a.scroll === 'WIND_SCROLL_4') return c.target != null ? `Cast ${n}: send ${who(c.target)} to another player's tile` : `Cast ${n}: fly to another player's tile`;
+                if (c && a.scroll === 'WIND_SCROLL_5') return c.target != null ? `Cast ${n}: send ${who(c.target)} to another player's tile` : `Cast ${n}: fly to another player's tile`;
                 if (c && a.scroll === 'EARTH_SCROLL_2') return `Cast ${n}: swap a nearby tile with a tile worth having close`;
                 if (c && a.scroll === 'VOID_SCROLL_2') return `Cast ${n}: move a tile next to this one`;
                 if (c && c.tileId == null) {
@@ -5601,7 +5601,7 @@
     function actionTarget(a, snap) {
         if (!a || !a.choice) return null;
         const c = a.choice;
-        if (a.scroll === 'WIND_SCROLL_4' || a.scroll === 'VOID_SCROLL_2') {
+        if (a.scroll === 'WIND_SCROLL_5' || a.scroll === 'VOID_SCROLL_2') {
             if (c.x != null) return { x: c.x, y: c.y, element: null };
         }
         if (a.scroll === 'EARTH_SCROLL_2') {

@@ -105,7 +105,7 @@
 //               clearWanderingRiverForPlayer(next), called right as that
 //               player's turn begins, real code never wires these off
 //               clearTurnBuffs() at all):
-//                 freedom          Freedom (WIND_5) - teleport gate, read by
+//                 freedom          Freedom (WIND_4) - teleport gate, read by
 //                   legalActions() 'teleport' here and by bot-state.js's
 //                   hasFreedomActive() for the real root
 //                 wanderingRiver   Wandering River (WATER_4) — array of
@@ -221,7 +221,7 @@
         // deterministic heuristic in bot-effects.js — see
         // _bestTakeFlightDestination — specifically so this could be added).
         'EARTH_SCROLL_2', 'VOID_SCROLL_4', 'WATER_SCROLL_3', 'CATACOMB_SCROLL_3', 'CATACOMB_SCROLL_8',
-        'WIND_SCROLL_4', 'CATACOMB_SCROLL_9',
+        'WIND_SCROLL_5', 'CATACOMB_SCROLL_9',
         // Tranche 6 (repeatable whole-turn stone-manipulation actions — new
         // action-vocabulary support, see simEffectControlTheCurrent/
         // simEffectBreathOfPower/simMoveStone): Control the Current,
@@ -230,7 +230,7 @@
         // Tranche 7 (cross-turn buffs — new crossTurnBuffs state that
         // survives simEndTurn crossing OTHER players' turns, see
         // simEffectFreedom/simEffectWanderingRiver): Freedom, Wandering River.
-        'WIND_SCROLL_5', 'WATER_SCROLL_4',
+        'WIND_SCROLL_4', 'WATER_SCROLL_4',
         // Tranche 8 (recursive effect dispatch — simCastEffect() factored
         // out of simCast() so the sacrificed scroll's own effect can be
         // simulated): Sacrificial Pyre.
@@ -1064,7 +1064,7 @@
         if (bOccupant !== undefined) { snap.players[bOccupant].x = b.x; snap.players[bOccupant].y = b.y; }
     }
 
-    // Take Flight (WIND_SCROLL_4): self-target only — mirrors the real
+    // Take Flight (WIND_SCROLL_5): self-target only - mirrors the real
     // driver's own v1 scope exactly (bot-effects.js's
     // driveTakeFlightPlayerModal always picks self; opponent-targeting is
     // deliberately out of scope there too). Candidate hexes are every walkable
@@ -1469,7 +1469,7 @@
 
     // ── Tranche 7 (cross-turn buffs — see crossTurn() above) ──────────
 
-    // Freedom (WIND_SCROLL_5): until the caster's own next turn, they may
+    // Freedom (WIND_SCROLL_4): until the caster's own next turn, they may
     // teleport free between any revealed elemental shrine centre, same as
     // standing on a catacomb tile. The buff is read by legalActions()'s
     // teleport candidates.
@@ -1758,7 +1758,7 @@
             simEffectCallToAdventure(snap, p, choice);
         } else if (scrollName === 'CATACOMB_SCROLL_8') {
             simEffectPlunder(snap, p, scrollName, choice);
-        } else if (scrollName === 'WIND_SCROLL_4') {
+        } else if (scrollName === 'WIND_SCROLL_5') {
             simEffectTakeFlight(snap, p, choice);
         } else if (scrollName === 'CATACOMB_SCROLL_9') {
             simEffectQuickReflexes(snap, p, choice);
@@ -1766,7 +1766,7 @@
             simEffectControlTheCurrent(snap, p);
         } else if (scrollName === 'WIND_SCROLL_2') {
             simEffectBreathOfPower(snap, p);
-        } else if (scrollName === 'WIND_SCROLL_5') {
+        } else if (scrollName === 'WIND_SCROLL_4') {
             simEffectFreedom(snap, p);
         } else if (scrollName === 'WATER_SCROLL_4') {
             simEffectWanderingRiver(snap, p, choice);
@@ -1907,7 +1907,7 @@
     //   VOID_SCROLL_5 Create: {element} (top 3 by stone need, room in pool).
     //   FIRE_SCROLL_5 Arson: {target, element} (3 biggest threats x their
     //     2 largest piles). CATACOMB_SCROLL_8 Plunder: {target, scroll}.
-    //   WIND_SCROLL_4 Take Flight: {x, y} landing hex (shrine centres of
+    //   WIND_SCROLL_5 Take Flight: {x, y} landing hex (shrine centres of
     //     occupied tiles, nearest to a face-down tile / home).
     //   EARTH_SCROLL_2 Shifting Sands: {a, b} tile ids (a plain tile near
     //     the pawn swapped with a face-down or needed-shrine tile further
@@ -1994,7 +1994,7 @@
             }
             return out.slice(0, 6);
         }
-        if (name === 'WIND_SCROLL_4') {
+        if (name === 'WIND_SCROLL_5') {
             // Take Flight: where to land. Per tile with another pawn on it,
             // the hex nearest its centre (a shrine to collect from), plus
             // the hex nearest a face-down tile (explore) or home.

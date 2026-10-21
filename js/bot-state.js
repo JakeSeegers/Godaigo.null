@@ -370,7 +370,7 @@
     // Scrolls whose cast carries a choice ({type:'cast', scroll, choice}).
     const CHOICE_SCROLLS = new Set(['WATER_SCROLL_4', 'EARTH_SCROLL_4', 'CATACOMB_SCROLL_3',
         'VOID_SCROLL_4', 'WATER_SCROLL_3', 'CATACOMB_SCROLL_9',
-        'VOID_SCROLL_5', 'FIRE_SCROLL_5', 'CATACOMB_SCROLL_8', 'WIND_SCROLL_4', 'EARTH_SCROLL_2', 'VOID_SCROLL_2']);
+        'VOID_SCROLL_5', 'FIRE_SCROLL_5', 'CATACOMB_SCROLL_8', 'WIND_SCROLL_5', 'EARTH_SCROLL_2', 'VOID_SCROLL_2']);
 
     // Free hexes adjacent to the existing placed-tile cluster, on the LARGE
     // player-tile hex grid (TILE_SIZE * 4) — distinct from hexGrid()'s small

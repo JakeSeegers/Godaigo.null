@@ -1262,10 +1262,10 @@ const ScrollEffects = {
             }
         },
         /**
-         * Wind Scroll IV - Take Flight
+         * Wind Scroll V - Take Flight
          * Teleport target player to an unoccupied space. Move this scroll to common area.
          */
-        WIND_SCROLL_4: {
+        WIND_SCROLL_5: {
             name: 'Take Flight',
             description: "Select a player to teleport. You choose where they land. Destination must be an unoccupied hex on a tile occupied by another player. Cannot target player tiles. Cancels if no valid destination exists.",
             isCounter: false,
@@ -1281,7 +1281,7 @@ const ScrollEffects = {
                 }
 
                 system.enterTakeFlightMode(casterIndex, {
-                    scrollName: context?.scrollName || 'WIND_SCROLL_4',
+                    scrollName: context?.scrollName || 'WIND_SCROLL_5',
                     effectName: 'Take Flight',
                     spell: context?.spell
                 });
@@ -1295,11 +1295,11 @@ const ScrollEffects = {
         },
 
         /**
-         * Wind Scroll V - Freedom
+         * Wind Scroll IV - Freedom
          * Until your next turn, you may teleport for free between elemental
          * shrine centers, the same way a catacomb tile lets you teleport.
          */
-        WIND_SCROLL_5: {
+        WIND_SCROLL_4: {
             name: 'Freedom',
             description: 'Until your next turn, you may teleport for free between elemental shrine centers, the same way a catacomb tile lets you teleport (only applies to you).',
             isCounter: false,
@@ -4727,7 +4727,7 @@ const ScrollEffects = {
         observer.observe(document.body, { childList: true, subtree: true });
     },
 
-    // Wind IV - Take Flight: Teleport any player to an unoccupied hex of your choice
+    // Wind V - Take Flight: Teleport any player to an unoccupied hex of your choice
     enterTakeFlightMode(casterIndex, completionPayload) {
         const self = this;
         const numPlayers = typeof playerPositions !== 'undefined' ? playerPositions.length : 1;
@@ -4845,7 +4845,7 @@ const ScrollEffects = {
 
             self._enterTakeFlightDrag(casterIndex, targetPlayerIndex, targetPlayer, {
                 onDone: (destX, destY) => {
-                    const scrollName = completionPayload?.scrollName || 'WIND_SCROLL_4';
+                    const scrollName = completionPayload?.scrollName || 'WIND_SCROLL_5';
                     self.finalizeTakeFlightChoice(casterIndex, targetPlayerIndex, scrollName, destX, destY);
                     if (completionPayload && self.spellSystem && typeof self.spellSystem.onSelectionEffectComplete === 'function') {
                         self.spellSystem.onSelectionEffectComplete(completionPayload.scrollName, completionPayload.effectName, completionPayload.spell);

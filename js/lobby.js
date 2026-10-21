@@ -2475,7 +2475,7 @@
                 }
             });
 
-            // Take Flight (Wind IV): teleport a player to a new position
+            // Take Flight (Wind V): teleport a player to a new position
             gameChannel.on('broadcast', { event: 'take-flight' }, ({ payload }) => {
                 console.log('📄 Received take-flight:', payload);
                 const { casterIndex: tfCaster, targetPlayerIndex, x, y } = payload;

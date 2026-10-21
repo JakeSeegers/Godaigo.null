@@ -95,7 +95,7 @@
     const SCALE = 500;                               // progress points per 1.0 favor
     const MIN_DELTA = 8;                             // ignore smaller wobbles
     const MAX_EVENTS = 8;                            // remembered notable events per observer
-    const HOSTILE = new Set(['EARTH_SCROLL_2', 'FIRE_SCROLL_5', 'VOID_SCROLL_2', 'WIND_SCROLL_4', 'CATACOMB_SCROLL_8', 'CATACOMB_SCROLL_10']);
+    const HOSTILE = new Set(['EARTH_SCROLL_2', 'FIRE_SCROLL_5', 'VOID_SCROLL_2', 'WIND_SCROLL_5', 'CATACOMB_SCROLL_8', 'CATACOMB_SCROLL_10']);
     const ELEMENTS4 = ['earth', 'water', 'fire', 'wind'];
     const STEP_PX = 35;
 
@@ -252,7 +252,7 @@
         CATACOMB_SCROLL_8: ['ready'],                           // Plunder
         EARTH_SCROLL_2: ['ready', 'road', 'shrines', 'plan', 'path'],     // Shifting Sands
         VOID_SCROLL_2: ['ready', 'road', 'shrines', 'plan', 'path'],      // Telekinesis
-        WIND_SCROLL_4: ['ready', 'road', 'shrines', 'path'],              // Take Flight
+        WIND_SCROLL_5: ['ready', 'road', 'shrines', 'path'],              // Take Flight
         CATACOMB_SCROLL_10: ['ready', 'road', 'shrines', 'plan', 'path'], // Combust
     };
     const PART_WORDS = {
@@ -724,7 +724,7 @@
     // Members may read each other's hands (partners share plans).
     const ROLE_GUARD_ROUNDS = 2;
     const COUNTER_SCROLLS = ['EARTH_SCROLL_1', 'VOID_SCROLL_1'];
-    const TF = 'WIND_SCROLL_4', MASON = 'EARTH_SCROLL_3';
+    const TF = 'WIND_SCROLL_5', MASON = 'EARTH_SCROLL_3';
     const SEARCH_SCROLLS = ['VOID_SCROLL_4', 'WATER_SCROLL_3'];
     function inHand(j, name) {
         const ps = window.spellSystem?.playerScrolls?.[j];
