@@ -34,7 +34,9 @@
 //                                                      bass shelf in dB (THEME_MASTER_FX); "partials" =
 //                                                      BASS_PARTIALS, e.g. [[2,0.3],[3,0.15]]; "mute" =
 //                                                      track labels to silence; "section" = start at
-//                                                      that section index (5 = Union, every track)
+//                                                      that section index (5 = Union, every track);
+//                                                      "roles" = per-track settings by label, "master" =
+//                                                      master settings. --tone @file.json reads a file.
 //
 // Output (git-ignored), default tools/.cache/joytone-measure/:
 //   report.md        tables + warnings, with changes since the last run
@@ -63,7 +65,9 @@ const OUT = path.resolve(ROOT, String(opt('out', 'tools/.cache/joytone-measure')
 const HEADFUL = !!opt('headful', false);
 const DO_SFX = !args.includes('--no-sfx');
 const SR = 44100;
-const TONE_OVERRIDE = opt('tone', null) ? JSON.parse(opt('tone')) : null;
+const toneArg = opt('tone', null);
+const TONE_OVERRIDE = !toneArg ? null
+    : JSON.parse(String(toneArg).startsWith('@') ? fs.readFileSync(String(toneArg).slice(1), 'utf8') : toneArg);
 
 // Each scenario: a fresh page, then setup in the page, then SECONDS of recording.
 // tension: 0..1 (game-core.js updateMusicTension). tile: an element riff
@@ -131,6 +135,20 @@ async function recordInPage({ sc, seconds, tone }) {
         rebuildEngines();
     };
     mute();
+    // tone.roles: per-track settings by label ({volume, reverbSend, effects: {...}}),
+    // tone.master: master settings (compThreshold, limiterCeiling, bassGain, ...).
+    const style = () => {
+        if (tone?.roles) for (const sec of Object.values(project.sections)) for (const t of Object.values(sec.tracks)) {
+            const r = tone.roles[t.label];
+            if (!r) continue;
+            if (r.volume != null) t.volume = r.volume;
+            if (r.reverbSend != null) t.reverbSend = r.reverbSend;
+            t.effects = { ...t.effects, ...(r.effects || {}) };
+            trackEngines[t.id]?.apply(t);
+        }
+        if (tone?.master) { Object.assign(project.masterFx, tone.master); applyMasterFxToAudio(0.01); }
+    };
+    style();
     if (tone?.section != null) { // start playback at this section index
         stopPlayback(); activeSectionId = project.sectionOrder[tone.section]; startPlayback(0);
     }
@@ -147,6 +165,7 @@ async function recordInPage({ sc, seconds, tone }) {
         startPlayback(0);
         if (sc.salsa) A.setSalsa(true);
         A.setTension(sc.tension);
+        mute(); style();
     }
 
     // AudioWorklet taps: 'out' records the final output, 'pre' only keeps

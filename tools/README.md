@@ -78,6 +78,11 @@ warnings, change since the last run), `report.json`, one `.wav` and one `.png`
 them on the same scales. Before / after a Joytone change: run, change, run
 again, read `report.md`.
 
+`joytone-mixes/` holds mixes to try in Joytone (Shift+J+T, FX state upload):
+`Five_Elements_Theme-fx-states-claude-mix.json` = the owner's FX 1 plus
+"Claude mix" (per-track changes in `claude-mix-roles.json`, measured with
+`--tone @tools/joytone-mixes/claude-mix-roles.json`). Not loaded by the game.
+
 `--tone '{...}'` tries settings without editing joytone/index.html: TONE
 stage values (`presenceDb`, `airDb`, ...), `bassGain` (master bass shelf),
 `partials` (bass overtones, `[[2,0.3],[3,0.16]]`), `mute` (track labels to
