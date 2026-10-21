@@ -53,3 +53,33 @@ in the browser: Train Bot (lobby) and idle training. The current champion is
 the newest promoted row of `bot_champion_weights`.
 
 `online-test.mjs` runs online test games from a PC (see its header comment).
+
+---
+
+## Music: render and measure Joytone
+
+`joytone-measure.mjs` lets Claude (who cannot hear) check the Joytone music.
+It plays `joytone/index.html` in headless Chromium through `window.JoytoneAPI`
+(the same calls `js/joytone-bridge.js` makes), records the final output for
+12 scenarios (calm / mid / peak tension, a tension sweep, salsa, each element's
+tile riff) and measures each one: loudness (LUFS, true peak, range), how hard
+the soft clipper works, clicks, drop-outs, DC offset, stereo, tone. It also
+measures the sound effects in `sounds/` at their game volume, to compare with
+the music. Recording is real time: about 5 minutes for all scenarios.
+
+    npm i                                       # once (Playwright); also needs ffmpeg
+    node tools/joytone-measure.mjs              # all scenarios, 16 s each
+    node tools/joytone-measure.mjs --only calm,salsa --seconds 30
+    node tools/joytone-measure.mjs --list
+
+Output in `tools/.cache/joytone-measure/` (git-ignored): `report.md` (tables,
+warnings, change since the last run), `report.json`, one `.wav` and one `.png`
+(waveform over a labelled spectrogram) per scenario, and `grid.png` with all of
+them on the same scales. Before / after a Joytone change: run, change, run
+again, read `report.md`.
+
+Limits: a fresh browser has no saved Joytone FX states, like most players. The
+first 16 s of each scenario is mostly the theme's opening section, so use
+`--seconds 60` or more to hear later sections. ffmpeg 6.1 draws spectrograms
+wrongly when given a frequency range, so the picture always shows 20 Hz to
+22 kHz.

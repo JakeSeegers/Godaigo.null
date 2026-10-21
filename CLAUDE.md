@@ -89,6 +89,7 @@ CLAUDE.md  (you are here)
 │   └── js/scrolls/INDEX.md  ← Scroll system: definitions, effects, response window
 ├── css/INDEX.md             ← Stylesheet responsibilities and token locations
 ├── joytone/                 ← Embedded Joytone music app (iframe; driven by js/joytone-bridge.js)
+│                              tools/joytone-measure.mjs renders + measures it (loudness, clipping, clicks, spectrograms; tools/README.md)
 ├── docs/INDEX.md            ← Game design doc pointer, design decisions
 └── planning/current.md      ← Live task state (branch, files, next steps)
 ```
